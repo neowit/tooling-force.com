@@ -1,0 +1,166 @@
+/*
+ * Copyright (c) 2013 Andrey Gavrikov.
+ * this file is part of tooling-force.com application
+ * https://github.com/neowit/tooling-force.com
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package com.neowit.apex.tooling
+
+import java.util.Properties
+import com.typesafe.scalalogging.slf4j.Logging
+import scala.collection.mutable.ListBuffer
+import scala.annotation.tailrec
+
+class InvalidCommandLineException(msg: String)  extends IllegalArgumentException(msg: String) {
+    def this() {
+        this(null)
+    }
+}
+class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumentException(msg: String)
+
+trait PropertiesOption extends Properties{
+
+    def getPropertyOption(key: String): Option[String] = {
+        super.getProperty(key) match {
+            case null => None
+            case x => Some(x)
+        }
+    }
+    def getPropertyOption(key: String, defaultValue: String): Option[String] = {
+        super.getProperty(key) match {
+            case null => Some(defaultValue)
+            case x => Some(x)
+        }
+    }
+}
+object Config extends Logging {
+    private var config: Config = new Config
+    def getConfig = {
+        config
+    }
+    def resetConfig = {
+        //used in unit tests
+        config = new Config
+    }
+}
+
+class Config extends Logging{
+    type OptionMap = Map[String, String]
+    private val mainProps = new Properties() with PropertiesOption
+
+    private var options:OptionMap = Map()
+
+    def load(arglist: List[String]) {
+        if (arglist.isEmpty) {
+            throw new InvalidCommandLineException
+        }
+
+        @tailrec
+        def nextOption(configFilePaths: ListBuffer[String], map: OptionMap, list: List[String]): (List[String], OptionMap) = {
+            list match {
+                case Nil => (configFilePaths.toList, map)
+                case key :: value :: tail if key.startsWith("--") => key match {
+                    case "--config" => nextOption(configFilePaths += value, map, tail)
+                    case _ => nextOption(configFilePaths, map ++ Map(key.drop(2) -> value), tail)
+                }
+                case value :: Nil =>
+                    throw new InvalidCommandLineException
+                case _ =>
+                    throw new InvalidCommandLineException
+            }
+        }
+
+        val (configFilePaths:List[String], opts) = nextOption(ListBuffer[String](), Map(), arglist)
+        options = opts
+        //logger.debug(options)
+        //merge config files
+        require(!configFilePaths.isEmpty, "missing --config parameter")
+        for (confPath <- configFilePaths) {
+            val conf = new Properties()
+            conf.load(scala.io.Source.fromFile(confPath.toString).bufferedReader())
+
+            val keys = conf.keySet().iterator()
+            while (keys.hasNext) {
+                val key = keys.next.toString
+                val value = conf.getProperty(key, "")
+                if ("" != value) {
+                    //overwrite existing value
+                    mainProps.setProperty(key, value)
+                }
+            }
+
+        }
+
+        //lastRunOutputFile
+    }
+    def getProperty(key:String):Option[String] = getProperty(key, None)
+
+    def getProperty(key:String, defaultVal: Option[String]):Option[String] = {
+        val cmdLineValue = options.get(key)
+        val configValue = mainProps.getPropertyOption(key)
+        val res = cmdLineValue match {
+            case None => configValue match {
+                case None => defaultVal
+                case _ => configValue
+            }
+            case _ => cmdLineValue
+        }
+        res
+    }
+    def getRequiredProperty(key: String): Option[String] = {
+        getProperty(key) match {
+            case Some(s) if !s.isEmpty => Some(s)
+            case _ =>  throw new MissingRequiredConfigParameterException(key +" is required")
+        }
+    }
+
+    lazy val username = getRequiredProperty("sf.username").get
+    lazy val password = getRequiredProperty("sf.password").get
+    val apiVersion = "28.0"
+    lazy val soapEndpoint = {
+        val serverUrl = getRequiredProperty("sf.serverurl")
+        serverUrl match {
+            case Some(x) => x + "/services/Soap/u/" + apiVersion
+            case None => null
+        }
+    }
+    lazy val toolingPath = "/services/data/v" + apiVersion + "/tooling"
+
+    def help() {
+        println( """
+ Command line utility for working with force.com Tooling API.
+ https://github.com/neowit/tooling-force.com
+
+Command line parameters"
+ --help : show this text
+ --config : path to config.properties
+ [[--config : path to config.properties]: (optional) more than one "--config" is supported, non blank parameters of later --config take precendence
+ [--<any param from config file>]: (optional) all config parameters can be specified in both config file and command line. Command line parameters take precendence
+
+Example:
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties
+
+OR if sfdc login/pass are in a different file
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties --config /path/to/credentials.properties
+
+
+In the following example username user@domain.com specified in the command line will be used,
+regardless of whether it is also specified in config file or not
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties --sf.username user@domain.com
+                           """)
+    }
+
+}
