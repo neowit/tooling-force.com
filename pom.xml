@@ -49,6 +49,12 @@
         </dependency>
 
         <dependency>
+            <groupId>commons-httpclient</groupId>
+            <artifactId>commons-httpclient</artifactId>
+            <version>3.1</version>
+        </dependency>
+
+        <dependency>
             <groupId>force</groupId>
             <artifactId>partner-wsdl</artifactId>
             <version>28.0</version>
@@ -57,16 +63,15 @@
             <groupId>com.force.api</groupId>
             <artifactId>force-wsc</artifactId>
             <version>28.0.0</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>  <!-- antlr is not needed in my runtime -->
+                    <groupId>org.antlr</groupId>
+                    <artifactId>ST4</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
-
-
-        <!-- Test -->
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.8.1</version>
-            <scope>test</scope>
-        </dependency>
+        <!--
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -77,16 +82,20 @@
             <artifactId>scalalogging-slf4j_2.10</artifactId>
             <version>1.0.1</version>
         </dependency>
+        -->
+
+        <!-- Test -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.8.1</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_2.10</artifactId>
             <version>1.9.1</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>commons-httpclient</groupId>
-            <artifactId>commons-httpclient</artifactId>
-            <version>3.1</version>
         </dependency>
 
     </dependencies>
@@ -100,7 +109,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.neowit.apex.backup.BackupRunner</mainClass>
+                            <mainClass>com.neowit.apex.tooling.Runner</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
@@ -137,7 +146,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- disable surefire -->
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

@@ -20,7 +20,7 @@
 package com.neowit.apex.tooling
 
 import java.util.Properties
-import com.typesafe.scalalogging.slf4j.Logging
+//import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
 

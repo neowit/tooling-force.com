@@ -19,10 +19,10 @@
 
 package com.neowit.apex.tooling
 
-import com.typesafe.scalalogging.slf4j.Logging
 import com.sforce.soap.partner.PartnerConnection
 import org.apache.commons.httpclient.methods.GetMethod
 import org.apache.commons.httpclient.HttpClient
+import scala.util.parsing.json.{JSONArray, JSON}
 
 
 object Runner extends Logging{
@@ -40,21 +40,19 @@ object Runner extends Logging{
                 case ex: InvalidCommandLineException => appConfig.help()
                 case ex: MissingRequiredConfigParameterException => logger.error(ex.getMessage)
             } finally {
-                //appConfig.lastQueryPropsActor ! "exit"
             }
         }
     }
 
     def run () {
         val session = new SfdcSession(appConfig)
-        println(session.getToolingEndpoint)
-        println(session.getSessionId)
         val serviceUrl = session.getToolingEndpoint
         val gm = new GetMethod(serviceUrl + "/sobjects/")
         gm.setRequestHeader("Authorization", "OAuth " + session.getSessionId)
         val httpClient = new HttpClient()
         httpClient.executeMethod(gm)
         println(gm.getResponseBodyAsString)
+
 
 
     }
