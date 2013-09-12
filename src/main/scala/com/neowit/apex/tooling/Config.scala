@@ -20,6 +20,8 @@
 package com.neowit.apex.tooling
 
 import java.util.Properties
+import java.io.{FileWriter, File}
+
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
@@ -30,6 +32,8 @@ class InvalidCommandLineException(msg: String)  extends IllegalArgumentException
     }
 }
 class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumentException(msg: String)
+
+class ConfigValueException(msg:String) extends IllegalArgumentException(msg: String)
 
 trait PropertiesOption extends Properties{
 
@@ -137,6 +141,39 @@ class Config extends Logging{
             case None => null
         }
     }
+
+    //path to folder where all cached metadata (session Id, las update dates, etc) stored
+    lazy val metaFolder = {
+        val path = getRequiredProperty("tooling.cacheFolderPath").get
+        val dir = new File(path)
+        if (!dir.exists()) {
+            if (!dir.mkdirs())
+                throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for tooling.cacheFolderPath")
+        }
+        Option(dir)
+    }
+    lazy val lastSessionProps: PropertiesOption = {
+        val file = new File(metaFolder.get, "session.properties")
+        if (!file.exists) {
+            file.createNewFile()
+        }
+        val props = new Properties() with PropertiesOption
+        props.load(scala.io.Source.fromFile(file).bufferedReader())
+        props
+    }
+    def storeSessionProps() {
+        val writer = new FileWriter(new File(metaFolder.get, "session.properties"))
+        lastSessionProps.store(writer, "session data")
+    }
+
+
+    /**
+     * workPath can point to two things
+     * either: full path to file (Class, Page, Component)
+     * or: full path to the .../src/ folder which contains items to be deployed
+     * @return
+     */
+    lazy val resourcePath = getRequiredProperty("tooling.resourcePath").get
 
     def help() {
         println( """
