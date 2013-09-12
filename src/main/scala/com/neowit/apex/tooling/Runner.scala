@@ -19,10 +19,7 @@
 
 package com.neowit.apex.tooling
 
-import com.sforce.soap.partner.PartnerConnection
-import org.apache.commons.httpclient.methods.GetMethod
-import org.apache.commons.httpclient.HttpClient
-import scala.util.parsing.json.{JSONArray, JSON}
+import com.sforce.soap.tooling.{ApexClass, SoapConnection}
 
 
 object Runner extends Logging{
@@ -45,13 +42,19 @@ object Runner extends Logging{
     }
 
     def run () {
+
         val session = new SfdcSession(appConfig)
-        val serviceUrl = session.getToolingEndpoint
-        val gm = new GetMethod(serviceUrl + "/sobjects/")
-        gm.setRequestHeader("Authorization", "OAuth " + session.getSessionId)
-        val httpClient = new HttpClient()
-        httpClient.executeMethod(gm)
-        println(gm.getResponseBodyAsString)
+
+        val connection = session.getConnection
+        val cls = new ApexClass
+        cls.setBody(
+            """
+              public class Messages {
+                static {}
+              }
+            """)
+        val saveResult = connection.create(Array(cls))
+        logger.debug("saveResult=" + saveResult)
 
 
 
@@ -62,20 +65,11 @@ object Runner extends Logging{
      * So having to cheat here and obtain session via SOAP API
      *
      */
+
     class SfdcSession (appConfig: Config) {
         var connection = getConnection
 
-        def getSessionId: String = {
-            connection.getConfig.getSessionId
-        }
-
-        def getToolingEndpoint: String = {
-            //https://ap1.salesforce.com/services/Soap/u/28.0/00D90000000oeIv
-            val soapEndpoint = connection.getConfig.getServiceEndpoint
-            val cutIndex = soapEndpoint.indexOf("/services/Soap/u")
-            soapEndpoint.substring(0, cutIndex) + appConfig.toolingPath
-        }
-        private def getConnection: PartnerConnection = {
+        def getConnection: SoapConnection = {
             if (null == connection) {
                 val config = new com.sforce.ws.ConnectorConfig()
                 config.setUsername(appConfig.username)
@@ -84,6 +78,7 @@ object Runner extends Logging{
                 val endpoint = appConfig.soapEndpoint
                 if (null != endpoint)
                     config.setAuthEndpoint(endpoint)
+                config.setServiceEndpoint(endpoint)
 
                 config.setCompression(true)
 
@@ -112,15 +107,23 @@ object Runner extends Logging{
                 if (None != readTimeoutSecs )
                     config.setReadTimeout(readTimeoutSecs.get.toInt * 1000)
 
-                connection = com.sforce.soap.partner.Connector.newConnection(config)
+                //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
+                //having to use a workaround - connect via SOAP and then use obtained session for tooling
+                val soapConnection = com.sforce.soap.partner.Connector.newConnection(config)
+                val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(config)
+                //tooling api uses different service endpoint
+                config.setServiceEndpoint(config.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
                 logger.info("Auth EndPoint: "+config.getAuthEndpoint)
                 logger.info("Service EndPoint: "+config.getServiceEndpoint)
                 logger.info("Username: "+config.getUsername)
-                //connection.getSessionHeader.getSessionId
+                logger.info("SessionId: "+config.getSessionId)
+                connection = toolingConnection
+
             }
             connection
         }
 
     }
+
 
 }

@@ -137,7 +137,6 @@ class Config extends Logging{
             case None => null
         }
     }
-    lazy val toolingPath = "/services/data/v" + apiVersion + "/tooling"
 
     def help() {
         println( """
