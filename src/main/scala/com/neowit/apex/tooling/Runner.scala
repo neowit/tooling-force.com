@@ -19,9 +19,6 @@
 
 package com.neowit.apex.tooling
 
-import com.sforce.soap.tooling.{ApexClass, SoapConnection}
-import java.util.Properties
-import java.io.{FileWriter, File}
 
 
 object Runner extends Logging{
@@ -46,92 +43,17 @@ object Runner extends Logging{
     def run () {
 
         val session = new SfdcSession(appConfig)
+        val sessionData = new SessionData(appConfig, session)
+        sessionData.load()
 
-        val connection = session.getConnection
         val resourcePath = appConfig.resourcePath
+        val handler = ActionHandler.getHandler(appConfig)
+        handler.act(session, sessionData)
+        /*
         val processor = Processor.getProcessor(resourcePath)
-        processor.process(connection)
-    }
-
-    class SfdcSession (appConfig: Config) {
-        var connection = getConnection
-
-        private lazy val sessionProperties = {
-            appConfig.lastSessionProps
-        }
-        private def loadSavedSessionData = {
-            (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
-        }
-        private def storeSessionData(config: com.sforce.ws.ConnectorConfig) {
-            sessionProperties.setProperty("sessionId", config.getSessionId)
-            sessionProperties.setProperty("serviceEndpoint", config.getServiceEndpoint)
-            appConfig.storeSessionProps()
-        }
-        def getConnection: SoapConnection = {
-            if (null == connection) {
-                val config = new com.sforce.ws.ConnectorConfig()
-                config.setUsername(appConfig.username)
-                config.setPassword(appConfig.password)
-
-                val endpoint = appConfig.soapEndpoint
-                if (null != endpoint)
-                    config.setAuthEndpoint(endpoint)
-                config.setServiceEndpoint(endpoint)
-
-                config.setCompression(true)
-
-                val proxyHost = appConfig.getProperty("http.proxyHost")
-                val proxyPort = appConfig.getProperty("http.proxyPort")
-                if (None != proxyHost && None != proxyPort)
-                    config.setProxy(proxyHost.get, proxyPort.get.toInt)
-
-                val proxyUsername = appConfig.getProperty("http.proxyUsername")
-                if (None != proxyUsername )
-                    config.setProxyUsername(proxyUsername.get)
-
-                val proxyPassword = appConfig.getProperty("http.proxyPassword")
-                if (None != proxyPassword )
-                    config.setProxyPassword(proxyPassword.get)
-
-                val ntlmDomain = appConfig.getProperty("http.ntlmDomain")
-                if (None != ntlmDomain )
-                    config.setNtlmDomain(ntlmDomain.get)
-
-                val connectionTimeoutSecs = appConfig.getProperty("http.connectionTimeoutSecs")
-                if (None != connectionTimeoutSecs )
-                    config.setConnectionTimeout(connectionTimeoutSecs.get.toInt * 1000)
-
-                val readTimeoutSecs = appConfig.getProperty("http.readTimeoutSecs")
-                if (None != readTimeoutSecs )
-                    config.setReadTimeout(readTimeoutSecs.get.toInt * 1000)
-
-                loadSavedSessionData match {
-                  case (Some(sessionId), Some(serviceEndpoint)) =>
-                      //use cached data
-                      config.setSessionId(sessionId)
-                      config.setServiceEndpoint(serviceEndpoint)
-                      true
-                  case _ =>
-                      //login explicitly
-                      com.sforce.soap.partner.Connector.newConnection(config)
-                      config.setServiceEndpoint(config.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
-                      storeSessionData(config)
-                      false
-                }
-                //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
-                //having to use a workaround - connect via SOAP and then use obtained session for tooling
-                //val soapConnection = com.sforce.soap.partner.Connector.newConnection(config)
-                val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(config)
-                //tooling api uses different service endpoint
-                logger.info("Auth EndPoint: "+config.getAuthEndpoint)
-                logger.info("Service EndPoint: "+config.getServiceEndpoint)
-                logger.info("Username: "+config.getUsername)
-                logger.info("SessionId: "+config.getSessionId)
-                connection = toolingConnection
-
-            }
-            connection
-        }
+        processor.save(session, sessionData)
+        */
+        session.storeSessionData()
 
     }
 

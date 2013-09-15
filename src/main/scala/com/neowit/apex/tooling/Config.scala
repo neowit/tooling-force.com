@@ -78,6 +78,7 @@ class Config extends Logging{
                 case Nil => (configFilePaths.toList, map)
                 case key :: value :: tail if key.startsWith("--") => key match {
                     case "--config" => nextOption(configFilePaths += value, map, tail)
+                    case "--refresh" => nextOption(configFilePaths, map ++ Map("Refresh" -> "true"), value :: tail)
                     case _ => nextOption(configFilePaths, map ++ Map(key.drop(2) -> value), tail)
                 }
                 case value :: Nil =>
@@ -174,6 +175,22 @@ class Config extends Logging{
      * @return
      */
     lazy val resourcePath = getRequiredProperty("tooling.resourcePath").get
+    /* path to src folder */
+    lazy val srcPath = {
+        def getSrcFolder(file: File):String = {
+            if (null == file) {
+                throw new ConfigValueException("failed to detect SRC folder in path:" + resourcePath)
+            }
+            if (file.isDirectory && "src" == file.getName)
+                file.getAbsolutePath
+            else {
+                getSrcFolder(file.getParentFile)
+            }
+        }
+        val file = new File(resourcePath)
+        getSrcFolder(file)
+
+    }
 
     def help() {
         println( """
@@ -197,6 +214,21 @@ In the following example username user@domain.com specified in the command line 
 regardless of whether it is also specified in config file or not
  java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties --sf.username user@domain.com
                            """)
+    }
+
+    /*
+     * generates specified folders nested in the main outputFolder
+     */
+    def mkdirs(dirName: String) = {
+        val path = srcPath + File.separator + dirName
+        //check that folder exists
+        val f = new File(path)
+        if (!f.isDirectory) {
+            if (!f.mkdirs())
+                throw new RuntimeException("Failed to create folder: " + path)
+        }
+
+        path
     }
 
 }

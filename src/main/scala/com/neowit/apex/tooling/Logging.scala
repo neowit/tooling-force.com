@@ -31,11 +31,11 @@ trait Logging {
     def fatal(msg: Any) = if (log.isFatalEnabled) log.fatal(msg)
     def fatal(msg: Any, ex: Throwable) = if (log.isFatalEnabled) log.fatal(msg, ex)
 
-    def error(msg: Any) = if (log.isInfoEnabled) log.info(msg)
+    def error(msg: Any) = if (log.isInfoEnabled) log.error(msg)
     def error(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
 
     def info(msg: Any) = if (log.isInfoEnabled) log.info(msg)
-    def info(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
+    def info(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.info(msg, ex)
 
     def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
     def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
