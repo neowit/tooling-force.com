@@ -31,8 +31,9 @@ trait ActionHandler {
 }
 object ActionHandler {
     def getHandler(appConfig: Config) = {
-        appConfig.getProperty("Refresh") match {
-          case Some("true") => new RefreshHandler(appConfig)
+        appConfig.getProperty("action") match {
+          case Some("refresh") => new RefreshHandler(appConfig)
+          case Some("save") => new SaveHandler(appConfig)
           case _ =>
               appConfig.help()
               throw new ConfigValueException("No supported operations found")
@@ -42,11 +43,11 @@ object ActionHandler {
 
 /**
  * refresh project files from SFDC and update sessionData
- * @param appConfig
  */
 class RefreshHandler(appConfig: Config) extends ActionHandler {
 
     def act(sfdcSession: SfdcSession, sessionData: SessionData) {
+        val serverMills = sfdcSession.getServerTimestamp.getTimestamp.getTimeInMillis.toString
         //execute Refresh
         //check if container already exist in SFDC
         val queryRes = sfdcSession.query("select Id, Name from MetadataContainer where Name = '" + Processor.containerName + "'")
@@ -58,13 +59,12 @@ class RefreshHandler(appConfig: Config) extends ActionHandler {
 
         for (helper <- TypeHelpers.list) {
 
-            val typeName = helper.typeName
             val queryResult = sfdcSession.query(helper.getContentSOQL)
             if (queryResult.getSize >0) {
                 do {
                     for (record: SObject <- queryResult.getRecords) {
                         val data = helper.getValueMap(record)
-                        sessionData.setData(helper.getKey(record), data)
+                        sessionData.setData(helper.getKey(record), data ++ Map("LastSyncDate" -> serverMills))
                         //save file content
                         helper.bodyToFile(appConfig, record)
 
@@ -75,4 +75,15 @@ class RefreshHandler(appConfig: Config) extends ActionHandler {
         sessionData.store()
 
     }
+}
+
+/**
+ * try to save Single or multiple files to SFDC
+ */
+class SaveHandler(appConfig: Config) extends ActionHandler {
+    def act(sfdcSession: SfdcSession, sessionData: SessionData) {
+        val processor = Processor.getProcessor(appConfig)
+        processor.save(sfdcSession, sessionData)
+    }
+
 }

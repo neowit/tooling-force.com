@@ -40,92 +40,13 @@ trait ProcessorBase extends Logging {
         val f = new File(resourcePath)
         f.isDirectory && f.canRead
     }
-    def getName(resourcePath: String) = {
-        val f = new File(resourcePath)
-        f.getName
-    }
-
-    def getBody(resourcePath: String): String = {
-        scala.io.Source.fromFile(resourcePath).getLines().mkString("\n")
-    }
 
 }
 trait Processor extends ProcessorBase {
     def save(session: SfdcSession, sessionData: SessionData)
 
-    //protected def loadMetadata(session: SfdcSession)
-    //protected def isLoaded: Boolean
-    //protected val typeName: String
-}
+    def getMetadataContainer(session: SfdcSession, sessionData: SessionData): MetadataContainer = {
 
-object Processor {
-    val containerName = "tooling-force.com"
-    def getProcessor(resourcePath: String): Processor = {
-        val processor = resourcePath match {
-            case ClassProcessor(className, ext) => new ClassProcessor(resourcePath, className)
-            case PackageProcessor(srcDir) => new PackageProcessor(srcDir)
-            case _ => throw new ConfigValueException("Invalid resource path: " + resourcePath)
-        }
-        processor
-    }
-
-}
-
-class ClassProcessor(resourcePath: String, className: String) extends Processor {
-
-    protected val typeName: String  = "ApexClass"
-    protected def isLoaded = false
-    def update(session: SfdcSession) = {
-    }
-    def create(session: SfdcSession, sessionData: SessionData) = {
-        val apexClass = new ApexClass()
-        apexClass.setBody(getBody(resourcePath))
-        val saveResults = session.create(Array(apexClass))
-        for (res <- saveResults) {
-            if (res.isSuccess) {
-                //store Id in session
-
-                sessionData.setField(apexClass.getName, "Id", res.getId)//TODO - fix key
-            }
-            if (!res.getSuccess) {
-                if (StatusCode.DUPLICATE_VALUE == res.getErrors.head.getStatusCode) {
-                    //file already exists, try to update
-
-                }
-
-                logger.error("" + res.getErrors.head)
-
-            }
-        }
-    }
-    def save(session: SfdcSession, sessionData: SessionData) {
-        //TODO
-        /*
-        getId(session, className) match {
-          case Some(x) => update(session)
-          case None => create(session, sessionData)
-        }
-        */
-    }
-
-}
-object ClassProcessor extends ProcessorBase {
-    def unapply(resourcePath: String): Option[(String, String)] = {
-        if (isFile(resourcePath) && resourcePath.endsWith(".cls")) {
-            val nameWithExt = getName(resourcePath)
-            Option((nameWithExt.substring(0, nameWithExt.length - ".cls".length), ".cls"))
-        } else {
-            None
-        }
-    }
-}
-
-class PackageProcessor(srcDir: File) extends Processor {
-
-    def save(session: SfdcSession, sessionData: SessionData) {
-        val changedFileMap = getChangedFiles(sessionData)
-        //add each file into MetadataContainer and if container update is successful then record serverMills
-        //in session data as LastSyncDate for each of successful files
         val container = new MetadataContainer()
         container.setName(Processor.containerName)
         sessionData.getField("MetadataContainer", "Name") match {
@@ -139,15 +60,10 @@ class PackageProcessor(srcDir: File) extends Processor {
                     sessionData.store()
                 }
         }
-        //iterate through changedFileMap and return list of ApexComponentMember objects
-        val members = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
-            helper.getMemberInstance(sessionData, f)
-        }
-        saveApexMembers(session, sessionData, container, members)
+        container
     }
-
-    private def saveApexMembers(session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
-                                         members: Iterable[SObject]) {
+    protected def saveApexMembers(session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
+                                members: Iterable[SObject]) {
 
         val serverMills = session.getServerTimestamp.getTimestamp.getTimeInMillis
         val saveResults = session.create(members.toArray)
@@ -197,6 +113,73 @@ class PackageProcessor(srcDir: File) extends Processor {
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
         }
     }
+}
+
+object Processor extends ProcessorBase{
+    val containerName = "tooling-force.com"
+    def getProcessor(appConfig: Config): Processor = {
+
+        val file = new File(appConfig.resourcePath)
+        if (file.isDirectory)
+            new PackageProcessor(file)
+        else
+            new FileProcessor(file)
+    }
+}
+
+class FileProcessor(resource: File) extends Processor {
+    def save(session: SfdcSession, sessionData: SessionData) {
+        val helper = TypeHelpers.getHelper(resource)
+
+        sessionData.getField(helper.getKey(resource), "Id") match {
+          case Some(x) => update(session, sessionData, helper)
+          case None => create(session, sessionData, helper)
+        }
+        sessionData.store()
+    }
+
+    def update(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
+        val container = getMetadataContainer(session, sessionData)
+        saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
+    }
+
+    def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
+
+        val apexObj = helper.newSObjectInstance(resource)
+        val saveResults = session.create(Array(apexObj))
+        for (res <- saveResults) {
+            if (res.isSuccess) {
+                //store Id in session
+                sessionData.setField(helper.getKey(apexObj), "Id", res.getId)
+            } else /* if (!res.getSuccess) */{
+                val statusCode = res.getErrors.head.getStatusCode
+                statusCode match {
+                    case StatusCode.DUPLICATE_VALUE =>
+                        //file already exists
+                        logger.error("Local project appears to be out of sync. File " + resource.getName + " is marked as new in local version but it already exists in SFDC")
+                        logger.error("Refresh your local project to sync with SFDC")
+                    case _ => throw new IllegalStateException("failed to create file " + resource + "; " + res.getErrors.head)
+                }
+                logger.error("" + res.getErrors.head)
+            }
+        }
+    }
+}
+
+class PackageProcessor(srcDir: File) extends Processor {
+
+    def save(session: SfdcSession, sessionData: SessionData) {
+        val changedFileMap = getChangedFiles(sessionData)
+        //iterate through changedFileMap and return list of ApexComponentMember objects
+        val container = getMetadataContainer(session, sessionData)
+        val members = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
+            helper.getMemberInstance(sessionData, f)
+        }
+        //add each file into MetadataContainer and if container update is successful then record serverMills
+        //in session data as LastSyncDate for each of successful files
+        saveApexMembers(session, sessionData, container, members)
+    }
+
     /**
      * using stored session data figure out what files have changed
      * @return

@@ -16,16 +16,36 @@ trait TypeHelper extends Logging {
     val directoryName: String
     def getApiVersion(obj: SObject): Double
     def getName(obj: SObject): String
+    /*
+    def getName(resourcePath: String) = {
+        val f = new File(resourcePath)
+        f.getName
+    }
+    */
     def getBody(obj: SObject): String
+    def getBody(resourcePath: String): String = {
+        scala.io.Source.fromFile(resourcePath).mkString
+    }
     def getLabel(obj: SObject): String
     def getDescription(obj: SObject): String
     def newMemberInstance: Member
+    def newSObjectInstance(file: File): SObject
     val filenameFilter: FilenameFilter = new FilenameFilter {
         def accept(p1: File, p2: String): Boolean = p2.endsWith(fileExtension)
     }
 
+    def unapply(resource: File): Option[(String, String)] = {
+        if (resource.getName.endsWith(fileExtension)) {
+            val nameWithExt = resource.getName
+            Option((stripExtension(nameWithExt), fileExtension))
+        } else {
+            None
+        }
+    }
+    private def stripExtension(fileName: String) = (fileExtension + "$").r.replaceFirstIn(fileName, "")
+
     def getKey(obj: SObject): String = {typeName + "." + getName(obj)}
-    def getKey(f: File): String = {typeName + "." + (fileExtension + "$").r.replaceFirstIn(f.getName, "")}
+    def getKey(f: File): String = {typeName + "." + stripExtension(f.getName)}
     def getKey(name: String): String = {typeName + "." + name}
 
     def getContentSOQL: String
@@ -55,11 +75,9 @@ trait TypeHelper extends Logging {
             val file = new File(appConfig.mkdirs(directoryName) + File.separator + fileName)
             try {
                 val output = new FileOutputStream(file)
-                //output.write(Base64.decode(buffer))
                 output.write(buffer)
                 output.close()
                 //generate meta-xml
-
                 val meta =
                     s"""|<?xml version="1.0" encoding="UTF-8"?>
                         |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -80,6 +98,14 @@ trait TypeHelper extends Logging {
 object TypeHelpers {
     val list = List(new ClassHelper(), new TriggerHelper(), new PageHelper())
 
+    def getHelper(resource: File): TypeHelper = resource match {
+        case ClassHelper(name, ext) => new ClassHelper
+        case _ => throw new UnsupportedOperationException("Not implemented yet for resourcePath=" + resource.getAbsolutePath)
+    }
+
+    object ClassHelper {
+        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
+    }
     class ClassHelper extends TypeHelper {
         val typeName: String = "ApexClass"
         val directoryName: String = "classes"
@@ -90,6 +116,11 @@ object TypeHelpers {
         def getLabel(obj: SObject): String = getName(obj)
         def getDescription(obj: SObject): String = ""
         def newMemberInstance: Member = Member.toMember(new ApexClassMember())
+        def newSObjectInstance(file: File): SObject = {
+            val obj = new ApexClass()
+            obj.setBody(getBody(file))
+            obj
+        }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
 
         def getValueMap(obj: SObject) = {
@@ -109,6 +140,11 @@ object TypeHelpers {
         def getLabel(obj: SObject): String = getName(obj)
         def getDescription(obj: SObject): String = ""
         def newMemberInstance: Member = Member.toMember(new ApexTriggerMember())
+        def newSObjectInstance(file: File): SObject = {
+            val obj = new ApexTrigger()
+            obj.setBody(getBody(file))
+            obj
+        }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
 
         def getValueMap(obj: SObject) = {
@@ -128,6 +164,11 @@ object TypeHelpers {
         def getLabel(obj: SObject): String = obj.asInstanceOf[ApexPage].getMasterLabel
         def getDescription(obj: SObject): String = obj.asInstanceOf[ApexPage].getDescription
         def newMemberInstance: Member = Member.toMember(new ApexPageMember())
+        def newSObjectInstance(file: File): SObject = {
+            val obj = new ApexPage()
+            obj.setMarkup(getBody(file))
+            obj
+        }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
         def getValueMap(obj: SObject) = {
@@ -148,6 +189,11 @@ object TypeHelpers {
         def getLabel(obj: SObject): String = obj.asInstanceOf[ApexComponent].getMasterLabel
         def getDescription(obj: SObject): String = obj.asInstanceOf[ApexComponent].getDescription
         def newMemberInstance: Member = Member.toMember(new ApexComponentMember())
+        def newSObjectInstance(file: File): SObject = {
+            val obj = new ApexComponent()
+            obj.setMarkup(getBody(file))
+            obj
+        }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
         def getValueMap(obj: SObject) = {
@@ -187,43 +233,43 @@ object Member {
 }
 
 class MemberClass(m: ApexClassMember) extends Member {
-    def getSObject: SObject = this.asInstanceOf[ApexClassMember]
+    def getSObject: SObject = m
 
-    def getBody: String = this.asInstanceOf[ApexClassMember].getBody
-    def getContentEntityId: String = this.asInstanceOf[ApexClassMember].getContentEntityId
-    def getMetadataContainerId: String= this.asInstanceOf[ApexClassMember].getMetadataContainerId
-    def setContentEntityId(contentEntityId: String) {this.asInstanceOf[ApexClassMember].setContentEntityId(contentEntityId)}
-    def setBody(body: String) {this.asInstanceOf[ApexClassMember].setBody(body)}
-    def setMetadataContainerId(metadataContainerId: String) {this.asInstanceOf[ApexClassMember].setMetadataContainerId(metadataContainerId)}
+    def getBody: String = m.getBody
+    def getContentEntityId: String = m.getContentEntityId
+    def getMetadataContainerId: String= m.getMetadataContainerId
+    def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
+    def setBody(body: String) {m.setBody(body)}
+    def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
 }
 class MemberPage(m: ApexPageMember) extends Member {
-    def getSObject: SObject = this.asInstanceOf[ApexPageMember]
+    def getSObject: SObject = m
 
-    def getBody: String = this.asInstanceOf[ApexPageMember].getBody
-    def getContentEntityId: String = this.asInstanceOf[ApexPageMember].getContentEntityId
-    def getMetadataContainerId: String= this.asInstanceOf[ApexPageMember].getMetadataContainerId
-    def setContentEntityId(contentEntityId: String) {this.asInstanceOf[ApexPageMember].setContentEntityId(contentEntityId)}
-    def setBody(body: String) {this.asInstanceOf[ApexPageMember].setBody(body)}
-    def setMetadataContainerId(metadataContainerId: String) {this.asInstanceOf[ApexPageMember].setMetadataContainerId(metadataContainerId)}
+    def getBody: String = m.getBody
+    def getContentEntityId: String = m.getContentEntityId
+    def getMetadataContainerId: String= m.getMetadataContainerId
+    def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
+    def setBody(body: String) {m.setBody(body)}
+    def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
 }
 class MemberTrigger(m: ApexTriggerMember) extends Member {
-    def getSObject: SObject = this.asInstanceOf[ApexTriggerMember]
+    def getSObject: SObject = m
 
-    def getBody: String = this.asInstanceOf[ApexTriggerMember].getBody
-    def getContentEntityId: String = this.asInstanceOf[ApexTriggerMember].getContentEntityId
-    def getMetadataContainerId: String= this.asInstanceOf[ApexTriggerMember].getMetadataContainerId
-    def setContentEntityId(contentEntityId: String) {this.asInstanceOf[ApexTriggerMember].setContentEntityId(contentEntityId)}
-    def setBody(body: String) {this.asInstanceOf[ApexTriggerMember].setBody(body)}
-    def setMetadataContainerId(metadataContainerId: String) {this.asInstanceOf[ApexTriggerMember].setMetadataContainerId(metadataContainerId)}
+    def getBody: String = m.getBody
+    def getContentEntityId: String = m.getContentEntityId
+    def getMetadataContainerId: String= m.getMetadataContainerId
+    def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
+    def setBody(body: String) {m.setBody(body)}
+    def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
 }
 class MemberComponent(m: ApexComponentMember) extends Member {
-    def getSObject: SObject = this.asInstanceOf[ApexComponentMember]
+    def getSObject: SObject = m
 
-    def getBody: String = this.asInstanceOf[ApexComponentMember].getBody
-    def getContentEntityId: String = this.asInstanceOf[ApexComponentMember].getContentEntityId
-    def getMetadataContainerId: String= this.asInstanceOf[ApexComponentMember].getMetadataContainerId
-    def setContentEntityId(contentEntityId: String) {this.asInstanceOf[ApexComponentMember].setContentEntityId(contentEntityId)}
-    def setBody(body: String) {this.asInstanceOf[ApexComponentMember].setBody(body)}
-    def setMetadataContainerId(metadataContainerId: String) {this.asInstanceOf[ApexComponentMember].setMetadataContainerId(metadataContainerId)}
+    def getBody: String = m.getBody
+    def getContentEntityId: String = m.getContentEntityId
+    def getMetadataContainerId: String= m.getMetadataContainerId
+    def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
+    def setBody(body: String) {m.setBody(body)}
+    def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
 }
 

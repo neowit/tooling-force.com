@@ -58,6 +58,7 @@ object Config extends Logging {
     def resetConfig = {
         //used in unit tests
         config = new Config
+        config
     }
 }
 
@@ -78,7 +79,7 @@ class Config extends Logging{
                 case Nil => (configFilePaths.toList, map)
                 case key :: value :: tail if key.startsWith("--") => key match {
                     case "--config" => nextOption(configFilePaths += value, map, tail)
-                    case "--refresh" => nextOption(configFilePaths, map ++ Map("Refresh" -> "true"), value :: tail)
+                    case "--action" => nextOption(configFilePaths, map ++ Map("action" -> value), tail)
                     case _ => nextOption(configFilePaths, map ++ Map(key.drop(2) -> value), tail)
                 }
                 case value :: Nil =>

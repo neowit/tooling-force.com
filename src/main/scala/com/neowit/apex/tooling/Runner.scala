@@ -46,10 +46,10 @@ object Runner extends Logging{
         val sessionData = new SessionData(appConfig, session)
         sessionData.load()
 
-        val resourcePath = appConfig.resourcePath
         val handler = ActionHandler.getHandler(appConfig)
         handler.act(session, sessionData)
         /*
+        val resourcePath = appConfig.resourcePath
         val processor = Processor.getProcessor(resourcePath)
         processor.save(session, sessionData)
         */
