@@ -80,6 +80,15 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
         setData(key, x ++ Map(propName -> value))
     }
 
+    /**
+     * remove specified field from data map
+     * @param propName - name of the field to be removed
+     */
+    def clearField(key: String, propName:String) {
+        val data = getData(key)
+        setData(key, data - "Id")
+    }
+
     def getField(key: String, propName: String): Option[String] = {
         getData(key).get(propName)
     }

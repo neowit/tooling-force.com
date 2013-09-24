@@ -40,28 +40,45 @@ trait ProcessorBase extends Logging {
         val f = new File(resourcePath)
         f.isDirectory && f.canRead
     }
+    private def deleteMetadataContainer(session: SfdcSession, sessionData: SessionData) {
+        sessionData.getField("MetadataContainer", "Id") match {
+            case Some(x) =>
+                try {
+                    session.delete(Array(x))
+                    sessionData.clearField("MetadataContainer", "Id")
+                    sessionData.store()
+                } catch {
+                    case ex:Throwable => //do not really care why delete failed
+                        logger.debug("Could not delete MetadataContainer. " + ex.getMessage)
+                }
+            case None => //nothing to delete
+        }
+
+    }
+    def withMetadataContainer(session: SfdcSession, sessionData: SessionData)(codeBlock: (MetadataContainer) => Any) = {
+        deleteMetadataContainer(session, sessionData)
+        //check if we need to delete the existing one
+        val container = new MetadataContainer()
+        container.setName(Processor.containerName)
+        val containerSaveResults: Array[SaveResult] = session.create(Array(container))
+        if (!containerSaveResults.head.isSuccess) {
+            logger.debug("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
+            throw new IllegalStateException("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
+        } else {
+            sessionData.setData("MetadataContainer", Map("Name" -> Processor.containerName, "Id" -> containerSaveResults.head.getId))
+            sessionData.store()
+        }
+        try {
+            codeBlock(container)
+        } finally {
+            deleteMetadataContainer(session, sessionData)
+        }
+    }
 
 }
 trait Processor extends ProcessorBase {
     def save(session: SfdcSession, sessionData: SessionData)
 
-    def getMetadataContainer(session: SfdcSession, sessionData: SessionData): MetadataContainer = {
-
-        val container = new MetadataContainer()
-        container.setName(Processor.containerName)
-        sessionData.getField("MetadataContainer", "Name") match {
-            case Some(x) if Processor.containerName == x => //container exists, do nothing
-            case _ => //container needs to be created
-                val containerSaveResults: Array[SaveResult] = session.create(Array(container))
-                if (!containerSaveResults.head.isSuccess) {
-                    throw new IllegalStateException("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
-                } else {
-                    sessionData.setData("MetadataContainer", Map("Name" -> Processor.containerName, "Id" -> containerSaveResults.head.getId))
-                    sessionData.store()
-                }
-        }
-        container
-    }
     protected def saveApexMembers(session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
                                 members: Iterable[SObject]) {
 
@@ -105,6 +122,7 @@ trait Processor extends ProcessorBase {
                     sessionData.getKeyById(id) match {
                         case Some(key) =>
                             sessionData.setField(key, "LastSyncDate", serverMills.toString)
+                            sessionData.setField(key, "LastSyncDateLocal", System.currentTimeMillis.toString)
                         case None => throw new IllegalStateException("Failed to fetch session data for " + Processor.containerName + " using Id=" + id)
                     }
                 }
@@ -139,8 +157,10 @@ class FileProcessor(resource: File) extends Processor {
     }
 
     def update(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
-        val container = getMetadataContainer(session, sessionData)
-        saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
+        //val container = getMetadataContainer(session, sessionData)
+        withMetadataContainer(session, sessionData) { container =>
+            saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
+        }
     }
 
     def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
@@ -171,13 +191,15 @@ class PackageProcessor(srcDir: File) extends Processor {
     def save(session: SfdcSession, sessionData: SessionData) {
         val changedFileMap = getChangedFiles(sessionData)
         //iterate through changedFileMap and return list of ApexComponentMember objects
-        val container = getMetadataContainer(session, sessionData)
+        //val container = getMetadataContainer(session, sessionData)
         val members = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
             helper.getMemberInstance(sessionData, f)
         }
         //add each file into MetadataContainer and if container update is successful then record serverMills
         //in session data as LastSyncDate for each of successful files
-        saveApexMembers(session, sessionData, container, members)
+        withMetadataContainer(session, sessionData) { container =>
+            saveApexMembers(session, sessionData, container, members)
+        }
     }
 
     /**

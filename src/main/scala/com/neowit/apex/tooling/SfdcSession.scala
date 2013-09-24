@@ -84,6 +84,16 @@ class SfdcSession (appConfig: Config) extends Logging{
             getConnection.create(objects)
         }.asInstanceOf[Array[SaveResult]]
     }
+    def update(objects: Array[com.sforce.soap.tooling.SObject]):Array[SaveResult] = {
+        withRetry {
+            getConnection.update(objects)
+        }.asInstanceOf[Array[SaveResult]]
+    }
+    def delete(ids: Array[String]):Array[DeleteResult] = {
+        withRetry {
+            getConnection.delete(ids)
+        }.asInstanceOf[Array[DeleteResult]]
+    }
     def getServerTimestamp = {
         withRetry {
             getConnection.getServerTimestamp
@@ -149,7 +159,8 @@ class SfdcSession (appConfig: Config) extends Logging{
             logger.info("Auth EndPoint: "+config.getAuthEndpoint)
             logger.info("Service EndPoint: "+config.getServiceEndpoint)
             logger.info("Username: "+config.getUsername)
-            logger.info("SessionId: "+config.getSessionId)
+            //logger.info("SessionId: "+config.getSessionId)
+            logger.debug("SessionId: "+config.getSessionId)
             connection = toolingConnection
 
         }
