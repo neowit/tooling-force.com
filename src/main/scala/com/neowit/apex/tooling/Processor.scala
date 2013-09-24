@@ -199,9 +199,9 @@ class PackageProcessor(srcDir: File) extends Processor {
         iter(TypeHelpers.list, Map())
     }
     def isModified(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
-        sessionData.getField(helper.getKey(f.getName), "LastSyncDate") match {
+        sessionData.getField(helper.getKey(f), "LastSyncDateLocal") match {
             case Some(x) =>
-                f.lastModified() > ZuluTime.parse(x).getTime
+                f.lastModified > x.toLong
             //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
             case _ => true
         }

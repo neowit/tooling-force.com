@@ -64,9 +64,11 @@ class RefreshHandler(appConfig: Config) extends ActionHandler {
                 do {
                     for (record: SObject <- queryResult.getRecords) {
                         val data = helper.getValueMap(record)
-                        sessionData.setData(helper.getKey(record), data ++ Map("LastSyncDate" -> serverMills))
                         //save file content
                         helper.bodyToFile(appConfig, record)
+                        //stamp file save time
+                        val localMills = System.currentTimeMillis.toString
+                        sessionData.setData(helper.getKey(record), data ++ Map("LastSyncDate" -> serverMills, "LastSyncDateLocal" -> localMills))
 
                     }
                 }  while (!queryResult.isDone)

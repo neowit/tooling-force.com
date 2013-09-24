@@ -4,6 +4,7 @@ import com.sforce.soap.tooling._
 import java.io._
 import scala.Some
 import scala.sys.process.BasicIO
+import java.util.Calendar
 
 /**
  * User: andrey
@@ -46,17 +47,24 @@ trait TypeHelper extends Logging {
 
     def getKey(obj: SObject): String = {typeName + "." + getName(obj)}
     def getKey(f: File): String = {typeName + "." + stripExtension(f.getName)}
-    def getKey(name: String): String = {typeName + "." + name}
+    def getKey(name: String): String = {typeName + "." + stripExtension(name)}
 
     def getContentSOQL: String
 
     def getMemberInstance(sessionData: SessionData, f: File) = {
         val metadataContainerId = sessionData.getField("MetadataContainer", "Id").get
-        val objectId = sessionData.getField(getKey(f), "Id").get
+        val key = getKey(f)
+        val objectId = sessionData.getField(key, "Id").get
         val member = newMemberInstance
         member.setContentEntityId(objectId)
         member.setBody(getBody(f))
         member.setMetadataContainerId(metadataContainerId)
+        /*TODO figure out how to use LastSyncDate, simple setting it here causes error
+        sessionData.getField(key, "LastSyncDate") match {
+          case Some(x) => member.setLastSyncDate(x)
+          case None => member.setLastSyncDate("0") //01 Jan 1970, i.e. there have never been Sync before
+        }
+        */
         member.getSObject
     }
     def listFiles(srcDir: File): Array[File] = {
@@ -220,6 +228,13 @@ trait Member {
     def setContentEntityId(contentEntityId: String)
     def setBody(body: String)
     def setMetadataContainerId(metadataContainerId: String)
+    def setLastSyncDate(lastSyncDate : Calendar)
+
+    def setLastSyncDate(mills: String) {
+        val cal = Calendar.getInstance()
+        cal.setTimeInMillis(mills.toLong)
+        setLastSyncDate(cal)
+    }
 
 }
 object Member {
@@ -241,6 +256,7 @@ class MemberClass(m: ApexClassMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
+    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberPage(m: ApexPageMember) extends Member {
     def getSObject: SObject = m
@@ -251,6 +267,7 @@ class MemberPage(m: ApexPageMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
+    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberTrigger(m: ApexTriggerMember) extends Member {
     def getSObject: SObject = m
@@ -261,6 +278,7 @@ class MemberTrigger(m: ApexTriggerMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
+    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberComponent(m: ApexComponentMember) extends Member {
     def getSObject: SObject = m
@@ -271,5 +289,6 @@ class MemberComponent(m: ApexComponentMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
+    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate); m.getSystemModstamp}
 }
 
