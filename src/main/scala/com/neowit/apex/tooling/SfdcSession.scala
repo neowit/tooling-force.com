@@ -51,6 +51,7 @@ class SfdcSession (appConfig: Config) extends Logging{
         sessionProperties.getPropertyOption(key)
     }
 
+    def getConfig: Config = appConfig
     /**
      * clear session data and force login next time
      */

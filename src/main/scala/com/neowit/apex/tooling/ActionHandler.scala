@@ -47,7 +47,6 @@ object ActionHandler {
 class RefreshHandler(appConfig: Config) extends ActionHandler {
 
     def act(sfdcSession: SfdcSession, sessionData: SessionData) {
-        val serverMills = sfdcSession.getServerTimestamp.getTimestamp.getTimeInMillis.toString
         //execute Refresh
         //check if container already exist in SFDC
         val queryRes = sfdcSession.query("select Id, Name from MetadataContainer where Name = '" + Processor.containerName + "'")
@@ -68,7 +67,7 @@ class RefreshHandler(appConfig: Config) extends ActionHandler {
                         helper.bodyToFile(appConfig, record)
                         //stamp file save time
                         val localMills = System.currentTimeMillis.toString
-                        sessionData.setData(helper.getKey(record), data ++ Map("LastSyncDate" -> serverMills, "LastSyncDateLocal" -> localMills))
+                        sessionData.setData(helper.getKey(record), data ++ Map("LastSyncDateLocal" -> localMills))
 
                     }
                 }  while (!queryResult.isDone)

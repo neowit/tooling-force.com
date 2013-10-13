@@ -192,6 +192,10 @@ class Config extends Logging{
         getSrcFolder(file)
 
     }
+    lazy val isCheckOnly = getProperty("checkOnly") match {
+      case Some(x) => "true" == x
+      case None => false
+    }
 
     def help() {
         println( """

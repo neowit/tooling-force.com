@@ -48,12 +48,9 @@ object Runner extends Logging{
 
         val handler = ActionHandler.getHandler(appConfig)
         handler.act(session, sessionData)
-        /*
-        val resourcePath = appConfig.resourcePath
-        val processor = Processor.getProcessor(resourcePath)
-        processor.save(session, sessionData)
-        */
         session.storeSessionData()
+
+        //Tester.runTest(session)
 
     }
 
