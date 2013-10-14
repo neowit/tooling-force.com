@@ -66,7 +66,8 @@ class SfdcSession (appConfig: Config) extends Logging{
             codeBlock
         } catch {
             case ex:ApiFault if ExceptionCode.INVALID_SESSION_ID == ex.getExceptionCode =>
-                logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ", ex)
+                logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
+                logger.trace(ex)
                 reset()
                 //run once again
                 codeBlock
@@ -90,11 +91,18 @@ class SfdcSession (appConfig: Config) extends Logging{
             getConnection.update(objects)
         }.asInstanceOf[Array[SaveResult]]
     }
+
     def delete(ids: Array[String]):Array[DeleteResult] = {
         withRetry {
             getConnection.delete(ids)
         }.asInstanceOf[Array[DeleteResult]]
     }
+    def delete(id:String):DeleteResult = {
+        withRetry {
+            getConnection.delete(Array(id))
+        }.asInstanceOf[Array[DeleteResult]].head
+    }
+
     def getServerTimestamp = {
         withRetry {
             getConnection.getServerTimestamp

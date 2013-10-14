@@ -40,5 +40,8 @@ trait Logging {
     def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
     def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
 
+    def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
+    def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
+
     def logger = this
 }

@@ -4,31 +4,51 @@ import com.sforce.soap.tooling._
 import java.io._
 import scala.Some
 import scala.sys.process.BasicIO
-import java.util.Calendar
 
 /**
  * User: andrey
  * Date: 18/09/2013
  */
 trait TypeHelper extends Logging {
-    def getValueMap(obj: SObject): Map[String, String]
+    def API_VERSION = 29.0 //default API version
+    def getValueMap(obj: SObject):Map[String, String] = {
+        Map("Id" -> obj.getId, "Name" -> getName(obj), "ApiVersion" -> getApiVersion(obj).toString, "LastModifiedDate" -> getLastModifiedDate(obj).toString)
+    }
     val typeName: String
     val fileExtension: String
     val directoryName: String
-    def getApiVersion(obj: SObject): Double
-    def getName(obj: SObject): String
-    /*
-    def getName(resourcePath: String) = {
-        val f = new File(resourcePath)
-        f.getName
+    def getApiVersion(obj: SObject): Double = {
+        getApiVersionImpl(obj)match {
+          case x:Double if x > 0 => x
+          case _ => API_VERSION
+        }
     }
-    */
+    def getApiVersion(file: File) = {
+        val metaXmlFile = new File(file.getAbsolutePath + "-meta.xml")
+        val apiVersion =
+            if (metaXmlFile.exists()) {
+                val metaXml = xml.XML.loadFile(metaXmlFile)
+                val apiVersionNode = metaXml \\ "apiVersion"
+                apiVersionNode.text.toDouble
+            } else API_VERSION
+        apiVersion
+    }
+    protected def getApiVersionImpl(obj: SObject): Double
+    //name without extension
+    def getName(f: File): String = f.getName.take(f.getName.length - fileExtension.length)
+
+    def getName(obj: SObject): String
     def getBody(obj: SObject): String
     def getBody(resourcePath: String): String = {
         scala.io.Source.fromFile(resourcePath).mkString
     }
     def getLabel(obj: SObject): String
     def getDescription(obj: SObject): String
+    def getLastModifiedDate(obj: SObject): Long = {
+        getLastModifiedDateImpl(obj).getTimeInMillis
+    }
+    protected def getLastModifiedDateImpl(obj: SObject): java.util.Calendar
+
     def newMemberInstance: Member
     def newSObjectInstance(file: File): SObject
     val filenameFilter: FilenameFilter = new FilenameFilter {
@@ -43,7 +63,15 @@ trait TypeHelper extends Logging {
             None
         }
     }
-    private def stripExtension(fileName: String) = (fileExtension + "$").r.replaceFirstIn(fileName, "")
+    def unapply(resource: SObject): Option[(String, String)] = {
+        if (resource.getClass.getSimpleName == typeName) {
+            val name = getName(resource)
+            Option(name, fileExtension)
+        } else {
+            None
+        }
+    }
+    protected def stripExtension(fileName: String) = (fileExtension + "$").r.replaceFirstIn(fileName, "")
 
     def getKey(obj: SObject): String = {typeName + "." + getName(obj)}
     def getKey(f: File): String = {typeName + "." + stripExtension(f.getName)}
@@ -52,19 +80,19 @@ trait TypeHelper extends Logging {
     def getContentSOQL: String
 
     def getMemberInstance(sessionData: SessionData, f: File) = {
-        val metadataContainerId = sessionData.getField("MetadataContainer", "Id").get
+        val metadataContainerId = sessionData.getField("MetadataContainer", "Id") match {
+          case Some(x) => x
+          case None => throw new IllegalStateException("Missing MetadataContainer.Id in session data")
+        }
         val key = getKey(f)
         val objectId = sessionData.getField(key, "Id").get
         val member = newMemberInstance
         member.setContentEntityId(objectId)
         member.setBody(getBody(f))
         member.setMetadataContainerId(metadataContainerId)
-        /*TODO figure out how to use LastSyncDate, simple setting it here causes error
-        sessionData.getField(key, "LastSyncDate") match {
-          case Some(x) => member.setLastSyncDate(x)
-          case None => member.setLastSyncDate("0") //01 Jan 1970, i.e. there have never been Sync before
-        }
-        */
+        // DEBUG
+        //member.getSObject.setId(sessionData.getField(key, "ApexClassMemberId").get)
+        // END DEBUG
         member.getSObject
     }
     def listFiles(srcDir: File): Array[File] = {
@@ -108,108 +136,122 @@ object TypeHelpers {
 
     def getHelper(resource: File): TypeHelper = resource match {
         case ClassHelper(name, ext) => new ClassHelper
+        case TriggerHelper(name, ext) => new TriggerHelper
+        case PageHelper(name, ext) => new PageHelper
+        case ComponentHelper(name, ext) => new ComponentHelper
         case _ => throw new UnsupportedOperationException("Not implemented yet for resourcePath=" + resource.getAbsolutePath)
+    }
+    def getHelper(resource: SObject): TypeHelper = resource match {
+        case ClassHelper(name, ext) => new ClassHelper
+        case _ => throw new UnsupportedOperationException("Not implemented yet for resource=" + resource.getClass.getName)
     }
 
     object ClassHelper {
         def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
     }
     class ClassHelper extends TypeHelper {
         val typeName: String = "ApexClass"
         val directoryName: String = "classes"
         val fileExtension: String = ".cls"
-        def getApiVersion(obj: SObject): Double = obj.asInstanceOf[ApexClass].getApiVersion
+        def getApiVersionImpl(obj: SObject): Double = obj.asInstanceOf[ApexClass].getApiVersion
         def getName(obj: SObject): String = obj.asInstanceOf[ApexClass].getName
         def getBody(obj: SObject): String = obj.asInstanceOf[ApexClass].getBody
         def getLabel(obj: SObject): String = getName(obj)
         def getDescription(obj: SObject): String = ""
+        protected def getLastModifiedDateImpl(obj: SObject) = obj.asInstanceOf[ApexClass].getLastModifiedDate
+
         def newMemberInstance: Member = Member.toMember(new ApexClassMember())
         def newSObjectInstance(file: File): SObject = {
             val obj = new ApexClass()
             obj.setBody(getBody(file))
+            obj.setName(stripExtension(file.getName))
+            obj.setApiVersion(getApiVersion(file))
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
 
-        def getValueMap(obj: SObject) = {
-            val objTyped = obj.asInstanceOf[ApexClass]
-            Map("Id" -> objTyped.getId, "Name" -> objTyped.getName,
-                "LastModifiedDate" -> objTyped.getLastModifiedDate.getTimeInMillis.toString,
-                "ApiVersion" -> objTyped.getApiVersion.toString)
-        }
+    }
+
+    object TriggerHelper {
+        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
     }
     class TriggerHelper extends TypeHelper {
         val typeName: String = "ApexTrigger"
         val directoryName: String = "triggers"
         val fileExtension: String = ".trigger"
-        def getApiVersion(obj: SObject): Double = obj.asInstanceOf[ApexTrigger].getApiVersion
+        def getApiVersionImpl(obj: SObject): Double = obj.asInstanceOf[ApexTrigger].getApiVersion
         def getName(obj: SObject): String = obj.asInstanceOf[ApexTrigger].getName
         def getBody(obj: SObject): String = obj.asInstanceOf[ApexTrigger].getBody
         def getLabel(obj: SObject): String = getName(obj)
         def getDescription(obj: SObject): String = ""
+        protected def getLastModifiedDateImpl(obj: SObject) = obj.asInstanceOf[ApexTrigger].getLastModifiedDate
+
         def newMemberInstance: Member = Member.toMember(new ApexTriggerMember())
         def newSObjectInstance(file: File): SObject = {
             val obj = new ApexTrigger()
             obj.setBody(getBody(file))
+            obj.setName(stripExtension(file.getName))
+            obj.setApiVersion(getApiVersion(file))
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
 
-        def getValueMap(obj: SObject) = {
-            val objTyped = obj.asInstanceOf[ApexTrigger]
-            Map("Id" -> objTyped.getId, "Name" -> objTyped.getName,
-                "LastModifiedDate" -> objTyped.getLastModifiedDate.getTimeInMillis.toString,
-                "ApiVersion" -> objTyped.getApiVersion.toString)
-        }
+    }
+
+    object PageHelper {
+        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
     }
     class PageHelper extends TypeHelper {
         val typeName: String = "ApexPage"
         val directoryName: String = "pages"
         val fileExtension: String = ".page"
-        def getApiVersion(obj: SObject): Double = obj.asInstanceOf[ApexPage].getApiVersion
+        def getApiVersionImpl(obj: SObject): Double = obj.asInstanceOf[ApexPage].getApiVersion
         def getName(obj: SObject): String = obj.asInstanceOf[ApexPage].getName
         def getBody(obj: SObject): String = obj.asInstanceOf[ApexPage].getMarkup
         def getLabel(obj: SObject): String = obj.asInstanceOf[ApexPage].getMasterLabel
         def getDescription(obj: SObject): String = obj.asInstanceOf[ApexPage].getDescription
+        protected def getLastModifiedDateImpl(obj: SObject) = obj.asInstanceOf[ApexPage].getLastModifiedDate
+
         def newMemberInstance: Member = Member.toMember(new ApexPageMember())
         def newSObjectInstance(file: File): SObject = {
             val obj = new ApexPage()
             obj.setMarkup(getBody(file))
+            obj.setName(stripExtension(file.getName))
+            obj.setApiVersion(getApiVersion(file))
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
-        def getValueMap(obj: SObject) = {
-            val objTyped = obj.asInstanceOf[ApexPage]
-            Map("Id" -> objTyped.getId, "Name" -> objTyped.getName,
-                "LastModifiedDate" -> objTyped.getLastModifiedDate.getTimeInMillis.toString,
-                "ApiVersion" -> objTyped.getApiVersion.toString)
-        }
     }
 
+    object ComponentHelper {
+        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
+    }
     class ComponentHelper extends TypeHelper {
         val typeName: String = "ApexComponent"
         val directoryName: String = "components"
         val fileExtension: String = ".component"
-        def getApiVersion(obj: SObject): Double = obj.asInstanceOf[ApexComponent].getApiVersion
+        def getApiVersionImpl(obj: SObject): Double = obj.asInstanceOf[ApexComponent].getApiVersion
         def getName(obj: SObject): String = obj.asInstanceOf[ApexComponent].getName
         def getBody(obj: SObject): String = obj.asInstanceOf[ApexComponent].getMarkup
         def getLabel(obj: SObject): String = obj.asInstanceOf[ApexComponent].getMasterLabel
         def getDescription(obj: SObject): String = obj.asInstanceOf[ApexComponent].getDescription
+        protected def getLastModifiedDateImpl(obj: SObject) = obj.asInstanceOf[ApexComponent].getLastModifiedDate
+
         def newMemberInstance: Member = Member.toMember(new ApexComponentMember())
         def newSObjectInstance(file: File): SObject = {
             val obj = new ApexComponent()
             obj.setMarkup(getBody(file))
+            obj.setName(stripExtension(file.getName))
+            obj.setApiVersion(getApiVersion(file))
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
-        def getValueMap(obj: SObject) = {
-            val objTyped = obj.asInstanceOf[ApexComponent]
-            Map("Id" -> objTyped.getId, "Name" -> objTyped.getName,
-                "LastModifiedDate" -> objTyped.getLastModifiedDate.getTimeInMillis.toString,
-                "ApiVersion" -> objTyped.getApiVersion.toString)
-        }
     }
 }
 
@@ -228,13 +270,6 @@ trait Member {
     def setContentEntityId(contentEntityId: String)
     def setBody(body: String)
     def setMetadataContainerId(metadataContainerId: String)
-    def setLastSyncDate(lastSyncDate : Calendar)
-
-    def setLastSyncDate(mills: String) {
-        val cal = Calendar.getInstance()
-        cal.setTimeInMillis(mills.toLong)
-        setLastSyncDate(cal)
-    }
 
 }
 object Member {
@@ -256,7 +291,6 @@ class MemberClass(m: ApexClassMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
-    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberPage(m: ApexPageMember) extends Member {
     def getSObject: SObject = m
@@ -267,7 +301,6 @@ class MemberPage(m: ApexPageMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
-    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberTrigger(m: ApexTriggerMember) extends Member {
     def getSObject: SObject = m
@@ -278,7 +311,6 @@ class MemberTrigger(m: ApexTriggerMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
-    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate)}
 }
 class MemberComponent(m: ApexComponentMember) extends Member {
     def getSObject: SObject = m
@@ -289,6 +321,5 @@ class MemberComponent(m: ApexComponentMember) extends Member {
     def setContentEntityId(contentEntityId: String) {m.setContentEntityId(contentEntityId)}
     def setBody(body: String) {m.setBody(body)}
     def setMetadataContainerId(metadataContainerId: String) {m.setMetadataContainerId(metadataContainerId)}
-    def setLastSyncDate(lastSyncDate : Calendar) {m.setLastSyncDate(lastSyncDate); m.getSystemModstamp}
 }
 

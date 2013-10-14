@@ -40,34 +40,43 @@ trait ProcessorBase extends Logging {
         val f = new File(resourcePath)
         f.isDirectory && f.canRead
     }
-    private def deleteMetadataContainer(session: SfdcSession, sessionData: SessionData) {
-        sessionData.getField("MetadataContainer", "Id") match {
-            case Some(x) =>
-                try {
-                    session.delete(Array(x))
-                    sessionData.clearField("MetadataContainer", "Id")
-                    sessionData.store()
-                } catch {
-                    case ex:Throwable => //do not really care why delete failed
-                        logger.debug("Could not delete MetadataContainer. " + ex.getMessage)
-                }
-            case None => //nothing to delete
+    def deleteMetadataContainer(session: SfdcSession, sessionData: SessionData) {
+        sessionData.getExistingContainer match {
+          case Some(container) =>
+              try {
+                  sessionData.remove("MetadataContainer")
+                  session.delete(container.getId)
+              } catch {
+                  case ex:Throwable => //do not really care why delete failed
+                      logger.debug("Could not delete MetadataContainer. " + ex.getMessage)
+              }
+              sessionData.store()
+          case None => //nothing to delete
+        }
+    }
+
+    def withMetadataContainer(session: SfdcSession, sessionData: SessionData)(codeBlock: (MetadataContainer) => Any) = {
+        //check if container actually exists
+        val container = sessionData.getExistingContainer match {
+          case Some(cont) =>
+              logger.debug("Re-use Existing MetadataContainer; Id=" + cont.getId)
+              cont
+          case None => //create container
+              val newContainer = new MetadataContainer()
+              newContainer.setName(Processor.containerPrefix + System.currentTimeMillis())
+              val containerSaveResults: Array[SaveResult] = session.create(Array(newContainer))
+              if (containerSaveResults.head.isSuccess) {
+                  newContainer.setId(containerSaveResults.head.getId)
+                  sessionData.setData("MetadataContainer", Map("Name" -> newContainer.getName, "Id" -> newContainer.getId))
+                  sessionData.store()
+                  logger.debug("Created new MetadataContainer; Id=" + sessionData.getField("MetadataContainer", "Id"))
+              } else {
+                  logger.debug("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
+                  throw new IllegalStateException("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
+              }
+              newContainer
         }
 
-    }
-    def withMetadataContainer(session: SfdcSession, sessionData: SessionData)(codeBlock: (MetadataContainer) => Any) = {
-        deleteMetadataContainer(session, sessionData)
-        //check if we need to delete the existing one
-        val container = new MetadataContainer()
-        container.setName(Processor.containerName)
-        val containerSaveResults: Array[SaveResult] = session.create(Array(container))
-        if (!containerSaveResults.head.isSuccess) {
-            logger.debug("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
-            throw new IllegalStateException("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
-        } else {
-            sessionData.setData("MetadataContainer", Map("Name" -> Processor.containerName, "Id" -> containerSaveResults.head.getId))
-            sessionData.store()
-        }
         try {
             codeBlock(container)
         } finally {
@@ -80,15 +89,16 @@ trait Processor extends ProcessorBase {
     def save(session: SfdcSession, sessionData: SessionData)
 
     protected def saveApexMembers(session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
-                                members: Iterable[SObject]) {
+                                    members: Iterable[SObject]) {
 
-        val serverMills = session.getServerTimestamp.getTimestamp.getTimeInMillis
-        val saveResults = session.create(members.toArray)
-        for (res <- saveResults) {
+        if (!members.isEmpty) {
+            val saveResults = session.create(members.toArray)
+            //val saveResults = session.update(members.toArray)
+            val res = saveResults.head
             if (res.isSuccess) {
                 val request = new ContainerAsyncRequest()
-                request.setIsCheckOnly(false)
-                request.setMetadataContainer(container)
+                request.setIsCheckOnly(session.getConfig.isCheckOnly)
+                request.setMetadataContainerId(container.getId)
                 val requestResults = session.create(Array(request))
                 for (res <- requestResults) {
                     if (res.isSuccess) {
@@ -101,18 +111,21 @@ trait Processor extends ProcessorBase {
                                 Thread.sleep(2000)
                                 _request = session.query(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
                             }
-                            processSaveResult(sessionData, _request, members, serverMills)
+                            processSaveResult(sessionData, _request, members)
                         }
+                    } else {
+                        throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
                     }
                 }
             } else {
-                throw new IllegalStateException("Failed to create Metadata Container. " + res.getErrors.head.getMessage)
+                throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
             }
+
+            sessionData.store()
         }
-        sessionData.store()
     }
 
-    private def processSaveResult(sessionData: SessionData, request: ContainerAsyncRequest, members: Iterable[SObject], serverMills: Long) {
+    private def processSaveResult(sessionData: SessionData, request: ContainerAsyncRequest, members: Iterable[SObject]) {
 
         request.getState match {
             case "Completed" =>
@@ -121,9 +134,8 @@ trait Processor extends ProcessorBase {
                     val id = Member.toMember(m).getContentEntityId
                     sessionData.getKeyById(id) match {
                         case Some(key) =>
-                            sessionData.setField(key, "LastSyncDate", serverMills.toString)
                             sessionData.setField(key, "LastSyncDateLocal", System.currentTimeMillis.toString)
-                        case None => throw new IllegalStateException("Failed to fetch session data for " + Processor.containerName + " using Id=" + id)
+                        case None => throw new IllegalStateException("Failed to fetch session data for using Id=" + id)
                     }
                 }
             case state =>
@@ -131,10 +143,80 @@ trait Processor extends ProcessorBase {
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
         }
     }
+
+    /**
+     * using stored session data figure out what files have changed
+     * @return
+     */
+    type ChangedFiles = Map[TypeHelper, List[File]]
+
+    def isModified(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
+        sessionData.getField(helper.getKey(f), "LastSyncDateLocal") match {
+            case Some(x) =>
+                f.lastModified > x.toLong
+            //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
+            case _ =>
+                //if there is no session data for existing file then this file must be Created
+                throw new IllegalStateException("New files must be saved before Modified ones")
+        }
+    }
+
+    /**
+     * @return Set of session-data-keys of all files that are older then their remote version
+     */
+    def getFilesOlderThanRemote(session: SfdcSession, sessionData: SessionData, changedFileMap: ChangedFiles): Iterable[String] = {
+
+        def checkIfRemoteIsNewer(key: String, lastModifiedDate: Option[Long]) = {
+            val localLMD = sessionData.getField(key, "LastModifiedDate") match {
+                case Some(x) => x.toLong
+                case None => 0
+            }
+            lastModifiedDate match {
+              case Some(remoteLMD) => remoteLMD > localLMD
+              case None => false
+            }
+        }
+
+        val newerFiles  =
+            for (helper <- changedFileMap.keys) yield {
+
+                val files = changedFileMap(helper)
+                val remoteLMDByKeyMap = getRemoteLastModifiedDates(session, sessionData, helper, files)
+
+                val outdatedFiles = files.filter(f => checkIfRemoteIsNewer(helper.getKey(f), remoteLMDByKeyMap.get(helper.getKey(f)) ))
+                val keysOfOutdatedFiles = outdatedFiles.map(f => helper.getKey(f))
+                keysOfOutdatedFiles
+            }
+        newerFiles.flatten
+    }
+
+    def reloadRemoteLastModifiedDate(session: SfdcSession, sessionData: SessionData, changedFileMap: ChangedFiles) {
+        for (helper <- changedFileMap.keys) yield {
+
+            val pairs = getRemoteLastModifiedDates(session, sessionData, helper, changedFileMap(helper))
+            for ((key, remoteLMD) <- pairs) {
+                sessionData.setField(key, "LastModifiedDate", remoteLMD.toString)
+            }
+
+        }
+        sessionData.store()
+    }
+
+    /**
+     * @return Map(session-data-key -> LastModifiedDate mills)
+     */
+    def getRemoteLastModifiedDates(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, files: List[File]): Map[String, Long] = {
+        val names = files.map(f => helper.getName(f)).toList.mkString("','")
+        if (!names.isEmpty) {
+            val queryRes = session.query("select Id, Name, LastModifiedDate from " + helper.typeName + " where Name in ('" + names + "')")
+            queryRes.getRecords.map (rec => (helper.getKey(rec) -> helper.getLastModifiedDate(rec))).toMap
+        } else Map()
+    }
+
 }
 
 object Processor extends ProcessorBase{
-    val containerName = "tooling-force.com"
+    val containerPrefix = "tooling-force.com"
     def getProcessor(appConfig: Config): Processor = {
 
         val file = new File(appConfig.resourcePath)
@@ -149,21 +231,21 @@ class FileProcessor(resource: File) extends Processor {
     def save(session: SfdcSession, sessionData: SessionData) {
         val helper = TypeHelpers.getHelper(resource)
 
-        sessionData.getField(helper.getKey(resource), "Id") match {
-          case Some(x) => update(session, sessionData, helper)
-          case None => create(session, sessionData, helper)
+        withMetadataContainer(session, sessionData) { container =>
+            sessionData.getField(helper.getKey(resource), "Id") match {
+                case Some(x) => update(session, sessionData, helper, container)
+                case None => create(session, sessionData, helper, container)
+            }
         }
         sessionData.store()
     }
 
-    def update(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
+    def update(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, container: MetadataContainer) = {
         //val container = getMetadataContainer(session, sessionData)
-        withMetadataContainer(session, sessionData) { container =>
-            saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
-        }
+        saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
     }
 
-    def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper) = {
+    def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, container: MetadataContainer) = {
 
         val apexObj = helper.newSObjectInstance(resource)
         val saveResults = session.create(Array(apexObj))
@@ -188,44 +270,111 @@ class FileProcessor(resource: File) extends Processor {
 
 class PackageProcessor(srcDir: File) extends Processor {
 
-    def save(session: SfdcSession, sessionData: SessionData) {
-        val changedFileMap = getChangedFiles(sessionData)
-        //iterate through changedFileMap and return list of ApexComponentMember objects
-        //val container = getMetadataContainer(session, sessionData)
-        val members = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
-            helper.getMemberInstance(sessionData, f)
-        }
-        //add each file into MetadataContainer and if container update is successful then record serverMills
-        //in session data as LastSyncDate for each of successful files
-        withMetadataContainer(session, sessionData) { container =>
-            saveApexMembers(session, sessionData, container, members)
-        }
-    }
-
-    /**
-     * using stored session data figure out what files have changed
-     * @return
-     */
-    type ChangedFiles = Map[TypeHelper, List[File]]
-
-    def getChangedFiles(sessionData: SessionData): ChangedFiles = {
+    def getModifiedFiles(sessionData: SessionData): ChangedFiles = {
         def iter (helpers: List[TypeHelper], res: ChangedFiles): ChangedFiles = {
             helpers match {
-              case Nil => res
-              case helper :: xs =>
-                  val files = helper.listFiles(srcDir)
-                  iter(xs, res ++ Map(helper -> files.filter(isModified(sessionData, helper, _)).toList))
+                case Nil => res
+                case helper :: xs =>
+                    val files = helper.listFiles(srcDir)
+                    iter(xs, res ++ Map(helper -> files.filter(isModified(sessionData, helper, _)).toList))
 
             }
         }
         iter(TypeHelpers.list, Map())
     }
-    def isModified(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
+
+    def save(session: SfdcSession, sessionData: SessionData) {
+        val changedFiles = create(session, sessionData)
+        reloadRemoteLastModifiedDate(session, sessionData, changedFiles)
+
+        withMetadataContainer(session, sessionData) { container =>
+            val changedFiles = update(session, sessionData, container)
+            reloadRemoteLastModifiedDate(session, sessionData, changedFiles)
+        }
+
+    }
+    def update(session: SfdcSession, sessionData: SessionData, container: MetadataContainer):ChangedFiles = {
+        val changedFileMap = getModifiedFiles(sessionData)
+        //check if remote version of these files is newer
+        val newerFileKeys = getFilesOlderThanRemote(session, sessionData, changedFileMap)
+        if (!newerFileKeys.isEmpty) {
+            logger.info("Remote file(s) newer than local")
+            for( key <- newerFileKeys ) {
+                //val data = sessionData.getData(key)
+                val values = key.split('.') //split to type name and name
+                logger.info(values(0) + ": " + values(1))
+            }
+            Map()
+        } else {
+            //iterate through changedFileMap and return list of ApexComponentMember objects
+            //val container = getMetadataContainer(session, sessionData)
+            val members = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
+                helper.getMemberInstance(sessionData, f)
+            }
+            //add each file into MetadataContainer and if container update is successful then record serverMills
+            //in session data as LastSyncDate for each of successful files
+            saveApexMembers(session, sessionData, container, members)
+            changedFileMap
+        }
+    }
+    def create(session: SfdcSession, sessionData: SessionData):ChangedFiles = {
+        val changedFileMap = getCreatedFiles(sessionData)
+        //iterate through changedFileMap and return list of Apex[Class/Page...] objects
+        val objects = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
+            helper.newSObjectInstance(f)
+        }
+        if (!objects.isEmpty) {
+            val objectsArray = objects.toArray
+            val saveResults = session.create(objectsArray)
+            var i = 0
+            for (res <- saveResults) {
+                val apexObj = objectsArray(i)
+                val helper = TypeHelpers.getHelper(apexObj)
+                if (res.isSuccess) {
+                    val key = helper.getKey(apexObj)
+                    //store Id in session
+
+                    apexObj.setId(res.getId)
+                    val data = helper.getValueMap(apexObj)
+                    sessionData.setData(key, data)
+                    sessionData.setField(key, "LastSyncDateLocal", System.currentTimeMillis.toString)
+                } else /* if (!res.getSuccess) */{
+                    val statusCode = res.getErrors.head.getStatusCode
+                    val resourceName = helper.getName(apexObj)
+                    statusCode match {
+                        case StatusCode.DUPLICATE_VALUE =>
+                            //file already exists
+                            logger.error("Local project appears to be out of sync. File " + resourceName+ " is marked as new in local version but it already exists in SFDC")
+                            logger.error("Refresh your local project to sync with SFDC")
+                            throw new IllegalStateException("Refresh your local project to sync with SFDC")
+                        case _ => throw new IllegalStateException("failed to create file " + resourceName + "; " + res.getErrors.head)
+                    }
+                    logger.error("" + res.getErrors.head)
+                }
+                i += 1
+            }
+            sessionData.store()
+        }
+        changedFileMap
+    }
+
+    def getCreatedFiles(sessionData: SessionData): ChangedFiles = {
+        def iter (helpers: List[TypeHelper], res: ChangedFiles): ChangedFiles = {
+            helpers match {
+                case Nil => res
+                case helper :: xs =>
+                    val files = helper.listFiles(srcDir)
+                    iter(xs, res ++ Map(helper -> files.filter(isCreated(sessionData, helper, _)).toList))
+
+            }
+        }
+        iter(TypeHelpers.list, Map())
+    }
+    def isCreated(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
         sessionData.getField(helper.getKey(f), "LastSyncDateLocal") match {
-            case Some(x) =>
-                f.lastModified > x.toLong
             //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
-            case _ => true
+            case None => true
+            case Some(x) => false
         }
     }
 }

@@ -88,6 +88,9 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
         val data = getData(key)
         setData(key, data - "Id")
     }
+    def remove(key: String) {
+        sessionProperties.remove(key)
+    }
 
     def getField(key: String, propName: String): Option[String] = {
         getData(key).get(propName)
@@ -99,20 +102,13 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
 
 
     def load() {
-        //first try cached version
-        val loadFromSFDC = sessionProperties.getPropertyOption("MetadataContainer") match {
+        //first check if we have a cached version
+        val loadFromSFDC = sessionProperties.getPropertyOption("serviceEndpoint") match {
             case Some(x) => false
             case None => true
         }
 
         if (loadFromSFDC) {
-            //check if container already exist in SFDC
-            val queryRes = sfdcSession.query("select Id, Name from MetadataContainer where Name = '" + Processor.containerName + "'")
-            if (queryRes.getSize > 0) {
-                val container = queryRes.getRecords.head.asInstanceOf[MetadataContainer]
-                setData("MetadataContainer", Map("Id" -> container.getId, "Name" -> container.getName))
-                store()
-            }
 
             for (helper <- TypeHelpers.list) {
 
@@ -129,6 +125,19 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
             }
             store()
         }
+    }
+
+    def getExistingContainer: Option[MetadataContainer] = {
+
+        if (None != getField("MetadataContainer", "Id")) {
+            //check if we have cached Container data
+            val containerData = getData("MetadataContainer")
+            val container = new MetadataContainer
+            container.setId(containerData("Id"))
+            container.setName(containerData("Name"))
+            Some(container)
+        } else None
+
     }
 
 }
