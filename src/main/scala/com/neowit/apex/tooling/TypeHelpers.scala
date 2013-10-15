@@ -12,7 +12,8 @@ import scala.sys.process.BasicIO
 trait TypeHelper extends Logging {
     def API_VERSION = 29.0 //default API version
     def getValueMap(obj: SObject):Map[String, String] = {
-        Map("Id" -> obj.getId, "Name" -> getName(obj), "ApiVersion" -> getApiVersion(obj).toString, "LastModifiedDate" -> getLastModifiedDate(obj).toString)
+        val lastModifiedDate = getLastModifiedDate(obj).toString
+        Map("Id" -> obj.getId, "Name" -> getName(obj), "ApiVersion" -> getApiVersion(obj).toString, "LastModifiedDate" -> lastModifiedDate)
     }
     val typeName: String
     val fileExtension: String
@@ -45,7 +46,10 @@ trait TypeHelper extends Logging {
     def getLabel(obj: SObject): String
     def getDescription(obj: SObject): String
     def getLastModifiedDate(obj: SObject): Long = {
-        getLastModifiedDateImpl(obj).getTimeInMillis
+        getLastModifiedDateImpl(obj) match {
+            case d if null != d => d.getTimeInMillis
+            case _ => 0
+        }
     }
     protected def getLastModifiedDateImpl(obj: SObject): java.util.Calendar
 
@@ -132,7 +136,7 @@ trait TypeHelper extends Logging {
 }
 
 object TypeHelpers {
-    val list = List(new ClassHelper(), new TriggerHelper(), new PageHelper())
+    val list = List(new ClassHelper(), new TriggerHelper(), new PageHelper(), new ComponentHelper())
 
     def getHelper(resource: File): TypeHelper = resource match {
         case ClassHelper(name, ext) => new ClassHelper
@@ -143,6 +147,9 @@ object TypeHelpers {
     }
     def getHelper(resource: SObject): TypeHelper = resource match {
         case ClassHelper(name, ext) => new ClassHelper
+        case TriggerHelper(name, ext) => new TriggerHelper
+        case PageHelper(name, ext) => new PageHelper
+        case ComponentHelper(name, ext) => new ComponentHelper
         case _ => throw new UnsupportedOperationException("Not implemented yet for resource=" + resource.getClass.getName)
     }
 
@@ -174,8 +181,8 @@ object TypeHelpers {
     }
 
     object TriggerHelper {
-        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
-        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: File): Option[(String, String)] = new TriggerHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new TriggerHelper().unapply(resource)
     }
     class TriggerHelper extends TypeHelper {
         val typeName: String = "ApexTrigger"
@@ -201,8 +208,8 @@ object TypeHelpers {
     }
 
     object PageHelper {
-        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
-        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: File): Option[(String, String)] = new PageHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new PageHelper().unapply(resource)
     }
     class PageHelper extends TypeHelper {
         val typeName: String = "ApexPage"
@@ -221,6 +228,7 @@ object TypeHelpers {
             obj.setMarkup(getBody(file))
             obj.setName(stripExtension(file.getName))
             obj.setApiVersion(getApiVersion(file))
+            obj.setMasterLabel(obj.getName)
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
@@ -228,8 +236,8 @@ object TypeHelpers {
     }
 
     object ComponentHelper {
-        def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
-        def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(resource: File): Option[(String, String)] = new ComponentHelper().unapply(resource)
+        def unapply(resource: SObject): Option[(String, String)] = new ComponentHelper().unapply(resource)
     }
     class ComponentHelper extends TypeHelper {
         val typeName: String = "ApexComponent"
@@ -248,6 +256,7 @@ object TypeHelpers {
             obj.setMarkup(getBody(file))
             obj.setName(stripExtension(file.getName))
             obj.setApiVersion(getApiVersion(file))
+            obj.setMasterLabel(obj.getName)
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName

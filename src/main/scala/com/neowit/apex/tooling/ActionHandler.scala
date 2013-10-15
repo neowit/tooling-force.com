@@ -48,28 +48,8 @@ class RefreshHandler(appConfig: Config) extends ActionHandler {
 
     def act(sfdcSession: SfdcSession, sessionData: SessionData) {
         //execute Refresh
-        for (helper <- TypeHelpers.list) {
-
-            val queryResult = sfdcSession.query(helper.getContentSOQL)
-            if (queryResult.getSize >0) {
-                do {
-                    for (record: SObject <- queryResult.getRecords) {
-                        val data = helper.getValueMap(record)
-                        //save file content
-                        helper.bodyToFile(appConfig, record)
-                        //stamp file save time
-                        val localMills = System.currentTimeMillis.toString
-                        val key = helper.getKey(record)
-                        sessionData.setData(key, data ++ Map("LastSyncDateLocal" -> localMills))
-
-                    }
-                }  while (!queryResult.isDone)
-            }
-        }
         val processor = Processor.getProcessor(appConfig)
-        processor.deleteMetadataContainer(sfdcSession, sessionData)
-        sessionData.store()
-
+        processor.refresh(sfdcSession, sessionData)
     }
 }
 

@@ -46,6 +46,7 @@ trait ProcessorBase extends Logging {
               try {
                   sessionData.remove("MetadataContainer")
                   session.delete(container.getId)
+                  logger.debug("Deleted MetadataContainer; Id=" + container.getId)
               } catch {
                   case ex:Throwable => //do not really care why delete failed
                       logger.debug("Could not delete MetadataContainer. " + ex.getMessage)
@@ -151,9 +152,10 @@ trait Processor extends ProcessorBase {
     type ChangedFiles = Map[TypeHelper, List[File]]
 
     def isModified(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
-        sessionData.getField(helper.getKey(f), "LastSyncDateLocal") match {
+        val key = helper.getKey(f)
+        sessionData.getField(key, "LastSyncDateLocal") match {
             case Some(x) =>
-                f.lastModified > x.toLong
+                f.lastModified > x.toLong && None != sessionData.getField(key, "Id")
             //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
             case _ =>
                 //if there is no session data for existing file then this file must be Created
@@ -209,10 +211,11 @@ trait Processor extends ProcessorBase {
         val names = files.map(f => helper.getName(f)).toList.mkString("','")
         if (!names.isEmpty) {
             val queryRes = session.query("select Id, Name, LastModifiedDate from " + helper.typeName + " where Name in ('" + names + "')")
-            queryRes.getRecords.map (rec => (helper.getKey(rec) -> helper.getLastModifiedDate(rec))).toMap
+            queryRes.getRecords.map (rec => helper.getKey(rec) -> helper.getLastModifiedDate(rec)).toMap
         } else Map()
     }
 
+    def refresh(sfdcSession: SfdcSession, sessionData: SessionData)
 }
 
 object Processor extends ProcessorBase{
@@ -221,13 +224,13 @@ object Processor extends ProcessorBase{
 
         val file = new File(appConfig.resourcePath)
         if (file.isDirectory)
-            new PackageProcessor(file)
+            new PackageProcessor(appConfig, file)
         else
-            new FileProcessor(file)
+            new FileProcessor(appConfig, file)
     }
 }
 
-class FileProcessor(resource: File) extends Processor {
+class FileProcessor(appConfig: Config, resource: File) extends Processor {
     def save(session: SfdcSession, sessionData: SessionData) {
         val helper = TypeHelpers.getHelper(resource)
 
@@ -266,9 +269,26 @@ class FileProcessor(resource: File) extends Processor {
             }
         }
     }
+
+    def refresh(sfdcSession: SfdcSession, sessionData: SessionData) {
+
+        val helper = TypeHelpers.getHelper(resource)
+        val queryResult = sfdcSession.query(helper.getContentSOQL + " where Name='" + helper.getName(resource) + "'")
+        if (queryResult.getSize >0) {
+            val record: SObject = queryResult.getRecords.head
+            val data = helper.getValueMap(record)
+            //save file content
+            helper.bodyToFile(appConfig, record)
+            //stamp file save time
+            val localMills = System.currentTimeMillis.toString
+            val key = helper.getKey(record)
+            sessionData.setData(key, data ++ Map("LastSyncDateLocal" -> localMills))
+            sessionData.store()
+        }
+    }
 }
 
-class PackageProcessor(srcDir: File) extends Processor {
+class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
 
     def getModifiedFiles(sessionData: SessionData): ChangedFiles = {
         def iter (helpers: List[TypeHelper], res: ChangedFiles): ChangedFiles = {
@@ -338,6 +358,7 @@ class PackageProcessor(srcDir: File) extends Processor {
                     val data = helper.getValueMap(apexObj)
                     sessionData.setData(key, data)
                     sessionData.setField(key, "LastSyncDateLocal", System.currentTimeMillis.toString)
+                    sessionData.store()
                 } else /* if (!res.getSuccess) */{
                     val statusCode = res.getErrors.head.getStatusCode
                     val resourceName = helper.getName(apexObj)
@@ -371,11 +392,42 @@ class PackageProcessor(srcDir: File) extends Processor {
         iter(TypeHelpers.list, Map())
     }
     def isCreated(sessionData: SessionData, helper: TypeHelper, f: File): Boolean = {
-        sessionData.getField(helper.getKey(f), "LastSyncDateLocal") match {
-            //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
+        sessionData.getField(helper.getKey(f), "Id") match {
             case None => true
             case Some(x) => false
         }
+    }
+
+    def refresh(sfdcSession: SfdcSession, sessionData: SessionData) {
+
+        for (helper <- TypeHelpers.list) {
+            //load keys for all locally available resources of current type
+            val allResourceKeys = helper.listFiles(srcDir).map(f => helper.getKey(f))
+            val allResourcesKeySet = collection.mutable.Set(allResourceKeys.toSeq: _*)
+
+            val queryResult = sfdcSession.query(helper.getContentSOQL)
+            if (queryResult.getSize >0) {
+                do {
+                    for (record: SObject <- queryResult.getRecords) {
+                        val data = helper.getValueMap(record)
+                        //save file content
+                        helper.bodyToFile(appConfig, record)
+                        //stamp file save time
+                        val localMills = System.currentTimeMillis.toString
+                        val key = helper.getKey(record)
+                        sessionData.setData(key, data ++ Map("LastSyncDateLocal" -> localMills))
+                        allResourcesKeySet.remove(key)
+
+                    }
+                }  while (!queryResult.isDone)
+            }
+            //now for all keys which are still in allResourcesKeySet we can safely assume that they are "new" files
+            for (key <- allResourcesKeySet) {
+                sessionData.clearField(key, "Id")
+            }
+        }
+        deleteMetadataContainer(sfdcSession, sessionData)
+        sessionData.store()
     }
 }
 
