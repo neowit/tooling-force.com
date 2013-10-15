@@ -10,7 +10,7 @@ import scala.sys.process.BasicIO
  * Date: 18/09/2013
  */
 trait TypeHelper extends Logging {
-    def API_VERSION = 29.0 //default API version
+    def API_VERSION = Config.apiVersion //default API version
     def getValueMap(obj: SObject):Map[String, String] = {
         val lastModifiedDate = getLastModifiedDate(obj).toString
         Map("Id" -> obj.getId, "Name" -> getName(obj), "ApiVersion" -> getApiVersion(obj).toString, "LastModifiedDate" -> lastModifiedDate)

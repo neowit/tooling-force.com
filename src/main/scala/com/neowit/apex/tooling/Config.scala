@@ -51,6 +51,7 @@ trait PropertiesOption extends Properties{
     }
 }
 object Config extends Logging {
+    val apiVersion:Double = 29.0
     private var config: Config = new Config
     def getConfig = {
         config
@@ -135,11 +136,10 @@ class Config extends Logging{
 
     lazy val username = getRequiredProperty("sf.username").get
     lazy val password = getRequiredProperty("sf.password").get
-    val apiVersion = "28.0"
     lazy val soapEndpoint = {
         val serverUrl = getRequiredProperty("sf.serverurl")
         serverUrl match {
-            case Some(x) => x + "/services/Soap/u/" + apiVersion
+            case Some(x) => x + "/services/Soap/u/" + Config.apiVersion
             case None => null
         }
     }
