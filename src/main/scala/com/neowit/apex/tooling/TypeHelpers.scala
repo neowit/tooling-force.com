@@ -36,7 +36,7 @@ trait TypeHelper extends Logging {
     }
     protected def getApiVersionImpl(obj: SObject): Double
     //name without extension
-    def getName(f: File): String = f.getName.take(f.getName.length - fileExtension.length)
+    def getName(f: File): String = stripExtension(f.getName)
 
     def getName(obj: SObject): String
     def getBody(obj: SObject): String
@@ -78,7 +78,7 @@ trait TypeHelper extends Logging {
     protected def stripExtension(fileName: String) = (fileExtension + "$").r.replaceFirstIn(fileName, "")
 
     def getKey(obj: SObject): String = {typeName + "." + getName(obj)}
-    def getKey(f: File): String = {typeName + "." + stripExtension(f.getName)}
+    def getKey(f: File): String = {typeName + "." + getName(f)}
     def getKey(name: String): String = {typeName + "." + stripExtension(name)}
 
     def getContentSOQL: String
