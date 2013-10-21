@@ -20,7 +20,7 @@
 package com.neowit.apex.tooling
 
 import java.util.Properties
-import java.io.{FileWriter, File}
+import java.io.{PrintWriter, Writer, FileWriter, File}
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -234,6 +234,23 @@ regardless of whether it is also specified in config file or not
         }
 
         path
+    }
+
+    private var responseFileAccessed = false
+    private lazy val responseFile = {
+        val path = getRequiredProperty("responseFilePath").get
+        val f = new File(path)
+        if (!f.exists()) {
+            f.createNewFile()
+        }
+        responseFileAccessed = true
+        f
+    }
+    lazy val responseWriter: PrintWriter = new PrintWriter(responseFile)
+    def responseWriterClose = {
+        if (responseFileAccessed) {
+            responseWriter.close()
+        }
     }
 
 }

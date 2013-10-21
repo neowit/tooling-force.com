@@ -21,7 +21,7 @@ package com.neowit.apex.tooling
 
 
 
-object Runner extends Logging{
+object Runner extends Logging {
     val appConfig = Config.getConfig
 
     def main(args: Array[String]) {
@@ -35,7 +35,13 @@ object Runner extends Logging{
             } catch {
                 case ex: InvalidCommandLineException => appConfig.help()
                 case ex: MissingRequiredConfigParameterException => logger.error(ex.getMessage)
+                case ex: Throwable =>
+                    //val response = appConfig.responseWriter with Response
+                    object response extends Response
+                    response.genericError(ex.getMessage)
+
             } finally {
+                appConfig.responseWriterClose
             }
         }
     }

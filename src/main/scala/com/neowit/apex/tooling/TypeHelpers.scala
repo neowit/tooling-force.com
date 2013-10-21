@@ -4,6 +4,7 @@ import com.sforce.soap.tooling._
 import java.io._
 import scala.Some
 import scala.sys.process.BasicIO
+import scala.util.parsing.json.JSONObject
 
 /**
  * User: andrey
@@ -70,6 +71,14 @@ trait TypeHelper extends Logging {
     def unapply(resource: SObject): Option[(String, String)] = {
         if (resource.getClass.getSimpleName == typeName) {
             val name = getName(resource)
+            Option(name, fileExtension)
+        } else {
+            None
+        }
+    }
+    def unapply(json: JSONObject): Option[(String, String)] = {
+        if (json.obj("extent") == this.typeName) {
+            val name = json.obj("name").asInstanceOf[String]
             Option(name, fileExtension)
         } else {
             None
@@ -153,9 +162,18 @@ object TypeHelpers {
         case _ => throw new UnsupportedOperationException("Not implemented yet for resource=" + resource.getClass.getName)
     }
 
+    def getHelper(json: JSONObject): TypeHelper = json match {
+        case ClassHelper(name, ext) => new ClassHelper
+        case TriggerHelper(name, ext) => new TriggerHelper
+        case PageHelper(name, ext) => new PageHelper
+        case ComponentHelper(name, ext) => new ComponentHelper
+        case _ => throw new UnsupportedOperationException("Not implemented yet for resource=" + json)
+    }
+
     object ClassHelper {
         def unapply(resource: File): Option[(String, String)] = new ClassHelper().unapply(resource)
         def unapply(resource: SObject): Option[(String, String)] = new ClassHelper().unapply(resource)
+        def unapply(json: JSONObject): Option[(String, String)] = new ClassHelper().unapply(json)
     }
     class ClassHelper extends TypeHelper {
         val typeName: String = "ApexClass"
@@ -183,6 +201,7 @@ object TypeHelpers {
     object TriggerHelper {
         def unapply(resource: File): Option[(String, String)] = new TriggerHelper().unapply(resource)
         def unapply(resource: SObject): Option[(String, String)] = new TriggerHelper().unapply(resource)
+        def unapply(json: JSONObject): Option[(String, String)] = new ClassHelper().unapply(json)
     }
     class TriggerHelper extends TypeHelper {
         val typeName: String = "ApexTrigger"
@@ -210,6 +229,7 @@ object TypeHelpers {
     object PageHelper {
         def unapply(resource: File): Option[(String, String)] = new PageHelper().unapply(resource)
         def unapply(resource: SObject): Option[(String, String)] = new PageHelper().unapply(resource)
+        def unapply(json: JSONObject): Option[(String, String)] = new ClassHelper().unapply(json)
     }
     class PageHelper extends TypeHelper {
         val typeName: String = "ApexPage"
@@ -238,6 +258,7 @@ object TypeHelpers {
     object ComponentHelper {
         def unapply(resource: File): Option[(String, String)] = new ComponentHelper().unapply(resource)
         def unapply(resource: SObject): Option[(String, String)] = new ComponentHelper().unapply(resource)
+        def unapply(json: JSONObject): Option[(String, String)] = new ClassHelper().unapply(json)
     }
     class ComponentHelper extends TypeHelper {
         val typeName: String = "ApexComponent"

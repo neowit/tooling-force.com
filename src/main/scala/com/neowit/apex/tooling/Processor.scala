@@ -22,6 +22,7 @@ package com.neowit.apex.tooling
 import java.io.File
 import com.sforce.soap.tooling._
 import scala.{Array, Some}
+import scala.util.parsing.json.{JSONObject, JSON, JSONArray}
 
 object ZuluTime {
     val zulu = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -31,7 +32,7 @@ object ZuluTime {
 
 }
 
-trait ProcessorBase extends Logging {
+trait ProcessorBase extends Logging with Response {
     def isFile(resourcePath: String) = {
         val f = new File(resourcePath)
         f.isFile && f.canRead
@@ -72,8 +73,8 @@ trait ProcessorBase extends Logging {
                   sessionData.store()
                   logger.debug("Created new MetadataContainer; Id=" + sessionData.getField("MetadataContainer", "Id"))
               } else {
-                  logger.debug("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
-                  throw new IllegalStateException("Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage)
+                  val msg = "Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage
+                  throw new IllegalStateException(msg)
               }
               newContainer
         }
@@ -89,7 +90,7 @@ trait ProcessorBase extends Logging {
 trait Processor extends ProcessorBase {
     def save(session: SfdcSession, sessionData: SessionData)
 
-    protected def saveApexMembers(session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
+    protected def saveApexMembers(appConfig:Config, session: SfdcSession, sessionData: SessionData, container: MetadataContainer,
                                     members: Iterable[SObject]) {
 
         if (!members.isEmpty) {
@@ -112,7 +113,7 @@ trait Processor extends ProcessorBase {
                                 Thread.sleep(2000)
                                 _request = session.query(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
                             }
-                            processSaveResult(sessionData, _request, members)
+                            processSaveResult(appConfig, sessionData, _request, members)
                         }
                     } else {
                         throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
@@ -126,7 +127,7 @@ trait Processor extends ProcessorBase {
         }
     }
 
-    private def processSaveResult(sessionData: SessionData, request: ContainerAsyncRequest, members: Iterable[SObject]) {
+    private def processSaveResult(appConfig: Config,sessionData: SessionData, request: ContainerAsyncRequest, members: Iterable[SObject]) {
 
         request.getState match {
             case "Completed" =>
@@ -139,6 +140,42 @@ trait Processor extends ProcessorBase {
                         case None => throw new IllegalStateException("Failed to fetch session data for using Id=" + id)
                     }
                 }
+            case "Failed" =>
+                logger.debug("Request failed")
+                if (!request.getCompilerErrors.isEmpty) {
+                    JSON.parseRaw(request.getCompilerErrors) match {
+                      case Some(x) if x.isInstanceOf[JSONArray] =>
+                          logger.debug(x)
+                          for (err <- x.asInstanceOf[JSONArray].list) {
+                              val errObj = err.asInstanceOf[JSONObject].obj
+                              logger.debug(errObj)
+                              //val fType = errObj("extent")
+                              val fName = errObj("name").asInstanceOf[String]
+                              val line = errObj.get("line") match {
+                                case Some(l) => l.asInstanceOf[Double].toInt
+                                case None => -1
+                              }
+                              val col = errObj.get("col") match {
+                                case Some(c) => c.asInstanceOf[Double].toInt
+                                case None => -1
+                              }
+                              val errMsg = errObj("problem").asInstanceOf[String]
+                              //val id = errObj("id")
+                              val helper = TypeHelpers.getHelper(err.asInstanceOf[JSONObject])
+                              val directory = helper.directoryName
+                              val fPath = appConfig.srcPath + File.separator + directory + File.separator + fName + helper.fileExtension
+                              response.compilerError(err.toString, fPath, fName, errMsg, line, col )
+
+                          }
+                      case Some(x) if x.isInstanceOf[JSONObject] =>
+                          logger.debug(x)
+                          val err = x.asInstanceOf[JSONObject]
+                          logger.debug(err)
+
+                      case None =>
+                    }
+                }
+
             case state =>
                 logger.error("Request Failed with status: " + state)
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
@@ -166,7 +203,7 @@ trait Processor extends ProcessorBase {
     /**
      * @return Set of session-data-keys of all files that are older then their remote version
      */
-    def getFilesOlderThanRemote(session: SfdcSession, sessionData: SessionData, changedFileMap: ChangedFiles): Iterable[String] = {
+    def getFilesOlderThanRemote(session: SfdcSession, sessionData: SessionData, changedFileMap: ChangedFiles): Iterable[(File, TypeHelper)] = {
 
         def checkIfRemoteIsNewer(key: String, lastModifiedDate: Option[Long]) = {
             val localLMD = sessionData.getField(key, "LastModifiedDate") match {
@@ -186,8 +223,8 @@ trait Processor extends ProcessorBase {
                 val remoteLMDByKeyMap = getRemoteLastModifiedDates(session, sessionData, helper, files)
 
                 val outdatedFiles = files.filter(f => checkIfRemoteIsNewer(helper.getKey(f), remoteLMDByKeyMap.get(helper.getKey(f)) ))
-                val keysOfOutdatedFiles = outdatedFiles.map(f => helper.getKey(f))
-                keysOfOutdatedFiles
+                val outdatedFilesWithHelpers = outdatedFiles.map(f => (f, helper))
+                outdatedFilesWithHelpers
             }
         newerFiles.flatten
     }
@@ -245,7 +282,7 @@ class FileProcessor(appConfig: Config, resource: File) extends Processor {
 
     def update(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, container: MetadataContainer) = {
         //val container = getMetadataContainer(session, sessionData)
-        saveApexMembers(session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
+        saveApexMembers(appConfig, session, sessionData, container, Array(helper.getMemberInstance(sessionData, resource)))
     }
 
     def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, container: MetadataContainer) = {
@@ -316,13 +353,11 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
     def update(session: SfdcSession, sessionData: SessionData, container: MetadataContainer):ChangedFiles = {
         val changedFileMap = getModifiedFiles(sessionData)
         //check if remote version of these files is newer
-        val newerFileKeys = getFilesOlderThanRemote(session, sessionData, changedFileMap)
-        if (!newerFileKeys.isEmpty) {
+        val outdatedFilesWithHelpers = getFilesOlderThanRemote(session, sessionData, changedFileMap)
+        if (!outdatedFilesWithHelpers.isEmpty) {
             logger.info("Remote file(s) newer than local")
-            for( key <- newerFileKeys ) {
-                //val data = sessionData.getData(key)
-                val values = key.split('.') //split to type name and name
-                logger.info(values(0) + ": " + values(1))
+            for( (f, helper) <- outdatedFilesWithHelpers ) {
+                response.genericError("OutOfSyncError", f.getAbsolutePath, f.getName, "Remote file newer than local")
             }
             Map()
         } else {
@@ -333,7 +368,7 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
             }
             //add each file into MetadataContainer and if container update is successful then record serverMills
             //in session data as LastSyncDate for each of successful files
-            saveApexMembers(session, sessionData, container, members)
+            saveApexMembers(appConfig, session, sessionData, container, members)
             changedFileMap
         }
     }
