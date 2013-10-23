@@ -200,7 +200,8 @@ trait Processor extends ProcessorBase {
             //case None => throw new IllegalStateException("Workspace is out of date. Please refresh before continuing")
             case _ =>
                 //if there is no session data for existing file then this file must be Created
-                throw new IllegalStateException("New files must be saved before Modified ones")
+                logger.debug(key + ": missing LastSyncDateLocal. Looks like the project is out of sync")
+                throw new IllegalStateException("New files must be saved before Modified ones. Perhaps your project needs 'refresh'")
         }
     }
 
@@ -329,7 +330,27 @@ class FileProcessor(appConfig: Config, resource: File) extends Processor {
     }
 }
 
-class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
+class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
+    lazy val srcDir = {
+            new File(appConfig.srcPath)
+        /*
+            if (resourceDir.getAbsolutePath.matches(""".*src[\\|/]?$""")) {
+                resourceDir
+            } else {
+                //check if current path points to the project folder and "src" is its first child
+                val srcPath = resourceDir.getAbsolutePath + File.separator + "src"
+                if (isDirectory(srcPath)) {
+                    new File(srcPath)
+                } else {
+                    throw new ConfigValueException("Provided --tooling.resourcePath does not point to project folder or 'src' folder.")
+                }
+            }
+        */
+    }
+
+    def getResourcePath(helper: TypeHelper, resource: SObject) = {
+        appConfig.srcPath + File.separator + helper.directoryName + File.separator + helper.getName(resource) + helper.fileExtension
+    }
 
     def getModifiedFiles(sessionData: SessionData): ChangedFiles = {
         def iter (helpers: List[TypeHelper], res: ChangedFiles): ChangedFiles = {
@@ -348,9 +369,14 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
         val changedFiles = create(session, sessionData)
         reloadRemoteLastModifiedDate(session, sessionData, changedFiles)
 
-        withMetadataContainer(session, sessionData) { container =>
-            val changedFiles = update(session, sessionData, container)
-            reloadRemoteLastModifiedDate(session, sessionData, changedFiles)
+        val hasModifiedFiles = getModifiedFiles(sessionData).exists(p => !p._2.isEmpty)
+        if (hasModifiedFiles) {
+            withMetadataContainer(session, sessionData) { container =>
+                val changedFiles = update(session, sessionData, container)
+                reloadRemoteLastModifiedDate(session, sessionData, changedFiles)
+            }
+        } else {
+            logger.info("No modifed files. Nothing to save.")
         }
 
     }
@@ -382,6 +408,7 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
         val objects = for (helper <- changedFileMap.keys; f <- changedFileMap(helper)) yield {
             helper.newSObjectInstance(f)
         }
+        var hasErrors = false
         if (!objects.isEmpty) {
             val objectsArray = objects.toArray
             val saveResults = session.create(objectsArray)
@@ -399,6 +426,7 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
                     sessionData.setField(key, "LastSyncDateLocal", System.currentTimeMillis.toString)
                     sessionData.store()
                 } else /* if (!res.getSuccess) */{
+                    hasErrors = true
                     val statusCode = res.getErrors.head.getStatusCode
                     val resourceName = helper.getName(apexObj)
                     statusCode match {
@@ -450,6 +478,10 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
 
     def refresh(sfdcSession: SfdcSession, sessionData: SessionData) {
 
+        val isAntAction = appConfig.getProperty("ant-action") match {
+          case Some(x) => true
+          case None => false
+        }
         for (helper <- TypeHelpers.list) {
             //load keys for all locally available resources of current type
             val allResourceKeys = helper.listFiles(srcDir).map(f => helper.getKey(f))
@@ -459,13 +491,17 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
             if (queryResult.getSize >0) {
                 do {
                     for (record: SObject <- queryResult.getRecords) {
-                        val data = helper.getValueMap(record)
-                        //save file content
-                        helper.bodyToFile(appConfig, record)
-                        //stamp file save time
-                        val localMills = System.currentTimeMillis.toString
                         val key = helper.getKey(record)
-                        sessionData.setData(key, data ++ Map("LastSyncDateLocal" -> localMills))
+                        if (!isAntAction || allResourceKeys.contains(key)) {
+                            val data = helper.getValueMap(record)
+                            sessionData.setData(key, data)
+                            //save file content
+                            helper.bodyToFile(appConfig, record)
+                            //stamp file save time
+                            val localMills = System.currentTimeMillis.toString
+                            sessionData.setField(key, "LastSyncDateLocal", localMills)
+                        }
+
                         allResourcesKeySet.remove(key)
 
                     }
@@ -481,13 +517,26 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
     }
 }
 
+/*
 object PackageProcessor extends ProcessorBase {
     def unapply(resourcePath: String): Option[File] = {
-        if (isDirectory(resourcePath) && resourcePath.matches(""".*src[\\|/]?$""")) {
-            val srcDir = new File(resourcePath)
-            Some(srcDir)
+        if (isDirectory(resourcePath)) {
+            val curDir = new File(resourcePath)
+            if (resourcePath.matches(""".*src[\\|/]?$""")) {
+                Some(curDir)
+            } else {
+                //check if current path points to the project folder and "src" is its first child
+                val srcPath = curDir.getAbsolutePath + File.separator + "src"
+                if (isDirectory(srcPath)) {
+                    Some(new File(srcPath))
+                } else {
+                    None
+                }
+            }
         } else {
             None
         }
+
     }
 }
+*/
