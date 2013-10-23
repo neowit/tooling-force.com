@@ -21,6 +21,7 @@ package com.neowit.apex.tooling
 
 import java.util.Properties
 import java.io.{PrintWriter, Writer, FileWriter, File}
+import com.sforce.soap.tooling.SObject
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -185,7 +186,13 @@ class Config extends Logging{
             if (file.isDirectory && "src" == file.getName)
                 file.getAbsolutePath
             else {
-                getSrcFolder(file.getParentFile)
+                //check if current path points to the project folder and "src" is its first child
+                val srcPath = file.getAbsolutePath + File.separator + "src"
+                if (isDirectory(srcPath)) {
+                    srcPath
+                } else {
+                    getSrcFolder(file.getParentFile)
+                }
             }
         }
         val file = new File(resourcePath)
@@ -195,6 +202,11 @@ class Config extends Logging{
     lazy val isCheckOnly = getProperty("checkOnly") match {
       case Some(x) => "true" == x
       case None => false
+    }
+
+    def isDirectory(resourcePath: String) = {
+        val f = new File(resourcePath)
+        f.isDirectory && f.canRead
     }
 
     def help() {
@@ -252,5 +264,4 @@ regardless of whether it is also specified in config file or not
             responseWriter.close()
         }
     }
-
 }
