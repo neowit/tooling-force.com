@@ -117,6 +117,9 @@ trait TypeHelper extends Logging {
     def getBody(f: File): String = {
         scala.io.Source.fromFile(f).mkString
     }
+
+    def getMetaXml(record:SObject): String
+
     def bodyToFile(appConfig: Config, record: SObject) = {
         val buffer = getBody(record).getBytes
         if (buffer.length > 0) {
@@ -127,13 +130,7 @@ trait TypeHelper extends Logging {
                 output.write(buffer)
                 output.close()
                 //generate meta-xml
-                val meta =
-                    s"""|<?xml version="1.0" encoding="UTF-8"?>
-                        |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
-                        |    <apiVersion>${getApiVersion(record)}</apiVersion>
-                        |    <description>${getDescription(record)}</description>
-                        |    <label>${getLabel(record)}</label>
-                        |</$typeName>""".stripMargin
+                val meta = getMetaXml(record)
                 BasicIO.transferFully(new ByteArrayInputStream(meta.getBytes("UTF-8")), new FileOutputStream(file.getAbsolutePath + "-meta.xml"))
             } catch {
                 case ex: FileNotFoundException =>
@@ -194,7 +191,18 @@ object TypeHelpers {
             obj.setApiVersion(getApiVersion(file))
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
+        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
+
+        def getMetaXml(record:SObject) = {
+            val status = record.asInstanceOf[ApexClass].getStatus
+            val meta =
+                s"""|<?xml version="1.0" encoding="UTF-8"?>
+                        |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
+                        |    <apiVersion>${getApiVersion(record)}</apiVersion>
+                        |    <status>$status</status>
+                        |</$typeName>""".stripMargin
+            meta
+        }
 
     }
 
@@ -222,7 +230,18 @@ object TypeHelpers {
             obj.setApiVersion(getApiVersion(file))
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body from " + typeName
+        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
+
+        def getMetaXml(record:SObject) = {
+            val status = record.asInstanceOf[ApexTrigger].getStatus
+            val meta =
+                s"""|<?xml version="1.0" encoding="UTF-8"?>
+                        |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
+                        |    <apiVersion>${getApiVersion(record)}</apiVersion>
+                        |    <status>$status</status>
+                        |</$typeName>""".stripMargin
+            meta
+        }
 
     }
 
@@ -253,6 +272,16 @@ object TypeHelpers {
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
+        def getMetaXml(record:SObject) = {
+            val meta =
+                s"""|<?xml version="1.0" encoding="UTF-8"?>
+                        |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
+                        |    <apiVersion>${getApiVersion(record)}</apiVersion>
+                        |    <description>${getDescription(record)}</description>
+                        |    <label>${getLabel(record)}</label>
+                        |</$typeName>""".stripMargin
+            meta
+        }
     }
 
     object ComponentHelper {
@@ -281,6 +310,16 @@ object TypeHelpers {
             obj
         }
         def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
+
+        def getMetaXml(record:SObject) = {
+            val meta =
+                s"""|<?xml version="1.0" encoding="UTF-8"?>
+                        |<$typeName xmlns="http://soap.sforce.com/2006/04/metadata">
+                        |    <apiVersion>${getApiVersion(record)}</apiVersion>
+                        |    <label>${getLabel(record)}</label>
+                        |</$typeName>""".stripMargin
+            meta
+        }
 
     }
 }
