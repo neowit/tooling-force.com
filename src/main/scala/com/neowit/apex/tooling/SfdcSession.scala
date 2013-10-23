@@ -83,7 +83,10 @@ class SfdcSession (appConfig: Config) extends Logging{
     }
     def create(objects: Array[com.sforce.soap.tooling.SObject]):Array[SaveResult] = {
         withRetry {
-            getConnection.create(objects)
+            //sort objects to avoid
+            // System.TypeException: Cannot have more than 10 chunks in a single operation. Please rearrange the data to reduce chunking.
+            val sortedByTypeObjects = objects.sortBy(obj => obj.getClass.getName)
+            getConnection.create(sortedByTypeObjects)
         }.asInstanceOf[Array[SaveResult]]
     }
     def update(objects: Array[com.sforce.soap.tooling.SObject]):Array[SaveResult] = {
