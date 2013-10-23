@@ -32,6 +32,10 @@ object ZuluTime {
 
 }
 
+class SaveError(msg: String) extends Throwable {
+    override def getMessage = msg
+}
+
 trait ProcessorBase extends Logging with Response {
     def isFile(resourcePath: String) = {
         val f = new File(resourcePath)
@@ -403,13 +407,24 @@ class PackageProcessor(appConfig: Config, srcDir: File) extends Processor {
                             logger.error("Local project appears to be out of sync. File " + resourceName+ " is marked as new in local version but it already exists in SFDC")
                             logger.error("Refresh your local project to sync with SFDC")
                             throw new IllegalStateException("Refresh your local project to sync with SFDC")
-                        case _ => throw new IllegalStateException("failed to create file " + resourceName + "; " + res.getErrors.head)
+                        case StatusCode.DUPLICATE_DEVELOPER_NAME =>
+                            //file already exists
+                            response.genericError(statusCode.toString, getResourcePath(helper, apexObj), helper.getName(apexObj), res.getErrors.head.getMessage)
+                            val msg1 = "Local project appears to be out of sync. File " + resourceName+ " is marked as new in local version but it already exists in SFDC \n"
+                            val msg2 = "Refresh your local project to sync with SFDC"
+                            response.genericError(statusCode.toString, "", "", msg1)
+                            response.genericError(statusCode.toString, "", "", msg2)
+                        case _ =>
+                            response.genericError(statusCode.toString, getResourcePath(helper, apexObj), helper.getName(apexObj), res.getErrors.head.getMessage)
                     }
                     logger.error("" + res.getErrors.head)
                 }
                 i += 1
             }
             sessionData.store()
+        }
+        if (hasErrors) {
+            throw new SaveError("Failed to Save resource. See previous errors.")
         }
         changedFileMap
     }

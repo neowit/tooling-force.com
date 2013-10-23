@@ -19,6 +19,7 @@
 
 package com.neowit.apex.tooling
 
+import com.sforce.soap.tooling.ApiFault
 
 
 object Runner extends Logging {
@@ -34,11 +35,24 @@ object Runner extends Logging {
                 run()
             } catch {
                 case ex: InvalidCommandLineException => appConfig.help()
-                case ex: MissingRequiredConfigParameterException => logger.error(ex.getMessage)
+                case ex: MissingRequiredConfigParameterException =>
+                    logger.error(ex.getMessage)
+                    object response extends Response
+                    response.genericError("MissingConfigParameter", "", "", ex.getMessage)
+                case ex: ApiFault =>
+                    object response extends Response
+                    logger.error(ex)
+                    response.genericError(ex.getExceptionCode.toString, "", "", ex.getExceptionMessage)
+                case ex: SaveError =>
+                    logger.error(ex)
+                    //SaveError should have been dumped to response file previously
+                    object response extends Response
+                    response.genericError("SaveError", "", "", ex.getMessage)
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
+                    logger.error(ex)
                     object response extends Response
-                    response.genericError(ex.getMessage)
+                    response.genericError("UnhandlerError", "", "", ex.toString)
 
             } finally {
                 appConfig.responseWriterClose
@@ -47,6 +61,7 @@ object Runner extends Logging {
     }
 
     def run () {
+        val start = System.currentTimeMillis
 
         val session = new SfdcSession(appConfig)
         val sessionData = new SessionData(appConfig, session)
@@ -55,6 +70,9 @@ object Runner extends Logging {
         val handler = ActionHandler.getHandler(appConfig)
         handler.act(session, sessionData)
         session.storeSessionData()
+
+        val diff = System.currentTimeMillis - start
+        logger.info("# Time taken: " + diff / 1000.0 +  "s")
 
         //Tester.runTest(session)
 

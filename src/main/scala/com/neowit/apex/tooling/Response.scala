@@ -25,14 +25,18 @@ import java.io.PrintWriter
  * User: andrey
  * Date: 21/10/2013
  */
-trait Response {
+trait Response extends Logging {
     private[this] val writer = Config.getConfig.responseWriter
     //def formatter: ResponseFormatter
 
     private def write(text: String) = writer.println("MESSAGE: " + text)
 
     private def escape(msg: String) = {
-        msg.replaceAll("'", "\\\\'").replaceAll("\"", "\\\\\"")
+        if (null != msg) {
+            msg.replaceAll("'", "\\\\'").replaceAll("\"", "\\\\\"").replaceAll(System.getProperty("line.separator"), " ")
+        } else {
+            ""
+        }
     }
     protected def compilerOutput(msgType: String, text: String, fPath:String, fName:String, msg:String = "", line: Int = -1, col: Int = -1) {
         if ("" != msg) {
@@ -46,6 +50,7 @@ trait Response {
     }
     def genericError(msgType: String, fPath:String, fName:String, msg:String = "") {
         write(s"""{"type":"$msgType", "msg":"${escape(msg)}", "fPath":"${escape(fPath)}", "fName":"${escape(fName)}", "text":"${escape(msg)}"}""")
+        logger.error(msg)
     }
 
     protected def genericOutput(msgType: String, text: String, msg:String = "") {
