@@ -240,7 +240,12 @@ object TypeHelpers {
             obj.setApiVersion(getApiVersion(file))
             obj
         }
-        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
+
+        override protected def getContentSoqlWhere: String = "where BodyCrc > 0" //exclude hidden bodies of managed classes
+        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status, BodyCrc, LengthWithoutComments from " + typeName
+
+        //in theory we should filter hidden classes as "where [BodyCrc / LengthWithoutComments]  > 0" but this does not work, SFDC ignores this SOQL condition
+        override def isHiddenBody(obj:SObject) = obj.asInstanceOf[ApexTrigger].getLengthWithoutComments <= 0
 
         def getMetaXml(record:SObject) = {
             val status = record.asInstanceOf[ApexTrigger].getStatus
