@@ -56,10 +56,15 @@
 
         <dependency>
             <groupId>force</groupId>
-            <artifactId>partner-wsdl</artifactId>
+            <artifactId>metadata-wsdl</artifactId>
             <version>29.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>force</groupId>
+            <artifactId>partner-wsdl</artifactId>
+            <version>29.0</version>
+        </dependency>
 
         <dependency>
             <groupId>force</groupId>
