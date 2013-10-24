@@ -113,7 +113,7 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
             for (helper <- TypeHelpers.list) {
 
                 val typeName = helper.typeName
-                val queryResult = sfdcSession.query("select Id, Name, ApiVersion, LastModifiedDate from " + typeName)
+                val queryResult = sfdcSession.getToolingConnection.query("select Id, Name, ApiVersion, LastModifiedDate from " + typeName)
                 if (queryResult.getSize >0) {
                     do {
                         for (record: SObject <- queryResult.getRecords) {

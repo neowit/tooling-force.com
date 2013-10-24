@@ -50,7 +50,7 @@ trait ProcessorBase extends Logging with Response {
           case Some(container) =>
               try {
                   sessionData.remove("MetadataContainer")
-                  session.delete(container.getId)
+                  session.getToolingConnection.delete(container.getId)
                   logger.debug("Deleted MetadataContainer; Id=" + container.getId)
               } catch {
                   case ex:Throwable => //do not really care why delete failed
@@ -70,7 +70,7 @@ trait ProcessorBase extends Logging with Response {
           case None => //create container
               val newContainer = new MetadataContainer()
               newContainer.setName(Processor.containerPrefix + System.currentTimeMillis())
-              val containerSaveResults: Array[SaveResult] = session.create(Array(newContainer))
+              val containerSaveResults: Array[SaveResult] = session.getToolingConnection.create(Array(newContainer))
               if (containerSaveResults.head.isSuccess) {
                   newContainer.setId(containerSaveResults.head.getId)
                   sessionData.setData("MetadataContainer", Map("Name" -> newContainer.getName, "Id" -> newContainer.getId))
@@ -98,24 +98,24 @@ trait Processor extends ProcessorBase {
                                     members: Iterable[SObject]) {
 
         if (!members.isEmpty) {
-            val saveResults = session.create(members.toArray)
+            val saveResults = session.getToolingConnection.create(members.toArray)
             //val saveResults = session.update(members.toArray)
             val res = saveResults.head
             if (res.isSuccess) {
                 val request = new ContainerAsyncRequest()
                 request.setIsCheckOnly(session.getConfig.isCheckOnly)
                 request.setMetadataContainerId(container.getId)
-                val requestResults = session.create(Array(request))
+                val requestResults = session.getToolingConnection.create(Array(request))
                 for (res <- requestResults) {
                     if (res.isSuccess) {
                         val requestId = res.getId
                         val soql = "SELECT Id, State, CompilerErrors, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
-                        val asyncQueryResult = session.query(soql)
+                        val asyncQueryResult = session.getToolingConnection.query(soql)
                         if (asyncQueryResult.getSize > 0) {
                             var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
                             while ("Queued" == _request.getState) {
                                 Thread.sleep(2000)
-                                _request = session.query(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                _request = session.getToolingConnection.query(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
                             }
                             processSaveResult(appConfig, sessionData, _request, members)
                         }
@@ -252,7 +252,7 @@ trait Processor extends ProcessorBase {
     def getRemoteLastModifiedDates(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, files: List[File]): Map[String, Long] = {
         val names = files.map(f => helper.getName(f)).toList.mkString("','")
         if (!names.isEmpty) {
-            val queryRes = session.query("select Id, Name, LastModifiedDate from " + helper.typeName + " where Name in ('" + names + "')")
+            val queryRes = session.getToolingConnection.query("select Id, Name, LastModifiedDate from " + helper.typeName + " where Name in ('" + names + "')")
             queryRes.getRecords.map (rec => helper.getKey(rec) -> helper.getLastModifiedDate(rec)).toMap
         } else Map()
     }
@@ -293,7 +293,7 @@ class FileProcessor(appConfig: Config, resource: File) extends Processor {
     def create(session: SfdcSession, sessionData: SessionData, helper: TypeHelper, container: MetadataContainer) = {
 
         val apexObj = helper.newSObjectInstance(resource)
-        val saveResults = session.create(Array(apexObj))
+        val saveResults = session.getToolingConnection.create(Array(apexObj))
         for (res <- saveResults) {
             if (res.isSuccess) {
                 //store Id in session
@@ -315,7 +315,7 @@ class FileProcessor(appConfig: Config, resource: File) extends Processor {
     def refresh(sfdcSession: SfdcSession, sessionData: SessionData) {
 
         val helper = TypeHelpers.getHelper(resource)
-        val queryResult = sfdcSession.query(helper.getContentSOQL(" where Name='" + helper.getName(resource) + "'"))
+        val queryResult = sfdcSession.getToolingConnection.query(helper.getContentSOQL(" where Name='" + helper.getName(resource) + "'"))
         if (queryResult.getSize >0) {
             val record: SObject = queryResult.getRecords.head
             val data = helper.getValueMap(record)
@@ -411,7 +411,7 @@ class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
         var hasErrors = false
         if (!objects.isEmpty) {
             val objectsArray = objects.toArray
-            val saveResults = session.create(objectsArray)
+            val saveResults = session.getToolingConnection.create(objectsArray)
             var i = 0
             for (res <- saveResults) {
                 val apexObj = objectsArray(i)
@@ -487,7 +487,7 @@ class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
             val allResourceKeys = helper.listFiles(srcDir).map(f => helper.getKey(f))
             val allResourcesKeySet = collection.mutable.Set(allResourceKeys.toSeq: _*)
 
-            val queryResult = sfdcSession.query(helper.getContentSOQL())
+            val queryResult = sfdcSession.getToolingConnection.query(helper.getContentSOQL())
             if (queryResult.getSize >0) {
                 do {
                     for (record: SObject <- queryResult.getRecords if !helper.isHiddenBody(record)) {
@@ -517,26 +517,3 @@ class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
     }
 }
 
-/*
-object PackageProcessor extends ProcessorBase {
-    def unapply(resourcePath: String): Option[File] = {
-        if (isDirectory(resourcePath)) {
-            val curDir = new File(resourcePath)
-            if (resourcePath.matches(""".*src[\\|/]?$""")) {
-                Some(curDir)
-            } else {
-                //check if current path points to the project folder and "src" is its first child
-                val srcPath = curDir.getAbsolutePath + File.separator + "src"
-                if (isDirectory(srcPath)) {
-                    Some(new File(srcPath))
-                } else {
-                    None
-                }
-            }
-        } else {
-            None
-        }
-
-    }
-}
-*/
