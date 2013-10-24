@@ -315,7 +315,7 @@ class FileProcessor(appConfig: Config, resource: File) extends Processor {
     def refresh(sfdcSession: SfdcSession, sessionData: SessionData) {
 
         val helper = TypeHelpers.getHelper(resource)
-        val queryResult = sfdcSession.query(helper.getContentSOQL + " where Name='" + helper.getName(resource) + "'")
+        val queryResult = sfdcSession.query(helper.getContentSOQL(" where Name='" + helper.getName(resource) + "'"))
         if (queryResult.getSize >0) {
             val record: SObject = queryResult.getRecords.head
             val data = helper.getValueMap(record)
@@ -487,10 +487,10 @@ class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
             val allResourceKeys = helper.listFiles(srcDir).map(f => helper.getKey(f))
             val allResourcesKeySet = collection.mutable.Set(allResourceKeys.toSeq: _*)
 
-            val queryResult = sfdcSession.query(helper.getContentSOQL)
+            val queryResult = sfdcSession.query(helper.getContentSOQL())
             if (queryResult.getSize >0) {
                 do {
-                    for (record: SObject <- queryResult.getRecords) {
+                    for (record: SObject <- queryResult.getRecords if !helper.isHiddenBody(record)) {
                         val key = helper.getKey(record)
                         if (!isAntAction || allResourceKeys.contains(key)) {
                             val data = helper.getValueMap(record)

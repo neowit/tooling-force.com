@@ -90,7 +90,13 @@ trait TypeHelper extends Logging {
     def getKey(f: File): String = {typeName + "." + getName(f)}
     def getKey(name: String): String = {typeName + "." + stripExtension(name)}
 
-    def getContentSOQL: String
+    protected def getContentSoqlWhere: String = ""
+    protected def getContentSOQL: String
+    def getContentSOQL(whereOverrideStr: String = ""): String = getContentSOQL + " " + (whereOverrideStr  match {
+        case x if x.isEmpty => getContentSoqlWhere
+        case _ => whereOverrideStr
+    })
+    def isHiddenBody(record:SObject) = false
 
     def getMemberInstance(sessionData: SessionData, f: File) = {
         val metadataContainerId = sessionData.getField("MetadataContainer", "Id") match {
@@ -191,7 +197,11 @@ object TypeHelpers {
             obj.setApiVersion(getApiVersion(file))
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
+        override protected def getContentSoqlWhere: String = "where BodyCrc > 0" //exclude hidden bodies of managed classes
+        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status, BodyCrc, LengthWithoutComments from " + typeName
+
+        //in theory we should filter hidden classes as "where LengthWithoutComments  > 0" but this does not work, SFDC ignores this SOQL condition
+        override def isHiddenBody(obj:SObject) = obj.asInstanceOf[ApexClass].getLengthWithoutComments <= 0
 
         def getMetaXml(record:SObject) = {
             val status = record.asInstanceOf[ApexClass].getStatus
@@ -230,7 +240,7 @@ object TypeHelpers {
             obj.setApiVersion(getApiVersion(file))
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
+        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Body, Status from " + typeName
 
         def getMetaXml(record:SObject) = {
             val status = record.asInstanceOf[ApexTrigger].getStatus
@@ -270,7 +280,7 @@ object TypeHelpers {
             obj.setMasterLabel(obj.getName)
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
+        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
         def getMetaXml(record:SObject) = {
             val meta =
@@ -309,7 +319,7 @@ object TypeHelpers {
             obj.setMasterLabel(obj.getName)
             obj
         }
-        def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
+        protected def getContentSOQL: String = "select Id, Name, ApiVersion, LastModifiedDate, Markup, MasterLabel, Description from " + typeName
 
         def getMetaXml(record:SObject) = {
             val meta =
