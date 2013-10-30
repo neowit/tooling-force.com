@@ -75,6 +75,10 @@ class Config extends Logging{
             throw new InvalidCommandLineException
         }
 
+        /**
+         * @param pair: key="value"
+         * @return (key, value)
+         */
         def splitParam(pair: String):(String, String) = {
             if (pair.indexOf('=') < 0)
                 throw new InvalidCommandLineException("Did not understand " + pair)
@@ -84,7 +88,12 @@ class Config extends Logging{
             if ("" == value) {
                 throw new InvalidCommandLineException("Did not understand " + pair)
             }
-            (key, value)
+            //some parameters may be enclosed in single or double quote-s, let's remove them
+            val patternStartWithQuote = """^["|']""".r
+            val patternEndsWithQuote = """["|']$""".r
+            val cleanValue = patternEndsWithQuote.replaceFirstIn(patternStartWithQuote.replaceFirstIn(value, ""), "")
+
+            (key, cleanValue)
         }
         @tailrec
         def nextOption(configFilePaths: ListBuffer[String], map: OptionMap, list: List[String]): (List[String], OptionMap) = {
