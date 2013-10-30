@@ -75,17 +75,28 @@ class Config extends Logging{
             throw new InvalidCommandLineException
         }
 
+        def splitParam(pair: String):(String, String) = {
+            if (pair.indexOf('=') < 0)
+                throw new InvalidCommandLineException("Did not understand " + pair)
+
+            val key = pair.takeWhile(ch => ch != '=')
+            val value = pair.substring(key.length+1)
+            if ("" == value) {
+                throw new InvalidCommandLineException("Did not understand " + pair)
+            }
+            (key, value)
+        }
         @tailrec
         def nextOption(configFilePaths: ListBuffer[String], map: OptionMap, list: List[String]): (List[String], OptionMap) = {
             list match {
                 case Nil => (configFilePaths.toList, map)
-                case key :: value :: tail if key.startsWith("--") => key match {
-                    case "--config" => nextOption(configFilePaths += value, map, tail)
-                    case "--action" => nextOption(configFilePaths, map ++ Map("action" -> value), tail)
-                    case _ => nextOption(configFilePaths, map ++ Map(key.drop(2) -> value), tail)
-                }
-                case value :: Nil =>
-                    throw new InvalidCommandLineException
+                case keyValuePair :: tail if keyValuePair.startsWith("--") =>
+                    val (key, value) = splitParam(keyValuePair.drop(2))
+                    key match {
+                        case "config" => nextOption(configFilePaths += value, map, tail)
+                        case "action" => nextOption(configFilePaths, map ++ Map("action" -> value), tail)
+                        case _ => nextOption(configFilePaths, map ++ Map(key -> value), tail)
+                    }
                 case _ =>
                     throw new InvalidCommandLineException
             }

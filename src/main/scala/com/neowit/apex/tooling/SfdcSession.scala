@@ -100,8 +100,6 @@ trait GenericConnection extends Logging{
 
         val proxyHost = appConfig.getProperty("http.proxyHost")
         val proxyPort = appConfig.getProperty("http.proxyPort")
-        if (None != proxyHost && None != proxyPort)
-            config.setProxy(proxyHost.get, proxyPort.get.toInt)
 
         val proxyUsername = appConfig.getProperty("http.proxyUsername")
         if (None != proxyUsername )
@@ -110,6 +108,11 @@ trait GenericConnection extends Logging{
         val proxyPassword = appConfig.getProperty("http.proxyPassword")
         if (None != proxyPassword )
             config.setProxyPassword(proxyPassword.get)
+
+        if (None != proxyHost && None != proxyPort) {
+            config.setProxy(proxyHost.get, proxyPort.get.toInt)
+            logger.debug("Proxy: " + proxyHost + ":" + proxyPort)
+        }
 
         val ntlmDomain = appConfig.getProperty("http.ntlmDomain")
         if (None != ntlmDomain )
