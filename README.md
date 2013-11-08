@@ -1,5 +1,11 @@
 # A command line utility for working with salesforce.com Tooling API
 
+UPDATE Nov. 2013: Current version (v29) of SFDC Tooling API contains too many
+problems and limitations to be usable for the purpose of this project, so there
+will be no updates here for a while.   
+For now [Force.com Migration Tool](http://wiki.developerforce.com/page/Force.com_Migration_Tool) is still the best all round command line tool.
+
+=========================================
 Primary goal of tooling-force.com is to provide the means of interacting with
 force.com Tooling API from various command line tools and editor plugins like
 [vim-force.com](https://github.com/neowit/vim-force.com)
