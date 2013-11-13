@@ -21,7 +21,6 @@ package com.neowit.apex.backup
 
 import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
-import scala.sys.process.Process
 import java.util.Properties
 import java.lang.IllegalArgumentException
 import com.neowit.apex.tooling.{PropertiesOption, InvalidCommandLineException, Config}
