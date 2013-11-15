@@ -5,6 +5,7 @@ import java.io._
 import scala.Some
 import scala.sys.process.BasicIO
 import scala.util.parsing.json.JSONObject
+import com.neowit.utils.Logging
 
 /**
  * User: andrey

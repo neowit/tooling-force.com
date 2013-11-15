@@ -23,6 +23,7 @@ import java.io.File
 import com.sforce.soap.tooling._
 import scala.{Array, Some}
 import scala.util.parsing.json.{JSONObject, JSON, JSONArray}
+import com.neowit.utils.Logging
 
 object ZuluTime {
     val zulu = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")

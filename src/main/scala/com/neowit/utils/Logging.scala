@@ -17,7 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.apex.tooling
+package com.neowit.utils
+
 import org.apache.commons.logging.{Log, LogFactory}
 /**
  * a simple "logger".

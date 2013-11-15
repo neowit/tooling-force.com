@@ -22,6 +22,7 @@ package com.neowit.apex.tooling
 import com.sforce.soap.tooling._
 import scala.Some
 import com.sforce.soap.metadata.DeployResult
+import com.neowit.utils.Logging
 
 /**
  * User: andrey

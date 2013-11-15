@@ -22,6 +22,7 @@ package com.neowit.apex.tooling
 import scala.util.parsing.json.{JSON, JSONObject}
 import com.sforce.soap.tooling._
 import scala.Some
+import com.neowit.utils.Logging
 
 /**
  * User: andrey

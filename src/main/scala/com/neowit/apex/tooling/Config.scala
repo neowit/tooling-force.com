@@ -22,6 +22,7 @@ package com.neowit.apex.tooling
 import java.util.Properties
 import java.io.{PrintWriter, Writer, FileWriter, File}
 import com.sforce.soap.tooling.SObject
+import com.neowit.utils.Logging
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer

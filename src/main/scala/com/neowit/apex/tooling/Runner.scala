@@ -20,6 +20,7 @@
 package com.neowit.apex.tooling
 
 import com.sforce.soap.tooling.ApiFault
+import com.neowit.utils.Logging
 
 
 object Runner extends Logging {
