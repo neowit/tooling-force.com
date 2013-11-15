@@ -67,12 +67,16 @@ object Runner extends Logging {
         val start = System.currentTimeMillis
 
         val session = new SfdcSession(appConfig)
-        val sessionData = new SessionData(appConfig, session)
-        sessionData.load()
+        session.load()
+        logger.debug(session.getPartnerConnection.getServerTimestamp)
+        //val sessionData = new SessionData(appConfig, session)
+        //sessionData.load()
 
+        /*
         val handler = ActionHandler.getHandler(appConfig)
         handler.act(session, sessionData)
         session.storeSessionData()
+        */
 
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")

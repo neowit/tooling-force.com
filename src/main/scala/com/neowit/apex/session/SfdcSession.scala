@@ -19,9 +19,7 @@
 
 package com.neowit.apex.session
 
-import com.sforce.soap.tooling._
 import scala.Some
-import com.sforce.soap.metadata.DeployResult
 import com.neowit.utils.{Config, Logging}
 
 /**
@@ -29,9 +27,12 @@ import com.neowit.utils.{Config, Logging}
  * Date: 13/09/2013
  * wrapper around SoapConnection which can recover when selected operations are run with invalid and expired SFDC Session
  */
-class SfdcSession (appConfig: Config) extends Logging{
+class SfdcSession (appConfig: Config) extends Logging {
+    lazy val data: SessionData = new SessionData(appConfig, this)
+
     private var connectionTooling:ToolingConnection = null
     private var connectionPartner:PartnerConnection = null
+    private var connectionMetadata:MetadataConnection = null
 
     def getPartnerConnection = {
         if (null != connectionPartner)
@@ -48,6 +49,14 @@ class SfdcSession (appConfig: Config) extends Logging{
             connectionTooling = new ToolingConnection(this)
 
         connectionTooling
+    }
+    def getMetadataConnection = {
+        if (null != connectionMetadata)
+            connectionMetadata
+        else
+            connectionMetadata = new MetadataConnection(this)
+
+        connectionMetadata
     }
 
     private lazy val sessionProperties = {
@@ -70,8 +79,8 @@ class SfdcSession (appConfig: Config) extends Logging{
         sessionProperties.remove("sessionId")
         sessionProperties.remove("serviceEndpoint")
         storeSessionData()
-        connectionTooling = null
         connectionPartner = null
+        //load()
     }
 
     def updateConnectionData(config: com.sforce.ws.ConnectorConfig) {
@@ -80,6 +89,12 @@ class SfdcSession (appConfig: Config) extends Logging{
         appConfig.storeSessionProps()
     }
     def getConfig: Config = appConfig
+
+    def apiVersion: Double = appConfig.apiVersion
+
+    def load() {
+        data.load()
+    }
 
 }
 
@@ -137,7 +152,7 @@ trait GenericConnection extends Logging{
         try {
             codeBlock
         } catch {
-            case ex:ApiFault if ExceptionCode.INVALID_SESSION_ID == ex.getExceptionCode =>
+            case ex:com.sforce.ws.SoapFaultException if "INVALID_SESSION_ID" == ex.getFaultCode.getLocalPart =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
                 getSession.reset()
@@ -151,9 +166,10 @@ trait GenericConnection extends Logging{
 }
 
 class PartnerConnection(session: SfdcSession) extends GenericConnection {
+    import com.sforce.soap.partner._
     def getSession: SfdcSession = session
 
-    lazy val connection = {
+    def connection = {
 
         val connectionConfig = getConnectionConfig(session.getConfig)
         val conn = session.getSavedConnectionData match {
@@ -184,7 +200,7 @@ class PartnerConnection(session: SfdcSession) extends GenericConnection {
     def getServerTimestamp = {
         withRetry {
             connection.getServerTimestamp
-        }.asInstanceOf[GetServerTimestampResult]
+        }.asInstanceOf[com.sforce.soap.partner.GetServerTimestampResult]
     }
     def query(soql: String):QueryResult = {
         withRetry {
@@ -220,9 +236,11 @@ class PartnerConnection(session: SfdcSession) extends GenericConnection {
 
 
 class ToolingConnection(session: SfdcSession) extends GenericConnection {
+    import com.sforce.soap.tooling._
+
     def getSession: SfdcSession = session
 
-    lazy val connection = {
+    def connection = {
 
         val partnerConnectionConfig = session.getPartnerConnection.connection.getConfig
 
@@ -276,13 +294,15 @@ class ToolingConnection(session: SfdcSession) extends GenericConnection {
 }
 
 class MetadataConnection(session: SfdcSession) extends GenericConnection {
+    import com.sforce.soap.metadata.{DescribeMetadataResult, DeployResult}
+
     def getSession: SfdcSession = session
 
-    lazy val connection = {
+    def connection = {
 
         val partnerConnectionConfig = session.getPartnerConnection.connection.getConfig
 
-        //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
+        //Metadata api can not connect on its own (something is wrong with the jar which wsc generates)
         //having to use a workaround - connect via SOAP and then use obtained session for tooling
         //val soapConnection = com.sforce.soap.partner.Connector.newConnection(config)
         val connectionConfig = getConnectionConfig(session.getConfig)
@@ -306,5 +326,15 @@ class MetadataConnection(session: SfdcSession) extends GenericConnection {
             //connection.query(soql)
         }.asInstanceOf[DeployResult]
     }
+
+    def describeMetadata: DescribeMetadataResult = {
+        withRetry {
+            val res = connection.describeMetadata(session.apiVersion)
+            //logger.debug(res)
+            res
+        }.asInstanceOf[DescribeMetadataResult]
+    }
+
+
 
 }

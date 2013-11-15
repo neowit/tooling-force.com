@@ -19,11 +19,13 @@
 
 package com.neowit.apex.session
 
-import scala.util.parsing.json.{JSON, JSONObject}
+import scala.util.parsing.json.{JSONFormat, JSONArray, JSON, JSONObject}
 import com.sforce.soap.tooling._
 import scala.Some
 import com.neowit.utils.{Config, Logging}
-import com.neowit.apex.tooling.{TypeHelpers}
+import com.sforce.soap.metadata.{DescribeMetadataObject, DescribeMetadataResult}
+import java.io.{PrintWriter, File}
+import com.neowit.apex.metadata.DescribeTask
 
 /**
  * User: andrey
@@ -51,8 +53,8 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
             case Some(x) => valueToDataMap(x)
             case None => Map()
         }
-
     }
+
 
     /**
      * getKeyByValue is the opposite of getData, i.e. returns first key which contains specified data in the specified field
@@ -102,16 +104,124 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
         appConfig.storeSessionProps()
     }
 
+    private def getMetadataDescribeFile = {
+        new File(appConfig.metaFolder, "describeMetadata-result.js")
+    }
+
+    def getNotNull(str: String) = if (null == str) "" else str
+
+    def getNotNull(str: Array[String]) = if (null == str) List() else str
+
+    def saveMetadataDescription[A](describeResult: DescribeMetadataResult) {
+
+        logger.debug(describeResult.toString)
+        val writer = new PrintWriter(getMetadataDescribeFile)
+        try {
+            for (describeObjectResult <- describeResult.getMetadataObjects) {
+
+                logger.debug("XMLName=" + describeObjectResult.getXmlName)
+                logger.debug("")
+                val json = JSONObject(Map(
+                    "XMLName" -> getNotNull(describeObjectResult.getXmlName),
+                    "DirName" -> getNotNull(describeObjectResult.getDirectoryName),
+                    "Suffix" -> getNotNull(describeObjectResult.getSuffix),
+                    "HasMetaFile" -> describeObjectResult.isMetaFile,
+                    "InFolder" -> describeObjectResult.isInFolder,
+                    "ChildObjects" -> JSONArray(
+                                        if (describeObjectResult.getChildXmlNames.isEmpty || List(null) == describeObjectResult.getChildXmlNames.toList)
+                                        List()
+                                        else describeObjectResult.getChildXmlNames.toList.filter(null != _))
+                ))
+                //writer.println(json.toString())
+                //JSONFormat
+                writer.println(json.toString())
+            }
+        } catch {
+            case ex:Throwable =>
+                ex.printStackTrace()
+                //logger.debug(ex.getStackTrace)
+
+        } finally {
+            writer.close()
+        }
+    }
+
+    private val metadataDescription = collection.mutable.HashMap[String, com.sforce.soap.metadata.DescribeMetadataObject]()
+
+    def getMetadataDescription: Map[String, com.sforce.soap.metadata.DescribeMetadataObject] = {
+        if (metadataDescription.isEmpty) {
+            //load
+            loadMetadataDescription()
+        }
+        metadataDescription.toMap
+    }
+
+    private def loadMetadataDescription() = {
+
+        //try local file
+        val f = getMetadataDescribeFile
+        if (f.exists() && f.canRead && f.length() > 1) {
+            //use locally stored data
+            parseMetadataDescription(f, metadataDescription)
+        } else {
+            //load Org metadata and store in session locally
+            new DescribeTask(sfdcSession).run(saveMetadataDescription[DescribeMetadataResult])
+            val f = getMetadataDescribeFile
+            parseMetadataDescription(f, metadataDescription)
+
+        }
+
+    }
+
+    private def parseMetadataDescription(describeMetadataResultJs: File,
+                                         storeResultTo: collection.mutable.HashMap[String, com.sforce.soap.metadata.DescribeMetadataObject] ) {
+
+        class CC[T] { def unapply(a:Any):Option[T] = Some(a.asInstanceOf[T]) }
+        object M extends CC[Map[String, Any]]
+        object L extends CC[List[String]]
+        object S extends CC[String]
+        //object D extends CC[Double]
+        object B extends CC[Boolean]
+        //use locally stored data
+
+        for( jsonString <- io.Source.fromFile(describeMetadataResultJs).getLines()) {
+            val dmo = new DescribeMetadataObject()
+            for {
+                Some(M(map)) <- List(JSON.parseFull(jsonString))
+                S(xmlName) = map("XMLName")
+                S(dirName) = map("DirName")
+                S(suffix) = map("Suffix")
+                B(isMeta) = map("HasMetaFile")
+                B(isInFolder) = map("InFolder")
+                L(childObjects) = map("ChildObjects")
+            } yield {
+                dmo.setXmlName(xmlName)
+                dmo.setDirectoryName(dirName)
+                dmo.setSuffix(suffix)
+                dmo.setMetaFile(isMeta)
+                dmo.setInFolder(isInFolder)
+                dmo.setChildXmlNames(childObjects.toArray[String])
+                dmo
+            }
+            storeResultTo += dmo.getXmlName -> dmo
+        }
+    }
 
     def load() {
         //first check if we have a cached version
         val loadFromSFDC = sessionProperties.getPropertyOption("serviceEndpoint") match {
-            case Some(x) => false
+            case Some(x) =>
+                //check if metadata is also available
+                true //TODO
+
             case None => true
         }
 
         if (loadFromSFDC) {
 
+            logger.debug("Workflow=" + getMetadataDescription("Workflow"))
+
+            /*
             for (helper <- TypeHelpers.list) {
 
                 val typeName = helper.typeName
@@ -125,6 +235,7 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
                     }  while (!queryResult.isDone)
                 }
             }
+            */
             store()
         }
     }
