@@ -20,9 +20,7 @@
 package com.neowit.utils
 
 import java.util.Properties
-import java.io.{PrintWriter, Writer, FileWriter, File}
-import com.sforce.soap.tooling.SObject
-import com.neowit.utils.Logging
+import java.io.{PrintWriter, FileWriter, File}
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -53,7 +51,6 @@ trait PropertiesOption extends Properties{
     }
 }
 object Config extends Logging {
-    val apiVersion:Double = 29.0
     private var config: Config = new Config
     def getConfig = {
         config
@@ -66,6 +63,7 @@ object Config extends Logging {
 }
 
 class Config extends Logging{
+    val apiVersion:Double = 29.0
     type OptionMap = Map[String, String]
     private val mainProps = new Properties() with PropertiesOption
 
@@ -161,7 +159,7 @@ class Config extends Logging{
     lazy val soapEndpoint = {
         val serverUrl = getRequiredProperty("sf.serverurl")
         serverUrl match {
-            case Some(x) => x + "/services/Soap/u/" + Config.apiVersion
+            case Some(x) => x + "/services/Soap/u/" + apiVersion
             case None => null
         }
     }
@@ -174,10 +172,10 @@ class Config extends Logging{
             if (!dir.mkdirs())
                 throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for tooling.cacheFolderPath")
         }
-        Option(dir)
+        dir
     }
     lazy val lastSessionProps: PropertiesOption = {
-        val file = new File(metaFolder.get, "session.properties")
+        val file = new File(metaFolder, "session.properties")
         if (!file.exists) {
             file.createNewFile()
         }
@@ -186,8 +184,8 @@ class Config extends Logging{
         props
     }
     def storeSessionProps() {
-        val writer = new FileWriter(new File(metaFolder.get, "session.properties"))
-        lastSessionProps.store(writer, "session data\nThis is automatically generated file. Any manual changes may be overwritten")
+        val writer = new FileWriter(new File(metaFolder, "session.properties"))
+        lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
     }
 
 

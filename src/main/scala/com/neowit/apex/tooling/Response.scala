@@ -51,11 +51,12 @@ trait Response extends Logging {
     }
     def genericError(msgType: String, fPath:String, fName:String, msg:String = "") {
         write(s"""{"type":"$msgType", "msg":"${escape(msg)}", "fPath":"${escape(fPath)}", "fName":"${escape(fName)}", "text":"${escape(msg)}"}""")
-        logger.error(msg)
+        logger.error(msgType + ": " + msg)
     }
 
     protected def genericOutput(msgType: String, text: String, msg:String = "") {
         write(s"{'type':'Generic$msgType', 'text':'$text', 'msg':'$msg'}")
+        logger.debug(msgType + ": " + msg)
     }
     def response = this
 
