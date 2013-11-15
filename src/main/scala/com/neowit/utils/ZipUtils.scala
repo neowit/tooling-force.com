@@ -22,14 +22,12 @@ package com.neowit.utils
 import java.io._
 import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
 
-class ZipUtils {
-
-
+class ZipUtils extends Logging{
 
     /**
      * list all file names in the given archive
      * @param zip - zip archive to list file names from
-     * @return
+     * @return list of file names (with path inside zip archive)
      */
     def listArhiveContent(zip: File): List[String] = {
         val zin = new ZipInputStream(new FileInputStream(zip))
@@ -79,7 +77,7 @@ class ZipUtils {
 
         //add extra files to the new zip
         for (f <- files) {
-            System.out.print("Adding entry " + f.getName + "...")
+            logger.trace("Adding entry " + f.getName + "...")
             if (f.isDirectory) {
                 addFolder(zos, f.getAbsolutePath, f.getAbsolutePath)
 
@@ -87,7 +85,7 @@ class ZipUtils {
                 zos.putNextEntry(new ZipEntry(f.getName))
                 transfer(new FileInputStream(f), zos)
                 zos.closeEntry()
-                println("OK!")
+                logger.trace("OK!")
             }
         }
 
@@ -97,14 +95,14 @@ class ZipUtils {
 
     /**
      * zip provided file or folder
-     * @param fPath
-     * @param outputZipPath
+     * @param fPath using provided path as file or top of the file tree zip everything into outputZipPath
+     * @param outputZipPath - where to store the result
      */
     def compress(fPath: String, outputZipPath: String) {
         val fos = new FileOutputStream(outputZipPath)
         val zos = new ZipOutputStream(fos)
         zos.setLevel(9)
-        println("Start compressing folder/file : " + fPath + " to " + outputZipPath)
+        logger.trace("Start compressing folder/file : " + fPath + " to " + outputZipPath)
         val f = new File(fPath)
         if (f.isDirectory) {
             addFolder(zos, fPath, fPath)
@@ -118,7 +116,7 @@ class ZipUtils {
     /**
      * a very basic file lister which will cause "out of memory" on a very deep directory tree
      * @param rootFolder - top of the file tree
-     * @return
+     * @return list of all files under rootFolder (including rootFolder)
      */
     def listFiles(rootFolder: File):List[File] = {
         def listOnelevel(f: File):List[File] = {
@@ -157,17 +155,17 @@ class ZipUtils {
                 }
             } else {
                 val entryName = folderName.substring(baseFolderPath.length)
-                System.out.print("Adding entry " + f.getName + "...")
+                logger.trace("Adding entry " + f.getName + "...")
                 val ze = new ZipEntry(entryName)
                 zos.putNextEntry(ze)
                 //val in = Source.fromFile(folderName).bufferedReader()
                 val in = new FileInputStream(folderName)
                 transfer(in, zos)
                 zos.closeEntry()
-                println("OK!")
+                logger.trace("OK!")
             }
         } else {
-            println("File or directory not found " + folderName)
+            logger.trace("File or directory not found " + folderName)
         }
     }
 
