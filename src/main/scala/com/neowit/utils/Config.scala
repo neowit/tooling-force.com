@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.apex.tooling
+package com.neowit.utils
 
 import java.util.Properties
 import java.io.{PrintWriter, Writer, FileWriter, File}
@@ -187,7 +187,7 @@ class Config extends Logging{
     }
     def storeSessionProps() {
         val writer = new FileWriter(new File(metaFolder.get, "session.properties"))
-        lastSessionProps.store(writer, "session data")
+        lastSessionProps.store(writer, "session data\nThis is automatically generated file. Any manual changes may be overwritten")
     }
 
 

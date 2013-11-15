@@ -17,12 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.apex.tooling
+package com.neowit.apex.session
 
 import scala.util.parsing.json.{JSON, JSONObject}
 import com.sforce.soap.tooling._
 import scala.Some
-import com.neowit.utils.Logging
+import com.neowit.utils.{Config, Logging}
+import com.neowit.apex.tooling.{TypeHelpers}
 
 /**
  * User: andrey

@@ -20,6 +20,8 @@
 package com.neowit.apex.tooling
 
 import com.sforce.soap.tooling.{SObject, MetadataContainer}
+import com.neowit.apex.session.{SfdcSession, SessionData}
+import com.neowit.utils.{ConfigValueException, Config}
 
 /**
  * User: andrey

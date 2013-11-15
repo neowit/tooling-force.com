@@ -17,10 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.apex.tooling
+package com.neowit.apex
 
 import com.sforce.soap.tooling.ApiFault
-import com.neowit.utils.Logging
+import com.neowit.utils.{Config, MissingRequiredConfigParameterException, InvalidCommandLineException, Logging}
+import com.neowit.apex.session.{SfdcSession, SessionData}
+import com.neowit.apex.tooling.{ActionHandler, SaveError, Response}
 
 
 object Runner extends Logging {

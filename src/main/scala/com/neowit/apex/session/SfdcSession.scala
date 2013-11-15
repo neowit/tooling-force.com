@@ -17,12 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.apex.tooling
+package com.neowit.apex.session
 
 import com.sforce.soap.tooling._
 import scala.Some
 import com.sforce.soap.metadata.DeployResult
-import com.neowit.utils.Logging
+import com.neowit.utils.{Config, Logging}
 
 /**
  * User: andrey
@@ -53,7 +53,7 @@ class SfdcSession (appConfig: Config) extends Logging{
     private lazy val sessionProperties = {
         appConfig.lastSessionProps
     }
-    def getSavedSessionData = {
+    def getSavedConnectionData = {
         (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
     }
     def storeSessionData() {
@@ -156,7 +156,7 @@ class PartnerConnection(session: SfdcSession) extends GenericConnection {
     lazy val connection = {
 
         val connectionConfig = getConnectionConfig(session.getConfig)
-        val conn = session.getSavedSessionData match {
+        val conn = session.getSavedConnectionData match {
             case (Some(sessionId), Some(serviceEndpoint)) =>
                 //use cached data
                 connectionConfig.setSessionId(sessionId)
@@ -273,37 +273,38 @@ class ToolingConnection(session: SfdcSession) extends GenericConnection {
         }.asInstanceOf[Array[DeleteResult]].head
     }
 
-    class MetadataConnection(session: SfdcSession) extends GenericConnection {
-        def getSession: SfdcSession = session
+}
 
-        lazy val connection = {
+class MetadataConnection(session: SfdcSession) extends GenericConnection {
+    def getSession: SfdcSession = session
 
-            val partnerConnectionConfig = session.getPartnerConnection.connection.getConfig
+    lazy val connection = {
 
-            //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
-            //having to use a workaround - connect via SOAP and then use obtained session for tooling
-            //val soapConnection = com.sforce.soap.partner.Connector.newConnection(config)
-            val connectionConfig = getConnectionConfig(session.getConfig)
-            connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
-            connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/m/"))
+        val partnerConnectionConfig = session.getPartnerConnection.connection.getConfig
 
-            val metadataConnection = com.sforce.soap.metadata.Connector.newConnection(connectionConfig)
-            //tooling api uses different service endpoint
-            /*
-            logger.info("##### Metadata Connection #####")
-            logger.info("Auth EndPoint: "+connectionConfig.getAuthEndpoint)
-            logger.info("Service EndPoint: "+connectionConfig.getServiceEndpoint)
-            logger.info("Username: "+connectionConfig.getUsername)
-            logger.debug("SessionId: "+connectionConfig.getSessionId)
-            */
-            metadataConnection
-        }
+        //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
+        //having to use a workaround - connect via SOAP and then use obtained session for tooling
+        //val soapConnection = com.sforce.soap.partner.Connector.newConnection(config)
+        val connectionConfig = getConnectionConfig(session.getConfig)
+        connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
+        connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/m/"))
 
-        def deployZip():DeployResult = {
-            withRetry {
-                //connection.query(soql)
-            }.asInstanceOf[DeployResult]
-        }
-
+        val metadataConnection = com.sforce.soap.metadata.Connector.newConnection(connectionConfig)
+        //tooling api uses different service endpoint
+        /*
+        logger.info("##### Metadata Connection #####")
+        logger.info("Auth EndPoint: "+connectionConfig.getAuthEndpoint)
+        logger.info("Service EndPoint: "+connectionConfig.getServiceEndpoint)
+        logger.info("Username: "+connectionConfig.getUsername)
+        logger.debug("SessionId: "+connectionConfig.getSessionId)
+        */
+        metadataConnection
     }
+
+    def deployZip():DeployResult = {
+        withRetry {
+            //connection.query(soql)
+        }.asInstanceOf[DeployResult]
+    }
+
 }

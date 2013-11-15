@@ -20,7 +20,7 @@
 package com.neowit.apex.tooling
 
 import java.io.PrintWriter
-import com.neowit.utils.Logging
+import com.neowit.utils.{Config, Logging}
 
 /**
  * User: andrey
