@@ -24,6 +24,9 @@ import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
 
 class ZipUtils extends Logging{
 
+    def getBytes(zip: File) = {
+        io.Source.fromFile(zip).toArray[Byte]
+    }
     /**
      * list all file names in the given archive
      * @param zip - zip archive to list file names from
