@@ -25,7 +25,10 @@ import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
 class ZipUtils extends Logging{
 
     def getBytes(zip: File) = {
-        io.Source.fromFile(zip).toArray[Byte]
+        val source = scala.io.Source.fromFile(zip)
+        val byteArray = source.map(_.toByte).toArray
+        source.close()
+        byteArray
     }
     /**
      * list all file names in the given archive
