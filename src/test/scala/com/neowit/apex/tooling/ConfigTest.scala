@@ -23,7 +23,7 @@ import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
 import java.util.Properties
 import java.lang.IllegalArgumentException
-import com.neowit.apex.tooling.{PropertiesOption, InvalidCommandLineException, Config}
+import com.neowit.utils.{Config, PropertiesOption, InvalidCommandLineException}
 
 class ConfigTest extends FunSuite with PrivateMethodTester {
     val appConfig = Config.getConfig
