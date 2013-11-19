@@ -23,8 +23,6 @@ import scala.Some
 import com.neowit.utils.{Config, Logging}
 
 /**
- * User: andrey
- * Date: 13/09/2013
  * wrapper around SoapConnection which can recover when selected operations are run with invalid and expired SFDC Session
  */
 class SfdcSession (appConfig: Config) extends Logging {

@@ -8,10 +8,6 @@ import scala.util.parsing.json.JSONObject
 import com.neowit.utils.{Config, Logging}
 import com.neowit.apex.session.SessionData
 
-/**
- * User: andrey
- * Date: 18/09/2013
- */
 trait TypeHelper extends Logging {
     def API_VERSION = Config.getConfig.apiVersion //default API version
     def getValueMap(obj: SObject):Map[String, String] = {

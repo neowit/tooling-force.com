@@ -19,13 +19,8 @@
 
 package com.neowit.apex.tooling
 
-import java.io.PrintWriter
 import com.neowit.utils.{Config, Logging}
 
-/**
- * User: andrey
- * Date: 21/10/2013
- */
 trait Response extends Logging {
     private[this] val writer = Config.getConfig.responseWriter
     //def formatter: ResponseFormatter
