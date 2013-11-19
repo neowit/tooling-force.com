@@ -197,18 +197,20 @@ class Config extends Logging{
      */
     lazy val resourcePath = getRequiredProperty("tooling.resourcePath").get
     /* path to src folder */
-    lazy val srcPath = {
-        def getSrcFolder(file: File):String = {
+    lazy val srcPath = srcDir.getAbsolutePath
+    lazy val srcDir = {
+        def getSrcFolder(file: File):File = {
             if (null == file) {
                 throw new ConfigValueException("failed to detect SRC folder in path:" + resourcePath)
             }
             if (file.isDirectory && "src" == file.getName)
-                file.getAbsolutePath
+                file
             else {
                 //check if current path points to the project folder and "src" is its first child
                 val srcPath = file.getAbsolutePath + File.separator + "src"
-                if (isDirectory(srcPath)) {
-                    srcPath
+                val f = new File(resourcePath)
+                if (f.isDirectory && f.canRead) {
+                    f
                 } else {
                     getSrcFolder(file.getParentFile)
                 }
@@ -256,7 +258,7 @@ regardless of whether it is also specified in config file or not
      * generates specified folders nested in the main outputFolder
      */
     def mkdirs(dirName: String) = {
-        val path = srcPath + File.separator + dirName
+        val path = srcDir + File.separator + dirName
         //check that folder exists
         val f = new File(path)
         if (!f.isDirectory) {

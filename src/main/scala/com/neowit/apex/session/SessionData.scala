@@ -19,18 +19,16 @@
 
 package com.neowit.apex.session
 
-import scala.util.parsing.json.{JSONFormat, JSONArray, JSON, JSONObject}
-import com.sforce.soap.tooling._
+import scala.util.parsing.json.{JSONArray, JSON, JSONObject}
 import scala.Some
 import com.neowit.utils.{Config, Logging}
 import com.sforce.soap.metadata.{DescribeMetadataObject, DescribeMetadataResult}
 import java.io.{PrintWriter, File}
-import com.neowit.apex.metadata.DescribeTask
+import com.neowit.apex.metadata.{MetaXml, DescribeTask}
+import com.sforce.soap.tooling.MetadataContainer
+import com.sforce.soap.partner.sobject.SObject
+import com.sforce.soap.partner.fault.InvalidSObjectFault
 
-/**
- * User: andrey
- * Date: 16/09/2013
- */
 class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging {
 
     type Data = Map[String, String]
@@ -58,9 +56,6 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
 
     /**
      * getKeyByValue is the opposite of getData, i.e. returns first key which contains specified data in the specified field
-     * @param fName
-     * @param fVal
-     * @return
      */
     def getKeyByValue(fName: String, fVal: String):Option[String] = {
         //find key of the element which contains given Id
@@ -210,32 +205,32 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
     def load() {
         //first check if we have a cached version
         val loadFromSFDC = sessionProperties.getPropertyOption("serviceEndpoint") match {
-            case Some(x) =>
-                //check if metadata is also available
-                true //TODO
-
+            case Some(x) => true
             case None => true
         }
 
         if (loadFromSFDC) {
-
-            logger.debug("Workflow=" + getMetadataDescription("Workflow"))
-
-            /*
-            for (helper <- TypeHelpers.list) {
-
-                val typeName = helper.typeName
-                val queryResult = sfdcSession.getToolingConnection.query("select Id, Name, ApiVersion, LastModifiedDate from " + typeName)
+            //init Last Modified Dates of all file types specified in package.xml
+            //it seems that all types that have -meta.xml can be also queried
+            val queriableTypes = getMetadataDescription.filter(_._2.isMetaFile).keySet
+            val metaXml = new MetaXml(sfdcSession)
+            for (mType <- metaXml.listMetadataTypes() if queriableTypes.contains(mType.xmlName)   ) {
+                val typeName = mType.xmlName
+                try {
+                val queryResult = sfdcSession.getPartnerConnection.query("select " + mType.getQueriableFields.mkString(", ") + " from " + typeName)
                 if (queryResult.getSize >0) {
                     do {
                         for (record: SObject <- queryResult.getRecords) {
-                            val data = helper.getValueMap(record)
-                            setData(helper.getKey(record), data)
+                            val data = mType.getValueMap(record)
+                            setData(mType.getKey(record), data)
                         }
                     }  while (!queryResult.isDone)
                 }
+                } catch {
+                    case ex: InvalidSObjectFault => logger.debug(ex.getMessage + " SKIP.")
+                }
+
             }
-            */
             store()
         }
     }

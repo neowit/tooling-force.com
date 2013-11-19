@@ -31,7 +31,7 @@ abstract class AsyncTask(session: SfdcSession) extends Logging {
      * using stored session data figure out what files have changed
      * @return
      */
-    type ChangedFiles = Map[SObjectType, List[File]]
+    type ChangedFiles = Map[MetadataType, List[File]]
 
     /*
     def isModified(sessionData: SessionData, helper: SObjectType, f: File): Boolean = {
