@@ -100,7 +100,7 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
     }
 
     private def getMetadataDescribeFile = {
-        new File(appConfig.metaFolder, "describeMetadata-result.js")
+        new File(appConfig.sessionFolder, "describeMetadata-result.js")
     }
 
     def getNotNull(str: String) = if (null == str) "" else str
@@ -161,6 +161,7 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
         } else {
             //load Org metadata and store in session locally
             new DescribeTask(sfdcSession).run(saveMetadataDescription[DescribeMetadataResult])
+            //describe is synchronous task, so it is okay to continue
             val f = getMetadataDescribeFile
             parseMetadataDescription(f, metadataDescription)
 
@@ -213,7 +214,7 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
             //init Last Modified Dates of all file types specified in package.xml
             //it seems that all types that have -meta.xml can be also queried
             val queriableTypes = getMetadataDescription.filter(_._2.isMetaFile).keySet
-            val metaXml = new MetaXml(sfdcSession)
+            val metaXml = new MetaXml(sfdcSession.getConfig)
             for (mType <- metaXml.listMetadataTypes() if queriableTypes.contains(mType.xmlName)   ) {
                 val typeName = mType.xmlName
                 try {

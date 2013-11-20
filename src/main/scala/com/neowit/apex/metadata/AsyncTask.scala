@@ -22,7 +22,7 @@ package com.neowit.apex.metadata
 import java.io.File
 import com.neowit.utils.Logging
 import com.neowit.apex.session.SfdcSession
-import com.sforce.soap.metadata.DescribeMetadataResult
+import com.sforce.soap.metadata.{RetrieveRequest, DescribeMetadataResult}
 
 abstract class AsyncTask(session: SfdcSession) extends Logging {
 
@@ -83,4 +83,24 @@ class DescribeTask(session: SfdcSession) extends AsyncTask(session) {
 
 }
 
+class RetrieveTask(session: SfdcSession) extends AsyncTask(session) {
+    /**
+     * refresh project
+     */
+    def run[A](callback: (A) => Unit){
+
+        val retrieveRequest = new RetrieveRequest()
+        retrieveRequest.setApiVersion(session.apiVersion)
+
+
+    }
+    def setUpackaged(retrieveRequest: RetrieveRequest) {
+        val metaXml = new MetaXml(session.getConfig)
+        val unpackagedManifest = metaXml.getPackageXml
+        logger.debug("Manifest file: " + unpackagedManifest.getAbsolutePath)
+
+        retrieveRequest.setUnpackaged(metaXml.getPackage)
+    }
+
+}
 

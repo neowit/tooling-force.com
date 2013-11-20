@@ -20,9 +20,10 @@
 package com.neowit.apex
 
 import com.sforce.soap.tooling.ApiFault
-import com.neowit.utils.{Config, MissingRequiredConfigParameterException, InvalidCommandLineException, Logging}
-import com.neowit.apex.session.{SfdcSession, SessionData}
-import com.neowit.apex.tooling.{ActionHandler, SaveError, Response}
+import com.neowit.utils._
+import com.neowit.apex.session.{SfdcSession}
+import com.neowit.apex.tooling.{SaveError, Response}
+import com.neowit.apex.metadata.RetrieveTask
 
 
 object Runner extends Logging {
@@ -86,4 +87,27 @@ object Runner extends Logging {
     }
 
 
+    def runTask(session: SfdcSession) {
+        val useToolingApi = Option("true") == appConfig.getProperty("useToolingApi")
+        val action = appConfig.getRequiredProperty("action").get
+
+        if (useToolingApi)
+            runToolingAction(action, session)
+        else
+            runMetadataApiAction(action, session)
+
+
+    }
+    private def runToolingAction(action: String, session: SfdcSession) {
+        throw new NotImplementedError(action + " with tooling API is not yet implemented")
+    }
+    private def runMetadataApiAction(action: String, session: SfdcSession) {
+        action match {
+            case "refresh" =>
+                val task = new RetrieveTask(session)
+                //task.run()
+            case a =>
+                throw new NotImplementedError(a + " with Metadata API is not yet implemented")
+        }
+    }
 }

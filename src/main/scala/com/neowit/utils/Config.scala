@@ -114,21 +114,22 @@ class Config extends Logging{
         options = opts
         //logger.debug(options)
         //merge config files
-        require(!configFilePaths.isEmpty, "missing --config parameter")
-        for (confPath <- configFilePaths) {
-            val conf = new Properties()
-            conf.load(scala.io.Source.fromFile(confPath.toString).bufferedReader())
+        if (!configFilePaths.isEmpty) {
+            //require(!configFilePaths.isEmpty, "missing --config parameter")
+            for (confPath <- configFilePaths) {
+                val conf = new Properties()
+                conf.load(scala.io.Source.fromFile(confPath.toString).bufferedReader())
 
-            val keys = conf.keySet().iterator()
-            while (keys.hasNext) {
-                val key = keys.next.toString
-                val value = conf.getProperty(key, "")
-                if ("" != value) {
-                    //overwrite existing value
-                    mainProps.setProperty(key, value)
+                val keys = conf.keySet().iterator()
+                while (keys.hasNext) {
+                    val key = keys.next.toString
+                    val value = conf.getProperty(key, "")
+                    if ("" != value) {
+                        //overwrite existing value
+                        mainProps.setProperty(key, value)
+                    }
                 }
             }
-
         }
 
         //lastRunOutputFile
@@ -165,17 +166,17 @@ class Config extends Logging{
     }
 
     //path to folder where all cached metadata (session Id, las update dates, etc) stored
-    lazy val metaFolder = {
-        val path = getRequiredProperty("tooling.cacheFolderPath").get
+    lazy val sessionFolder = {
+        val path = getRequiredProperty("sessionFolderPath").get
         val dir = new File(path)
         if (!dir.exists()) {
             if (!dir.mkdirs())
-                throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for tooling.cacheFolderPath")
+                throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for sessionFolderPath")
         }
         dir
     }
     lazy val lastSessionProps: PropertiesOption = {
-        val file = new File(metaFolder, "session.properties")
+        val file = new File(sessionFolder, "session.properties")
         if (!file.exists) {
             file.createNewFile()
         }
@@ -184,7 +185,7 @@ class Config extends Logging{
         props
     }
     def storeSessionProps() {
-        val writer = new FileWriter(new File(metaFolder, "session.properties"))
+        val writer = new FileWriter(new File(sessionFolder, "session.properties"))
         lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
     }
 
@@ -195,7 +196,7 @@ class Config extends Logging{
      * or: full path to the .../src/ folder which contains items to be deployed
      * @return
      */
-    lazy val resourcePath = getRequiredProperty("tooling.resourcePath").get
+    lazy val resourcePath = getRequiredProperty("resourcePath").get
     /* path to src folder */
     lazy val srcPath = srcDir.getAbsolutePath
     lazy val srcDir = {

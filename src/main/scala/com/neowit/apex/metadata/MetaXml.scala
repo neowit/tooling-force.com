@@ -19,10 +19,10 @@
 
 package com.neowit.apex.metadata
 
-import com.neowit.apex.session.SfdcSession
 import java.io.File
 import com.sforce.soap.partner.sobject.SObject
-import com.neowit.utils.Logging
+import com.neowit.utils.{Config, Logging}
+import com.sforce.soap.metadata.PackageTypeMembers
 
 class InvalidProjectStructure(msg: String)  extends IllegalArgumentException(msg: String)
 
@@ -58,15 +58,12 @@ class MetadataType(val xmlName: String) extends Logging{
 
 /**
  * package XML and -meta.xml files manipulation
- * @param session
+ * @param appConfig - application config
  */
-class MetaXml(session: SfdcSession) {
+class MetaXml(appConfig: Config) {
     val QUERYABLE_TYPES = List("ApexClass", "ApexTrigger", "ApexPage", "ApexComponent", "RecordType", "Report")
-    val appConfig = session.getConfig
 
     def listMetadataTypes(queryableOnly: Boolean = true):List[MetadataType] = {
-        val projectSrcDir = appConfig.srcDir
-
         val packageFile = getPackageXml
         val packageXml = xml.XML.loadFile(packageFile)
         (packageXml  \ "types" \ "name").map(elem => new MetadataType(elem.text)).toList
@@ -83,6 +80,35 @@ class MetaXml(session: SfdcSession) {
         } else {
             throw new InvalidProjectStructure("Invalid 'SRC' dir" + projectSrcDir.getAbsolutePath)
         }
+    }
+    //parse package
+    def getPackage: com.sforce.soap.metadata.Package = {
+        val _package = new com.sforce.soap.metadata.Package()
+        val packageFile = getPackageXml
+        val packageXml = xml.XML.loadFile(packageFile)
+
+        val apiVersion =(packageXml \ "version").text
+        _package.setVersion(apiVersion)
+
+        val members =
+        for (typeNode <- (packageXml  \ "types")) yield {
+            val name = (typeNode \ "name").text
+            val currMembers = (typeNode \ "members") match {
+                case n if n.isInstanceOf[xml.Node] =>
+                    Array(n.asInstanceOf[xml.Node].text)
+
+                case n if n.isInstanceOf[xml.NodeSeq] =>
+                    n.asInstanceOf[xml.NodeSeq].map(_.text).toArray
+
+            }
+            val ptm = new PackageTypeMembers()
+            ptm.setName(name)
+            ptm.setMembers(currMembers)
+            ptm
+        }
+
+        _package.setTypes(members.toArray)
+        _package
     }
 
 }

@@ -344,7 +344,7 @@ class PackageProcessor(appConfig: Config, resourceDir: File) extends Processor {
                 if (isDirectory(srcPath)) {
                     new File(srcPath)
                 } else {
-                    throw new ConfigValueException("Provided --tooling.resourcePath does not point to project folder or 'src' folder.")
+                    throw new ConfigValueException("Provided --resourcePath does not point to project folder or 'src' folder.")
                 }
             }
         */
