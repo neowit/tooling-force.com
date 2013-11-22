@@ -20,7 +20,7 @@
 package com.neowit.apex.tooling
 
 import com.neowit.utils.{Config, Logging}
-import scala.util.parsing.json.{JSONObject, JSON}
+import scala.util.parsing.json.{JSONObject}
 
 trait Response {
     private[this] val logger = new Logging {}
@@ -51,12 +51,18 @@ trait Response {
         write(s"""{"type":"$msgType", "msg":"${escape(msg)}", "fPath":"${escape(fPath)}", "fName":"${escape(fName)}", "text":"${escape(msg)}"}""")
         logger.error(msgType + ": " + msg)
     }
+
     def deployError(deployResult: com.sforce.soap.metadata.DeployResult, msg:String = "") {
         val details = deployResult.getDetails
         if (null != details) {
             for (detail <- details.getComponentFailures) {
-                compilerOutput("DeployError", detail.getProblemType.toString, "", detail.getFileName,
-                                            detail.getProblem, detail.getLineNumber, detail.getColumnNumber)
+                val problemType = escape(detail.getProblemType.toString)
+                val msg = escape(detail.getProblem)
+                val lnum = detail.getLineNumber
+                val col = detail.getColumnNumber
+                val fName = escape(detail.getFileName)
+
+                write(s"""{"type":"$problemType", "msg":"$msg", "lnum":$lnum, "col":$col, "fName":"$fName"}""")
             }
         }
     }

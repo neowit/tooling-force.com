@@ -97,7 +97,7 @@ class DeployTask(session: SfdcSession) extends AsyncTask(session) {
         val destZip = FileUtils.createTempFile("deploy", ".zip")
         try {
             destZip.delete()
-            ZipUtils.compress(session.getConfig.srcPath, destZip.getAbsolutePath)
+            ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath)
             val deployOptions = new DeployOptions()
             deployOptions.setPerformRetrieve(false)
             deployOptions.setAllowMissingFiles(true)
@@ -106,13 +106,17 @@ class DeployTask(session: SfdcSession) extends AsyncTask(session) {
             val metadataBinding = session.getMetadataConnection.connection
 
 
-            val asyncResult = wait(metadataBinding,
-                session.getMetadataConnection.deployZip(destZip, deployOptions))
+            //val asyncResult = wait(metadataBinding, session.getMetadataConnection.deployZip(destZip, deployOptions))
+            val asyncResult = wait(metadataBinding, session.getMetadataConnection.deployZip(ZipUtils.zipDirToBytes(session.getConfig.srcDir), deployOptions))
+
             val includeDetails = true //TODO make false
+            /*
             val deployResult = metadataBinding.checkDeployStatus(asyncResult.getId, includeDetails)
             if (!deployResult.isSuccess) {
+                logger.error("Deploy failed. " + deployResult)
                 throw new Exception(deployResult.getErrorStatusCode + " msg: " + deployResult.getErrorMessage)
             }
+            */
 
             val deployResultWithDetails = metadataBinding.checkDeployStatus(asyncResult.getId, true)
             callback(deployResultWithDetails.asInstanceOf[A])

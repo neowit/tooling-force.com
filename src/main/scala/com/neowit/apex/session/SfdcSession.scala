@@ -320,9 +320,9 @@ class MetadataConnection(session: SfdcSession) extends GenericConnection {
         metadataConnection
     }
 
-    def deployZip(zipFile: File, deployOptions: DeployOptions):AsyncResult = {
+    def deployZip(zip: Array[Byte], deployOptions: DeployOptions):AsyncResult = {
         withRetry {
-            connection.deploy(ZipUtils.getBytes(zipFile), deployOptions)
+            connection.deploy(zip, deployOptions)
         }.asInstanceOf[AsyncResult]
     }
     def retrieve(retrieveRequest: RetrieveRequest ):AsyncResult = {

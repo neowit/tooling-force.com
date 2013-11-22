@@ -21,21 +21,17 @@ package com.neowit.utils
 
 import java.io._
 import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
+import java.nio.channels.{ReadableByteChannel, Channels, WritableByteChannel, FileChannel}
+import java.nio.ByteBuffer
 
 object ZipUtils extends Logging{
 
-    def getBytes(zip: File) = {
-        val fos = new FileInputStream(zip)
-        val bos = new ByteArrayOutputStream()
-        transfer(fos, bos)
-        bos.toByteArray
-    }
     /**
      * list all file names in the given archive
      * @param zip - zip archive to list file names from
      * @return list of file names (with path inside zip archive)
      */
-    def listArhiveContent(zip: File): List[String] = {
+    def listContent(zip: File): List[String] = {
         val zin = new ZipInputStream(new FileInputStream(zip))
 
         var entry = zin.getNextEntry
@@ -49,76 +45,24 @@ object ZipUtils extends Logging{
         res.toList
     }
 
-    /**
-     * add a bunch of files to the root of EXISTING zip folder
-     * @param files
-     * @param zipFile
-     */
-    def addToZip(files: List[File], zipFile: File) {
-        //get name of temp file
-        val tempFile = File.createTempFile(zipFile.getName, null)
-        // delete it, because we need only name, not actual file
-        tempFile.delete()
-
-        if (!zipFile.renameTo(tempFile)) {
-            throw new RuntimeException("Failed to rename the zip "+zipFile.getAbsolutePath+" to "+tempFile.getAbsolutePath)
-        }
-
-        val zin = new ZipInputStream(new FileInputStream(tempFile))
-        val zos = new ZipOutputStream(new FileOutputStream(zipFile))
-
-        //make files list searchable
-        val fileSet = files.map(_.getName).toSet
-        //re-archive existing zip into the new zip
-        var entry = zin.getNextEntry
-        while (entry != null) {
-            val name = entry.getName
-            if (!fileSet.contains(name)) {
-                zos.putNextEntry(new ZipEntry(name))
-                transfer(zin, zos, keepInOpen = true)
-            }
-            entry = zin.getNextEntry
-        }
-        zin.close()
-
-        //add extra files to the new zip
-        for (f <- files) {
-            logger.trace("Adding entry " + f.getName + "...")
-            if (f.isDirectory) {
-                addFolder(zos, f.getAbsolutePath, f.getAbsolutePath)
-
-            } else {
-                zos.putNextEntry(new ZipEntry(f.getName))
-                transfer(new FileInputStream(f), zos)
-                zos.closeEntry()
-                logger.trace("OK!")
-            }
-        }
-
-        zos.close()
-        tempFile.delete()
-    }
 
     /**
      * zip provided file or folder
      * @param fPath using provided path as file or top of the file tree zip everything into outputZipPath
      * @param outputZipPath - where to store the result
      */
-    def compress(fPath: String, outputZipPath: String) {
-        val fos = new FileOutputStream(outputZipPath)
-        val zos = new ZipOutputStream(fos)
-        zos.setLevel(9)
-        logger.trace("Start compressing folder/file : " + fPath + " to " + outputZipPath)
-        val f = new File(fPath)
-        /*
-        if (f.isDirectory) {
-            addFolder(zos, fPath, fPath)
-        } else {
-            addFolder(zos, fPath, f.getParent)
-        }
-        */
-        addFolder(zos, fPath, f.getParent)
+    def zipDir(fPath: String, outputZipPath: String) {
+
+        val bos: ByteArrayOutputStream = new ByteArrayOutputStream
+        val zos: ZipOutputStream = new ZipOutputStream(bos)
+        //zos.setLevel(9)
+        zipFiles("", Array[File](new File(fPath)), zos)
         zos.close()
+        //dump to file
+        val outputStream = new FileOutputStream (outputZipPath)
+        bos.writeTo(outputStream)
+        outputStream.close()
+        //bos.toByteArray
     }
 
     /**
@@ -151,8 +95,71 @@ object ZipUtils extends Logging{
         zin.close()
     }
 
+    def zipDirToBytes(rootDir: File): Array[Byte] = {
+        val bos: ByteArrayOutputStream = new ByteArrayOutputStream
+        val zos: ZipOutputStream = new ZipOutputStream(bos)
+        zipFiles("", Array[File](rootDir), zos)
+        zos.close()
+        bos.toByteArray
+    }
+
+    private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream) {
+        for (file <- files) {
+            zipFile(relPath, file, zos)
+        }
+    }
+
+    private def isIgnored(file: File) = {
+        file.getName.startsWith(".") || file.getName.endsWith("~")
+    }
+
+    private def zipFile(relPath: String, file: File, zos: ZipOutputStream) {
+        if (!isIgnored(file)) {
+            val filePath: String = relPath + file.getName
+            if (file.isDirectory) {
+                val dirPath = filePath + '/'
+                val dir = new ZipEntry(dirPath)
+                dir.setTime(file.lastModified)
+                zos.putNextEntry(dir)
+                zos.closeEntry()
+                zipFiles(dirPath, file.listFiles, zos)
+            } else {
+                addFile(filePath, file, zos)
+            }
+        }
+    }
+
+    private def addFile(filename: String, file: File, zos: ZipOutputStream): ZipEntry = {
+        val entry: ZipEntry = new ZipEntry(filename)
+        entry.setTime(file.lastModified)
+        entry.setSize(file.length)
+        zos.putNextEntry(entry)
+        val is: FileInputStream = new FileInputStream(file)
+        try {
+            val src: FileChannel = is.getChannel
+            val dest: WritableByteChannel = Channels.newChannel(zos)
+            copy(src, dest)
+            zos.closeEntry()
+            entry
+        }
+        finally {
+            is.close()
+        }
+    }
+
+    private def copy(src: ReadableByteChannel, dest: WritableByteChannel) {
+        val buffer: ByteBuffer = ByteBuffer.allocate(8092)
+        while (src.read(buffer) != -1) {
+            buffer.flip
+            while (buffer.hasRemaining) {
+                dest.write(buffer)
+            }
+            buffer.clear
+        }
+    }
+
     private def transfer(in: InputStream, out: OutputStream, keepInOpen:Boolean = false) {
-        val bytes = new Array[Byte](1024) //1024 bytes - Buffer size
+        val bytes = new Array[Byte](8092) //8092 bytes - Buffer size
         try {
             Iterator
                 .continually (in.read(bytes))
@@ -166,28 +173,13 @@ object ZipUtils extends Logging{
         }
 
     }
-    private def addFolder(zos: ZipOutputStream, folderName: String, baseFolderPath:String) {
 
-        val f = new File(folderName)
-        if (f.exists()) {
-            if (f.isDirectory) {
-                for (curFile <- f.listFiles) {
-                    addFolder(zos, curFile.getAbsolutePath, baseFolderPath)
-                }
-            } else {
-                val entryName = folderName.substring(baseFolderPath.length)
-                logger.trace("Adding entry " + f.getName + "...")
-                val ze = new ZipEntry(entryName)
-                zos.putNextEntry(ze)
-                //val in = Source.fromFile(folderName).bufferedReader()
-                val in = new FileInputStream(folderName)
-                transfer(in, zos)
-                zos.closeEntry()
-                logger.trace("OK!")
-            }
-        } else {
-            logger.trace("File or directory not found " + folderName)
-        }
+    /*
+    def getBytes(zip: File) = {
+        val fos = new FileInputStream(zip)
+        val bos = new ByteArrayOutputStream()
+        transfer(fos, bos)
+        bos.toByteArray
     }
-
+    */
 }
