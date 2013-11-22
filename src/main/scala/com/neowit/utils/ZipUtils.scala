@@ -22,13 +22,13 @@ package com.neowit.utils
 import java.io._
 import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
 
-class ZipUtils extends Logging{
+object ZipUtils extends Logging{
 
     def getBytes(zip: File) = {
-        val source = scala.io.Source.fromFile(zip)
-        val byteArray = source.map(_.toByte).toArray
-        source.close()
-        byteArray
+        val fos = new FileInputStream(zip)
+        val bos = new ByteArrayOutputStream()
+        transfer(fos, bos)
+        bos.toByteArray
     }
     /**
      * list all file names in the given archive
@@ -75,7 +75,7 @@ class ZipUtils extends Logging{
             val name = entry.getName
             if (!fileSet.contains(name)) {
                 zos.putNextEntry(new ZipEntry(name))
-                transfer(zin, zos, keepOpen = true)
+                transfer(zin, zos, keepInOpen = true)
             }
             entry = zin.getNextEntry
         }
@@ -110,33 +110,48 @@ class ZipUtils extends Logging{
         zos.setLevel(9)
         logger.trace("Start compressing folder/file : " + fPath + " to " + outputZipPath)
         val f = new File(fPath)
+        /*
         if (f.isDirectory) {
             addFolder(zos, fPath, fPath)
         } else {
             addFolder(zos, fPath, f.getParent)
         }
+        */
+        addFolder(zos, fPath, f.getParent)
         zos.close()
-
     }
 
     /**
-     * a very basic file lister which will cause "out of memory" on a very deep directory tree
-     * @param rootFolder - top of the file tree
-     * @return list of all files under rootFolder (including rootFolder)
+     * extract content of zipFile into specified outputFolderPath
+     * @param zipFile - zip file
+     * @param outputFolder - folder to extract to
      */
-    def listFiles(rootFolder: File):List[File] = {
-        def listOnelevel(f: File):List[File] = {
-            if (f.isDirectory) {
-                f.listFiles().filter(_.canRead).flatMap(listOnelevel).toList
-            } else {
-                List(f)
-            }
+    def extract(zipFile: File, outputFolder: File) {
+        if (!outputFolder.exists()) {
+            outputFolder.mkdirs()
         }
-        val files = List() ++ listOnelevel(rootFolder)
-        files
+        val zin = new ZipInputStream(new FileInputStream(zipFile))
+
+        var entry = zin.getNextEntry
+        while (entry != null) {
+            val fileName = entry.getName
+            val newFile = new File(outputFolder, fileName)
+            //create all missing folders
+            if (entry.isDirectory)
+                newFile.mkdirs()
+            else {
+                new File(newFile.getParent).mkdirs()
+                val fos = new FileOutputStream(newFile)
+                transfer(zin, fos, keepInOpen = true)
+                fos.close()
+            }
+
+            entry = zin.getNextEntry
+        }
+        zin.close()
     }
 
-    private def transfer(in: InputStream, out: OutputStream, keepOpen:Boolean = false) {
+    private def transfer(in: InputStream, out: OutputStream, keepInOpen:Boolean = false) {
         val bytes = new Array[Byte](1024) //1024 bytes - Buffer size
         try {
             Iterator
@@ -145,7 +160,7 @@ class ZipUtils extends Logging{
                 .foreach (read=> out.write(bytes,0,read))
         }
         finally {
-            if (!keepOpen) {
+            if (!keepInOpen) {
                 in.close()
             }
         }

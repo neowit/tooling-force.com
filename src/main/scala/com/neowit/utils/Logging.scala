@@ -35,14 +35,18 @@ trait Logging {
     def error(msg: Any) = if (log.isInfoEnabled) log.error(msg)
     def error(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
 
+    def warn(msg: Any) = if (log.isWarnEnabled) log.warn(msg)
+    def warn(msg: Any, ex: Throwable) = if (log.isWarnEnabled) log.warn(msg, ex)
+
     def info(msg: Any) = if (log.isInfoEnabled) log.info(msg)
-    def info(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.info(msg, ex)
+    def info(msg: Any, ex: Throwable) = if (log.isInfoEnabled) log.info(msg, ex)
 
     def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
     def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
 
     def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
     def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
+
 
     def logger = this
 }

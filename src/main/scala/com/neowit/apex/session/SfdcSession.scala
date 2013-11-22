@@ -20,7 +20,8 @@
 package com.neowit.apex.session
 
 import scala.Some
-import com.neowit.utils.{Config, Logging}
+import com.neowit.utils.{ZipUtils, Config, Logging}
+import java.io.File
 
 /**
  * wrapper around SoapConnection which can recover when selected operations are run with invalid and expired SFDC Session
@@ -292,7 +293,7 @@ class ToolingConnection(session: SfdcSession) extends GenericConnection {
 }
 
 class MetadataConnection(session: SfdcSession) extends GenericConnection {
-    import com.sforce.soap.metadata.{DescribeMetadataResult, DeployResult}
+    import com.sforce.soap.metadata.{DescribeMetadataResult, DeployResult, RetrieveRequest, AsyncResult, DeployOptions}
 
     def getSession: SfdcSession = session
 
@@ -319,10 +320,15 @@ class MetadataConnection(session: SfdcSession) extends GenericConnection {
         metadataConnection
     }
 
-    def deployZip():DeployResult = {
+    def deployZip(zipFile: File, deployOptions: DeployOptions):AsyncResult = {
         withRetry {
-            //connection.query(soql)
-        }.asInstanceOf[DeployResult]
+            connection.deploy(ZipUtils.getBytes(zipFile), deployOptions)
+        }.asInstanceOf[AsyncResult]
+    }
+    def retrieve(retrieveRequest: RetrieveRequest ):AsyncResult = {
+        withRetry {
+            connection.retrieve(retrieveRequest)
+        }.asInstanceOf[AsyncResult]
     }
 
     def describeMetadata: DescribeMetadataResult = {

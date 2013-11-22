@@ -165,6 +165,8 @@ class Config extends Logging{
         }
     }
 
+    lazy val action = getRequiredProperty("action").get
+
     //path to folder where all cached metadata (session Id, las update dates, etc) stored
     lazy val sessionFolder = {
         val path = getRequiredProperty("sessionFolderPath").get
@@ -221,6 +223,19 @@ class Config extends Logging{
         getSrcFolder(file)
 
     }
+    //tempFolderPath - optional - if specified then use this folder instead of system generated
+    lazy val tempFolderPath =  getProperty("tempFolderPath")
+    //destinationFolderPath - required only for some operations
+    //  folder where refresh results will be copied to
+    lazy val destinationFolderPath = {
+        action match {
+            case "refresh" =>
+                //for refresh destinationFolderPath is required
+                getRequiredProperty("destinationFolderPath")
+            case _ => getProperty("destinationFolderPath")
+        }
+    }
+
     lazy val isCheckOnly = getProperty("checkOnly") match {
       case Some(x) => "true" == x
       case None => false

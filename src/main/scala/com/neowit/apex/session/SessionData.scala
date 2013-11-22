@@ -206,7 +206,8 @@ class SessionData (appConfig: Config, sfdcSession: SfdcSession)  extends Logging
     def load() {
         //first check if we have a cached version
         val loadFromSFDC = sessionProperties.getPropertyOption("serviceEndpoint") match {
-            case Some(x) => true
+            case Some(x) =>
+                "refresh" != appConfig.getRequiredProperty("action").get
             case None => true
         }
 

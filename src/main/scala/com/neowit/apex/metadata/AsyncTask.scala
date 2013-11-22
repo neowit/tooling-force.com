@@ -20,11 +20,12 @@
 package com.neowit.apex.metadata
 
 import java.io.File
-import com.neowit.utils.Logging
+import com.neowit.utils.{FileUtils, Logging}
 import com.neowit.apex.session.SfdcSession
-import com.sforce.soap.metadata.{RetrieveRequest, DescribeMetadataResult}
+import com.sforce.soap.metadata.{DeployOptions, AsyncResult, AsyncRequestState, MetadataConnection}
+import com.neowit.apex.tooling.Response
 
-abstract class AsyncTask(session: SfdcSession) extends Logging {
+abstract class AsyncTask(session: SfdcSession) extends Logging with Response{
 
     def run[A](callback: (A) => Unit)
     /**
@@ -60,19 +61,74 @@ abstract class AsyncTask(session: SfdcSession) extends Logging {
     }
     */
 
+    private val ONE_SECOND = 3600
+    private val MAX_NUM_POLL_REQUESTS = 50
+    def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
+        val waitTimeMilliSecs = ONE_SECOND
+        var attempts = 0
+        var _asyncResult = asyncResult
+        while (!_asyncResult.isDone) {
+            Thread.sleep(waitTimeMilliSecs)
+            attempts += 1
+            if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
+                throw new Exception("Request timed out.  If this is a large set " +
+                    "of metadata components, check that the time allowed " +
+                    "by MAX_NUM_POLL_REQUESTS is sufficient.")
+            }
+            _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
+            logger.info("Status is: " + _asyncResult.getState)
+        }
+        if (AsyncRequestState.Completed != _asyncResult.getState) {
+            throw new Exception(_asyncResult.getStatusCode + " msg:" + _asyncResult.getMessage)
+        }
+        _asyncResult
+    }
 
 }
 
 class DeployTask(session: SfdcSession) extends AsyncTask(session) {
+    import com.neowit.utils.ZipUtils
     /**
      * deploy zip archive
      */
     def run[A](callback: (A) => Unit){
+        //zip provided folder
+        //get temp file name
+        val destZip = FileUtils.createTempFile("deploy", ".zip")
+        try {
+            destZip.delete()
+            ZipUtils.compress(session.getConfig.srcPath, destZip.getAbsolutePath)
+            val deployOptions = new DeployOptions()
+            deployOptions.setPerformRetrieve(false)
+            deployOptions.setAllowMissingFiles(true)
+            deployOptions.setRollbackOnError(true)
 
+            val metadataBinding = session.getMetadataConnection.connection
+
+
+            val asyncResult = wait(metadataBinding,
+                session.getMetadataConnection.deployZip(destZip, deployOptions))
+            val includeDetails = true //TODO make false
+            val deployResult = metadataBinding.checkDeployStatus(asyncResult.getId, includeDetails)
+            if (!deployResult.isSuccess) {
+                throw new Exception(deployResult.getErrorStatusCode + " msg: " + deployResult.getErrorMessage)
+            }
+
+            val deployResultWithDetails = metadataBinding.checkDeployStatus(asyncResult.getId, true)
+            callback(deployResultWithDetails.asInstanceOf[A])
+        } finally {
+            //delete temp zip file
+            try {
+                new File(destZip.getAbsolutePath).delete()
+            } catch {
+                case _:Throwable => //ignore
+            }
+        }
     }
-
 }
+
 class DescribeTask(session: SfdcSession) extends AsyncTask(session) {
+    import com.sforce.soap.metadata.DescribeMetadataResult
     /**
      * describe metadata
      */
@@ -84,6 +140,7 @@ class DescribeTask(session: SfdcSession) extends AsyncTask(session) {
 }
 
 class RetrieveTask(session: SfdcSession) extends AsyncTask(session) {
+    import com.sforce.soap.metadata.RetrieveRequest
     /**
      * refresh project
      */
@@ -91,7 +148,22 @@ class RetrieveTask(session: SfdcSession) extends AsyncTask(session) {
 
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(session.apiVersion)
+        setUpackaged(retrieveRequest)
+        val metadataBinding = session.getMetadataConnection.connection
+        val asyncResult = wait(metadataBinding,
+                                session.getMetadataConnection.retrieve(retrieveRequest))
 
+        val retrieveResult = metadataBinding.checkRetrieveStatus(asyncResult.getId)
+        retrieveResult.getMessages match {
+          case messages if null != messages && !messages.isEmpty=>
+              for(msg <- messages) {
+                  response.warning("Retrieve", "", msg.getFileName, msg.getProblem )
+              }
+          case _ =>
+        }
+        //write results to ZIP file
+        logger.debug("retrieveResult.getFileProperties=" + retrieveResult.getFileProperties)
+        callback(retrieveResult.asInstanceOf[A]) //return resulting zip
 
     }
     def setUpackaged(retrieveRequest: RetrieveRequest) {

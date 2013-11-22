@@ -20,12 +20,15 @@
 package com.neowit.apex.tooling
 
 import com.neowit.utils.{Config, Logging}
+import scala.util.parsing.json.{JSONObject, JSON}
 
-trait Response extends Logging {
+trait Response {
+    private[this] val logger = new Logging {}
     private[this] val writer = Config.getConfig.responseWriter
     //def formatter: ResponseFormatter
 
     private def write(text: String) = writer.println("MESSAGE: " + text)
+    private def writeRaw(text: String) = writer.println(text)
 
     private def escape(msg: String) = {
         if (null != msg) {
@@ -48,10 +51,29 @@ trait Response extends Logging {
         write(s"""{"type":"$msgType", "msg":"${escape(msg)}", "fPath":"${escape(fPath)}", "fName":"${escape(fName)}", "text":"${escape(msg)}"}""")
         logger.error(msgType + ": " + msg)
     }
+    def deployError(deployResult: com.sforce.soap.metadata.DeployResult, msg:String = "") {
+        val details = deployResult.getDetails
+        if (null != details) {
+            for (detail <- details.getComponentFailures) {
+                compilerOutput("DeployError", detail.getProblemType.toString, "", detail.getFileName,
+                                            detail.getProblem, detail.getLineNumber, detail.getColumnNumber)
+            }
+        }
+    }
 
-    protected def genericOutput(msgType: String, text: String, msg:String = "") {
-        write(s"{'type':'Generic$msgType', 'text':'$text', 'msg':'$msg'}")
+    def warning(msgType: String, fPath:String, fName:String, msg:String = "") {
+        write(s"""{"type":"$msgType", "msg":"${escape(msg)}", "fPath":"${escape(fPath)}", "fName":"${escape(fName)}", "text":"${escape(msg)}"}""")
+        logger.warn(msgType + ": " + msg)
+    }
+
+    def genericOutput(msgType: String, text: String, msg:String = "") {
+        write(s"""{"type":"$msgType", "text":"$text", "msg":"$msg"}""")
         logger.debug(msgType + ": " + msg)
+    }
+    def genericOutput(valueMap: Map[String, String]) {
+        val msg = JSONObject(valueMap).toString()
+        writeRaw(msg)
+        logger.debug(msg)
     }
     def response = this
 

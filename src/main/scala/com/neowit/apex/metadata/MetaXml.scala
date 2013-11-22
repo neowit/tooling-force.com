@@ -23,9 +23,45 @@ import java.io.File
 import com.sforce.soap.partner.sobject.SObject
 import com.neowit.utils.{Config, Logging}
 import com.sforce.soap.metadata.PackageTypeMembers
+import java.text.SimpleDateFormat
+import java.util.TimeZone
 
 class InvalidProjectStructure(msg: String)  extends IllegalArgumentException(msg: String)
 
+object MetadataType extends Logging {
+    import com.sforce.soap.metadata.FileProperties
+
+    def getKey(props: FileProperties): String = {
+        val xmlName = props.getType
+        val name = getName(props)
+
+        xmlName + "." + name
+    }
+    private def getName(props: FileProperties): String = {
+        val fName = new File(props.getFileName).getName
+        val name = fName.substring(0, fName.lastIndexWhere(_ == '.'))
+        name
+    }
+
+    def getValueMap(props: FileProperties):Map[String, String] = {
+        //2013-09-25T09:31:08.000Z - simulate output from datatime returned by SOQL query
+        val lastModifiedDateText = getLastModifiedDateText(props)
+        val lastModifiedDateMills = String.valueOf(getLastModifiedDateMills(props))
+        Map("Id" -> props.getId, "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText, "LastModifiedDateMills" -> lastModifiedDateMills)
+    }
+
+    def getLastModifiedDateText(props: FileProperties) = {
+        val dateFormatGmt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
+        dateFormatGmt.setTimeZone(TimeZone.getTimeZone("GMT"))
+        val lastModifiedDate = dateFormatGmt.format(props.getLastModifiedDate.getTime) + ".000Z"
+        lastModifiedDate
+    }
+    def getLastModifiedDateMills(props: FileProperties) = {
+        val lastModifiedDate = props.getLastModifiedDate.getTime.getTime
+        lastModifiedDate
+    }
+
+}
 class MetadataType(val xmlName: String) extends Logging{
 
     def getLastModifiedDate(obj: SObject): String = {

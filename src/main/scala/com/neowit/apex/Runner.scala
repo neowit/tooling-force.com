@@ -23,7 +23,8 @@ import com.sforce.soap.tooling.ApiFault
 import com.neowit.utils._
 import com.neowit.apex.session.{SfdcSession}
 import com.neowit.apex.tooling.{SaveError, Response}
-import com.neowit.apex.metadata.RetrieveTask
+import com.neowit.apex.metadata.{DeployTask, FileManager, RetrieveTask}
+import java.io.File
 
 
 object Runner extends Logging {
@@ -69,7 +70,6 @@ object Runner extends Logging {
 
         val session = new SfdcSession(appConfig)
         session.load()
-        logger.debug(session.getPartnerConnection.getServerTimestamp)
         //val sessionData = new SessionData(appConfig, session)
         //sessionData.load()
 
@@ -78,6 +78,7 @@ object Runner extends Logging {
         handler.act(session, sessionData)
         session.storeSessionData()
         */
+        runTask(session)
 
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
@@ -105,9 +106,15 @@ object Runner extends Logging {
         action match {
             case "refresh" =>
                 val task = new RetrieveTask(session)
-                //task.run()
+                val fileManager = new FileManager(session)
+                task.run(fileManager.updateFromRetrieve[com.sforce.soap.metadata.RetrieveResult])
+            case "deploy" =>
+                val task = new DeployTask(session)
+                val fileManager = new FileManager(session)
+                task.run(fileManager.processDeployResult[com.sforce.soap.metadata.DeployDetails])
             case a =>
                 throw new NotImplementedError(a + " with Metadata API is not yet implemented")
         }
     }
+
 }
