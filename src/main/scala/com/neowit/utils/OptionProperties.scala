@@ -21,7 +21,7 @@ package com.neowit.utils
 
 import java.util.Properties
 
-trait PropertiesOption extends Properties {
+trait OptionProperties extends Properties {
 
     def getPropertyOption(key: String): Option[String] = {
         super.getProperty(key) match {

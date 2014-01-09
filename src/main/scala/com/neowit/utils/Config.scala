@@ -51,7 +51,7 @@ object Config extends Logging {
 class Config extends Logging{
     val apiVersion:Double = 29.0
     type OptionMap = Map[String, String]
-    private val mainProps = new Properties() with PropertiesOption
+    private val mainProps = new Properties() with OptionProperties
 
     private var options:OptionMap = Map()
 
@@ -167,12 +167,12 @@ class Config extends Logging{
         }
         dir
     }
-    lazy val lastSessionProps: PropertiesOption = {
+    lazy val lastSessionProps: JsonProperties = {
         val file = new File(sessionFolder, "session.properties")
         if (!file.exists) {
             file.createNewFile()
         }
-        val props = new Properties() with PropertiesOption
+        val props = new Properties() with JsonProperties
         props.load(scala.io.Source.fromFile(file).bufferedReader())
         props
     }

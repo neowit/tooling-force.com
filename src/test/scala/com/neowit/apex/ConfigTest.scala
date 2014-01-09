@@ -23,7 +23,7 @@ import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
 import java.util.Properties
 import java.lang.IllegalArgumentException
-import com.neowit.utils.{Config, PropertiesOption, InvalidCommandLineException}
+import com.neowit.utils.{Config, OptionProperties, InvalidCommandLineException}
 
 class ConfigTest extends FunSuite with PrivateMethodTester {
     val appConfig = Config.getConfig
@@ -115,7 +115,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
     }
     test("Parameter from command line take priority over --config") {
         withFile { (file, writer) =>
-            val props = new Properties() with PropertiesOption
+            val props = new Properties() with OptionProperties
             props.setProperty("sf.serverurl", "val1")
             props.store(writer, "")
 

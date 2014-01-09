@@ -23,7 +23,7 @@ import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
 import java.util.Properties
 import java.lang.IllegalArgumentException
-import com.neowit.utils.{Config, PropertiesOption, InvalidCommandLineException}
+import com.neowit.utils.{Config, OptionProperties, InvalidCommandLineException}
 
 class MetaXmlTest extends FunSuite with PrivateMethodTester {
     val appConfig = Config.getConfig

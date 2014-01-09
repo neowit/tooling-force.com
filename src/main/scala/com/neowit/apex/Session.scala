@@ -19,10 +19,9 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{PropertiesOption, JsonProperties, Logging, Config}
+import com.neowit.utils.{Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata.{RetrieveRequest, AsyncResult, MetadataConnection}
-import java.util.Properties
 
 /**
  * manages local data store related to specific project
@@ -39,9 +38,7 @@ object Session {
  * @param config - main application config
  */
 class Session(config: Config) extends Logging {
-    private val sessionProperties = new Properties with PropertiesOption with JsonProperties {
-        val jsonProps: PropertiesOption = config.lastSessionProps
-    }
+    private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
 

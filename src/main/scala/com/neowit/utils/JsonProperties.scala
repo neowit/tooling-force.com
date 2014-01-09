@@ -27,8 +27,7 @@ import scala.util.parsing.json.{JSON, JSONObject}
  * - simple string
  * - JSON string
  */
-trait JsonProperties {
-    val jsonProps: PropertiesOption
+trait JsonProperties extends OptionProperties {
 
     type Data = Map[String, String]
     /**
@@ -36,14 +35,14 @@ trait JsonProperties {
      * @param data - map of values to save
      */
     def setJsonData(key: String, data: Data) {
-        jsonProps.setProperty(key, JSONObject(data).toString())
+        this.setProperty(key, JSONObject(data).toString())
     }
     /**
      * retrieve key/value pairs for given object name from session file
      * @return - map of values restored from session file
      */
     def getJsonData(key: String): Data = {
-        jsonProps.getPropertyOption(key) match {
+        this.getPropertyOption(key) match {
             case Some(x) => valueToDataMap(x)
             case None => Map()
         }
@@ -54,7 +53,7 @@ trait JsonProperties {
      */
     def getKeyByValue(fName: String, fVal: String):Option[String] = {
         //find key of the element which contains given Id
-        jsonProps.keySet().toArray.find(key => Some(fVal) == getJsonData(key.asInstanceOf[String]).get(fName)) match {
+        this.keySet().toArray.find(key => Some(fVal) == getJsonData(key.asInstanceOf[String]).get(fName)) match {
             case Some(x) => Option(x.asInstanceOf[String])
             case None => None
         }
@@ -83,7 +82,7 @@ trait JsonProperties {
         setJsonData(key, data - "Id")
     }
     def remove(key: String) {
-        jsonProps.remove(key)
+        super.remove(key)
     }
 
     /**
