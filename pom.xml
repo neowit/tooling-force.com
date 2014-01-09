@@ -5,7 +5,7 @@
     <artifactId>tooling-force.com</artifactId>
     <version>0.1-SNAPSHOT</version>
     <name>${project.artifactId}</name>
-    <description>command line client for force.com Tooling API</description>
+    <description>command line client for force.com Metadata and Tooling API</description>
     <inceptionYear>2013</inceptionYear>
     <licenses>
         <license>
@@ -26,6 +26,15 @@
             <name>Scala-Tools Maven2 Repository</name>
             <url>http://scala-tools.org/repo-releases</url>
         </repository>
+
+        <!--
+        <repository>
+            <id>com.typesafe.play</id>
+            <name>Play2 Maven2 Repository</name>
+            <url>http://repo.typesafe.com/typesafe/releases/</url>
+        </repository>
+        -->
+
         <!-- In Project repository -->
         <repository>
             <id>in-project</id>
@@ -41,12 +50,44 @@
             <url>http://scala-tools.org/repo-releases</url>
         </pluginRepository>
     </pluginRepositories>
+
     <dependencies>
+
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <version>${scala.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.typesafe</groupId>
+            <artifactId>config</artifactId>
+            <version>1.0.2</version>
+            <type>jar</type>
+        </dependency>
+        <!--
+        <dependency>
+            <groupId>com.typesafe</groupId>
+            <artifactId>config</artifactId>
+            <version>1.0.2</version>
+            <type>jar</type>
+            <classifier>javadoc</classifier>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe</groupId>
+            <artifactId>config</artifactId>
+            <version>1.0.2</version>
+            <type>jar</type>
+            <classifier>sources</classifier>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.play</groupId>
+            <artifactId>play-json_2.10</artifactId>
+            <version>2.2.0-RC1</version>
+        </dependency>
+        -->
 
         <dependency>
             <groupId>commons-logging</groupId>
@@ -142,9 +183,12 @@
                             <mainClass>com.neowit.apex.Runner</mainClass>
                         </manifest>
                     </archive>
+                    <!--
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
+                    -->
+                    <descriptor>no-source-assembly.xml</descriptor>
                 </configuration>
                 <executions>
                     <execution>
