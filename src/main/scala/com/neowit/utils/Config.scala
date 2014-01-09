@@ -35,21 +35,7 @@ class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumen
 
 class ConfigValueException(msg:String) extends IllegalArgumentException(msg: String)
 
-trait PropertiesOption extends Properties{
 
-    def getPropertyOption(key: String): Option[String] = {
-        super.getProperty(key) match {
-            case null => None
-            case x => Some(x)
-        }
-    }
-    def getPropertyOption(key: String, defaultValue: String): Option[String] = {
-        super.getProperty(key) match {
-            case null => Some(defaultValue)
-            case x => Some(x)
-        }
-    }
-}
 object Config extends Logging {
     private var config: Config = new Config
     def getConfig = {
@@ -69,6 +55,9 @@ class Config extends Logging{
 
     private var options:OptionMap = Map()
 
+    def load(args: Array[String]) {
+        load(args.toList)
+    }
     def load(arglist: List[String]) {
         if (arglist.isEmpty) {
             throw new InvalidCommandLineException
@@ -94,6 +83,7 @@ class Config extends Logging{
 
             (key, cleanValue)
         }
+
         @tailrec
         def nextOption(configFilePaths: ListBuffer[String], map: OptionMap, list: List[String]): (List[String], OptionMap) = {
             list match {
