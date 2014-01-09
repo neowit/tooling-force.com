@@ -51,7 +51,7 @@ class Session(config: Config) extends Logging {
         config.storeSessionProps()
     }
     def getSavedConnectionData = {
-        (sessionProperties.getString("sessionId"), sessionProperties.getString("serviceEndpoint"))
+        (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
     }
 
     private def getPartnerConnection: PartnerConnection = {
@@ -70,8 +70,8 @@ class Session(config: Config) extends Logging {
 
         }
         connectionPartner = Some(conn)
-        sessionProperties.setString("sessionId", conn.getConfig.getSessionId)
-        sessionProperties.setString("serviceEndpoint", conn.getConfig.getServiceEndpoint)
+        sessionProperties.setProperty("sessionId", conn.getConfig.getSessionId)
+        sessionProperties.setProperty("serviceEndpoint", conn.getConfig.getServiceEndpoint)
         storeSessionData()
 
         conn
