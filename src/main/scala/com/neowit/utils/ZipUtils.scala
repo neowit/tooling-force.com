@@ -70,13 +70,14 @@ object ZipUtils extends Logging{
      * @param zipFile - zip file
      * @param outputFolder - folder to extract to
      */
-    def extract(zipFile: File, outputFolder: File) {
+    def extract(zipFile: File, outputFolder: File):Map[String, Long] = {
         if (!outputFolder.exists()) {
             outputFolder.mkdirs()
         }
         val zin = new ZipInputStream(new FileInputStream(zipFile))
 
         var entry = zin.getNextEntry
+        val fileMap = collection.mutable.HashMap[String, Long]()
         while (entry != null) {
             val fileName = entry.getName
             val newFile = new File(outputFolder, fileName)
@@ -88,11 +89,14 @@ object ZipUtils extends Logging{
                 val fos = new FileOutputStream(newFile)
                 transfer(zin, fos, keepInOpen = true)
                 fos.close()
+                //record local lastModified for future use
+                fileMap += fileName -> newFile.lastModified()
             }
 
             entry = zin.getNextEntry
         }
         zin.close()
+        fileMap.toMap
     }
 
     def zipDirToBytes(rootDir: File): Array[Byte] = {

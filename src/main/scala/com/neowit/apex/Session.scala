@@ -21,7 +21,10 @@ package com.neowit.apex
 
 import com.neowit.utils.{Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
-import com.sforce.soap.metadata.{RetrieveRequest, AsyncResult, MetadataConnection}
+import com.sforce.soap.metadata._
+
+import scala.concurrent._
+import scala.Some
 
 /**
  * manages local data store related to specific project
@@ -42,6 +45,7 @@ class Session(config: Config) extends Logging {
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
 
+    def getConfig = config
 
 
     def storeSessionData() {
@@ -49,6 +53,9 @@ class Session(config: Config) extends Logging {
     }
     def getSavedConnectionData = {
         (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+    }
+    def setData(key: String, data: Map[String, String]) = {
+        sessionProperties.setJsonData(key, data)
     }
 
     private def getPartnerConnection: PartnerConnection = {
@@ -115,10 +122,52 @@ class Session(config: Config) extends Logging {
         }.asInstanceOf[com.sforce.soap.partner.GetServerTimestampResult]
     }
 
-    def retrieve(retrieveRequest: RetrieveRequest ):AsyncResult = {
-        withRetry {
-            getMetadataConnection.retrieve(retrieveRequest)
-        }.asInstanceOf[AsyncResult]
+    def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
+        val conn = getMetadataConnection
+        val retrieveResult = withRetry {
+            val asyncResult = wait(conn, conn.retrieve(retrieveRequest))
+            val _retrieveResult = conn.checkRetrieveStatus(asyncResult.getId)
+            _retrieveResult
+        }.asInstanceOf[RetrieveResult]
+
+        retrieveResult.getMessages match {
+            case messages if null != messages && !messages.isEmpty=>
+                for(msg <- messages) {
+                    //response.warning("Retrieve", "", msg.getFileName, msg.getProblem )
+                    logger.warn("Retrieve", "", msg.getFileName, msg.getProblem )
+                }
+            case _ =>
+        }
+        //write results to ZIP file
+        logger.debug("retrieveResult.getFileProperties=" + retrieveResult.getFileProperties)
+        retrieveResult
+    }
+
+    //TODO - when API v30 is available consider switching to synchronous version of retrieve call
+    private val ONE_SECOND = 3600
+    private val MAX_NUM_POLL_REQUESTS = 50
+    private def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
+        val waitTimeMilliSecs = ONE_SECOND
+        var attempts = 0
+        var _asyncResult = asyncResult
+        while (!_asyncResult.isDone) {
+            blocking {
+                Thread.sleep(waitTimeMilliSecs)
+                logger.info("waiting result")
+            }
+            attempts += 1
+            if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
+                throw new Exception("Request timed out.  If this is a large set " +
+                    "of metadata components, check that the time allowed " +
+                    "by MAX_NUM_POLL_REQUESTS is sufficient.")
+            }
+            _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
+            logger.info("Status is: " + _asyncResult.getState)
+        }
+        if (AsyncRequestState.Completed != _asyncResult.getState) {
+            throw new Exception(_asyncResult.getStatusCode + " msg:" + _asyncResult.getMessage)
+        }
+        _asyncResult
     }
 
 

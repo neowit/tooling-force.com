@@ -39,6 +39,7 @@ object Runner extends Logging {
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
+                    appConfig.responseWriter.println("RESULT=FAILURE")
             } finally {
                 appConfig.responseWriterClose
             }
@@ -48,7 +49,12 @@ object Runner extends Logging {
         val start = System.currentTimeMillis
 
         val session = Session(appConfig)
-        logger.debug("Server Timestamp" + session.getServerTimestamp)
+        //logger.debug("Server Timestamp" + session.getServerTimestamp)
+
+        ActionFactory.getAction(session, session.getConfig.action) match {
+          case Some(action) => action.act
+          case None =>
+        }
 
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
