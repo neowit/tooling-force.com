@@ -45,18 +45,21 @@ object ZipUtils extends Logging{
         res.toList
     }
 
-
     /**
+     *
      * zip provided file or folder
      * @param fPath using provided path as file or top of the file tree zip everything into outputZipPath
      * @param outputZipPath - where to store the result
+     * @param ignoreFile - optional function which returns TRUE when given file needs to be ignored
+     *                   define this parameter when you do not need every file in specified folder to be included in the zip
+     *
      */
-    def zipDir(fPath: String, outputZipPath: String) {
+    def zipDir(fPath: String, outputZipPath: String, ignoreFile: File => Boolean = { _ => false} ) {
 
         val bos: ByteArrayOutputStream = new ByteArrayOutputStream
         val zos: ZipOutputStream = new ZipOutputStream(bos)
         //zos.setLevel(9)
-        zipFiles("", Array[File](new File(fPath)), zos)
+        zipFiles("", Array[File](new File(fPath)), zos, ignoreFile)
         zos.close()
         //dump to file
         val outputStream = new FileOutputStream (outputZipPath)
@@ -99,17 +102,17 @@ object ZipUtils extends Logging{
         fileMap.toMap
     }
 
-    def zipDirToBytes(rootDir: File): Array[Byte] = {
+    def zipDirToBytes(rootDir: File, ignoreFile: File => Boolean = { _ => false}): Array[Byte] = {
         val bos: ByteArrayOutputStream = new ByteArrayOutputStream
         val zos: ZipOutputStream = new ZipOutputStream(bos)
-        zipFiles("", Array[File](rootDir), zos)
+        zipFiles("", Array[File](rootDir), zos, ignoreFile)
         zos.close()
         bos.toByteArray
     }
 
-    private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream) {
+    private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream, ignoreFile: File => Boolean = { _ => false}) {
         for (file <- files) {
-            zipFile(relPath, file, zos)
+            zipFile(relPath, file, zos, ignoreFile)
         }
     }
 
@@ -117,7 +120,7 @@ object ZipUtils extends Logging{
         file.getName.startsWith(".") || file.getName.endsWith("~")
     }
 
-    private def zipFile(relPath: String, file: File, zos: ZipOutputStream) {
+    private def zipFile(relPath: String, file: File, zos: ZipOutputStream, ignoreFile: File => Boolean = { _ => false}) {
         if (!isIgnored(file)) {
             val filePath: String = relPath + file.getName
             if (file.isDirectory) {
@@ -126,9 +129,9 @@ object ZipUtils extends Logging{
                 dir.setTime(file.lastModified)
                 zos.putNextEntry(dir)
                 zos.closeEntry()
-                zipFiles(dirPath, file.listFiles, zos)
-            } else {
-                addFile(filePath, file, zos)
+                zipFiles(dirPath, file.listFiles, zos, ignoreFile)
+            } else if (!ignoreFile(file)){
+                addFile(filePath, file, zos )
             }
         }
     }
