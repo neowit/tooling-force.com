@@ -40,6 +40,33 @@ object ActionFactory {
 }
 trait Action extends Logging {
     def act
+
+    /**
+     * slightly modified version of JSONFormat.quoteString
+     * @param s - string to check and escape if required
+     * @return
+     */
+    def escapeString (s : String) : String =
+        s.map {
+            case '"'  => "\\\""
+            case '\\' => "\\\\"
+            //case '/'  => "\\/" //AG - do not think we need this
+            case '\b' => "\\b"
+            case '\f' => "\\f"
+            case '\n' => "\\n"
+            case '\r' => "\\r"
+            case '\t' => "\\t"
+            /* We'll unicode escape any control characters. These include:
+             * 0x0 -> 0x1f  : ASCII Control (C0 Control Codes)
+             * 0x7f         : ASCII DELETE
+             * 0x80 -> 0x9f : C1 Control Codes
+             *
+             * Per RFC4627, section 2.5, we're not technically required to
+             * encode the C1 codes, but we do to be safe.
+             */
+            case c if ((c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f')) => "\\u%04x".format(c: Int)
+            case c => c
+        }.mkString
 }
 trait AsyncAction extends Action {
 }
@@ -191,10 +218,11 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                     for ( failureMessage <- deployDetails.getComponentFailures) {
                         val line = failureMessage.getLineNumber
                         val column = failureMessage.getColumnNumber
-                        val filePath = failureMessage.getFileName
-                        logger.debug("getFileName=" + failureMessage.getFileName)
-                        logger.debug("getFullName=" + failureMessage.getFullName)
-                        config.responseWriter.println(s"($line,$column) $filePath")
+                        val filePath = escapeString(failureMessage.getFileName)
+                        val problem = escapeString(failureMessage.getProblem)
+                        //val outStr = JSONObject(Map("line" -> line, "column" -> column, "filePath" -> filePath, "problem" -> problem)).toString()
+                        val outStr = s"""{"line":$line, "column":$column, "filePath":"$filePath", "problem":"$problem"} """
+                        config.responseWriter.println(outStr)
                     }
                     config.responseWriter.println("# COMPONENT FAILURES END")
                 }
@@ -206,5 +234,6 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             }
         }
     }
+
 
 }
