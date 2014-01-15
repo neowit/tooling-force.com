@@ -183,6 +183,22 @@ class Session(config: Config) extends Logging {
         retrieveResult
     }
 
+    def deploy(zipFile: Array[Byte], deployOptions: DeployOptions ):DeployResult = {
+        val conn = getMetadataConnection
+        val deployResult = withRetry {
+            val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
+            val _deployResult = conn.checkDeployStatus(asyncResult.getId, false)
+            if (!_deployResult.isSuccess) {
+                //deploy failed, fetch details
+                conn.checkDeployStatus(asyncResult.getId, true)
+            } else {
+                _deployResult
+            }
+        }.asInstanceOf[DeployResult]
+
+        deployResult
+    }
+
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("50").toInt

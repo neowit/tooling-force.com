@@ -21,6 +21,7 @@ package com.neowit.apex
 
 import com.neowit.utils.{ZipUtils, FileUtils, Logging, Config}
 import java.io.{File, FileOutputStream}
+import com.sforce.soap.metadata.DeployOptions
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
@@ -30,6 +31,7 @@ object ActionFactory {
         name match {
           case "refresh" => Some(new RefreshMetadata(session))
           case "listModified" => Some(new ListModified(session))
+          case "deployModified" => Some(new DeployModified(session))
           case _ => throw new UnsupportedActionError(name + " is not supported")
         }
 
@@ -51,7 +53,7 @@ abstract class MetadataAction(session: Session) extends AsyncAction {
  * 'refresh' action is 'retrieve' for all elements specified in package.xml
  *@param session - SFDC session
  */
-case class RefreshMetadata(session: Session) extends MetadataAction(session: Session) {
+class RefreshMetadata(session: Session) extends MetadataAction(session: Session) {
     import com.sforce.soap.metadata.RetrieveRequest
 
 
@@ -109,20 +111,29 @@ case class RefreshMetadata(session: Session) extends MetadataAction(session: Ses
     }
 }
 
-/**
- * list locally modified files using data from session.properties
- * @param session
- */
-case class ListModified(session: Session) extends MetadataAction(session: Session) {
-    def act {
+object ListModified {
+    /**
+     * list locally modified files using data from session.properties
+     */
+    def getModifiedFiles(session: Session):List[File] = {
+        val config = session.getConfig
         //check if package.xml is modified
         val packageXml = new MetaXml(config)
         val packageXmlFile = packageXml.getPackageXml
         //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
 
         //logger.debug("packageXmlData=" + packageXmlData)
-        val allFiles = packageXmlFile ::  FileUtils.listFiles(config.srcDir)
+        val allFiles  = packageXmlFile :: FileUtils.listFiles(config.srcDir)
         val modifiedFiles = allFiles.filter(session.isModified(_))
+        modifiedFiles
+    }
+
+
+}
+class ListModified(session: Session) extends MetadataAction(session: Session) {
+    def act {
+        val modifiedFiles = ListModified.getModifiedFiles(session)
+
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("file-count=" + modifiedFiles.size)
         config.responseWriter.println("# MODIFIED FILE LIST START")
@@ -130,7 +141,70 @@ case class ListModified(session: Session) extends MetadataAction(session: Sessio
             config.responseWriter.println(session.getRelativePath(f))
         }
         config.responseWriter.println("# MODIFIED FILE LIST END")
+    }
 
+}
+
+/**
+ * 'deployModified' action grabs all modified files and sends deploy() File-Based call
+ *@param session - SFDC session
+ */
+class DeployModified(session: Session) extends MetadataAction(session: Session) {
+    private val alwaysIncludeNames = Set("src", "package.xml")
+
+    private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
+        val exclude = !modifiedFiles.contains(file) && !alwaysIncludeNames.contains(file.getName)
+        logger.debug(file.getName + " exclude=" + exclude)
+        exclude
+    }
+    def act {
+        val modifiedFiles = ListModified.getModifiedFiles(session).toSet
+        if (modifiedFiles.isEmpty) {
+            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println("file-count=" + modifiedFiles.size)
+            config.responseWriter.println("MESSAGE=no modified files detected")
+        } else {
+            //for every modified file add its -meta.xml if exists
+            val metaXmlFiles = for (file <- modifiedFiles;
+                                        metaXml = new File(file.getAbsolutePath + "-meta.xml")
+                                        if metaXml.exists()) yield metaXml
+
+            val allFilesToDeploy = modifiedFiles ++ metaXmlFiles
+            //get temp file name
+            val destZip = FileUtils.createTempFile("deploy", ".zip")
+            destZip.delete()
+
+            ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploy, _))
+
+            val deployOptions = new DeployOptions()
+            deployOptions.setPerformRetrieve(false)
+            deployOptions.setAllowMissingFiles(true)
+            deployOptions.setRollbackOnError(true)
+
+            val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploy, _) ), deployOptions)
+
+            if (!deployResult.isSuccess) {
+                config.responseWriter.println("RESULT=FAILURE")
+                val deployDetails = deployResult.getDetails
+                if (null != deployDetails) {
+                    config.responseWriter.println("# COMPONENT FAILURES START")
+                    for ( failureMessage <- deployDetails.getComponentFailures) {
+                        val line = failureMessage.getLineNumber
+                        val column = failureMessage.getColumnNumber
+                        val filePath = failureMessage.getFileName
+                        logger.debug("getFileName=" + failureMessage.getFileName)
+                        logger.debug("getFullName=" + failureMessage.getFullName)
+                        config.responseWriter.println(s"($line,$column) $filePath")
+                    }
+                    config.responseWriter.println("# COMPONENT FAILURES END")
+                }
+
+
+            } else {
+                config.responseWriter.println("RESULT=SUCCESS")
+                config.responseWriter.println("file-count=" + modifiedFiles.size)
+            }
+        }
     }
 
 }
