@@ -240,25 +240,13 @@ regardless of whether it is also specified in config file or not
         path
     }
 
-    private var responseFileAccessed = false
     private lazy val responseFile = {
         val path = getRequiredProperty("responseFilePath").get
         val f = new File(path)
         if (!f.exists()) {
             f.createNewFile()
         }
-        responseFileAccessed = true
         f
     }
-    lazy val responseWriter: PrintWriter = new PrintWriter(responseFile) with Logging {
-        override def println(p1: String): Unit = {
-            super.println(p1)
-            logger.debug(p1)
-        }
-    }
-    def responseWriterClose() = {
-        if (responseFileAccessed) {
-            responseWriter.close()
-       }
-    }
+    lazy val responseWriter= new ResponseWriter(responseFile)
 }

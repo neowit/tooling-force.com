@@ -41,7 +41,7 @@ object Runner extends Logging {
                     logger.error(ex)
                     appConfig.responseWriter.println("RESULT=FAILURE")
             } finally {
-                appConfig.responseWriterClose
+                appConfig.responseWriter.close()
             }
         }
     }
