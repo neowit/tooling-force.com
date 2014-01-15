@@ -159,7 +159,7 @@ class Config extends Logging{
 
     //path to folder where all cached metadata (session Id, las update dates, etc) stored
     lazy val sessionFolder = {
-        val path = getRequiredProperty("sessionFolderPath").get
+        val path = getProperty("sessionFolderPath").getOrElse[String](new File(projectPath, ".vim-force.com").getAbsolutePath)
         val dir = new File(path)
         if (!dir.exists()) {
             if (!dir.mkdirs())
@@ -181,59 +181,24 @@ class Config extends Logging{
         lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
     }
 
-
-    /**
-     * workPath can point to two things
-     * either: full path to file (Class, Page, Component)
-     * or: full path to the .../src/ folder which contains items to be deployed
-     * @return
-     */
-    lazy val resourcePath = getRequiredProperty("resourcePath").get
+    lazy val projectPath = getRequiredProperty("projectPath").get
+    lazy val projectDir = new File(getRequiredProperty("projectPath").get)
     /* path to src folder */
     lazy val srcPath = srcDir.getAbsolutePath
     lazy val srcDir = {
-        def getSrcFolder(file: File):File = {
-            if (null == file) {
-                throw new ConfigValueException("failed to detect SRC folder in path:" + resourcePath)
-            }
-            if (file.isDirectory && "src" == file.getName)
-                file
-            else {
-                //check if current path points to the project folder and "src" is its first child
-                val srcPath = file.getAbsolutePath + File.separator + "src"
-                val f = new File(resourcePath)
-                if (f.isDirectory && f.canRead) {
-                    f
-                } else {
-                    getSrcFolder(file.getParentFile)
-                }
-            }
+        val fSrc = new File(projectPath, "src")
+        if (!fSrc.isDirectory || !fSrc.canRead) {
+            throw new ConfigValueException("failed to detect 'src' folder in path:" + projectPath)
         }
-        val file = new File(resourcePath)
-        getSrcFolder(file)
+        fSrc
 
     }
     //tempFolderPath - optional - if specified then use this folder instead of system generated
     lazy val tempFolderPath =  getProperty("tempFolderPath")
-    //destinationFolderPath - required only for some operations
-    //  folder where refresh results will be copied to
-    lazy val destinationFolderPath = {
-        action match {
-            case "refresh" =>
-                //for refresh destinationFolderPath is required
-                getRequiredProperty("destinationFolderPath")
-            case _ => getProperty("destinationFolderPath")
-        }
-    }
 
     lazy val isCheckOnly = getProperty("checkOnly") match {
       case Some(x) => "true" == x
       case None => false
-    }
-
-    def isDirectory(resourcePath: String) = {
-        val f = new File(resourcePath)
-        f.isDirectory && f.canRead
     }
 
     def help() {

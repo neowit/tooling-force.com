@@ -98,7 +98,7 @@ class MetaXmlTest extends FunSuite with PrivateMethodTester {
     test("Package generation") {
         withPackageXmlFile { (file, writer) =>
 
-            appConfig.load(List("--resourcePath=" + file.getAbsolutePath))
+            appConfig.load(List("--projectPath=" + file.getAbsolutePath))
             val metaXml = new MetaXml(appConfig) {
                 override def getPackageXml = file
             }

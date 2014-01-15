@@ -58,9 +58,6 @@ object Runner extends Logging {
 
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
-
-        //Tester.runTest(session)
-
     }
 
 

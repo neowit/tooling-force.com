@@ -25,11 +25,13 @@ import com.sforce.soap.metadata._
 
 import scala.concurrent._
 import scala.Some
+import java.io.File
 
 /**
  * manages local data store related to specific project
  */
 object Session {
+    val LOCAL_MILLS = "LocalMills"
     def apply(appConfig: Config) = new Session(appConfig)
 }
 
@@ -41,6 +43,7 @@ object Session {
  * @param config - main application config
  */
 class Session(config: Config) extends Logging {
+
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
@@ -54,8 +57,53 @@ class Session(config: Config) extends Logging {
     def getSavedConnectionData = {
         (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
     }
+    def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
+        sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
+        sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
+        storeSessionData()
+    }
     def setData(key: String, data: Map[String, String]) = {
         sessionProperties.setJsonData(key, data)
+    }
+    def getData(key: String): Map[String, String] = {
+        sessionProperties.getJsonData(key)
+    }
+
+    /**
+     * return relative path inside project folder
+     * this path is used as key in session
+     * @param file - resource under project folder
+     * @return - string, looks like: unpackaged/pages/Hello.page
+     */
+    def getRelativePath(file: File): String = {
+        val projectPath = config.projectDir.getAbsolutePath + File.separator
+        val res = file.getAbsolutePath.substring(projectPath.length)
+        res
+    }
+    /**
+     * return relative path inside project folder
+     * this path is used as key in session
+     * @param file - resource under project folder
+     * @return - string, looks like: unpackaged/pages/Hello.page
+     */
+    def getKeyByFile(file: File): String = {
+        val res = getRelativePath(file)
+        val relPath = if (res.startsWith("src/"))
+                        res.replaceFirst("src/", "unpackaged/")
+                    else
+                        res
+        if (relPath.endsWith("-meta.xml"))
+            relPath.substring(0, relPath.length - "-meta.xml".length)
+        else
+            relPath
+    }
+    def isModified(file: File): Boolean = {
+        val fileData = getData(getKeyByFile(file))
+        fileData.get(Session.LOCAL_MILLS) match {
+            case Some(x) => file.lastModified() > x.toLong
+            case None => true
+        }
+
     }
 
     private def getPartnerConnection: PartnerConnection = {
@@ -69,27 +117,20 @@ class Session(config: Config) extends Logging {
                       Connection.getPartnerConnection(config, sessionId, serviceEndpoint)
                   case _ =>
                       //login explicitly
-                      Connection.createPartnerConnection(config)
+                      val _conn = Connection.createPartnerConnection(config)
+                      storeConnectionData(_conn.getConfig)
+                      _conn
               }
 
         }
         connectionPartner = Some(conn)
-        sessionProperties.setProperty("sessionId", conn.getConfig.getSessionId)
-        sessionProperties.setProperty("serviceEndpoint", conn.getConfig.getServiceEndpoint)
-        storeSessionData()
 
         conn
     }
     private def getMetadataConnection: MetadataConnection = {
         val conn = connectionMetadata match {
             case Some(connection) => connection
-            case None =>
-                connectionPartner match {
-                  case Some(partnerConnection) =>
-                      Connection.getMetadataConnection(config, partnerConnection)
-                  case None =>
-                      Connection.createMetadataConnection(config)
-                }
+            case None => Connection.getMetadataConnection(config, getPartnerConnection)
         }
         connectionMetadata = Some(conn)
         conn
@@ -139,13 +180,12 @@ class Session(config: Config) extends Logging {
             case _ =>
         }
         //write results to ZIP file
-        logger.debug("retrieveResult.getFileProperties=" + retrieveResult.getFileProperties)
         retrieveResult
     }
 
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
-    private val ONE_SECOND = 3600
-    private val MAX_NUM_POLL_REQUESTS = 50
+    private val ONE_SECOND = 1000
+    private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("50").toInt
     private def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
         val waitTimeMilliSecs = ONE_SECOND
         var attempts = 0
@@ -159,7 +199,7 @@ class Session(config: Config) extends Logging {
             if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
                 throw new Exception("Request timed out.  If this is a large set " +
                     "of metadata components, check that the time allowed " +
-                    "by MAX_NUM_POLL_REQUESTS is sufficient.")
+                    "by maxPollRequests is sufficient.")
             }
             _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
             logger.info("Status is: " + _asyncResult.getState)

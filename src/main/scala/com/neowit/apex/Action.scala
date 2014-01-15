@@ -37,12 +37,12 @@ object ActionFactory {
 }
 trait Action extends Logging {
     def act
-    def getConfig:Config
 }
 trait AsyncAction extends Action {
 }
 
-trait MetadataAction extends AsyncAction {
+abstract class MetadataAction(session: Session) extends AsyncAction {
+    val config:Config = session.getConfig
 
 }
 
@@ -50,14 +50,13 @@ trait MetadataAction extends AsyncAction {
  * 'refresh' action is 'retrieve' for all elements specified in package.xml
  *@param session - SFDC session
  */
-case class RefreshMetadata(session: Session) extends MetadataAction {
+case class RefreshMetadata(session: Session) extends MetadataAction(session: Session) {
     import com.sforce.soap.metadata.RetrieveRequest
 
-    def getConfig:Config = session.getConfig
 
     def act {
         val retrieveRequest = new RetrieveRequest()
-        retrieveRequest.setApiVersion(getConfig.apiVersion)
+        retrieveRequest.setApiVersion(config.apiVersion)
         setUpackaged(retrieveRequest)
         val retrieveResult = session.retrieve(retrieveRequest)
         updateFromRetrieve(retrieveResult)
@@ -95,7 +94,7 @@ case class RefreshMetadata(session: Session) extends MetadataAction {
             for (fileProp <- retrieveResult.getFileProperties) {
                 val key = MetadataType.getKey(fileProp)
                 val lastModifiedLocally = localDateByFName(fileProp.getFileName)
-                val valueMap = MetadataType.getValueMap(fileProp) ++ Map("LocalMills" -> String.valueOf(lastModifiedLocally))
+                val valueMap = MetadataType.getValueMap(fileProp) ++ Map(Session.LOCAL_MILLS -> String.valueOf(lastModifiedLocally))
                 session.setData(key, valueMap)
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
@@ -105,6 +104,7 @@ case class RefreshMetadata(session: Session) extends MetadataAction {
             resultsFile.delete()
         }
         config.responseWriter.println("RESULT=SUCCESS")
+        config.responseWriter.println("result.folder=" + tempFolder.getAbsolutePath)
         config.responseWriter.println("file-count=" + propertyByFilePath.size)
 
     }

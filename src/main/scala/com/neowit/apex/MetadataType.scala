@@ -28,22 +28,20 @@ object MetadataType extends Logging {
     import com.sforce.soap.metadata.FileProperties
 
     def getKey(props: FileProperties): String = {
-        val xmlName = props.getType
-        val name = getName(props)
-
-        xmlName + "." + name
+        props.getFileName
     }
     private def getName(props: FileProperties): String = {
         val fName = new File(props.getFileName).getName
-        val name = fName.substring(0, fName.lastIndexWhere(_ == '.'))
-        name
+        //val name = fName.substring(0, fName.lastIndexWhere(_ == '.'))
+        //name
+        fName
     }
 
     def getValueMap(props: FileProperties):Map[String, String] = {
-        //2013-09-25T09:31:08.000Z - simulate output from datatime returned by SOQL query
+        //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
         val lastModifiedDateText = getLastModifiedDateText(props)
         val lastModifiedDateMills = String.valueOf(getLastModifiedDateMills(props))
-        Map("Id" -> props.getId, "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText, "LastModifiedDateMills" -> lastModifiedDateMills)
+        Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText, "LastModifiedDateMills" -> lastModifiedDateMills)
     }
 
     def getLastModifiedDateText(props: FileProperties) = {
@@ -85,6 +83,9 @@ class MetadataType(val xmlName: String) extends Logging{
         }
 
     }
-    def getKey(obj: SObject): String = {xmlName + "." + obj.getField("Name")}
+    def getKey(obj: SObject): String = {
+        xmlName + "." + obj.getField("Name")
+    }
+
 }
 
