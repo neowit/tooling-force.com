@@ -97,7 +97,7 @@ class RefreshMetadata(session: Session) extends MetadataAction(session: Session)
             for (fileProp <- retrieveResult.getFileProperties) {
                 val key = MetadataType.getKey(fileProp)
                 val lastModifiedLocally = localDateByFName(fileProp.getFileName)
-                val valueMap = MetadataType.getValueMap(fileProp) ++ Map(Session.LOCAL_MILLS -> String.valueOf(lastModifiedLocally))
+                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally)
                 session.setData(key, valueMap)
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
@@ -155,7 +155,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
 
     private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
         val exclude = !modifiedFiles.contains(file) && !alwaysIncludeNames.contains(file.getName)
-        logger.debug(file.getName + " exclude=" + exclude)
+        logger.debug(file.getName + " include=" + !exclude)
         exclude
     }
     def act {
@@ -181,30 +181,40 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             deployOptions.setPerformRetrieve(false)
             deployOptions.setAllowMissingFiles(true)
             deployOptions.setRollbackOnError(true)
+            //deployOptions.setPerformRetrieve(true)
 
             val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploy, _) ), deployOptions)
 
+            val deployDetails = deployResult.getDetails
             if (!deployResult.isSuccess) {
                 config.responseWriter.println("RESULT=FAILURE")
-                val deployDetails = deployResult.getDetails
                 if (null != deployDetails) {
                     config.responseWriter.println("# COMPONENT FAILURES START")
                     for ( failureMessage <- deployDetails.getComponentFailures) {
                         val line = failureMessage.getLineNumber
                         val column = failureMessage.getColumnNumber
-                        val filePath = escapeString(failureMessage.getFileName)
-                        val problem = escapeString(failureMessage.getProblem)
-                        //val outStr = JSONObject(Map("line" -> line, "column" -> column, "filePath" -> filePath, "problem" -> problem)).toString()
-                        val outStr = s"""{"line":$line, "column":$column, "filePath":"$filePath", "problem":"$problem"} """
-                        config.responseWriter.println(outStr)
+                        val filePath = failureMessage.getFileName
+                        val problem = failureMessage.getProblem
+                        config.responseWriter.println(Map("line" -> line, "column" -> column, "filePath" -> filePath, "problem" -> problem))
                     }
                     config.responseWriter.println("# COMPONENT FAILURES END")
                 }
 
 
             } else {
+                //update session data for successful files
+                for ( successMessage <- deployDetails.getComponentSuccesses) {
+                    val relativePath = successMessage.getFileName
+                    val key = session.getKeyByRelativeFilePath(relativePath)
+                    val localMills = new File(config.projectDir, relativePath).lastModified()
+                    val newData = MetadataType.getValueMap(deployResult, successMessage, localMills)
+                    val oldData = session.getData(key)
+                    session.setData(key, oldData ++ newData)
+                }
+                session.storeSessionData()
                 config.responseWriter.println("RESULT=SUCCESS")
                 config.responseWriter.println("file-count=" + modifiedFiles.size)
+
             }
         }
     }

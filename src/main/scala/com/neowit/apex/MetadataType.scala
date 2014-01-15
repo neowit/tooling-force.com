@@ -21,11 +21,20 @@ package com.neowit.apex
 
 import com.sforce.soap.partner.sobject.SObject
 import com.neowit.utils.Logging
-import java.util.TimeZone
+import java.util.{Calendar, TimeZone}
 import java.io.File
+import com.sforce.soap.metadata.{DeployResult, DeployMessage}
 
 object MetadataType extends Logging {
+    val LOCAL_MILLS = "LocalMills"
     import com.sforce.soap.metadata.FileProperties
+
+    val dateFormatGmt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
+    dateFormatGmt.setTimeZone(TimeZone.getTimeZone("GMT"))
+
+    def formatDateGMT(cal: Calendar):String = {
+        dateFormatGmt.format(cal.getTime) + ".000Z"
+    }
 
     def getKey(props: FileProperties): String = {
         props.getFileName
@@ -37,17 +46,24 @@ object MetadataType extends Logging {
         fName
     }
 
-    def getValueMap(props: FileProperties):Map[String, String] = {
+    def getValueMap(props: FileProperties, localMills: Long):Map[String, String] = {
         //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
         val lastModifiedDateText = getLastModifiedDateText(props)
         val lastModifiedDateMills = String.valueOf(getLastModifiedDateMills(props))
-        Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText, "LastModifiedDateMills" -> lastModifiedDateMills)
+        Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText,
+            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString)
+    }
+
+    def getValueMap(deployResult: DeployResult, message: DeployMessage, localMills: Long):Map[String, String] = {
+        val lastModifiedDate = deployResult.getLastModifiedDate
+        val lastModifiedDateMills = String.valueOf(lastModifiedDate.getTime.getTime)
+        val idVal = if (null == message.getId) Map() else Map("Id" -> message.getId)
+        Map("Type" -> "TODO", "Name" -> message.getFullName, "LastModifiedDate" -> formatDateGMT(lastModifiedDate),
+            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString) ++ idVal
     }
 
     def getLastModifiedDateText(props: FileProperties) = {
-        val dateFormatGmt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-        dateFormatGmt.setTimeZone(TimeZone.getTimeZone("GMT"))
-        val lastModifiedDate = dateFormatGmt.format(props.getLastModifiedDate.getTime) + ".000Z"
+        val lastModifiedDate = formatDateGMT(props.getLastModifiedDate)
         lastModifiedDate
     }
     def getLastModifiedDateMills(props: FileProperties) = {

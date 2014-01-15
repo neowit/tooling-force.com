@@ -31,7 +31,6 @@ import java.io.File
  * manages local data store related to specific project
  */
 object Session {
-    val LOCAL_MILLS = "LocalMills"
     def apply(appConfig: Config) = new Session(appConfig)
 }
 
@@ -87,11 +86,15 @@ class Session(config: Config) extends Logging {
      * @return - string, looks like: unpackaged/pages/Hello.page
      */
     def getKeyByFile(file: File): String = {
-        val res = getRelativePath(file)
-        val relPath = if (res.startsWith("src/"))
-                        res.replaceFirst("src/", "unpackaged/")
-                    else
-                        res
+        val relativePath = getRelativePath(file)
+        getKeyByRelativeFilePath(relativePath)
+    }
+
+    def getKeyByRelativeFilePath(filePath: String): String = {
+        val relPath = if (filePath.startsWith("src/"))
+            filePath.replaceFirst("src/", "unpackaged/")
+        else
+            filePath
         if (relPath.endsWith("-meta.xml"))
             relPath.substring(0, relPath.length - "-meta.xml".length)
         else
@@ -99,7 +102,7 @@ class Session(config: Config) extends Logging {
     }
     def isModified(file: File): Boolean = {
         val fileData = getData(getKeyByFile(file))
-        fileData.get(Session.LOCAL_MILLS) match {
+        fileData.get(MetadataType.LOCAL_MILLS) match {
             case Some(x) => file.lastModified() > x.toLong
             case None => true
         }
@@ -187,13 +190,8 @@ class Session(config: Config) extends Logging {
         val conn = getMetadataConnection
         val deployResult = withRetry {
             val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
-            val _deployResult = conn.checkDeployStatus(asyncResult.getId, false)
-            if (!_deployResult.isSuccess) {
-                //deploy failed, fetch details
-                conn.checkDeployStatus(asyncResult.getId, true)
-            } else {
-                _deployResult
-            }
+            val _deployResult = conn.checkDeployStatus(asyncResult.getId, true)
+            _deployResult
         }.asInstanceOf[DeployResult]
 
         deployResult
