@@ -29,6 +29,7 @@ object ActionFactory {
     def getAction(session:Session, name: String): Option[Action] = {
         name match {
           case "refresh" => Some(new RefreshMetadata(session))
+          case "listModified" => Some(new ListModified(session))
           case _ => throw new UnsupportedActionError(name + " is not supported")
         }
 
@@ -75,7 +76,6 @@ case class RefreshMetadata(session: Session) extends MetadataAction(session: Ses
      * extract content and generate response file
      */
     def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult) {
-        val config = getConfig
 
         //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
         //extract in temp area first
@@ -106,6 +106,30 @@ case class RefreshMetadata(session: Session) extends MetadataAction(session: Ses
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("result.folder=" + tempFolder.getAbsolutePath)
         config.responseWriter.println("file-count=" + propertyByFilePath.size)
+    }
+}
+
+/**
+ * list locally modified files using data from session.properties
+ * @param session
+ */
+case class ListModified(session: Session) extends MetadataAction(session: Session) {
+    def act {
+        //check if package.xml is modified
+        val packageXml = new MetaXml(config)
+        val packageXmlFile = packageXml.getPackageXml
+        //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
+
+        //logger.debug("packageXmlData=" + packageXmlData)
+        val allFiles = packageXmlFile ::  FileUtils.listFiles(config.srcDir)
+        val modifiedFiles = allFiles.filter(session.isModified(_))
+        config.responseWriter.println("RESULT=SUCCESS")
+        config.responseWriter.println("file-count=" + modifiedFiles.size)
+        config.responseWriter.println("# MODIFIED FILE LIST START")
+        for(f <- modifiedFiles) {
+            config.responseWriter.println(session.getRelativePath(f))
+        }
+        config.responseWriter.println("# MODIFIED FILE LIST END")
 
     }
 
