@@ -250,10 +250,15 @@ regardless of whether it is also specified in config file or not
         responseFileAccessed = true
         f
     }
-    lazy val responseWriter: PrintWriter = new PrintWriter(responseFile)
-    def responseWriterClose = {
+    lazy val responseWriter: PrintWriter = new PrintWriter(responseFile) with Logging {
+        override def println(p1: String): Unit = {
+            super.println(p1)
+            logger.debug(p1)
+        }
+    }
+    def responseWriterClose() = {
         if (responseFileAccessed) {
             responseWriter.close()
-        }
+       }
     }
 }
