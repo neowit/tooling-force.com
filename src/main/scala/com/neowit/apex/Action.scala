@@ -21,7 +21,8 @@ package com.neowit.apex
 
 import com.neowit.utils.{ZipUtils, FileUtils, Logging, Config}
 import java.io.{File, FileOutputStream}
-import com.sforce.soap.metadata.{FileProperties, RetrieveResult, RetrieveRequest, DeployOptions}
+import com.sforce.soap.metadata.{RetrieveMessage, RetrieveResult, RetrieveRequest, DeployOptions}
+import scala.util.{Try, Failure, Success}
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
@@ -40,7 +41,7 @@ object ActionFactory {
             case "refresh" => Some(new RefreshMetadata(session))
             case "listModified" => Some(new ListModified(session))
             case "deployModified" => Some(new DeployModified(session))
-            case "checkAgainstRemote" => Some(new CheckAgainstRemote(session))
+            case "listOutdated" => Some(new ListOutdated(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
 
@@ -58,6 +59,8 @@ abstract class MetadataAction(session: Session) extends AsyncAction {
 
 }
 
+case class RetrieveError(retrieveResult: RetrieveResult) extends Error
+
 abstract class RetrieveMetadata(session: Session) extends MetadataAction(session: Session) {
 
     def setUpackaged(retrieveRequest: RetrieveRequest) {
@@ -68,6 +71,33 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
         retrieveRequest.setUnpackaged(metaXml.getPackage)
     }
 
+    /**
+     * retrieve information about specific files
+     * @param files
+     */
+    def retrieveFiles(files: List[File], reportMissing: Boolean = true): RetrieveResult = {
+        val retrieveRequest = new RetrieveRequest()
+        retrieveRequest.setApiVersion(config.apiVersion)
+        //setSpecificFiles requires file names that look like: classes/MyClass.cls
+        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "")).toArray)
+        retrieveRequest.setSinglePackage(true)
+        setUpackaged(retrieveRequest)
+
+        val retrieveResult = session.retrieve(retrieveRequest)
+        retrieveResult.getMessages match {
+            case messages if null != messages && !messages.isEmpty=>
+                //check if all errors we have are about missing files
+                if (reportMissing || !messages.filterNot(isMissingFileError(_)).isEmpty) {
+                    throw new RetrieveError(retrieveResult)
+                }
+            case _ =>
+        }
+        retrieveResult
+
+    }
+    private def isMissingFileError(message: RetrieveMessage): Boolean = {
+        message.getProblem.contains("In field: specific ids - no ApexClass named")
+    }
 }
 
 /**
@@ -80,10 +110,19 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
         setUpackaged(retrieveRequest)
-        val retrieveResult = session.retrieve(retrieveRequest)
-        updateFromRetrieve(retrieveResult)
-
-
+        Try(session.retrieve(retrieveRequest)) match {
+            case Success(retrieveResult) =>
+                updateFromRetrieve(retrieveResult)
+            case Failure(err) =>
+                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                    case messages if null != messages && !messages.isEmpty=>
+                        config.responseWriter.println("RESULT=FAILURE")
+                        for(msg <- messages) {
+                            config.responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                        }
+                    case _ =>
+                }
+        }
     }
     /**
      * using ZIP file produced, for example, as a result of Retrieve operation
@@ -123,11 +162,11 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
     }
 }
 
-object ListModified {
+class ListModified(session: Session) extends MetadataAction(session: Session) {
     /**
      * list locally modified files using data from session.properties
      */
-    def getModifiedFiles(session: Session):List[File] = {
+    def getModifiedFiles:List[File] = {
         val config = session.getConfig
         //check if package.xml is modified
         val packageXml = new MetaXml(config)
@@ -140,11 +179,8 @@ object ListModified {
         modifiedFiles
     }
 
-
-}
-class ListModified(session: Session) extends MetadataAction(session: Session) {
     def act {
-        val modifiedFiles = ListModified.getModifiedFiles(session)
+        val modifiedFiles = getModifiedFiles
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("file-count=" + modifiedFiles.size)
@@ -157,30 +193,16 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
 
 }
 
-class CheckAgainstRemote(session: Session) extends RetrieveMetadata(session: Session) {
-    /**
-     * retrieve information about specific files
-     * @param files
-     */
-    def retrieveFiles(files: List[File]): Option[RetrieveResult] = {
-        val retrieveRequest = new RetrieveRequest()
-        retrieveRequest.setApiVersion(config.apiVersion)
-        //setSpecificFiles requires file names that look like: classes/MyClass.cls
-        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "")).toArray)
-        retrieveRequest.setSinglePackage(true)
-        setUpackaged(retrieveRequest)
-        val retrieveResult = session.retrieve(retrieveRequest)
-        if (retrieveResult.getMessages.isEmpty)
-            Some(retrieveResult)
-        else
-            None
-    }
+/**
+ * check local modified files against their Remote versions to see if remote is newer
+ */
+class ListOutdated(session: Session) extends RetrieveMetadata(session: Session) {
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[File]] = {
         val fileMap = files.map(f => (session.getRelativePath(f).replaceFirst("src/", ""), f) ).toMap
 
-        retrieveFiles(files) match {
-          case Some(retrieveResult) =>
+        Try(retrieveFiles(files, reportMissing = false)) match {
+          case Success(retrieveResult) =>
               val newerProps = retrieveResult.getFileProperties.filter(
                   props => {
                       val key = (if (null == props.getNamespacePrefix) "unpackaged" else props.getNamespacePrefix ) +
@@ -194,14 +216,34 @@ class CheckAgainstRemote(session: Session) extends RetrieveMetadata(session: Ses
               val res = newerProps.map(p => {fileMap(p.getFileName)})
               Some(res.toList)
 
-          case None => None
+          case Failure(err) =>
+              val messages = err.asInstanceOf[RetrieveError].retrieveResult.getMessages
+              config.responseWriter.println("RESULT=FAILURE")
+              for(msg <- messages) {
+                  config.responseWriter.println("ERROR:: " + msg.getFileName + " - " + msg.getProblem )
+              }
+              None
         }
 
     }
     def act {
-        val modifiedFiles = ListModified.getModifiedFiles(session)
-        //val retrieveResult = retrieveFiles(modifiedFiles)
-        getFilesNewerOnRemote(modifiedFiles)
+        val checker = new ListModified(session)
+        val modifiedFiles = checker.getModifiedFiles
+        getFilesNewerOnRemote(modifiedFiles) match {
+            case Some(files) =>
+                config.responseWriter.println("RESULT=SUCCESS")
+                if (!files.isEmpty) {
+                    config.responseWriter.println("MESSAGE=Some files are out of date")
+                    config.responseWriter.startSection("OUTDATED FILES")
+                    config.responseWriter.println(files.map(_.getName).mkString("\n"))
+                    config.responseWriter.endSection("OUTDATED FILES")
+                } else {
+                    config.responseWriter.println("MESSAGE=No outdated files detected")
+
+                }
+                files.isEmpty
+            case None =>
+        }
 
     }
 }
@@ -214,27 +256,27 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
 
     private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
         val exclude = !modifiedFiles.contains(file) && !alwaysIncludeNames.contains(file.getName)
-        logger.debug(file.getName + " include=" + !exclude)
+        logger.trace(file.getName + " include=" + !exclude)
         exclude
     }
 
     def act {
-        val modifiedFiles = ListModified.getModifiedFiles(session)
+        val modifiedFiles = new ListModified(session).getModifiedFiles
         if (modifiedFiles.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("file-count=" + modifiedFiles.size)
             config.responseWriter.println("MESSAGE=no modified files detected")
         } else {
-            //TODO first check if SFDC has newer version of files we are about to deploy
-            val checker = new CheckAgainstRemote(session)
+            //first check if SFDC has newer version of files we are about to deploy
+            val checker = new ListOutdated(session)
             val canDeploy = checker.getFilesNewerOnRemote(modifiedFiles) match {
               case Some(files) =>
                   if (!files.isEmpty) {
                       config.responseWriter.println("RESULT=FAILURE")
                       config.responseWriter.println("MESSAGE=Some files are out of date")
-                      config.responseWriter.println("OUTDATED FILES START")
-                      config.responseWriter.println(files.map(_.getName).mkString("\n"))
-                      config.responseWriter.println("OUTDATED FILES END")
+                      config.responseWriter.startSection("OUTDATED FILES")
+                      files.foreach(f => config.responseWriter.println(f.getName))
+                      config.responseWriter.endSection("OUTDATED FILES")
                   }
                   files.isEmpty
               case None => false
@@ -248,6 +290,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
 
                 val allFilesToDeploySet = (modifiedFiles ++ metaXmlFiles).toSet
                 /*
+                for debug purpose only, to check what is put in the archive
                 //get temp file name
                 val destZip = FileUtils.createTempFile("deploy", ".zip")
                 destZip.delete()
@@ -267,7 +310,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                 if (!deployResult.isSuccess) {
                     config.responseWriter.println("RESULT=FAILURE")
                     if (null != deployDetails) {
-                        config.responseWriter.println("# COMPONENT FAILURES START")
+                        config.responseWriter.startSection("COMPONENT FAILURES")
                         for ( failureMessage <- deployDetails.getComponentFailures) {
                             val line = failureMessage.getLineNumber
                             val column = failureMessage.getColumnNumber
@@ -275,7 +318,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                             val problem = failureMessage.getProblem
                             config.responseWriter.println(Map("line" -> line, "column" -> column, "filePath" -> filePath, "problem" -> problem))
                         }
-                        config.responseWriter.println("# COMPONENT FAILURES END")
+                        config.responseWriter.endSection("COMPONENT FAILURES")
                     }
 
 
@@ -292,7 +335,9 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                     session.storeSessionData()
                     config.responseWriter.println("RESULT=SUCCESS")
                     config.responseWriter.println("file-count=" + modifiedFiles.size)
-
+                    config.responseWriter.startSection("DEPLOYED FILES")
+                    modifiedFiles.foreach(f => config.responseWriter.println(f.getName))
+                    config.responseWriter.endSection("DEPLOYED FILES")
                 }
             }
         }

@@ -174,17 +174,6 @@ class Session(config: Config) extends Logging {
             _retrieveResult
         }.asInstanceOf[RetrieveResult]
 
-        retrieveResult.getMessages match {
-            case messages if null != messages && !messages.isEmpty=>
-                for(msg <- messages) {
-                    config.responseWriter.println("RESULT=FAILURE")
-                    config.responseWriter.println(msg.getFileName, msg.getProblem)
-                    //response.warning("Retrieve", "", msg.getFileName, msg.getProblem )
-                    logger.error("Retrieve", "", msg.getFileName, msg.getProblem )
-                }
-            case _ =>
-        }
-        //write results to ZIP file
         retrieveResult
     }
 

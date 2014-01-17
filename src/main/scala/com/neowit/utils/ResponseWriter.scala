@@ -41,6 +41,12 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
     def println(data: Map[String, Any]): Unit = {
         println(JSONObject(data).toString(defaultFormatter))
     }
+    def startSection(sectionName: String) {
+        println("#SECTION START: " + sectionName)
+    }
+    def endSection(sectionName: String) {
+        println("#SECTION END: " + sectionName)
+    }
 
     override def close(): Unit = {
         if (needClosing)
