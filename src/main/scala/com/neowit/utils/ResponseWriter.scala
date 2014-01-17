@@ -38,8 +38,11 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
         needClosing = true
         logger.debug(p1)
     }
+    def println(prefix: String, data: Map[String, Any]): Unit = {
+        println(prefix + JSONObject(data).toString(defaultFormatter))
+    }
     def println(data: Map[String, Any]): Unit = {
-        println(JSONObject(data).toString(defaultFormatter))
+        println("", data)
     }
     def startSection(sectionName: String) {
         println("#SECTION START: " + sectionName)

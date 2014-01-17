@@ -310,15 +310,15 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                 if (!deployResult.isSuccess) {
                     config.responseWriter.println("RESULT=FAILURE")
                     if (null != deployDetails) {
-                        config.responseWriter.startSection("COMPONENT FAILURES")
+                        config.responseWriter.startSection("ERROR LIST")
                         for ( failureMessage <- deployDetails.getComponentFailures) {
                             val line = failureMessage.getLineNumber
                             val column = failureMessage.getColumnNumber
                             val filePath = failureMessage.getFileName
                             val problem = failureMessage.getProblem
-                            config.responseWriter.println(Map("line" -> line, "column" -> column, "filePath" -> filePath, "problem" -> problem))
+                            config.responseWriter.println("ERROR: ", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                         }
-                        config.responseWriter.endSection("COMPONENT FAILURES")
+                        config.responseWriter.endSection("ERROR LIST")
                     }
 
 
