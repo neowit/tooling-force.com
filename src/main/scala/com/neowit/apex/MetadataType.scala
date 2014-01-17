@@ -41,8 +41,6 @@ object MetadataType extends Logging {
     }
     private def getName(props: FileProperties): String = {
         val fName = new File(props.getFileName).getName
-        //val name = fName.substring(0, fName.lastIndexWhere(_ == '.'))
-        //name
         fName
     }
 

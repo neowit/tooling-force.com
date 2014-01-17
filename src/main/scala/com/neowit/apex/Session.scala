@@ -177,8 +177,10 @@ class Session(config: Config) extends Logging {
         retrieveResult.getMessages match {
             case messages if null != messages && !messages.isEmpty=>
                 for(msg <- messages) {
+                    config.responseWriter.println("RESULT=FAILURE")
+                    config.responseWriter.println(msg.getFileName, msg.getProblem)
                     //response.warning("Retrieve", "", msg.getFileName, msg.getProblem )
-                    logger.warn("Retrieve", "", msg.getFileName, msg.getProblem )
+                    logger.error("Retrieve", "", msg.getFileName, msg.getProblem )
                 }
             case _ =>
         }
