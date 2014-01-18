@@ -39,6 +39,7 @@ object Runner extends Logging {
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
+                    logger.error(ex.printStackTrace())
                     appConfig.responseWriter.println("RESULT=FAILURE")
             } finally {
                 appConfig.responseWriter.close()
