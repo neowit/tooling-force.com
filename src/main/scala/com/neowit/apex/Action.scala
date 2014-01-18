@@ -217,12 +217,16 @@ class ListOutdated(session: Session) extends RetrieveMetadata(session: Session) 
               Some(res.toList)
 
           case Failure(err) =>
+              err match {
+                  case e: RetrieveError =>
               val messages = err.asInstanceOf[RetrieveError].retrieveResult.getMessages
               config.responseWriter.println("RESULT=FAILURE")
               for(msg <- messages) {
-                  config.responseWriter.println("ERROR:: " + msg.getFileName + " - " + msg.getProblem )
+                          config.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
               }
               None
+                  case _ => throw err
+              }
         }
 
     }
@@ -233,13 +237,12 @@ class ListOutdated(session: Session) extends RetrieveMetadata(session: Session) 
             case Some(files) =>
                 config.responseWriter.println("RESULT=SUCCESS")
                 if (!files.isEmpty) {
-                    config.responseWriter.println("MESSAGE=Some files are out of date")
-                    config.responseWriter.startSection("OUTDATED FILES")
-                    config.responseWriter.println(files.map(_.getName).mkString("\n"))
-                    config.responseWriter.endSection("OUTDATED FILES")
+                    config.responseWriter.println("MESSAGE", Map("text" -> "Outdated file(s) detected."))
+                    files.foreach{
+                        f => config.responseWriter.println("MESSAGE DETAIL", Map("filePath" -> f.getAbsolutePath, "text" -> f.getName))
+                    }
                 } else {
-                    config.responseWriter.println("MESSAGE=No outdated files detected")
-
+                    config.responseWriter.println("MESSAGE", Map("text" -> "No outdated files detected."))
                 }
                 files.isEmpty
             case None =>
@@ -268,15 +271,15 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             config.responseWriter.println("MESSAGE=no modified files detected")
         } else {
             //first check if SFDC has newer version of files we are about to deploy
-            val checker = new ListOutdated(session)
+            val checker = new ListConflicting(session)
             val canDeploy = checker.getFilesNewerOnRemote(modifiedFiles) match {
               case Some(files) =>
                   if (!files.isEmpty) {
                       config.responseWriter.println("RESULT=FAILURE")
-                      config.responseWriter.println("MESSAGE=Some files are out of date")
-                      config.responseWriter.startSection("OUTDATED FILES")
-                      files.foreach(f => config.responseWriter.println(f.getName))
-                      config.responseWriter.endSection("OUTDATED FILES")
+                      config.responseWriter.println("MESSAGE", Map("text" -> "Outdated file(s) detected. Use 'refresh' before 'deploy'."))
+                      files.foreach{
+                          f => config.responseWriter.println("MESSAGE DETAIL", Map("filePath" -> f.getAbsolutePath, "text" -> f.getName))
+                      }
                   }
                   files.isEmpty
               case None => false
@@ -316,7 +319,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                             val column = failureMessage.getColumnNumber
                             val filePath = failureMessage.getFileName
                             val problem = failureMessage.getProblem
-                            config.responseWriter.println("ERROR: ", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                            config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                         }
                         config.responseWriter.endSection("ERROR LIST")
                     }

@@ -39,7 +39,7 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
         logger.debug(p1)
     }
     def println(prefix: String, data: Map[String, Any]): Unit = {
-        println(prefix + JSONObject(data).toString(defaultFormatter))
+        println(prefix + ": " + JSONObject(data).toString(defaultFormatter))
     }
     def println(data: Map[String, Any]): Unit = {
         println("", data)
