@@ -124,14 +124,13 @@ class Config extends Logging{
 
         //lastRunOutputFile
     }
-    def getProperty(key:String):Option[String] = getProperty(key, None)
 
-    def getProperty(key:String, defaultVal: Option[String]):Option[String] = {
+    def getProperty(key:String):Option[String] = {
         val cmdLineValue = options.get(key)
         val configValue = mainProps.getPropertyOption(key)
         val res = cmdLineValue match {
             case None => configValue match {
-                case None => defaultVal
+                case None => None
                 case _ => configValue
             }
             case _ => cmdLineValue
@@ -208,21 +207,22 @@ class Config extends Logging{
 
 Command line parameters"
  --help : show this text
- --config : path to config.properties
- [[--config : path to config.properties]: (optional) more than one "--config" is supported, non blank parameters of later --config take precendence
- [--<any param from config file>]: (optional) all config parameters can be specified in both config file and command line. Command line parameters take precendence
+ --config="path to config.properties"
+ [[--config="path to config.properties"]: (optional) more than one "--config" is supported, non blank parameters of later --config take precendence
+ [--<any param from config file>=<value>]: (optional) all config parameters can be specified in both config file and command line. Command line parameters take precendence
+
 
 Example:
- java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config=/path/to/myconf.properties
 
 OR if sfdc login/pass are in a different file
- java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties --config /path/to/credentials.properties
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config=/path/to/myconf.properties --config=/path/to/credentials.properties
 
 
 In the following example username user@domain.com specified in the command line will be used,
 regardless of whether it is also specified in config file or not
- java -jar "/path/to/tooling-force.com-0.1.jar" --config /path/to/myconf.properties --sf.username user@domain.com
-                           """)
+ java -jar "/path/to/tooling-force.com-0.1.jar" --config=/path/to/myconf.properties --sf.username=user@domain.com
+                 """)
     }
 
     /*
