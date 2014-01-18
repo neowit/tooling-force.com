@@ -41,7 +41,7 @@ object ActionFactory {
             case "refresh" => Some(new RefreshMetadata(session))
             case "listModified" => Some(new ListModified(session))
             case "deployModified" => Some(new DeployModified(session))
-            case "listOutdated" => Some(new ListOutdated(session))
+            case "listConflicts" => Some(new ListConflicting(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
 
@@ -114,13 +114,17 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
             case Success(retrieveResult) =>
                 updateFromRetrieve(retrieveResult)
             case Failure(err) =>
-                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                    case messages if null != messages && !messages.isEmpty=>
-                        config.responseWriter.println("RESULT=FAILURE")
-                        for(msg <- messages) {
-                            config.responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                err match {
+                    case e: RetrieveError =>
+                        err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                            case messages if null != messages && !messages.isEmpty=>
+                                config.responseWriter.println("RESULT=FAILURE")
+                                for(msg <- messages) {
+                                    config.responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                }
+                            case _ =>
                         }
-                    case _ =>
+                    case _ => throw err
                 }
         }
     }
@@ -196,7 +200,7 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
 /**
  * check local modified files against their Remote versions to see if remote is newer
  */
-class ListOutdated(session: Session) extends RetrieveMetadata(session: Session) {
+class ListConflicting(session: Session) extends RetrieveMetadata(session: Session) {
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[File]] = {
         val fileMap = files.map(f => (session.getRelativePath(f).replaceFirst("src/", ""), f) ).toMap
@@ -219,12 +223,12 @@ class ListOutdated(session: Session) extends RetrieveMetadata(session: Session) 
           case Failure(err) =>
               err match {
                   case e: RetrieveError =>
-              val messages = err.asInstanceOf[RetrieveError].retrieveResult.getMessages
-              config.responseWriter.println("RESULT=FAILURE")
-              for(msg <- messages) {
+                      val messages = err.asInstanceOf[RetrieveError].retrieveResult.getMessages
+                      config.responseWriter.println("RESULT=FAILURE")
+                      for(msg <- messages) {
                           config.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
-              }
-              None
+                      }
+                      None
                   case _ => throw err
               }
         }
@@ -305,6 +309,8 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                 deployOptions.setPerformRetrieve(false)
                 deployOptions.setAllowMissingFiles(true)
                 deployOptions.setRollbackOnError(true)
+                val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
+                deployOptions.setCheckOnly(checkOnly)
                 //deployOptions.setPerformRetrieve(true)
 
                 val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _) ), deployOptions)
@@ -327,20 +333,24 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
 
                 } else {
                     //update session data for successful files
-                    for ( successMessage <- deployDetails.getComponentSuccesses) {
-                        val relativePath = successMessage.getFileName
-                        val key = session.getKeyByRelativeFilePath(relativePath)
-                        val localMills = new File(config.projectDir, relativePath).lastModified()
-                        val newData = MetadataType.getValueMap(deployResult, successMessage, localMills)
-                        val oldData = session.getData(key)
-                        session.setData(key, oldData ++ newData)
+                    if (!checkOnly) {
+                        for ( successMessage <- deployDetails.getComponentSuccesses) {
+                            val relativePath = successMessage.getFileName
+                            val key = session.getKeyByRelativeFilePath(relativePath)
+                            val localMills = new File(config.projectDir, relativePath).lastModified()
+                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills)
+                            val oldData = session.getData(key)
+                            session.setData(key, oldData ++ newData)
+                        }
                     }
                     session.storeSessionData()
                     config.responseWriter.println("RESULT=SUCCESS")
                     config.responseWriter.println("file-count=" + modifiedFiles.size)
-                    config.responseWriter.startSection("DEPLOYED FILES")
-                    modifiedFiles.foreach(f => config.responseWriter.println(f.getName))
-                    config.responseWriter.endSection("DEPLOYED FILES")
+                    if (!checkOnly) {
+                        config.responseWriter.startSection("DEPLOYED FILES")
+                        modifiedFiles.foreach(f => config.responseWriter.println(f.getName))
+                        config.responseWriter.endSection("DEPLOYED FILES")
+                    }
                 }
             }
         }

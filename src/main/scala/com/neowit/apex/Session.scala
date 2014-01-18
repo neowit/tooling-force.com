@@ -46,6 +46,10 @@ class Session(config: Config) extends Logging {
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
+    //private var connectionTooling:Option[ToolingConnection] = None //uncomment in reset()
+
+    //when user wants to work with files from one org and deploy them in another org we can not use stored session
+    private val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
 
     def getConfig = config
 
@@ -54,11 +58,20 @@ class Session(config: Config) extends Logging {
         config.storeSessionProps()
     }
     def getSavedConnectionData = {
-        (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+
+        if (!callingAnotherOrg) {
+            (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+        } else {
+            (None, None)
+        }
     }
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
-        sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
-        sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
+        if (!callingAnotherOrg) {
+            sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
+            sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
+        } else {
+            sessionProperties.remove("sessionId")
+        }
         storeSessionData()
     }
     def setData(key: String, data: Map[String, String]) = {
@@ -158,6 +171,8 @@ class Session(config: Config) extends Logging {
         sessionProperties.remove("serviceEndpoint")
         storeSessionData()
         connectionPartner = None
+        connectionMetadata = None
+        //connectionTooling = None
     }
 
     def getServerTimestamp = {
@@ -167,8 +182,8 @@ class Session(config: Config) extends Logging {
     }
 
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
-        val conn = getMetadataConnection
         val retrieveResult = withRetry {
+            val conn = getMetadataConnection
             val asyncResult = wait(conn, conn.retrieve(retrieveRequest))
             val _retrieveResult = conn.checkRetrieveStatus(asyncResult.getId)
             _retrieveResult
@@ -178,8 +193,8 @@ class Session(config: Config) extends Logging {
     }
 
     def deploy(zipFile: Array[Byte], deployOptions: DeployOptions ):DeployResult = {
-        val conn = getMetadataConnection
         val deployResult = withRetry {
+            val conn = getMetadataConnection
             val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
             val _deployResult = conn.checkDeployStatus(asyncResult.getId, true)
             _deployResult
