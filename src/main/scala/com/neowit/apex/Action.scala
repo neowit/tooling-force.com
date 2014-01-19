@@ -19,11 +19,15 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{ZipUtils, FileUtils, Logging, Config}
+import com.neowit.utils._
 import java.io.{File, FileOutputStream}
 import com.sforce.soap.metadata.{RetrieveMessage, RetrieveResult, RetrieveRequest, DeployOptions}
 import scala.util.{Try, Failure, Success}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
+import scala.util.Failure
+import scala.Some
+import scala.util.Success
+import com.neowit.utils.ResponseWriter.MessageDetail
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
@@ -57,6 +61,7 @@ trait AsyncAction extends Action {
 
 abstract class MetadataAction(session: Session) extends AsyncAction {
     val config:Config = session.getConfig
+    val responseWriter: ResponseWriter = config.responseWriter
 
 }
 
@@ -108,25 +113,37 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
 class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Session) {
 
     def act {
-        val retrieveRequest = new RetrieveRequest()
-        retrieveRequest.setApiVersion(config.apiVersion)
-        setUpackaged(retrieveRequest)
-        Try(session.retrieve(retrieveRequest)) match {
-            case Success(retrieveResult) =>
-                updateFromRetrieve(retrieveResult)
-            case Failure(err) =>
-                err match {
-                    case e: RetrieveError =>
-                        err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                            case messages if null != messages && !messages.isEmpty=>
-                                config.responseWriter.println("RESULT=FAILURE")
-                                for(msg <- messages) {
-                                    config.responseWriter.println(msg.getFileName + ": " + msg.getProblem)
-                                }
-                            case _ =>
-                        }
-                    case _ => throw err
-                }
+        //first check if we have modified files
+        val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
+        val modifiedFileChecker = new ListModified(session)
+        val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
+
+        if (modifiedFiles.isEmpty) {
+            val retrieveRequest = new RetrieveRequest()
+            retrieveRequest.setApiVersion(config.apiVersion)
+            setUpackaged(retrieveRequest)
+            Try(session.retrieve(retrieveRequest)) match {
+                case Success(retrieveResult) =>
+                    updateFromRetrieve(retrieveResult)
+                case Failure(err) =>
+                    err match {
+                        case e: RetrieveError =>
+                            err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                case messages if null != messages && !messages.isEmpty=>
+                                    responseWriter.println("RESULT=FAILURE")
+                                    for(msg <- messages) {
+                                        responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                    }
+                                case _ =>
+                            }
+                        case _ => throw err
+                    }
+            }
+        } else {
+            responseWriter.println("RESULT=FAILURE")
+            responseWriter.println(new Message(ResponseWriter.DEBUG,
+                "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+            modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN)
         }
     }
     /**
@@ -162,8 +179,8 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
             resultsFile.delete()
         }
         config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println("result.folder=" + tempFolder.getAbsolutePath)
-        config.responseWriter.println("file-count=" + propertyByFilePath.size)
+        config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
+        config.responseWriter.println("FILE_COUNT=" + propertyByFilePath.size)
     }
 }
 
@@ -184,21 +201,30 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
         modifiedFiles.toList
     }
 
+    def reportModifiedFiles(modifiedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
+        val msg = new Message(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
+        config.responseWriter.println(msg)
+        for(f <- modifiedFiles) {
+            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+        }
+        responseWriter.println("HAS_MODIFIED_FILES=true")
+        config.responseWriter.startSection("MODIFIED FILE LIST")
+        for(f <- modifiedFiles) {
+            config.responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
+        }
+        config.responseWriter.endSection("MODIFIED FILE LIST")
+
+    }
+
     def act {
         val modifiedFiles = getModifiedFiles
 
         config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println("file-count=" + modifiedFiles.size)
+        config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
         if (!modifiedFiles.isEmpty) {
-            val msg = new Message("info", "Modified file(s) detected.")
-            config.responseWriter.println(msg)
-            config.responseWriter.startSection("MODIFIED FILE LIST")
-            for(f <- modifiedFiles) {
-                config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
-            }
-            config.responseWriter.endSection("MODIFIED FILE LIST")
+            reportModifiedFiles(modifiedFiles)
         } else {
-            config.responseWriter.println(new Message("info", "No Modified file(s) detected."))
+            config.responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
 
         }
     }
@@ -249,13 +275,13 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
             case Some(files) =>
                 config.responseWriter.println("RESULT=SUCCESS")
                 if (!files.isEmpty) {
-                    val msg = new Message("info", "Outdated file(s) detected.")
+                    val msg = new Message(ResponseWriter.INFO, "Outdated file(s) detected.")
                     config.responseWriter.println(msg)
                     files.foreach{
                         f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
                     }
                 } else {
-                    config.responseWriter.println(new Message("info", "No outdated files detected."))
+                    config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
                 }
                 files.isEmpty
             case None =>
@@ -280,8 +306,8 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
         val modifiedFiles = new ListModified(session).getModifiedFiles
         if (modifiedFiles.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("file-count=" + modifiedFiles.size)
-            config.responseWriter.println(new Message("info", "no modified files detected."))
+            config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+            config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
         } else {
             //first check if SFDC has newer version of files we are about to deploy
             val checker = new ListConflicting(session)
@@ -290,12 +316,12 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                   if (!files.isEmpty) {
                       config.responseWriter.println("RESULT=FAILURE")
 
-                      val msg = new Message("warning", "Outdated file(s) detected.")
+                      val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
                       config.responseWriter.println(msg)
                       files.foreach{
                           f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
                       }
-                      config.responseWriter.println(new Message("warning", "Use 'refresh' before 'deploy'."))
+                      config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
                   }
                   files.isEmpty
               case None => false
@@ -357,7 +383,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                     }
                     session.storeSessionData()
                     config.responseWriter.println("RESULT=SUCCESS")
-                    config.responseWriter.println("file-count=" + modifiedFiles.size)
+                    config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                     if (!checkOnly) {
                         config.responseWriter.startSection("DEPLOYED FILES")
                         modifiedFiles.foreach(f => config.responseWriter.println(f.getName))

@@ -22,7 +22,7 @@ package com.neowit.utils
 import java.io.{File, PrintWriter}
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.util.parsing.json.JSONFormat.ValueFormatter
-import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
+import com.neowit.utils.ResponseWriter.{MessageType, MessageDetail, Message}
 
 object ResponseWriter {
     object Message {
@@ -32,7 +32,7 @@ object ResponseWriter {
             COUNTER
         }
     }
-    case class Message(msgType: String, text: String, data: Map[String, Any] = Map()) {
+    case class Message(msgType: MessageType, text: String, data: Map[String, Any] = Map()) {
         val id = Message.getNextId()
         def toJSONObject = {
             val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ data
@@ -44,6 +44,26 @@ object ResponseWriter {
             val msgData = Map("messageId"-> message.id) ++ data
             JSONObject(msgData)
         }
+    }
+
+    trait MessageType {
+        def getTypeString: String
+        override def toString: String = "\"" + getTypeString+ "\""
+    }
+    case object INFO extends MessageType {
+        def getTypeString: String = "INFO"
+    }
+    case object WARN extends MessageType {
+        def getTypeString: String = "WARN"
+    }
+    case object ERROR extends MessageType {
+        def getTypeString: String = "ERROR"
+    }
+    case object DEBUG extends MessageType {
+        def getTypeString: String = "DEBUG"
+    }
+    case class CustomMessageType(msgType: String) extends MessageType{
+        def getTypeString: String = msgType
     }
 
 }
