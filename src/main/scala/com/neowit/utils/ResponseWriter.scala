@@ -22,7 +22,31 @@ package com.neowit.utils
 import java.io.{File, PrintWriter}
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.util.parsing.json.JSONFormat.ValueFormatter
+import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
+object ResponseWriter {
+    object Message {
+        private var COUNTER = 0
+        def getNextId() = {
+            COUNTER += 1
+            COUNTER
+        }
+    }
+    case class Message(msgType: String, text: String, data: Map[String, Any] = Map()) {
+        val id = Message.getNextId()
+        def toJSONObject = {
+            val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ data
+            JSONObject(msgData)
+        }
+    }
+    case class MessageDetail(message: Message, data: Map[String, Any]) {
+        def toJSONObject = {
+            val msgData = Map("messageId"-> message.id) ++ data
+            JSONObject(msgData)
+        }
+    }
+
+}
 class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
     var needClosing = false
 
@@ -37,6 +61,12 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
         super.println(p1)
         needClosing = true
         logger.debug(p1)
+    }
+    def println(msg: Message): Unit = {
+        println(s"MESSAGE: " + msg.toJSONObject.toString(defaultFormatter))
+    }
+    def println(messageDetail: MessageDetail): Unit = {
+        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.toString(defaultFormatter))
     }
     def println(prefix: String, data: Map[String, Any]): Unit = {
         println(prefix + ": " + JSONObject(data).toString(defaultFormatter))
@@ -82,4 +112,5 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
             case c if ((c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f')) => "\\u%04x".format(c: Int)
             case c => c
         }.mkString
+
 }

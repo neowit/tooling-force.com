@@ -23,6 +23,7 @@ import com.neowit.utils.{ZipUtils, FileUtils, Logging, Config}
 import java.io.{File, FileOutputStream}
 import com.sforce.soap.metadata.{RetrieveMessage, RetrieveResult, RetrieveRequest, DeployOptions}
 import scala.util.{Try, Failure, Success}
+import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
@@ -188,11 +189,13 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("file-count=" + modifiedFiles.size)
-        config.responseWriter.println("# MODIFIED FILE LIST START")
+        val msg = new Message("info", "Modified file(s) detected.")
+        config.responseWriter.println(msg)
+        config.responseWriter.startSection("MODIFIED FILE LIST")
         for(f <- modifiedFiles) {
-            config.responseWriter.println(session.getRelativePath(f))
+            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
         }
-        config.responseWriter.println("# MODIFIED FILE LIST END")
+        config.responseWriter.endSection("MODIFIED FILE LIST")
     }
 
 }
@@ -241,12 +244,13 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
             case Some(files) =>
                 config.responseWriter.println("RESULT=SUCCESS")
                 if (!files.isEmpty) {
-                    config.responseWriter.println("MESSAGE", Map("text" -> "Outdated file(s) detected."))
+                    val msg = new Message("info", "Outdated file(s) detected.")
+                    config.responseWriter.println(msg)
                     files.foreach{
-                        f => config.responseWriter.println("MESSAGE DETAIL", Map("filePath" -> f.getAbsolutePath, "text" -> f.getName))
+                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
                     }
                 } else {
-                    config.responseWriter.println("MESSAGE", Map("text" -> "No outdated files detected."))
+                    config.responseWriter.println(new Message("info", "No outdated files detected."))
                 }
                 files.isEmpty
             case None =>
@@ -272,7 +276,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
         if (modifiedFiles.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("file-count=" + modifiedFiles.size)
-            config.responseWriter.println("MESSAGE=no modified files detected")
+            config.responseWriter.println(new Message("info", "no modified files detected."))
         } else {
             //first check if SFDC has newer version of files we are about to deploy
             val checker = new ListConflicting(session)
@@ -280,9 +284,11 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
               case Some(files) =>
                   if (!files.isEmpty) {
                       config.responseWriter.println("RESULT=FAILURE")
-                      config.responseWriter.println("MESSAGE", Map("text" -> "Outdated file(s) detected. Use 'refresh' before 'deploy'."))
+
+                      val msg = new Message("info", "Outdated file(s) detected. Use 'refresh' before 'deploy'.")
+                      config.responseWriter.println(msg)
                       files.foreach{
-                          f => config.responseWriter.println("MESSAGE DETAIL", Map("filePath" -> f.getAbsolutePath, "text" -> f.getName))
+                          f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
                       }
                   }
                   files.isEmpty
