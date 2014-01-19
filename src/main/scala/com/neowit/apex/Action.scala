@@ -179,9 +179,9 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
         //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
 
         //logger.debug("packageXmlData=" + packageXmlData)
-        val allFiles  = packageXmlFile :: FileUtils.listFiles(config.srcDir)
+        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
         val modifiedFiles = allFiles.filter(session.isModified(_))
-        modifiedFiles
+        modifiedFiles.toList
     }
 
     def act {
