@@ -189,14 +189,14 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("file-count=" + modifiedFiles.size)
-        val msg = new Message("info", "Modified file(s) detected.")
-        config.responseWriter.println(msg)
-        config.responseWriter.startSection("MODIFIED FILE LIST")
-        for(f <- modifiedFiles) {
-            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            val msg = new Message("info", "Modified file(s) detected.")
+            config.responseWriter.println(msg)
+            config.responseWriter.startSection("MODIFIED FILE LIST")
+            for(f <- modifiedFiles) {
+                config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            }
+            config.responseWriter.endSection("MODIFIED FILE LIST")
         }
-        config.responseWriter.endSection("MODIFIED FILE LIST")
-    }
 
 }
 
@@ -285,11 +285,12 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                   if (!files.isEmpty) {
                       config.responseWriter.println("RESULT=FAILURE")
 
-                      val msg = new Message("info", "Outdated file(s) detected. Use 'refresh' before 'deploy'.")
+                      val msg = new Message("warning", "Outdated file(s) detected.")
                       config.responseWriter.println(msg)
                       files.foreach{
                           f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
                       }
+                      config.responseWriter.println(new Message("warning", "Use 'refresh' before 'deploy'."))
                   }
                   files.isEmpty
               case None => false
