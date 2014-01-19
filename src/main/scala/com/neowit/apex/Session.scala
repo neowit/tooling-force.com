@@ -114,20 +114,24 @@ class Session(config: Config) extends Logging {
             relPath
     }
 
+    //Windows does not support cp -p (preserve last modified date) copy so have to assume that copy of all project files
+    //on refresh takes no longer than this number of seconds
+    private val SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC = if (config.isUnix) 0 else 1000 * 3
+
     //if .cls and .cls-meta.xml file time differs by this number of seconds (or less) we consider time equal
-    private val FILE_TIME_DIFF_TOLERANCE_SEC = 1000
+    private val FILE_TO_META_TIME_DIFF_TOLERANCE_SEC = 1000
 
     def isModified(file: File): Boolean = {
         val fileData = getData(getKeyByFile(file))
         val fileTimeNewerThanSessionData = fileData.get(MetadataType.LOCAL_MILLS) match {
-            case Some(x) => file.lastModified() > x.toLong
+            case Some(x) => Math.abs(file.lastModified() - x.toLong) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
             case None => true //file is not listed in session, so must be new
         }
         val _isModified = if (!fileTimeNewerThanSessionData) {
             //check if file has meta-xml and both have different times
             val metaXml = new File(file.getAbsolutePath + "-meta.xml")
             if (metaXml.canRead) {
-                Math.abs(file.lastModified - metaXml.lastModified) > FILE_TIME_DIFF_TOLERANCE_SEC
+                Math.abs(file.lastModified - metaXml.lastModified) > FILE_TO_META_TIME_DIFF_TOLERANCE_SEC
             } else {
                 false //not modified
             }

@@ -49,6 +49,11 @@ object Config extends Logging {
 }
 
 class Config extends Logging{
+    def isUnix = {
+        val os = System.getProperty("os.name").toLowerCase
+        os.contains("nux") || os.contains("mac")
+    }
+
     val apiVersion:Double = 29.0
     type OptionMap = Map[String, String]
     private val mainProps = new Properties() with OptionProperties
