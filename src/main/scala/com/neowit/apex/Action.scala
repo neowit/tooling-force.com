@@ -197,6 +197,9 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
                 config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
             }
             config.responseWriter.endSection("MODIFIED FILE LIST")
+        } else {
+            config.responseWriter.println(new Message("info", "No Modified file(s) detected."))
+
         }
     }
 
