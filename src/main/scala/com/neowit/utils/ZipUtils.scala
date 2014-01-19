@@ -118,7 +118,7 @@ object ZipUtils extends Logging{
     }
 
     private def isIgnored(file: File) = {
-        file.getName.startsWith(".") || file.getName.endsWith("~")
+        file.getName.startsWith(".") || file.getName.contains("~")
     }
 
     private def zipFile(relPath: String, file: File, zos: ZipOutputStream, ignoreFile: File => Boolean = { _ => false}) {

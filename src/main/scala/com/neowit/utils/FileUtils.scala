@@ -69,6 +69,9 @@ object FileUtils {
         File.createTempFile(prefix, suffix)
     }
 
+    private def isIgnored(file: File) = {
+        file.getName.startsWith(".") || file.getName.contains("~")
+    }
     /**
      * a very basic file lister which will cause "out of memory" on a very deep directory tree
      * with lots of files
@@ -79,7 +82,7 @@ object FileUtils {
     def listFiles(dir: File, includeFolders: Boolean = true):List[File] = {
         def listOnelevel(f: File):List[File] = {
             if (f.isDirectory && includeFolders) {
-                f.listFiles().filter(_.canRead).flatMap(listOnelevel).toList
+                f.listFiles().filter(ff => ff.canRead && !isIgnored(ff)).flatMap(listOnelevel).toList
             } else {
                 List(f)
             }
