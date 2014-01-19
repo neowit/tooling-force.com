@@ -164,12 +164,21 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
         val tempFolder = FileUtils.createTempDir(config)
         val propertyByFilePath = new collection.mutable.HashMap[String,  com.sforce.soap.metadata.FileProperties]()
         try {
-            val localDateByFName = ZipUtils.extract(resultsFile, tempFolder)
+            val localDateAndMd5ByFName = ZipUtils.extract(resultsFile, tempFolder, calculateMd5 = true)
             //update session with file properties
             for (fileProp <- retrieveResult.getFileProperties) {
                 val key = MetadataType.getKey(fileProp)
-                val lastModifiedLocally = localDateByFName(fileProp.getFileName)
-                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally)
+                val (lastModifiedLocally, md5Hash) = localDateAndMd5ByFName(fileProp.getFileName)
+                //check if we have -meta.xml data
+                val metaFileName = fileProp.getFileName + "-meta.xml"
+                val (metaLastModifiedLocally:Long, metaMD5Hash: String) =
+                    if (localDateAndMd5ByFName.contains(metaFileName)) {
+                        localDateAndMd5ByFName(metaFileName)
+                    } else {
+                        (-1L, "")
+                    }
+
+                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, metaLastModifiedLocally, metaMD5Hash )
                 session.setData(key, valueMap)
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
@@ -375,8 +384,17 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                         for ( successMessage <- deployDetails.getComponentSuccesses) {
                             val relativePath = successMessage.getFileName
                             val key = session.getKeyByRelativeFilePath(relativePath)
-                            val localMills = new File(config.projectDir, relativePath).lastModified()
-                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills)
+                            val f = new File(config.projectDir, relativePath)
+                            val localMills = f.lastModified()
+                            val md5 = FileUtils.getMD5Hash(f)
+                            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+                            val (metaLocalMills: Long, metaMD5Hash: String) = if (fMeta.canRead) {
+                                (fMeta.lastModified(), FileUtils.getMD5Hash(fMeta))
+                            } else {
+                                (-1L, "")
+                            }
+
+                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5, metaLocalMills, metaMD5Hash)
                             val oldData = session.getData(key)
                             session.setData(key, oldData ++ newData)
                         }

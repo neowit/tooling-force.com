@@ -19,7 +19,7 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{Logging, Config}
+import com.neowit.utils.{FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
@@ -122,23 +122,27 @@ class Session(config: Config) extends Logging {
     private val FILE_TO_META_TIME_DIFF_TOLERANCE_SEC = 1000
 
     def isModified(file: File): Boolean = {
+        val prefix =  if (file.getName.endsWith("-meta.xml")) "meta" else ""
         val fileData = getData(getKeyByFile(file))
-        val fileTimeNewerThanSessionData = fileData.get(MetadataType.LOCAL_MILLS) match {
-            case Some(x) => Math.abs(file.lastModified() - x.toLong) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
-            case None => true //file is not listed in session, so must be new
+        //by default attempt to use MD5 diff
+        val useMD5Check = fileData.contains(MetadataType.MD5)
+
+        val fileDiffBySessionData = useMD5Check match {
+          case true =>
+              val md5Difference = fileData.get(prefix + MetadataType.MD5) match {
+                  case Some(md5) => FileUtils.getMD5Hash(file) != md5
+                  case None => true //file is not listed in session, so must be new
+              }
+              md5Difference
+          case false =>
+              val fileTimeNewerThanSessionTimeData = fileData.get(prefix + MetadataType.LOCAL_MILLS) match {
+                  case Some(x) => Math.abs(file.lastModified() - x.toLong) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
+                  case None => true //file is not listed in session, so must be new
+              }
+              fileTimeNewerThanSessionTimeData
+
         }
-        val _isModified = if (!fileTimeNewerThanSessionData) {
-            //check if file has meta-xml and both have different times
-            val metaXml = new File(file.getAbsolutePath + "-meta.xml")
-            if (metaXml.canRead) {
-                Math.abs(file.lastModified - metaXml.lastModified) > FILE_TO_META_TIME_DIFF_TOLERANCE_SEC
-            } else {
-                false //not modified
-            }
-        } else {
-            fileTimeNewerThanSessionData
-        }
-        _isModified
+        fileDiffBySessionData
     }
 
     private def getPartnerConnection: PartnerConnection = {

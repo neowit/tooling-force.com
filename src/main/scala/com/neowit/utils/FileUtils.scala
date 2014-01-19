@@ -20,6 +20,7 @@
 package com.neowit.utils
 
 import java.io.{File,FileInputStream,FileOutputStream}
+import java.security.MessageDigest
 
 object FileUtils {
 
@@ -95,5 +96,21 @@ object FileUtils {
     }
     def copy(srcPath:String, destPath:String) {
         copy(new File(srcPath), new File(destPath))
+    }
+
+    def getMD5Hash(file: File): String = {
+        val in = new FileInputStream(file)
+        val bytes = new Array[Byte](file.length.toInt)
+        in.read(bytes)
+        in.close()
+        getMD5Hash(bytes)
+    }
+
+    def getMD5Hash(bytes : Array[Byte]): String = {
+        val md5 = MessageDigest.getInstance("MD5")
+        md5.reset()
+        md5.update(bytes)
+
+        md5.digest().map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
     }
 }

@@ -27,6 +27,7 @@ import com.sforce.soap.metadata.{DeployResult, DeployMessage}
 
 object MetadataType extends Logging {
     val LOCAL_MILLS = "LocalMills"
+    val MD5 = "md5"
     import com.sforce.soap.metadata.FileProperties
 
     val dateFormatGmt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
@@ -44,20 +45,31 @@ object MetadataType extends Logging {
         fName
     }
 
-    def getValueMap(props: FileProperties, localMills: Long):Map[String, String] = {
+    def getValueMap(props: FileProperties, localMills: Long, md5Hash: String,
+                    metaMills: Long, metaMd5Hash: String):Map[String, String] = {
         //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
         val lastModifiedDateText = getLastModifiedDateText(props)
         val lastModifiedDateMills = String.valueOf(getLastModifiedDateMills(props))
-        Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText,
-            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString)
+        val data = Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText,
+            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString, MD5 -> md5Hash)
+        if (metaMills > 0)
+            Map("meta" + LOCAL_MILLS -> metaMills.toString, "meta" + MD5 -> metaMd5Hash) ++ data
+        else
+            data
+
     }
 
-    def getValueMap(deployResult: DeployResult, message: DeployMessage, localMills: Long):Map[String, String] = {
+    def getValueMap(deployResult: DeployResult, message: DeployMessage, localMills: Long, md5Hash: String,
+                    metaMills: Long, metaMd5Hash: String):Map[String, String] = {
         val lastModifiedDate = deployResult.getLastModifiedDate
         val lastModifiedDateMills = String.valueOf(lastModifiedDate.getTime.getTime)
         val idVal = if (null == message.getId) Map() else Map("Id" -> message.getId)
-        Map("Type" -> "TODO", "Name" -> message.getFullName, "LastModifiedDate" -> formatDateGMT(lastModifiedDate),
-            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString) ++ idVal
+        val data = Map("Type" -> "TODO", "Name" -> message.getFullName, "LastModifiedDate" -> formatDateGMT(lastModifiedDate),
+            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills.toString, MD5 -> md5Hash) ++ idVal
+        if (metaMills > 0)
+            Map("meta" + LOCAL_MILLS -> metaMills.toString, "meta" + MD5 -> metaMd5Hash) ++ data
+        else
+            data
     }
 
     def getLastModifiedDateText(props: FileProperties) = {
