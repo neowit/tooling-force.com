@@ -189,6 +189,7 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("file-count=" + modifiedFiles.size)
+        if (!modifiedFiles.isEmpty) {
             val msg = new Message("info", "Modified file(s) detected.")
             config.responseWriter.println(msg)
             config.responseWriter.startSection("MODIFIED FILE LIST")
@@ -197,6 +198,7 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
             }
             config.responseWriter.endSection("MODIFIED FILE LIST")
         }
+    }
 
 }
 
