@@ -30,7 +30,7 @@ object FileUtils {
         appConfig.tempFolderPath match {
           case Some(tempFolderPath) =>
               //clean-up
-              delete(new File(appConfig.tempFolderPath + File.separator + name))
+              delete(new File(tempFolderPath + File.separator + name))
 
               val outputFolder = new File(tempFolderPath + File.separator + name)
               outputFolder.mkdirs()
@@ -59,6 +59,7 @@ object FileUtils {
                 for (f <- file.listFiles()) {
                     delete(f)
                 }
+                file.delete()
             }
         }
         //return result
