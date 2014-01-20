@@ -93,7 +93,8 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
         retrieveResult.getMessages match {
             case messages if null != messages && !messages.isEmpty=>
                 //check if all errors we have are about missing files
-                if (reportMissing || !messages.filterNot(isMissingFileError(_)).isEmpty) {
+                val messagesOtherThanMissingFiles = messages.filterNot(isMissingFileError(_))
+                if (reportMissing || !messagesOtherThanMissingFiles.isEmpty) {
                     throw new RetrieveError(retrieveResult)
                 }
             case _ =>
@@ -101,8 +102,14 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
         retrieveResult
 
     }
+
+    /**
+     * filter errors like
+     * "In field: specific ids - no ApexTrigger named Contact found"
+     * "In field: specific ids - no ApexClass named ContactController found"
+     */
     private def isMissingFileError(message: RetrieveMessage): Boolean = {
-        message.getProblem.contains("In field: specific ids - no ApexClass named")
+        message.getProblem.matches("""In field: specific ids - no .* named .* found""")
     }
 }
 
@@ -344,12 +351,12 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
 
                 val allFilesToDeploySet = (modifiedFiles ++ metaXmlFiles).toSet
                 /*
-                for debug purpose only, to check what is put in the archive
+                //for debug purpose only, to check what is put in the archive
                 //get temp file name
                 val destZip = FileUtils.createTempFile("deploy", ".zip")
                 destZip.delete()
 
-                ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploy, _))
+                ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploySet, _))
                 */
 
                 val deployOptions = new DeployOptions()
