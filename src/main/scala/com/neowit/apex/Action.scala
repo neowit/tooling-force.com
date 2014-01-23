@@ -47,15 +47,15 @@ class ActionError(msg: String) extends Error(msg: String) {
 object ActionFactory {
 
     def getAction(session:Session, name: String): Option[Action] = {
-        name match {
+        name.toLowerCase match {
             case "refresh" => Some(new RefreshMetadata(session))
-            case "listModified" => Some(new ListModified(session))
-            case "deployModified" => Some(new DeployModified(session))
-            case "listConflicts" => Some(new ListConflicting(session))
-            case "describeMetadata" => Some(new DescribeMetadata(session))
+            case "listmodified" => Some(new ListModified(session))
+            case "deploymodified" => Some(new DeployModified(session))
+            case "deployall" => Some(new DeployAll(session))
+            case "listconflicts" => Some(new ListConflicting(session))
+            case "describemetadata" => Some(new DescribeMetadata(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
-
     }
 }
 trait Action extends Logging {
