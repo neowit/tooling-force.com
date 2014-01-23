@@ -66,46 +66,13 @@ object ResponseWriter {
         def getTypeString: String = msgType
     }
 
-}
-class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
-    var needClosing = false
-
     val defaultFormatter : ValueFormatter = (x : Any) => x match {
         case s : String => "\"" + escapeString(s) + "\""
         case jo : JSONObject => jo.toString(defaultFormatter)
         case ja : JSONArray => ja.toString(defaultFormatter)
-        case other => other.toString
+        case other if null != other => other.toString
+        case other => "" //all unhandled cases, like null, etc
     }
-
-    override def println(p1: String): Unit = {
-        super.println(p1)
-        needClosing = true
-        logger.debug(p1)
-    }
-    def println(msg: Message): Unit = {
-        println(s"MESSAGE: " + msg.toJSONObject.toString(defaultFormatter))
-    }
-    def println(messageDetail: MessageDetail): Unit = {
-        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.toString(defaultFormatter))
-    }
-    def println(prefix: String, data: Map[String, Any]): Unit = {
-        println(prefix + ": " + JSONObject(data).toString(defaultFormatter))
-    }
-    def println(data: Map[String, Any]): Unit = {
-        println("", data)
-    }
-    def startSection(sectionName: String) {
-        println("#SECTION START: " + sectionName)
-    }
-    def endSection(sectionName: String) {
-        println("#SECTION END: " + sectionName)
-    }
-
-    override def close(): Unit = {
-        if (needClosing)
-            super.close()
-    }
-
     /**
      * slightly modified version of JSONFormat.quoteString
      * @param s - string to check and escape if required
@@ -132,5 +99,39 @@ class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
             case c if ((c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f')) => "\\u%04x".format(c: Int)
             case c => c
         }.mkString
+}
+class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
+    var needClosing = false
+
+
+    override def println(p1: String): Unit = {
+        super.println(p1)
+        needClosing = true
+        logger.debug(p1)
+    }
+    def println(msg: Message): Unit = {
+        println(s"MESSAGE: " + msg.toJSONObject.toString(ResponseWriter.defaultFormatter))
+    }
+    def println(messageDetail: MessageDetail): Unit = {
+        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.toString(ResponseWriter.defaultFormatter))
+    }
+    def println(prefix: String, data: Map[String, Any]): Unit = {
+        println(prefix + ": " + JSONObject(data).toString(ResponseWriter.defaultFormatter))
+    }
+    def println(data: Map[String, Any]): Unit = {
+        println("", data)
+    }
+    def startSection(sectionName: String) {
+        println("#SECTION START: " + sectionName)
+    }
+    def endSection(sectionName: String) {
+        println("#SECTION END: " + sectionName)
+    }
+
+    override def close(): Unit = {
+        if (needClosing)
+            super.close()
+    }
+
 
 }
