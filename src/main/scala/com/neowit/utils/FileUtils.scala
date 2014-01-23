@@ -20,6 +20,7 @@
 package com.neowit.utils
 
 import java.io.{File,FileInputStream,FileOutputStream}
+import java.util.zip.CRC32
 import java.security.MessageDigest
 
 object FileUtils {
@@ -116,5 +117,20 @@ object FileUtils {
         md5.update(bytes)
 
         md5.digest().map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+    }
+
+
+    def getCRC32Hash(file: File): Long = {
+        val in = new FileInputStream(file)
+        val bytes = new Array[Byte](file.length.toInt)
+        in.read(bytes)
+        in.close()
+        getCRC32Hash(bytes)
+    }
+
+    def getCRC32Hash(bytes : Array[Byte]): Long = {
+        val crc = new CRC32()
+        crc.update(bytes)
+        crc.getValue
     }
 }

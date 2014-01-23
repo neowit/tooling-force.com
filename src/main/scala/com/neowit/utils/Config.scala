@@ -205,6 +205,15 @@ class Config extends Logging{
       case None => false
     }
 
+    /**
+     * by default CRC32 hash is used to detect file changes
+     * but command line option --preferMD5=true can force MD5
+     */
+    lazy val useMD5Hash = getProperty("preferMD5")match {
+        case Some(x) => "true" == x
+        case None => false
+    }
+
     def help() {
         println( """
  Command line utility for working with force.com Tooling API.

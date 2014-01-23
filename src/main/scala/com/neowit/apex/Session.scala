@@ -121,19 +121,27 @@ class Session(config: Config) extends Logging {
     //if .cls and .cls-meta.xml file time differs by this number of seconds (or less) we consider time equal
     private val FILE_TO_META_TIME_DIFF_TOLERANCE_SEC = 1000
 
+    /**
+     * NOTE: this method does not check if provided file is a valid apex project file
+     * @return true if file does not exist in session.properties or its hash does not match
+     */
     def isModified(file: File): Boolean = {
         val prefix =  if (file.getName.endsWith("-meta.xml")) "meta" else ""
         val fileData = getData(getKeyByFile(file))
-        //by default attempt to use MD5 diff
-        val useMD5Check = fileData.contains(MetadataType.MD5)
+        val useMD5Hash = !fileData.getOrElse(MetadataType.MD5, "").asInstanceOf[String].isEmpty
 
-        val fileDiffBySessionData = useMD5Check match {
+        val hashFieldName = if (useMD5Hash) MetadataType.MD5 else MetadataType.CRC32
+        val useHashCheck = fileData.contains(hashFieldName)
+
+        val fileDiffBySessionData = useHashCheck match {
           case true =>
-              val md5Difference = fileData.get(prefix + MetadataType.MD5) match {
-                  case Some(md5) => FileUtils.getMD5Hash(file) != md5
+              val hashDifference = fileData.get(prefix + hashFieldName) match {
+                  case Some(storedHash) =>
+                      if (useMD5Hash) FileUtils.getMD5Hash(file) != storedHash
+                      else FileUtils.getCRC32Hash(file)!= storedHash
                   case None => true //file is not listed in session, so must be new
               }
-              md5Difference
+              hashDifference
           case false =>
               val fileTimeNewerThanSessionTimeData = fileData.get(prefix + MetadataType.LOCAL_MILLS) match {
                   case Some(x) => Math.abs(file.lastModified() - x.asInstanceOf[Long]) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC

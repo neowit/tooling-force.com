@@ -20,7 +20,7 @@
 package com.neowit.utils
 
 import java.io._
-import java.util.zip.{ZipInputStream, ZipEntry, ZipOutputStream}
+import java.util.zip.{CRC32, ZipInputStream, ZipEntry, ZipOutputStream}
 import java.nio.channels.{ReadableByteChannel, Channels, WritableByteChannel, FileChannel}
 import java.nio.ByteBuffer
 import java.security.MessageDigest
@@ -74,14 +74,14 @@ object ZipUtils extends Logging{
      * @param zipFile - zip file
      * @param outputFolder - folder to extract to
      */
-    def extract(zipFile: File, outputFolder: File, calculateMd5: Boolean = false):Map[String, (Long, String)] = {
+    def extract(zipFile: File, outputFolder: File, calculateMd5: Boolean = false, calculateCRC32: Boolean = true):Map[String, (Long, String, Long)] = {
         if (!outputFolder.exists()) {
             outputFolder.mkdirs()
         }
         val zin = new ZipInputStream(new FileInputStream(zipFile))
 
         var entry = zin.getNextEntry
-        val fileMap = collection.mutable.HashMap[String, (Long, String)]()
+        val fileMap = collection.mutable.HashMap[String, (Long, String, Long)]()
         while (entry != null) {
             val fileName = entry.getName
             val newFile = new File(outputFolder, fileName)
@@ -91,10 +91,10 @@ object ZipUtils extends Logging{
             else {
                 new File(newFile.getParent).mkdirs()
                 val fos = new FileOutputStream(newFile)
-                val md5 = transfer(zin, fos, keepInOpen = true, calculateMd5 = true)
+                val (md5, crc32) = transfer(zin, fos, keepInOpen = true, calculateMd5 = calculateMd5, calculateCRC32 = calculateCRC32)
                 fos.close()
                 //record local lastModified for future use
-                fileMap += fileName -> (newFile.lastModified(), md5)
+                fileMap += fileName -> (newFile.lastModified(), md5, crc32)
             }
 
             entry = zin.getNextEntry
@@ -183,23 +183,41 @@ object ZipUtils extends Logging{
 
     }
     */
-    private def transfer(in: InputStream, out: OutputStream, keepInOpen:Boolean = false, calculateMd5: Boolean = false): String = {
-        val md5 = MessageDigest.getInstance("MD5")
-        md5.reset()
+    private def transfer(in: InputStream, out: OutputStream, keepInOpen:Boolean = false, calculateMd5: Boolean = false,
+                         calculateCRC32: Boolean = false): (String, Long) = {
+        var md5:MessageDigest = null
+        if (calculateMd5) {
+            md5 = MessageDigest.getInstance("MD5")
+            md5.reset()
+        }
+        var crc32:CRC32 = null
+        if (calculateCRC32) {
+            crc32 = new CRC32()
+        }
 
         val bytes = new Array[Byte](8092) //8092 bytes - Buffer size
         try {
             Iterator
                 .continually (in.read(bytes))
                 .takeWhile (-1 !=)
-                .foreach (read=> {out.write(bytes,0,read); md5.update(bytes, 0, read)})
+                .foreach (read=> {
+                    out.write(bytes,0,read)
+                    if (calculateMd5) md5.update(bytes, 0, read)
+                    if (calculateCRC32) crc32.update(bytes, 0, read)
+                })
         }
         finally {
             if (!keepInOpen) {
                 in.close()
             }
         }
-        md5.digest().map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+        val md5Hash = if (calculateMd5) {
+            md5.digest().map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+        } else ""
+        val crc32Hash = if (calculateCRC32) {
+            crc32.getValue
+        } else -1L
+        (md5Hash, crc32Hash)
     }
 
     /*

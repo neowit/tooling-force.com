@@ -168,24 +168,27 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
         } finally {
             out.close()
         }
+        val calculateMD5 = config.useMD5Hash
+        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
         val tempFolder = FileUtils.createTempDir(config)
         val propertyByFilePath = new collection.mutable.HashMap[String,  com.sforce.soap.metadata.FileProperties]()
         try {
-            val localDateAndMd5ByFName = ZipUtils.extract(resultsFile, tempFolder, calculateMd5 = true)
+            val localDateAndHashByFName = ZipUtils.extract(resultsFile, tempFolder, calculateMd5 = calculateMD5, calculateCRC32 = calculateCRC32)
             //update session with file properties
             for (fileProp <- retrieveResult.getFileProperties) {
                 val key = MetadataType.getKey(fileProp)
-                val (lastModifiedLocally, md5Hash) = localDateAndMd5ByFName(fileProp.getFileName)
+                val (lastModifiedLocally, md5Hash, crc32Hash) = localDateAndHashByFName(fileProp.getFileName)
                 //check if we have -meta.xml data
                 val metaFileName = fileProp.getFileName + "-meta.xml"
-                val (metaLastModifiedLocally:Long, metaMD5Hash: String) =
-                    if (localDateAndMd5ByFName.contains(metaFileName)) {
-                        localDateAndMd5ByFName(metaFileName)
+                val (metaLastModifiedLocally:Long, metaMD5Hash: String, metaCRC32Hash: Long) =
+                    if (localDateAndHashByFName.contains(metaFileName)) {
+                        localDateAndHashByFName(metaFileName)
                     } else {
-                        (-1L, "")
+                        (-1L, "", -1L)
                     }
 
-                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, metaLastModifiedLocally, metaMD5Hash )
+                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
                 session.setData(key, valueMap)
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
@@ -388,20 +391,28 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                 } else {
                     //update session data for successful files
                     if (!checkOnly) {
+                        val calculateMD5 = config.useMD5Hash
+                        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
                         for ( successMessage <- deployDetails.getComponentSuccesses) {
                             val relativePath = successMessage.getFileName
                             val key = session.getKeyByRelativeFilePath(relativePath)
                             val f = new File(config.projectDir, relativePath)
                             val localMills = f.lastModified()
-                            val md5 = FileUtils.getMD5Hash(f)
+
+                            val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
+                            val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
+
                             val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-                            val (metaLocalMills: Long, metaMD5Hash: String) = if (fMeta.canRead) {
-                                (fMeta.lastModified(), FileUtils.getMD5Hash(fMeta))
+                            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash:Long) = if (fMeta.canRead) {
+                                (   fMeta.lastModified(),
+                                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
                             } else {
-                                (-1L, "")
+                                (-1L, "", -1L)
                             }
 
-                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5, metaLocalMills, metaMD5Hash)
+                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
                             val oldData = session.getData(key)
                             session.setData(key, oldData ++ newData)
                         }
