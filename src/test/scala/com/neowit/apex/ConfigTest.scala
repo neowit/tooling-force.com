@@ -78,7 +78,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             props.store(writer, "")
 
             appConfig.load(List("--config=" + file.getAbsolutePath))
-            expectResult(None) { appConfig.getProperty("password")  }
+            assertResult(None) { appConfig.getProperty("password")  }
         }
     }
     test("Command Line - Key Without Value #1") {
@@ -99,8 +99,8 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
     test("Command Line - value enclosed in quotes --") {
         withFile { (file, writer) =>
             appConfig.load(List("--config=" + file.getAbsolutePath, "--key1=\"" + file.getAbsolutePath+"\"" , "--key2=\"val2\""))
-            expectResult(Some(file.getAbsolutePath)) { appConfig.getProperty("key1") }
-            expectResult(Some("val2")) { appConfig.getProperty("key2") }
+            assertResult(Some(file.getAbsolutePath)) { appConfig.getProperty("key1") }
+            assertResult(Some("val2")) { appConfig.getProperty("key2") }
         }
     }
     test("Parameter from command line take priority over config") {
@@ -110,7 +110,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             props.store(writer, "")
 
             appConfig.load(List("--config="+ file.getAbsolutePath, "--param1=val2"))
-            expectResult(Option("val2")) { appConfig.getProperty("param1")  }
+            assertResult(Option("val2")) { appConfig.getProperty("param1")  }
         }
     }
     test("Parameter from command line take priority over --config") {
@@ -120,7 +120,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             props.store(writer, "")
 
             appConfig.load(List("--config=" + file.getAbsolutePath, "--config=" + file.getAbsolutePath, "--sf.serverurl=val2"))
-            expectResult(Some("val2")) { appConfig.getProperty("sf.serverurl") }
+            assertResult(Some("val2")) { appConfig.getProperty("sf.serverurl") }
         }
     }
 
