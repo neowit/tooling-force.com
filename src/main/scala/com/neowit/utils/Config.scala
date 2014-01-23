@@ -20,7 +20,8 @@
 package com.neowit.utils
 
 import java.util.Properties
-import java.io.{PrintWriter, FileWriter, File}
+import java.io.{FileWriter, File}
+import scala._
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -183,6 +184,17 @@ class Config extends Logging{
     def storeSessionProps() {
         val writer = new FileWriter(new File(sessionFolder, "session.properties"))
         lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
+    }
+
+    /**
+     * Local copy of Describe Metadata result
+     */
+    lazy val storedDescribeMetadataResultFile:File  = {
+        val file = new File(sessionFolder, "describeMetadata.txt")
+        if (!file.exists) {
+            file.createNewFile()
+        }
+        file
     }
 
     lazy val projectPath = getRequiredProperty("projectPath").get

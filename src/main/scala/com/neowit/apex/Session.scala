@@ -234,6 +234,18 @@ class Session(config: Config) extends Logging {
         deployResult
     }
 
+    def describeMetadata(apiVersion: Double ):DescribeMetadataResult = {
+        val describeResult = withRetry {
+            val conn = getMetadataConnection
+            conn.describeMetadata(apiVersion)
+        }.asInstanceOf[DescribeMetadataResult]
+        describeResult
+    }
+
+    private var describeMetadataObjectByXmlName: Option[Map[String, DescribeMetadataObject]] = None
+    private var knownSuffixes: Option[Set[String]] = None
+
+
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("50").toInt

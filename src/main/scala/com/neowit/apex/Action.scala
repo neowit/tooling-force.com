@@ -20,14 +20,19 @@
 package com.neowit.apex
 
 import com.neowit.utils._
-import java.io.{File, FileOutputStream}
-import com.sforce.soap.metadata.{RetrieveMessage, RetrieveResult, RetrieveRequest, DeployOptions}
+import java.io.{PrintWriter, File, FileOutputStream}
+import com.sforce.soap.metadata._
 import scala.util.{Try, Failure, Success}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
+import scala.util.parsing.json._
+import scala.Predef._
 import scala.util.Failure
 import scala.Some
 import scala.util.Success
 import com.neowit.utils.ResponseWriter.MessageDetail
+import scala.util.parsing.json.JSONArray
+import scala.util.parsing.json.JSONObject
+import scala.collection.mutable
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
@@ -47,6 +52,7 @@ object ActionFactory {
             case "listModified" => Some(new ListModified(session))
             case "deployModified" => Some(new DeployModified(session))
             case "listConflicts" => Some(new ListConflicting(session))
+            case "describeMetadata" => Some(new DescribeMetadata(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
 
@@ -215,7 +221,12 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
         //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
 
         //logger.debug("packageXmlData=" + packageXmlData)
-        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
+        //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
+        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir).filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexSuffix(session, FileUtils.getExtension(file))
+        )).toSet
+
         val modifiedFiles = allFiles.filter(session.isModified(_))
         modifiedFiles.toList
     }
@@ -265,7 +276,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
                       val key = (if (null == props.getNamespacePrefix) "unpackaged" else props.getNamespacePrefix ) +
                           File.separator + props.getFileName
 
-                      val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).asInstanceOf[Long]
+                      val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).asInstanceOf[BigDecimal].toLong
                       val millsRemote = MetadataType.getLastModifiedDateMills(props)
                       millsLocal < millsRemote
                   }
@@ -329,24 +340,30 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
         } else {
             //first check if SFDC has newer version of files we are about to deploy
+            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+
             val checker = new ListConflicting(session)
-            val canDeploy = checker.getFilesNewerOnRemote(modifiedFiles) match {
-              case Some(files) =>
-                  if (!files.isEmpty) {
-                      config.responseWriter.println("RESULT=FAILURE")
+            logger.debug("Check Conflicts with Remote")
+            val canDeploy = ignoreConflicts match {
+                case false => checker.getFilesNewerOnRemote(modifiedFiles) match {
+                    case Some(files) =>
+                        if (!files.isEmpty) {
+                            config.responseWriter.println("RESULT=FAILURE")
 
-                      val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
-                      config.responseWriter.println(msg)
-                      files.foreach{
-                          f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
-                      }
-                      config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
-                  }
-                  files.isEmpty
-              case None => false
+                            val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
+                            config.responseWriter.println(msg)
+                            files.foreach{
+                                f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
+                            }
+                            config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
+                        }
+                        files.isEmpty
+                    case None => false
+                }
+                case true => true //OK to deploy without conflict checking
             }
-            if (canDeploy) {
 
+            if (canDeploy) {
                 //for every modified file add its -meta.xml if exists
                 val metaXmlFiles = for (file <- modifiedFiles;
                                         metaXml = new File(file.getAbsolutePath + "-meta.xml")
@@ -428,5 +445,114 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                 }
             }
         }
+    }
+}
+object DescribeMetadata {
+    private var describeMetadataObjectMap:Map[String, DescribeMetadataObject] = Map()
+
+    def getMap(session: Session): Map[String, DescribeMetadataObject] = {
+        if (describeMetadataObjectMap.isEmpty) {
+            val describer = new DescribeMetadata(session)
+            //first try to get metadata description from local file
+            val localMap = describer.loadFromFile
+            if (localMap.isEmpty) {
+                //finally try loading from remote
+                val remoteMap = describer.loadFromRemote
+                describeMetadataObjectMap = remoteMap
+            } else {
+                describeMetadataObjectMap = localMap
+            }
+        }
+        describeMetadataObjectMap
+    }
+
+    private var xmlNameBySuffix:Map[String, String] = Map()
+
+    def getXmlNameBySuffix(session: Session, suffix: String): Option[String] = {
+        if (xmlNameBySuffix.isEmpty) {
+            val nameBySuffix = new mutable.HashMap[String, String]()
+            for (describeObject <- getMap(session).values) {
+                if (null != describeObject.getSuffix) {
+                    nameBySuffix += describeObject.getSuffix -> describeObject.getXmlName
+                }
+            }
+            xmlNameBySuffix = nameBySuffix.toMap
+        }
+        xmlNameBySuffix.get(suffix)
+    }
+    def isValidApexSuffix(session: Session, suffix: String): Boolean = {
+       getXmlNameBySuffix(session, suffix) match {
+         case Some(x) => true
+         case None => false
+       }
+    }
+}
+class DescribeMetadata(session: Session) extends MetadataAction(session: Session) {
+
+    def loadFromFile: Map[String, DescribeMetadataObject] = {
+
+        val describeMetadataObjectMap = new mutable.HashMap[String, DescribeMetadataObject]
+
+        for (line <- scala.io.Source.fromFile(config.storedDescribeMetadataResultFile).getLines()) {
+            //JSON.parseFull(line)
+            JSON.parseRaw(line)  match {
+                case Some(json) =>
+                    val data = json.asInstanceOf[JSONObject].obj
+                    val descrObj = new DescribeMetadataObject()
+                    descrObj.setDirectoryName(data.getOrElse("DirectoryName", "").asInstanceOf[String])
+                    descrObj.setInFolder(data.getOrElse("InFolder", false).asInstanceOf[Boolean])
+                    descrObj.setMetaFile(data.getOrElse("MetaFile", false).asInstanceOf[Boolean])
+                    descrObj.setSuffix(data.getOrElse("Suffix", "").asInstanceOf[String])
+                    val xmlName = data.getOrElse("XmlName", "").asInstanceOf[String]
+                    descrObj.setXmlName(xmlName)
+                    val xmlNames = data.getOrElse("ChildXmlNames", new JSONArray(List())).asInstanceOf[JSONArray]
+                    descrObj.setChildXmlNames(xmlNames.list.asInstanceOf[List[String]].toArray)
+
+                    describeMetadataObjectMap += xmlName -> descrObj
+                case None =>
+            }
+
+        }
+        describeMetadataObjectMap.toMap
+    }
+
+    private def storeDescribeResult(file: File, lines: Iterator[String]) {
+        val writer = new PrintWriter(file)
+        lines.foreach(writer.println)
+        writer.close()
+    }
+
+    def loadFromRemote: Map[String, DescribeMetadataObject] = {
+        Try(session.describeMetadata(config.apiVersion)) match {
+            case Success(describeResult) =>
+                val describeMetadataObjectMap = describeResult.getMetadataObjects.map(describeObject => (describeObject.getXmlName, describeObject)).toMap
+                //dump to local file
+                val linesBuf = new scala.collection.mutable.ListBuffer[String]
+                for (xmlName <- describeMetadataObjectMap.keySet) {
+
+                    describeMetadataObjectMap.get(xmlName) match {
+                        case Some(_describeObject) =>
+                            val data = Map(
+                                "ChildXmlNames" -> JSONArray(_describeObject.getChildXmlNames.toList),
+                                "DirectoryName" -> _describeObject.getDirectoryName,
+                                "InFolder" -> _describeObject.isInFolder,
+                                "MetaFile" -> _describeObject.getMetaFile,
+                                "Suffix" -> _describeObject.getSuffix,
+                                "XmlName" -> _describeObject.getXmlName
+                            )
+                            linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
+                        case None =>
+                    }
+                }
+                storeDescribeResult(config.storedDescribeMetadataResultFile, linesBuf.iterator)
+
+                describeMetadataObjectMap
+            case Failure(throwed) => throw throwed
+        }
+    }
+
+    def act {
+        //load from SFDC and dump to local file
+        loadFromRemote
     }
 }

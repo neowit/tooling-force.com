@@ -74,6 +74,16 @@ object FileUtils {
     private def isIgnored(file: File) = {
         file.getName.startsWith(".") || file.getName.contains("~")
     }
+
+    def getExtension(file: File): String = {
+        val extStart = file.getName.lastIndexOf(".")
+        if (extStart > 0) {
+            //file.getName.substring(extStart + 1)
+            file.getName.drop(extStart + 1)
+        } else {
+            ""
+        }
+    }
     /**
      * a very basic file lister which will cause "out of memory" on a very deep directory tree
      * with lots of files
