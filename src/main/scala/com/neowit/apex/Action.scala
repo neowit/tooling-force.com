@@ -343,9 +343,10 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
 
             val checker = new ListConflicting(session)
-            logger.debug("Check Conflicts with Remote")
             val canDeploy = ignoreConflicts match {
-                case false => checker.getFilesNewerOnRemote(modifiedFiles) match {
+                case false =>
+                    logger.info("Check Conflicts with Remote")
+                    checker.getFilesNewerOnRemote(modifiedFiles) match {
                     case Some(files) =>
                         if (!files.isEmpty) {
                             config.responseWriter.println("RESULT=FAILURE")
