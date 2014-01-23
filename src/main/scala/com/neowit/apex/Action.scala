@@ -262,7 +262,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
                       val key = (if (null == props.getNamespacePrefix) "unpackaged" else props.getNamespacePrefix ) +
                           File.separator + props.getFileName
 
-                      val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", "0").toLong
+                      val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).asInstanceOf[Long]
                       val millsRemote = MetadataType.getLastModifiedDateMills(props)
                       millsLocal < millsRemote
                   }

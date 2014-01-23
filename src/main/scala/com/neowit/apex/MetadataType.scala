@@ -60,7 +60,7 @@ object MetadataType extends Logging {
     }
 
     def getValueMap(deployResult: DeployResult, message: DeployMessage, localMills: Long, md5Hash: String,
-                    metaMills: Long, metaMd5Hash: String):Map[String, String] = {
+                    metaMills: Long, metaMd5Hash: String):Map[String, Any] = {
         val lastModifiedDate = deployResult.getLastModifiedDate
         val lastModifiedDateMills = String.valueOf(lastModifiedDate.getTime.getTime)
         val idVal = if (null == message.getId) Map() else Map("Id" -> message.getId)

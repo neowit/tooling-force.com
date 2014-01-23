@@ -29,7 +29,7 @@ import scala.util.parsing.json.{JSON, JSONObject}
  */
 trait JsonProperties extends OptionProperties {
 
-    type Data = Map[String, String]
+    type Data = Map[String, Any]
     /**
      * convert key/value pairs into JSON and save in session file
      * @param data - map of values to save
@@ -51,24 +51,33 @@ trait JsonProperties extends OptionProperties {
     /**
      * getKeyByValue is the opposite of getJsonData, i.e. returns first key which contains specified data in the specified field
      */
-    def getKeyByValue(fName: String, fVal: String):Option[String] = {
+    def getKeyByValue(fName: String, fVal: Any):Option[String] = {
         //find key of the element which contains given Id
         this.keySet().toArray.find(key => Some(fVal) == getJsonData(key.asInstanceOf[String]).get(fName)) match {
             case Some(x) => Option(x.asInstanceOf[String])
             case None => None
         }
     }
-    private def valueToDataMap(s: String):Data = {
-        JSON.parseFull(s) match {
-            case Some(m)  => m.asInstanceOf[Data]
+
+    // Enforce conversion of numbers to Long as opposed to default = Double Global override
+    val myNumberConversionFunc = {input : String => BigDecimal(input)}
+
+    private def valueToDataMap(s: String): Data = {
+        val originalConversionFunc = JSON.globalNumberParser
+        // Enforce conversion of numbers to Long as opposed to default = Double Global override
+        JSON.globalNumberParser = myNumberConversionFunc
+        val res = JSON.parseFull(s) match {
+            case Some(m)  => m
             case _ => Map()
         }
+        JSON.globalNumberParser = originalConversionFunc
+        res.asInstanceOf[Data]
     }
 
     def getKeyById(id: String):Option[String] = {
         getKeyByValue("Id", id)
     }
-    def setField(key: String, propName:String, value: String) {
+    def setField(key: String, propName:String, value: Any) {
         val x = getJsonData(key)
         setJsonData(key, x ++ Map(propName -> value))
     }
@@ -88,7 +97,7 @@ trait JsonProperties extends OptionProperties {
     /**
      * @return field value in JSON format
      */
-    def getField(key: String, propName: String): Option[String] = {
+    def getField(key: String, propName: String): Option[Any] = {
         getJsonData(key).get(propName)
     }
 

@@ -74,10 +74,10 @@ class Session(config: Config) extends Logging {
         }
         storeSessionData()
     }
-    def setData(key: String, data: Map[String, String]) = {
+    def setData(key: String, data: Map[String, Any]) = {
         sessionProperties.setJsonData(key, data)
     }
-    def getData(key: String): Map[String, String] = {
+    def getData(key: String): Map[String, Any] = {
         sessionProperties.getJsonData(key)
     }
 
@@ -136,7 +136,7 @@ class Session(config: Config) extends Logging {
               md5Difference
           case false =>
               val fileTimeNewerThanSessionTimeData = fileData.get(prefix + MetadataType.LOCAL_MILLS) match {
-                  case Some(x) => Math.abs(file.lastModified() - x.toLong) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
+                  case Some(x) => Math.abs(file.lastModified() - x.asInstanceOf[Long]) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
                   case None => true //file is not listed in session, so must be new
               }
               fileTimeNewerThanSessionTimeData
