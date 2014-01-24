@@ -319,9 +319,13 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
 
     }
 }
+
 /**
  * 'deployModified' action grabs all modified files and sends deploy() File-Based call
  *@param session - SFDC session
+ * Extra command line params:
+ * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
+ * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
  */
 class DeployModified(session: Session) extends MetadataAction(session: Session) {
     private val alwaysIncludeNames = Set("src", "package.xml")
@@ -365,89 +369,133 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             }
 
             if (canDeploy) {
-                //for every modified file add its -meta.xml if exists
-                val metaXmlFiles = for (file <- modifiedFiles;
-                                        metaXml = new File(file.getAbsolutePath + "-meta.xml")
-                                        if metaXml.exists()) yield metaXml
-
-                val allFilesToDeploySet = (modifiedFiles ++ metaXmlFiles).toSet
-                /*
-                //for debug purpose only, to check what is put in the archive
-                //get temp file name
-                val destZip = FileUtils.createTempFile("deploy", ".zip")
-                destZip.delete()
-
-                ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploySet, _))
-                */
-
-                val deployOptions = new DeployOptions()
-                deployOptions.setPerformRetrieve(false)
-                deployOptions.setAllowMissingFiles(true)
-                deployOptions.setRollbackOnError(true)
                 val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
-                deployOptions.setCheckOnly(checkOnly)
-                //deployOptions.setPerformRetrieve(true)
+                deploy(modifiedFiles, updateSessionDataOnSuccess = !checkOnly)
+            }
+        }
+    }
 
-                val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _) ), deployOptions)
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
+        //for every modified file add its -meta.xml if exists
+        val metaXmlFiles = for (file <- files;
+                                metaXml = new File(file.getAbsolutePath + "-meta.xml")
+                                if metaXml.exists()) yield metaXml
 
-                val deployDetails = deployResult.getDetails
-                if (!deployResult.isSuccess) {
-                    config.responseWriter.println("RESULT=FAILURE")
-                    if (null != deployDetails) {
-                        config.responseWriter.startSection("ERROR LIST")
-                        for ( failureMessage <- deployDetails.getComponentFailures) {
-                            val line = failureMessage.getLineNumber
-                            val column = failureMessage.getColumnNumber
-                            val filePath = failureMessage.getFileName
-                            val problem = failureMessage.getProblem
-                            config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                        }
-                        config.responseWriter.endSection("ERROR LIST")
-                    }
+        val allFilesToDeploySet = (files ++ metaXmlFiles).toSet
+        /*
+        //for debug purpose only, to check what is put in the archive
+        //get temp file name
+        val destZip = FileUtils.createTempFile("deploy", ".zip")
+        destZip.delete()
 
+        ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploySet, _))
+        */
 
-                } else {
-                    //update session data for successful files
-                    if (!checkOnly) {
-                        val calculateMD5 = config.useMD5Hash
-                        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+        val deployOptions = new DeployOptions()
+        deployOptions.setPerformRetrieve(false)
+        deployOptions.setAllowMissingFiles(true)
+        deployOptions.setRollbackOnError(true)
+        val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
+        deployOptions.setCheckOnly(checkOnly)
+        //deployOptions.setPerformRetrieve(true)
 
-                        for ( successMessage <- deployDetails.getComponentSuccesses) {
-                            val relativePath = successMessage.getFileName
-                            val key = session.getKeyByRelativeFilePath(relativePath)
-                            val f = new File(config.projectDir, relativePath)
-                            val localMills = f.lastModified()
+        val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _) ), deployOptions)
 
-                            val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
-                            val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
-
-                            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-                            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash:Long) = if (fMeta.canRead) {
-                                (   fMeta.lastModified(),
-                                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
-                                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
-                            } else {
-                                (-1L, "", -1L)
-                            }
-
-                            val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-                            val oldData = session.getData(key)
-                            session.setData(key, oldData ++ newData)
-                        }
-                    }
-                    session.storeSessionData()
-                    config.responseWriter.println("RESULT=SUCCESS")
-                    config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                    if (!checkOnly) {
-                        config.responseWriter.startSection("DEPLOYED FILES")
-                        modifiedFiles.foreach(f => config.responseWriter.println(f.getName))
-                        config.responseWriter.endSection("DEPLOYED FILES")
-                    }
+        val deployDetails = deployResult.getDetails
+        if (!deployResult.isSuccess) {
+            config.responseWriter.println("RESULT=FAILURE")
+            if (null != deployDetails) {
+                config.responseWriter.startSection("ERROR LIST")
+                for ( failureMessage <- deployDetails.getComponentFailures) {
+                    val line = failureMessage.getLineNumber
+                    val column = failureMessage.getColumnNumber
+                    val filePath = failureMessage.getFileName
+                    val problem = failureMessage.getProblem
+                    config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 }
+                config.responseWriter.endSection("ERROR LIST")
+            }
+
+
+        } else {
+            //update session data for successful files
+            if (updateSessionDataOnSuccess) {
+                val calculateMD5 = config.useMD5Hash
+                val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
+                for ( successMessage <- deployDetails.getComponentSuccesses) {
+                    val relativePath = successMessage.getFileName
+                    val key = session.getKeyByRelativeFilePath(relativePath)
+                    val f = new File(config.projectDir, relativePath)
+                    val localMills = f.lastModified()
+
+                    val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
+                    val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
+
+                    val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+                    val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash:Long) = if (fMeta.canRead) {
+                        (   fMeta.lastModified(),
+                            if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                            if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
+                    } else {
+                        (-1L, "", -1L)
+                    }
+
+                    val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+                    val oldData = session.getData(key)
+                    session.setData(key, oldData ++ newData)
+                }
+            }
+            session.storeSessionData()
+            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println("FILE_COUNT=" + files.size)
+            if (!checkOnly) {
+                config.responseWriter.startSection("DEPLOYED FILES")
+                files.foreach(f => config.responseWriter.println(f.getName))
+                config.responseWriter.endSection("DEPLOYED FILES")
             }
         }
     }
 }
+
+/**
+ * 'deployAll' action grabs all project files and sends deploy() File-Based call
+ *@param session - SFDC session
+ * Extra command line params:
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
+ */
+class DeployAll(session: Session) extends DeployModified(session: Session) {
+    override def act {
+        val allFiles = getAllFiles
+
+        val callingAnotherOrg = session.callingAnotherOrg
+        val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+        deploy(allFiles, updateSessionDataOnSuccess)
+
+
+    }
+
+    /**
+     * list locally modified files using data from session.properties
+     */
+    def getAllFiles:List[File] = {
+        val config = session.getConfig
+        //check if package.xml is modified
+        val packageXml = new MetaXml(config)
+        val packageXmlFile = packageXml.getPackageXml
+        //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
+
+        //logger.debug("packageXmlData=" + packageXmlData)
+        //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
+        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir).filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexSuffix(session, FileUtils.getExtension(file))
+        )).toSet
+
+        allFiles.toList
+    }
+}
+
 object DescribeMetadata {
     private var describeMetadataObjectMap:Map[String, DescribeMetadataObject] = Map()
 

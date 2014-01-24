@@ -49,7 +49,7 @@ class Session(config: Config) extends Logging {
     //private var connectionTooling:Option[ToolingConnection] = None //uncomment in reset()
 
     //when user wants to work with files from one org and deploy them in another org we can not use stored session
-    private val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
+    lazy val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
 
     def getConfig = config
 
