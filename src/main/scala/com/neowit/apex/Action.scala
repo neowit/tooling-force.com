@@ -36,13 +36,11 @@ import scala.collection.mutable
 
 class UnsupportedActionError(msg: String) extends Error(msg: String)
 
-/*
 class ActionError(msg: String) extends Error(msg: String) {
     val writer = Config.getConfig.responseWriter
     writer.println("RESULT=FAILURE")
     writer.println(msg)
 }
-*/
 
 object ActionFactory {
 
@@ -52,6 +50,7 @@ object ActionFactory {
             case "listmodified" => Some(new ListModified(session))
             case "deploymodified" => Some(new DeployModified(session))
             case "deployall" => Some(new DeployAll(session))
+            case "deployspecificfiles" => Some(new DeploySpecificFiles(session))
             case "listconflicts" => Some(new ListConflicting(session))
             case "describemetadata" => Some(new DescribeMetadata(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
@@ -215,17 +214,13 @@ class ListModified(session: Session) extends MetadataAction(session: Session) {
      */
     def getModifiedFiles:List[File] = {
         val config = session.getConfig
-        //check if package.xml is modified
-        val packageXml = new MetaXml(config)
-        val packageXmlFile = packageXml.getPackageXml
-        //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
 
         //logger.debug("packageXmlData=" + packageXmlData)
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
-        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir).filter(
+        val allFiles  = FileUtils.listFiles(config.srcDir).filter(
             //remove all non apex files
-            file => DescribeMetadata.isValidApexSuffix(session, FileUtils.getExtension(file))
-        )).toSet
+            file => DescribeMetadata.isValidApexFile(session, file)
+        ).toSet
 
         val modifiedFiles = allFiles.filter(session.isModified(_))
         modifiedFiles.toList
@@ -381,7 +376,14 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
                                 metaXml = new File(file.getAbsolutePath + "-meta.xml")
                                 if metaXml.exists()) yield metaXml
 
-        val allFilesToDeploySet = (files ++ metaXmlFiles).toSet
+        var allFilesToDeploySet = (files ++ metaXmlFiles).toSet
+
+        val packageXml = new MetaXml(config)
+        val packageXmlFile = packageXml.getPackageXml
+        if (!allFilesToDeploySet.contains(packageXmlFile)) {
+            //deployment always must contain packageXml file
+            allFilesToDeploySet += packageXmlFile
+        }
         /*
         //for debug purpose only, to check what is put in the archive
         //get temp file name
@@ -487,10 +489,63 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
 
         //logger.debug("packageXmlData=" + packageXmlData)
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
-        val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir).filter(
+        val allFiles  = FileUtils.listFiles(config.srcDir).filter(
             //remove all non apex files
-            file => DescribeMetadata.isValidApexSuffix(session, FileUtils.getExtension(file))
-        )).toSet
+            file => DescribeMetadata.isValidApexFile(session, file)
+        ).toSet
+
+        allFiles.toList
+    }
+}
+
+/**
+ * 'deploySpecificFiles' action uses file list specified in a file and sends deploy() File-Based call
+ *@param session - SFDC session
+ * Extra command line params:
+ * --specificFiles=/path/to/file with file list
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
+ */
+class DeploySpecificFiles(session: Session) extends DeployModified(session: Session) {
+    override def act {
+        val allFiles = getFiles
+        if (allFiles.isEmpty) {
+            config.responseWriter.println("RESULT=FAILURE")
+            val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+            responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
+        } else {
+
+            val callingAnotherOrg = session.callingAnotherOrg
+            val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+            deploy(allFiles, updateSessionDataOnSuccess)
+        }
+
+
+    }
+
+    /**
+     * list locally modified files using data from session.properties
+     */
+    def getFiles:List[File] = {
+        val config = session.getConfig
+
+        //logger.debug("packageXmlData=" + packageXmlData)
+        val projectDir = config.projectDir
+
+        //load file list from specified file
+        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        val files:List[File] = scala.io.Source.fromFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
+
+        //for each file check that it exists
+        files.find(!_.canRead) match {
+          case Some(f) =>
+              throw new ActionError("Can not read file: " + f.getAbsolutePath)
+          case None =>
+        }
+
+        val allFiles  = files.filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexFile(session, file)
+        ).toSet
 
         allFiles.toList
     }
@@ -529,11 +584,14 @@ object DescribeMetadata {
         }
         xmlNameBySuffix.get(suffix)
     }
-    def isValidApexSuffix(session: Session, suffix: String): Boolean = {
-       getXmlNameBySuffix(session, suffix) match {
-         case Some(x) => true
-         case None => false
-       }
+    def isValidApexFile(session: Session, file: File): Boolean = {
+       if ("package.xml" == file.getName)
+           true
+       else
+           getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
+               case Some(x) => true
+               case None => false
+           }
     }
 }
 class DescribeMetadata(session: Session) extends MetadataAction(session: Session) {
