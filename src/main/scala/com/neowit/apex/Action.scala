@@ -331,6 +331,26 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
         exclude
     }
 
+    protected def hasConflicts(files: List[File]): Boolean = {
+        logger.info("Check Conflicts with Remote")
+        val checker = new ListConflicting(session)
+        checker.getFilesNewerOnRemote(files) match {
+            case Some(conflictingFiles) =>
+                if (!conflictingFiles.isEmpty) {
+                    config.responseWriter.println("RESULT=FAILURE")
+
+                    val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
+                    config.responseWriter.println(msg)
+                    conflictingFiles.foreach{
+                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
+                    }
+                    config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
+                }
+                !conflictingFiles.isEmpty
+            case None => false
+        }
+    }
+
     def act {
         val modifiedFiles = new ListModified(session).getModifiedFiles
         if (modifiedFiles.isEmpty) {
@@ -341,27 +361,7 @@ class DeployModified(session: Session) extends MetadataAction(session: Session) 
             //first check if SFDC has newer version of files we are about to deploy
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
 
-            val checker = new ListConflicting(session)
-            val canDeploy = ignoreConflicts match {
-                case false =>
-                    logger.info("Check Conflicts with Remote")
-                    checker.getFilesNewerOnRemote(modifiedFiles) match {
-                    case Some(files) =>
-                        if (!files.isEmpty) {
-                            config.responseWriter.println("RESULT=FAILURE")
-
-                            val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
-                            config.responseWriter.println(msg)
-                            files.foreach{
-                                f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
-                            }
-                            config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
-                        }
-                        files.isEmpty
-                    case None => false
-                }
-                case true => true //OK to deploy without conflict checking
-            }
+            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles)
 
             if (canDeploy) {
                 val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
@@ -507,16 +507,22 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
  */
 class DeploySpecificFiles(session: Session) extends DeployModified(session: Session) {
     override def act {
-        val allFiles = getFiles
-        if (allFiles.isEmpty) {
+        val files = getFiles
+        if (files.isEmpty) {
             config.responseWriter.println("RESULT=FAILURE")
             val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
             responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
         } else {
 
-            val callingAnotherOrg = session.callingAnotherOrg
-            val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
-            deploy(allFiles, updateSessionDataOnSuccess)
+            //first check if SFDC has newer version of files we are about to deploy
+            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+
+            val canDeploy = ignoreConflicts || !hasConflicts(files)
+            if (canDeploy) {
+                val callingAnotherOrg = session.callingAnotherOrg
+                val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+                deploy(files, updateSessionDataOnSuccess)
+            }
         }
 
 
