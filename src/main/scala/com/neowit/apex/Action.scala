@@ -612,13 +612,13 @@ class DescribeMetadata(session: Session) extends MetadataAction(session: Session
                 case Some(json) =>
                     val data = json.asInstanceOf[JSONObject].obj
                     val descrObj = new DescribeMetadataObject()
-                    descrObj.setDirectoryName(data.getOrElse("DirectoryName", "").asInstanceOf[String])
+                    descrObj.setDirectoryName(data.getOrElse("DirName", "").asInstanceOf[String])
                     descrObj.setInFolder(data.getOrElse("InFolder", false).asInstanceOf[Boolean])
-                    descrObj.setMetaFile(data.getOrElse("MetaFile", false).asInstanceOf[Boolean])
+                    descrObj.setMetaFile(data.getOrElse("HasMetaFile", false).asInstanceOf[Boolean])
                     descrObj.setSuffix(data.getOrElse("Suffix", "").asInstanceOf[String])
-                    val xmlName = data.getOrElse("XmlName", "").asInstanceOf[String]
+                    val xmlName = data.getOrElse("XMLName", "").asInstanceOf[String]
                     descrObj.setXmlName(xmlName)
-                    val xmlNames = data.getOrElse("ChildXmlNames", new JSONArray(List())).asInstanceOf[JSONArray]
+                    val xmlNames = data.getOrElse("ChildObjects", new JSONArray(List())).asInstanceOf[JSONArray]
                     descrObj.setChildXmlNames(xmlNames.list.asInstanceOf[List[String]].toArray)
 
                     describeMetadataObjectMap += xmlName -> descrObj
@@ -646,18 +646,28 @@ class DescribeMetadata(session: Session) extends MetadataAction(session: Session
                     describeMetadataObjectMap.get(xmlName) match {
                         case Some(_describeObject) =>
                             val data = Map(
-                                "ChildXmlNames" -> JSONArray(_describeObject.getChildXmlNames.toList),
-                                "DirectoryName" -> _describeObject.getDirectoryName,
+                                "ChildObjects" -> JSONArray(_describeObject.getChildXmlNames.toList),
+                                "DirName" -> _describeObject.getDirectoryName,
                                 "InFolder" -> _describeObject.isInFolder,
-                                "MetaFile" -> _describeObject.getMetaFile,
-                                "Suffix" -> _describeObject.getSuffix,
-                                "XmlName" -> _describeObject.getXmlName
+                                "HasMetaFile" -> _describeObject.getMetaFile,
+                                "Suffix" -> (if (null != _describeObject.getSuffix) _describeObject.getSuffix else "\"\""),
+                                "XMLName" -> _describeObject.getXmlName
                             )
                             linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
                         case None =>
                     }
                 }
                 storeDescribeResult(config.storedDescribeMetadataResultFile, linesBuf.iterator)
+                //check if user requested alternative response location
+                config.getProperty("allMetaTypesFilePath") match {
+                  case Some(allMetaTypesFilePath) =>
+                      val userDefinedFile = new File(allMetaTypesFilePath)
+                      if (userDefinedFile != config.storedDescribeMetadataResultFile) {
+                          storeDescribeResult(userDefinedFile, linesBuf.iterator)
+
+                      }
+                  case None => //no action required
+                }
 
                 describeMetadataObjectMap
             case Failure(throwed) => throw throwed
@@ -666,6 +676,9 @@ class DescribeMetadata(session: Session) extends MetadataAction(session: Session
 
     def act {
         //load from SFDC and dump to local file
-        loadFromRemote
+        val resMap = loadFromRemote
+        responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("RESULT_FILE=" + config.storedDescribeMetadataResultFile.getAbsolutePath)
+        responseWriter.println("FILE_COUNT=" + resMap.size)
     }
 }

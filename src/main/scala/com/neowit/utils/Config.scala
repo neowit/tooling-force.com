@@ -190,7 +190,7 @@ class Config extends Logging{
      * Local copy of Describe Metadata result
      */
     lazy val storedDescribeMetadataResultFile:File  = {
-        val file = new File(sessionFolder, "describeMetadata.txt")
+        val file = new File(sessionFolder, "describeMetadata-result.js")
         if (!file.exists) {
             file.createNewFile()
         }
