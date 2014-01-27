@@ -53,6 +53,7 @@ object ActionFactory {
             case "deployspecificfiles" => Some(new DeploySpecificFiles(session))
             case "listconflicts" => Some(new ListConflicting(session))
             case "describemetadata" => Some(new DescribeMetadata(session))
+            case "bulkretrieve" => Some(new BulkRetrieve(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
     }
@@ -116,6 +117,52 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
     private def isMissingFileError(message: RetrieveMessage): Boolean = {
         message.getProblem.matches("""In field: specific ids - no .* named .* found""")
     }
+
+    /**
+     * using ZIP file produced, for example, as a result of Retrieve operation
+     * extract content and generate response file
+     */
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File): Int = {
+
+        //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
+        //extract in temp area first
+        val resultsFile = FileUtils.createTempFile("retrieveResult", ".zip")
+        val out = new FileOutputStream(resultsFile)
+        try {
+            out.write(retrieveResult.getZipFile)
+        } finally {
+            out.close()
+        }
+        val calculateMD5 = config.useMD5Hash
+        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
+        val propertyByFilePath = new collection.mutable.HashMap[String,  com.sforce.soap.metadata.FileProperties]()
+        try {
+            val localDateAndHashByFName = ZipUtils.extract(resultsFile, tempFolder, calculateMd5 = calculateMD5, calculateCRC32 = calculateCRC32)
+            //update session with file properties
+            for (fileProp <- retrieveResult.getFileProperties) {
+                val key = MetadataType.getKey(fileProp)
+                val (lastModifiedLocally, md5Hash, crc32Hash) = localDateAndHashByFName(fileProp.getFileName)
+                //check if we have -meta.xml data
+                val metaFileName = fileProp.getFileName + "-meta.xml"
+                val (metaLastModifiedLocally:Long, metaMD5Hash: String, metaCRC32Hash: Long) =
+                    if (localDateAndHashByFName.contains(metaFileName)) {
+                        localDateAndHashByFName(metaFileName)
+                    } else {
+                        (-1L, "", -1L)
+                    }
+
+                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
+                session.setData(key, valueMap)
+
+                propertyByFilePath.put(fileProp.getFileName, fileProp)
+            }
+        } finally {
+            session.storeSessionData()
+            resultsFile.delete()
+        }
+        propertyByFilePath.size
+    }
 }
 
 /**
@@ -163,48 +210,12 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
      * extract content and generate response file
      */
     def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult) {
-
-        //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
-        //extract in temp area first
-        val resultsFile = FileUtils.createTempFile("retrieveResult", ".zip")
-        val out = new FileOutputStream(resultsFile)
-        try {
-            out.write(retrieveResult.getZipFile)
-        } finally {
-            out.close()
-        }
-        val calculateMD5 = config.useMD5Hash
-        val calculateCRC32 = !calculateMD5  //by default use only CRC32
-
         val tempFolder = FileUtils.createTempDir(config)
-        val propertyByFilePath = new collection.mutable.HashMap[String,  com.sforce.soap.metadata.FileProperties]()
-        try {
-            val localDateAndHashByFName = ZipUtils.extract(resultsFile, tempFolder, calculateMd5 = calculateMD5, calculateCRC32 = calculateCRC32)
-            //update session with file properties
-            for (fileProp <- retrieveResult.getFileProperties) {
-                val key = MetadataType.getKey(fileProp)
-                val (lastModifiedLocally, md5Hash, crc32Hash) = localDateAndHashByFName(fileProp.getFileName)
-                //check if we have -meta.xml data
-                val metaFileName = fileProp.getFileName + "-meta.xml"
-                val (metaLastModifiedLocally:Long, metaMD5Hash: String, metaCRC32Hash: Long) =
-                    if (localDateAndHashByFName.contains(metaFileName)) {
-                        localDateAndHashByFName(metaFileName)
-                    } else {
-                        (-1L, "", -1L)
-                    }
+        val fileCount = updateFromRetrieve(retrieveResult, tempFolder)
 
-                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
-                session.setData(key, valueMap)
-
-                propertyByFilePath.put(fileProp.getFileName, fileProp)
-            }
-        } finally {
-            session.storeSessionData()
-            resultsFile.delete()
-        }
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-        config.responseWriter.println("FILE_COUNT=" + propertyByFilePath.size)
+        config.responseWriter.println("FILE_COUNT=" + fileCount)
     }
 }
 
@@ -600,6 +611,13 @@ object DescribeMetadata {
            }
     }
 }
+
+/**
+ * 'decribeMetadata' action saves result of describeMetadata call in JSON format
+ *@param session - SFDC session
+ * Extra command line params:
+ * --allMetaTypesFilePath - path to file where results shall be saved
+ */
 class DescribeMetadata(session: Session) extends MetadataAction(session: Session) {
 
     def loadFromFile: Map[String, DescribeMetadataObject] = {
@@ -680,5 +698,111 @@ class DescribeMetadata(session: Session) extends MetadataAction(session: Session
         responseWriter.println("RESULT=SUCCESS")
         responseWriter.println("RESULT_FILE=" + config.storedDescribeMetadataResultFile.getAbsolutePath)
         responseWriter.println("FILE_COUNT=" + resMap.size)
+    }
+}
+
+
+/**
+ * 'bulkRetrieve' action uses type list specified in a file and sends retrieve() call for each type
+ *@param session - SFDC session
+ * Extra command line params:
+ * --specificTypes=/path/to/file with file list
+ * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
+ */
+class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) {
+    //some types require special treatment and need other object types included in the package in order to return meaningful result
+    private val complexTypes = Map("Profile" -> Set("CustomObject"), "PermissionSet" -> Set("CustomObject"))
+    /**
+     * retrieve single type and its members
+     * @param metadataTypeName
+     */
+    def retrieveOne(metadataTypeName: String, members: List[String]): RetrieveResult = {
+        val retrieveRequest = new RetrieveRequest()
+        retrieveRequest.setApiVersion(config.apiVersion)
+        retrieveRequest.setSinglePackage(true)
+
+        val metaXml = new MetaXml(session.getConfig)
+        val typesMap = complexTypes.get(metadataTypeName)  match {
+          case Some(extraTypeNames) =>
+              //special treatment for types like Profile, PermissionSet
+              val resMap = mutable.HashMap(metadataTypeName -> members)
+              for(typeName <- extraTypeNames) {
+                  resMap += typeName -> members
+              }
+              resMap.toMap
+          case None => Map(metadataTypeName -> members)
+        }
+        val unpackagedManifest = metaXml.createPackage(config.apiVersion, typesMap)
+
+        retrieveRequest.setUnpackaged(unpackagedManifest)
+
+        val retrieveResult = session.retrieve(retrieveRequest)
+        retrieveResult.getMessages match {
+            case messages if null != messages && !messages.isEmpty=>
+                //check if there are errors
+                throw new RetrieveError(retrieveResult)
+            case _ =>
+        }
+        retrieveResult
+
+    }
+
+    def act {
+        val tempFolder = FileUtils.createTempDir(config)
+
+        //load file list from specified file
+        val typesFile = new File(config.getRequiredProperty("specificTypes").get)
+        val metadataByXmlName = DescribeMetadata.getMap(session)
+
+        var fileCountByType = Map[String, Int]()
+        var errors = List[ResponseWriter.Message]()
+        for (line <- scala.io.Source.fromFile(typesFile).getLines()) {
+            //JSON.parseFull(line)
+            JSON.parseRaw(line)  match {
+                case Some(json) =>
+                    val data = json.asInstanceOf[JSONObject].obj
+                    val typeName = data("XMLName").asInstanceOf[String]
+                    val members = data("members").asInstanceOf[JSONArray]
+                    logger.trace("Loading type: " + typeName)
+                    Try(retrieveOne(typeName, members.list.asInstanceOf[List[String]])) match {
+                        case Success(retrieveResult) =>
+                            val realFileCount = updateFromRetrieve(retrieveResult, tempFolder) - 1 //-1 because no need to count package.xml
+                            val fileCount = metadataByXmlName.get(typeName) match {
+                              case Some(describeMetadataObject) =>
+                                  //ignore -meta.xml in file count
+                                  if (describeMetadataObject.isMetaFile)
+                                      realFileCount / 2
+                                  else
+                                      realFileCount
+                              case None => 0
+                            }
+                            fileCountByType += typeName -> fileCount
+                        case Failure(err) =>
+                            err match {
+                                case e: RetrieveError =>
+                                    err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                        case messages if null != messages && !messages.isEmpty=>
+                                            for(msg <- messages) {
+                                                errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
+                                            }
+                                        case _ =>
+                                    }
+                                case _ => throw err
+                            }
+                    }
+
+                case None =>
+                    errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: " + line)
+            }
+
+        }
+        if (errors.isEmpty) {
+            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
+            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))
+        } else {
+            config.responseWriter.println("RESULT=FAILURE")
+            errors.foreach(responseWriter.println(_))
+        }
     }
 }

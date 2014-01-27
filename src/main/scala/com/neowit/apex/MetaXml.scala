@@ -69,4 +69,25 @@ class MetaXml(config: Config) {
         }
     }
 
+    def createPackage(apiVersion: Double, typesMap: Map[String, List[String]]): com.sforce.soap.metadata.Package = {
+        val _package = new com.sforce.soap.metadata.Package()
+        _package.setVersion(apiVersion.toString)
+        val members = for (typeName <- typesMap.keys) yield {
+            val ptm = new PackageTypeMembers()
+            ptm.setName(typeName)
+            //* or individual object names
+            val objNames = typesMap.getOrElse(typeName, Nil) match {
+                case Nil =>
+                    List[String]("*").toArray
+              case _objNames =>
+                  _objNames.toArray
+            }
+
+            ptm.setMembers(objNames)
+            ptm
+        }
+        _package.setTypes(members.toArray)
+        _package
+    }
+
 }
