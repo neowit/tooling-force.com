@@ -716,21 +716,27 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
      * retrieve single type and its members
      * @param metadataTypeName
      */
-    def retrieveOne(metadataTypeName: String, members: List[String]): RetrieveResult = {
+    def retrieveOne(metadataTypeName: String, membersByXmlName: Map[String, List[String]]): RetrieveResult = {
+        val members = membersByXmlName(metadataTypeName)
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
         retrieveRequest.setSinglePackage(true)
 
         val metaXml = new MetaXml(session.getConfig)
         val typesMap = complexTypes.get(metadataTypeName)  match {
-          case Some(extraTypeNames) =>
-              //special treatment for types like Profile, PermissionSet
-              val resMap = mutable.HashMap(metadataTypeName -> members)
-              for(typeName <- extraTypeNames) {
-                  resMap += typeName -> members
-              }
-              resMap.toMap
-          case None => Map(metadataTypeName -> members)
+            case Some(extraTypeNames) =>
+                //special treatment for types like Profile, PermissionSet
+                val resMap = mutable.HashMap(metadataTypeName -> members)
+                //add specified members of extra type, e.g. if main type is Profile then secondary type = CustomObject
+                for(secondaryTypeName <- extraTypeNames) {
+                    val extraMembers = membersByXmlName.get(secondaryTypeName) match {
+                        case Some(_members) => _members
+                        case None => List("*") //user did not specify members of secondary type, assume all
+                    }
+                    resMap += secondaryTypeName -> extraMembers
+                }
+                resMap.toMap
+            case None => Map(metadataTypeName -> members)
         }
         val unpackagedManifest = metaXml.createPackage(config.apiVersion, typesMap)
 
@@ -744,7 +750,6 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
             case _ =>
         }
         retrieveResult
-
     }
 
     def act {
@@ -756,47 +761,53 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
 
         var fileCountByType = Map[String, Int]()
         var errors = List[ResponseWriter.Message]()
+        var membersByXmlName = new mutable.HashMap[String, List[String]]()
         for (line <- scala.io.Source.fromFile(typesFile).getLines()) {
-            //JSON.parseFull(line)
             JSON.parseRaw(line)  match {
                 case Some(json) =>
                     val data = json.asInstanceOf[JSONObject].obj
                     val typeName = data("XMLName").asInstanceOf[String]
-                    val members = data("members").asInstanceOf[JSONArray]
-                    logger.trace("Loading type: " + typeName)
-                    Try(retrieveOne(typeName, members.list.asInstanceOf[List[String]])) match {
-                        case Success(retrieveResult) =>
-                            val realFileCount = updateFromRetrieve(retrieveResult, tempFolder) - 1 //-1 because no need to count package.xml
-                            val fileCount = metadataByXmlName.get(typeName) match {
-                              case Some(describeMetadataObject) =>
-                                  //ignore -meta.xml in file count
-                                  if (describeMetadataObject.isMetaFile)
-                                      realFileCount / 2
-                                  else
-                                      realFileCount
-                              case None => 0
-                            }
-                            fileCountByType += typeName -> fileCount
-                        case Failure(err) =>
-                            err match {
-                                case e: RetrieveError =>
-                                    err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                                        case messages if null != messages && !messages.isEmpty=>
-                                            for(msg <- messages) {
-                                                errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
-                                            }
-                                        case _ =>
-                                    }
-                                case _ => throw err
-                            }
-                    }
+                    val members = data("members").asInstanceOf[JSONArray].list.asInstanceOf[List[String]]
+                    membersByXmlName += typeName -> members
 
                 case None =>
                     errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: " + line)
             }
-
         }
+
         if (errors.isEmpty) {
+            val membersByXmlNameMap = membersByXmlName.toMap
+
+            for (typeName <- membersByXmlNameMap.keySet) {
+                Try(retrieveOne(typeName, membersByXmlNameMap)) match {
+                    case Success(retrieveResult) =>
+                        val realFileCount = updateFromRetrieve(retrieveResult, tempFolder) - 1 //-1 because no need to count package.xml
+                    val fileCount = metadataByXmlName.get(typeName) match {
+                            case Some(describeMetadataObject) =>
+                                //ignore -meta.xml in file count
+                                if (describeMetadataObject.isMetaFile)
+                                    realFileCount / 2
+                                else
+                                    realFileCount
+                            case None => 0
+                        }
+                        fileCountByType += typeName -> fileCount
+                    case Failure(err) =>
+                        err match {
+                            case e: RetrieveError =>
+                                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                    case messages if null != messages && !messages.isEmpty=>
+                                        for(msg <- messages) {
+                                            errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
+                                        }
+                                    case _ =>
+                                }
+                            case _ => throw err
+                        }
+                }
+
+            }
+
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
             config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))
@@ -804,5 +815,6 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
             config.responseWriter.println("RESULT=FAILURE")
             errors.foreach(responseWriter.println(_))
         }
+
     }
 }
