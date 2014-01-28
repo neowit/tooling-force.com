@@ -54,12 +54,14 @@ object ActionFactory {
             case "listconflicts" => Some(new ListConflicting(session))
             case "describemetadata" => Some(new DescribeMetadata(session))
             case "bulkretrieve" => Some(new BulkRetrieve(session))
+            case "listmetadata" => Some(new ListMetadata(session))
             case _ => throw new UnsupportedActionError(name + " is not supported")
         }
     }
 }
 trait Action extends Logging {
     def act
+    //TODO def help //return formatted help for given action
 
 }
 trait AsyncAction extends Action {
@@ -816,5 +818,67 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
             errors.foreach(responseWriter.println(_))
         }
 
+    }
+}
+
+/**
+ * 'listMetadata' action uses type list specified in a file and sends listMetadata() call for specified types
+ *@param session - SFDC session
+ * Extra command line params:
+ * --specificTypes=/path/to/file with file list
+ */
+class ListMetadata(session: Session) extends MetadataAction(session: Session) {
+    def act: Unit = {
+
+        val metadataByXmlName = DescribeMetadata.getMap(session)
+        //load file list from specified file
+        val queries = new mutable.ArrayBuffer[ListMetadataQuery]()
+        val typesFile = new File(config.getRequiredProperty("specificTypes").get)
+        for (typeName <- scala.io.Source.fromFile(typesFile).getLines()) {
+            metadataByXmlName.get(typeName)  match {
+              case Some(describeObject) =>
+                  val query = new ListMetadataQuery()
+                  query.setType(typeName)
+                  queries += query
+                  //query.setFolder(describeObject.get)
+              case None => throw new Error("Invalid type: " + typeName)
+            }
+
+        }
+
+        def addToMap(originalMap: Map[String, List[String]], key: String, value: String): Map[String, List[String]] = {
+            originalMap.get(key)  match {
+              case Some(list) =>
+                  val newList: List[String] = value :: list
+                  originalMap ++ Map(key -> newList)
+              case None => originalMap ++ Map(key -> List(value))
+            }
+        }
+
+        var resourcesByXmlTypeName = Map[String, List[String]]()
+        Try(session.listMetadata(queries.toArray, config.apiVersion)) match {
+            case Success(fileProperties) =>
+                for (fileProp <- fileProperties) {
+                    val typeName = fileProp.getType
+                    val resourceName = fileProp.getFullName
+                    resourcesByXmlTypeName = addToMap(resourcesByXmlTypeName, typeName, resourceName)
+                }
+            case Failure(error) => throw error
+        }
+
+        config.responseWriter.println("RESULT=SUCCESS")
+        if (!resourcesByXmlTypeName.isEmpty) {
+            //dump results to JSON file, with each line looking like this
+            //{"CustomTab" : ["Account_Edit", "My_Object__c"]}
+
+            val tempFile = FileUtils.createTempFile("listMetadata", ".js")
+            val writer = new PrintWriter(tempFile)
+            resourcesByXmlTypeName.foreach{case (key: String, values: List[String]) =>
+                val line = JSONObject(Map(key -> JSONArray(values))).toString(ResponseWriter.defaultFormatter)
+                writer.println(line)
+            }
+            writer.close()
+            config.responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
+        }
     }
 }

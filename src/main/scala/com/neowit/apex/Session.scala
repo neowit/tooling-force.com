@@ -242,6 +242,14 @@ class Session(config: Config) extends Logging {
         describeResult
     }
 
+    def listMetadata(queries: Array[ListMetadataQuery], apiVersion: Double ):Array[FileProperties] = {
+        val fileProperties = withRetry {
+            val conn = getMetadataConnection
+            conn.listMetadata(queries, apiVersion)
+        }.asInstanceOf[Array[FileProperties]]
+        fileProperties
+    }
+
     private var describeMetadataObjectByXmlName: Option[Map[String, DescribeMetadataObject]] = None
     private var knownSuffixes: Option[Set[String]] = None
 
