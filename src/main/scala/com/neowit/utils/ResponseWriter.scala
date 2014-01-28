@@ -69,7 +69,10 @@ object ResponseWriter {
     val defaultFormatter : ValueFormatter = (x : Any) => x match {
         case s : String => "\"" + escapeString(s) + "\""
         case jo : JSONObject => jo.toString(defaultFormatter)
-        case ja : JSONArray => ja.toString(defaultFormatter)
+        case ja : JSONArray =>
+            val res = ja.toString(defaultFormatter)
+            //sometimes scala adds comma at the end of the array, make sure it does not happen
+            res.replace(", ]", "]")
         case other if null != other => other.toString
         case other => "" //all unhandled cases, like null, etc
     }
