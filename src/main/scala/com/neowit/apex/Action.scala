@@ -876,9 +876,13 @@ class ListMetadata(session: Session) extends MetadataAction(session: Session) {
 
             val tempFile = FileUtils.createTempFile("listMetadata", ".js")
             val writer = new PrintWriter(tempFile)
-            resourcesByXmlTypeName.foreach{case (key: String, values: List[String]) =>
-                val line = JSONObject(Map(key -> JSONArray(values))).toString(ResponseWriter.defaultFormatter)
-                writer.println(line)
+            resourcesByXmlTypeName.foreach{
+                case (k, v: List[String]) if k == null =>
+                    logger.trace("key is null for v=" + v)
+                case (key: String, values: List[String]) =>
+                    logger.trace("key=" + key)
+                    val line = JSONObject(Map(key -> JSONArray(values))).toString(ResponseWriter.defaultFormatter)
+                    writer.println(line)
             }
             writer.close()
             config.responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
