@@ -243,9 +243,24 @@ class Session(config: Config) extends Logging {
     }
 
     def listMetadata(queries: Array[ListMetadataQuery], apiVersion: Double ):Array[FileProperties] = {
+        //sfdc allows only 3 queries per call, so have to micro batch calls
+        def microBatch(queriesBatch: Array[ListMetadataQuery], conn: MetadataConnection,
+                       propsSoFar: Array[FileProperties]):Array[FileProperties] = {
+            queriesBatch match  {
+                case Array() => //end of query list, return result
+                    propsSoFar
+                case Array(_, _*) =>
+                    val _queries = queriesBatch.take(3)
+                    val props = conn.listMetadata(_queries, apiVersion)
+                    microBatch(queriesBatch.drop(3), conn, props ++ propsSoFar)
+
+            }
+
+        }
         val fileProperties = withRetry {
             val conn = getMetadataConnection
-            conn.listMetadata(queries, apiVersion)
+            //conn.listMetadata(queries, apiVersion)
+            microBatch(queries, conn, Array[FileProperties]())
         }.asInstanceOf[Array[FileProperties]]
         fileProperties
     }
