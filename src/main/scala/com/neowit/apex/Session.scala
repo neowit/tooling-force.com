@@ -251,8 +251,13 @@ class Session(config: Config) extends Logging {
                     propsSoFar
                 case Array(_, _*) =>
                     val _queries = queriesBatch.take(3)
+                    logger.trace("About to process " + _queries.map(_.getType).mkString("; "))
                     val props = conn.listMetadata(_queries, apiVersion)
-                    microBatch(queriesBatch.drop(3), conn, props ++ propsSoFar)
+                    //sometimes SFDC returns props with fullname = "_Default" and type = null
+                    //exclude those
+                    val propsFiltered = props.filter(_.getType != null)
+                    logger.trace("Props: " + propsFiltered.map(_.getType).mkString("; "))
+                    microBatch(queriesBatch.drop(3), conn, propsFiltered ++ propsSoFar)
 
             }
 
