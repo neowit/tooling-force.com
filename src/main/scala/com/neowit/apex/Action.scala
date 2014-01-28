@@ -643,6 +643,7 @@ class DescribeMetadata(session: Session) extends MetadataAction(session: Session
 
                     describeMetadataObjectMap += xmlName -> descrObj
                 case None =>
+                    logger.error("Failed to parse line: \n" + line)
             }
 
         }
