@@ -835,13 +835,15 @@ class ListMetadata(session: Session) extends MetadataAction(session: Session) {
         val queries = new mutable.ArrayBuffer[ListMetadataQuery]()
         val typesFile = new File(config.getRequiredProperty("specificTypes").get)
         for (typeName <- scala.io.Source.fromFile(typesFile).getLines()) {
-            metadataByXmlName.get(typeName)  match {
-              case Some(describeObject) =>
-                  val query = new ListMetadataQuery()
-                  query.setType(typeName)
-                  queries += query
-                  //query.setFolder(describeObject.get)
-              case None => throw new Error("Invalid type: " + typeName)
+            if (!typeName.isEmpty) {
+                metadataByXmlName.get(typeName)  match {
+                    case Some(describeObject) =>
+                        val query = new ListMetadataQuery()
+                        query.setType(typeName)
+                        queries += query
+                    //query.setFolder(describeObject.get)
+                    case None => throw new Error("Invalid type: " + typeName)
+                }
             }
 
         }
