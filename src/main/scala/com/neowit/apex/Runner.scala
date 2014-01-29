@@ -36,6 +36,12 @@ object Runner extends Logging {
                 case ex: InvalidCommandLineException => appConfig.help()
                 case ex: MissingRequiredConfigParameterException =>
                     logger.error(ex.getMessage)
+                case e: RetrieveError =>
+                    val messages = e.retrieveResult.getMessages
+                    appConfig.responseWriter.println("RESULT=FAILURE")
+                    for(msg <- messages) {
+                        appConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
+                    }
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)

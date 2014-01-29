@@ -301,15 +301,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
               Some(res.toList)
 
           case Failure(err) =>
-              err match {
-                  case e: RetrieveError =>
-                      val messages = err.asInstanceOf[RetrieveError].retrieveResult.getMessages
-                      config.responseWriter.println("RESULT=FAILURE")
-                      for(msg <- messages) {
-                          config.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
-                      }
-                      None
-                  case _ => throw err
+                    throw err
               }
         }
 
