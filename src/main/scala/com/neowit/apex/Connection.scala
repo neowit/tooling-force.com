@@ -110,5 +110,35 @@ object Connection extends Logging {
         metadataConnection
     }
 
+    /**
+     * create brand new connection
+     * @param appConfig
+     * @return
+     */
+    def createToolingConnection(appConfig: Config):com.sforce.soap.tooling.SoapConnection = {
+        logger.debug("Creating NEW Tooling Connection")
+        val partnerConnection = createPartnerConnection(appConfig)
+        getToolingConnection(appConfig, partnerConnection)
+    }
+
+    /**
+     * initialise tooling Connection based on existing PartnerConnection
+     * @param appConfig
+     * @param partnerConnection
+     * @return
+     */
+    def getToolingConnection(appConfig: Config,
+                              partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.tooling.SoapConnection = {
+        val partnerConnectionConfig = partnerConnection.getConfig
+
+        val connectionConfig = getConnectionConfig(appConfig)
+        //Metadata api can not connect on its own (something is wrong with the jar which wsc generates)
+        //having to use a workaround - connect via SOAP and then use obtained session for metadata connection
+        connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
+        connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
+
+        val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(connectionConfig)
+        toolingConnection
+    }
 }
 

@@ -22,6 +22,7 @@ package com.neowit.apex
 import com.neowit.utils.{FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
+import com.sforce.soap.tooling._
 
 import scala.concurrent._
 import scala.Some
@@ -46,7 +47,7 @@ class Session(config: Config) extends Logging {
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
-    //private var connectionTooling:Option[ToolingConnection] = None //uncomment in reset()
+    private var connectionTooling:Option[SoapConnection] = None
 
     //when user wants to work with files from one org and deploy them in another org we can not use stored session
     lazy val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
@@ -183,6 +184,15 @@ class Session(config: Config) extends Logging {
         conn
     }
 
+    private def getToolingConnection: SoapConnection = {
+        val conn = connectionTooling match {
+            case Some(connection) => connection
+            case None => Connection.getToolingConnection(config, getPartnerConnection)
+        }
+        connectionTooling = Some(conn)
+        conn
+    }
+
     def withRetry(codeBlock: => Any) = {
         try {
             codeBlock
@@ -203,7 +213,7 @@ class Session(config: Config) extends Logging {
         storeSessionData()
         connectionPartner = None
         connectionMetadata = None
-        //connectionTooling = None
+        connectionTooling = None
     }
 
     def getServerTimestamp = {
@@ -270,9 +280,14 @@ class Session(config: Config) extends Logging {
         fileProperties
     }
 
-    private var describeMetadataObjectByXmlName: Option[Map[String, DescribeMetadataObject]] = None
-    private var knownSuffixes: Option[Set[String]] = None
 
+    def executeAnonymous(apexCode: String ):ExecuteAnonymousResult = {
+        val executeAnonymousResult = withRetry {
+            val conn = getToolingConnection
+            conn.executeAnonymous(apexCode)
+        }.asInstanceOf[ExecuteAnonymousResult]
+        executeAnonymousResult
+    }
 
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
