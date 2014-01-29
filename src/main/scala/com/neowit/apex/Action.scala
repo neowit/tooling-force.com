@@ -124,7 +124,7 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File): Int = {
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File): Map[String, FileProperties] = {
 
         //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
         //extract in temp area first
@@ -163,7 +163,7 @@ abstract class RetrieveMetadata(session: Session) extends MetadataAction(session
             session.storeSessionData()
             resultsFile.delete()
         }
-        propertyByFilePath.size
+        propertyByFilePath.toMap
     }
 }
 
@@ -213,11 +213,11 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
      */
     def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult) {
         val tempFolder = FileUtils.createTempDir(config)
-        val fileCount = updateFromRetrieve(retrieveResult, tempFolder)
+        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-        config.responseWriter.println("FILE_COUNT=" + fileCount)
+        config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml").size)
     }
 }
 
@@ -720,6 +720,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
      * @param metadataTypeName
      */
     def retrieveOne(metadataTypeName: String, membersByXmlName: Map[String, List[String]]): RetrieveResult = {
+        logger.info("retrieve: " + metadataTypeName)
         val members = membersByXmlName(metadataTypeName)
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
@@ -784,16 +785,8 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
-                        val realFileCount = updateFromRetrieve(retrieveResult, tempFolder) - 1 //-1 because no need to count package.xml
-                    val fileCount = metadataByXmlName.get(typeName) match {
-                            case Some(describeMetadataObject) =>
-                                //ignore -meta.xml in file count
-                                if (describeMetadataObject.isMetaFile)
-                                    realFileCount / 2
-                                else
-                                    realFileCount
-                            case None => 0
-                        }
+                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
+                        val fileCount = filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml").size
                         fileCountByType += typeName -> fileCount
                     case Failure(err) =>
                         err match {
