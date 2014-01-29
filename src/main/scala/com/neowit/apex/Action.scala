@@ -45,19 +45,26 @@ class ActionError(msg: String) extends Error(msg: String) {
 object ActionFactory {
 
     def getAction(session:Session, name: String): Option[Action] = {
-        name.toLowerCase match {
-            case "refresh" => Some(new RefreshMetadata(session))
-            case "listmodified" => Some(new ListModified(session))
-            case "deploymodified" => Some(new DeployModified(session))
-            case "deployall" => Some(new DeployAll(session))
-            case "deployspecificfiles" => Some(new DeploySpecificFiles(session))
-            case "listconflicts" => Some(new ListConflicting(session))
-            case "describemetadata" => Some(new DescribeMetadata(session))
-            case "bulkretrieve" => Some(new BulkRetrieve(session))
-            case "listmetadata" => Some(new ListMetadata(session))
-            case _ => throw new UnsupportedActionError(name + " is not supported")
+        val REGISTERED_ACTIONS = Map[String, Action](
+            "refresh" -> new RefreshMetadata(session),
+            "listModified" -> new ListModified(session),
+            "deployModified" -> new DeployModified(session),
+            "deployAll" -> new DeployAll(session),
+            "deploySpecificFiles" -> new DeploySpecificFiles(session),
+            "listConflicts" -> new ListConflicting(session),
+            "describeMetadata" -> new DescribeMetadata(session),
+            "bulkRetrieve" -> new BulkRetrieve(session),
+            "listMetadata" -> new ListMetadata(session),
+            "executeAnonymous" -> new ExecuteAnonymous(session)
+        )
+        //convert all keys to lower case
+        val lowerCaseMap = REGISTERED_ACTIONS.map{case (key, value) => key.toLowerCase -> value}
+        lowerCaseMap.get(name.toLowerCase) match {
+          case Some(action) => Some(action)
+          case None => throw new UnsupportedActionError(name + " is not supported")
         }
     }
+
 }
 trait Action extends Logging {
     def act
