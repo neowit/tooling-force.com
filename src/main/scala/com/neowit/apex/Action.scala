@@ -74,7 +74,7 @@ trait Action extends Logging {
 trait AsyncAction extends Action {
 }
 
-abstract class MetadataAction(session: Session) extends AsyncAction {
+abstract class ApexAction(session: Session) extends AsyncAction {
     val config:Config = session.getConfig
     val responseWriter: ResponseWriter = config.responseWriter
 
@@ -82,7 +82,7 @@ abstract class MetadataAction(session: Session) extends AsyncAction {
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
-abstract class RetrieveMetadata(session: Session) extends MetadataAction(session: Session) {
+abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Session) {
 
     def setUpackaged(retrieveRequest: RetrieveRequest) {
         val metaXml = new MetaXml(session.getConfig)
@@ -228,7 +228,7 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
     }
 }
 
-class ListModified(session: Session) extends MetadataAction(session: Session) {
+class ListModified(session: Session) extends ApexAction(session: Session) {
     /**
      * list locally modified files using data from session.properties
      */
@@ -342,7 +342,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
  */
-class DeployModified(session: Session) extends MetadataAction(session: Session) {
+class DeployModified(session: Session) extends ApexAction(session: Session) {
     private val alwaysIncludeNames = Set("src", "package.xml")
 
     private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
@@ -627,7 +627,7 @@ object DescribeMetadata {
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
-class DescribeMetadata(session: Session) extends MetadataAction(session: Session) {
+class DescribeMetadata(session: Session) extends ApexAction(session: Session) {
 
     def loadFromFile: Map[String, DescribeMetadataObject] = {
 
@@ -828,7 +828,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
  * Extra command line params:
  * --specificTypes=/path/to/file with file list
  */
-class ListMetadata(session: Session) extends MetadataAction(session: Session) {
+class ListMetadata(session: Session) extends ApexAction(session: Session) {
     def act: Unit = {
 
         val metadataByXmlName = DescribeMetadata.getMap(session)
@@ -869,7 +869,7 @@ class ListMetadata(session: Session) extends MetadataAction(session: Session) {
             case Failure(error) => throw error
         }
 
-        config.responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("RESULT=SUCCESS")
         if (!resourcesByXmlTypeName.isEmpty) {
             //dump results to JSON file, with each line looking like this
             //{"CustomTab" : ["Account_Edit", "My_Object__c"]}
@@ -886,6 +886,41 @@ class ListMetadata(session: Session) extends MetadataAction(session: Session) {
             }
             writer.close()
             config.responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
+        }
+    }
+}
+
+/**
+ * 'executeAnonymous' action Executes the specified block of Apex anonymously and returns the result
+ *@param session - SFDC session
+ * Extra command line params:
+ * --codeFile=/path/to/file with apex code to execute
+ */
+class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
+    def act: Unit = {
+        val codeFile = new File(config.getRequiredProperty("codeFile").get)
+        val apexCode = scala.io.Source.fromFile(codeFile).getLines().mkString("\n")
+        val executeAnonymousResult = session.executeAnonymous(apexCode)
+        if (executeAnonymousResult.isSuccess) {
+            responseWriter.println("RESULT=SUCCESS")
+        } else {
+            responseWriter.println("RESULT=FAILURE")
+
+            if (executeAnonymousResult.isCompiled) {
+                //non compile error
+                responseWriter.startSection("ERROR LIST")
+                responseWriter.println("ERROR", Map("text" -> executeAnonymousResult.getExceptionMessage))
+                config.responseWriter.endSection("ERROR LIST")
+                responseWriter.println("STACK_TRACE", Map("text" -> executeAnonymousResult.getExceptionStackTrace))
+            } else {
+                //compile error
+                responseWriter.startSection("ERROR LIST")
+                val line = executeAnonymousResult.getLine
+                val column = executeAnonymousResult.getColumn
+                val problem = executeAnonymousResult.getCompileProblem
+                responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "text" -> problem))
+                config.responseWriter.endSection("ERROR LIST")
+            }
         }
     }
 }
