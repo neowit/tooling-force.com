@@ -502,13 +502,6 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
      */
     def getAllFiles:List[File] = {
         val config = session.getConfig
-        //check if package.xml is modified
-        val packageXml = new MetaXml(config)
-        val packageXmlFile = packageXml.getPackageXml
-        //val packageXmlData = session.getData(session.getKeyByFile(packageXmlFile))
-
-        //logger.debug("packageXmlData=" + packageXmlData)
-        //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
         val allFiles  = FileUtils.listFiles(config.srcDir).filter(
             //remove all non apex files
             file => DescribeMetadata.isValidApexFile(session, file)
