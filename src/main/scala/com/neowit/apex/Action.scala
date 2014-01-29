@@ -94,14 +94,15 @@ abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Se
 
     /**
      * retrieve information about specific files
-     * @param files
+     * used mainly to check conflicts between remote versions of local files
+     * @param files - list of files to check status on Remote
      */
     def retrieveFiles(files: List[File], reportMissing: Boolean = true): RetrieveResult = {
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
         //setSpecificFiles requires file names that look like: classes/MyClass.cls
         retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "")).toArray)
-        retrieveRequest.setSinglePackage(true)
+        //retrieveRequest.setSinglePackage(true) //do NOT use setSinglePackage(), it causes fileNames to lose "unpackaged/"
         setUpackaged(retrieveRequest)
 
         val retrieveResult = session.retrieve(retrieveRequest)
@@ -724,7 +725,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
         val members = membersByXmlName(metadataTypeName)
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
-        retrieveRequest.setSinglePackage(true)
+        //retrieveRequest.setSinglePackage(true) //do NOT use setSinglePackage(), it causes fileNames to lose "unpackaged/"
 
         val metaXml = new MetaXml(session.getConfig)
         val typesMap = complexTypes.get(metadataTypeName)  match {
