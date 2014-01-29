@@ -47,7 +47,8 @@ class Session(config: Config) extends Logging {
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
-    private var connectionTooling:Option[SoapConnection] = None
+    private var connectionTooling:Option[com.sforce.soap.tooling.SoapConnection] = None
+    private var connectionApex:Option[com.sforce.soap.apex.SoapConnection] = None
 
     //when user wants to work with files from one org and deploy them in another org we can not use stored session
     lazy val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
@@ -176,20 +177,68 @@ class Session(config: Config) extends Logging {
         conn
     }
     private def getMetadataConnection: MetadataConnection = {
+        import com.sforce.soap.metadata._
         val conn = connectionMetadata match {
             case Some(connection) => connection
             case None => Connection.getMetadataConnection(config, getPartnerConnection)
         }
+        val debugHeader = new DebuggingHeader_element()
+        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        conn.__setDebuggingHeader(debugHeader)
+
         connectionMetadata = Some(conn)
         conn
     }
 
     private def getToolingConnection: SoapConnection = {
+        import com.sforce.soap.tooling._
         val conn = connectionTooling match {
             case Some(connection) => connection
             case None => Connection.getToolingConnection(config, getPartnerConnection)
         }
+        val debugHeader = new DebuggingHeader_element()
+        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        conn.__setDebuggingHeader(debugHeader)
+
         connectionTooling = Some(conn)
+        conn
+    }
+
+    private def getApexConnection: com.sforce.soap.apex.SoapConnection = {
+        import com.sforce.soap.apex._
+        val conn = connectionApex match {
+            case Some(connection) => connection
+            case None => Connection.getApexConnection(config, getPartnerConnection)
+        }
+        connectionApex = Some(conn)
+
+        /*
+        val infoAll = new LogInfo()
+        infoAll.setCategory(LogCategory.All)
+        infoAll.setLevel(LogCategoryLevel.Finest)
+
+        val infoApex = new LogInfo()
+        infoApex.setCategory(LogCategory.Apex_code)
+        infoApex.setLevel(LogCategoryLevel.Finest)
+
+        val infoProfiling = new LogInfo()
+        infoProfiling.setCategory(LogCategory.Apex_profiling)
+        infoProfiling.setLevel(LogCategoryLevel.Finest)
+
+        val infoDB = new LogInfo()
+        infoDB.setCategory(LogCategory.Db)
+        infoDB.setLevel(LogCategoryLevel.Finest)
+
+        conn.setDebuggingHeader(Array(infoAll, infoApex, infoProfiling, infoDB), LogType.Detail)
+        //conn.setDebuggingHeader(Array(), LogType.Detail)
+        */
+
+
+        val debugHeader = new DebuggingHeader_element()
+        //debugHeader.setCategories(Array(infoAll, infoApex, infoProfiling, infoDB))
+        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        conn.__setDebuggingHeader(debugHeader)
+
         conn
     }
 
@@ -281,12 +330,16 @@ class Session(config: Config) extends Logging {
     }
 
 
-    def executeAnonymous(apexCode: String ):ExecuteAnonymousResult = {
+    def executeAnonymous(apexCode: String ):(com.sforce.soap.apex.ExecuteAnonymousResult, String) = {
+        var log = ""
         val executeAnonymousResult = withRetry {
-            val conn = getToolingConnection
-            conn.executeAnonymous(apexCode)
-        }.asInstanceOf[ExecuteAnonymousResult]
-        executeAnonymousResult
+            val conn = getApexConnection
+            val res = conn.executeAnonymous(apexCode)
+            log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
+            res
+
+        }.asInstanceOf[com.sforce.soap.apex.ExecuteAnonymousResult]
+        (executeAnonymousResult, log)
     }
 
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call

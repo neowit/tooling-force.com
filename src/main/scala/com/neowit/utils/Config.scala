@@ -217,6 +217,21 @@ class Config extends Logging{
       case None => false
     }
 
+    def getLogFile: File = {
+        getProperty("logFile") match {
+            case Some(logPath) =>
+                new File(logPath)
+            case None => FileUtils.createTempFile("apex-", ".log")
+        }
+
+    }
+
+    lazy val logLevel = getProperty("logLevel") match {
+        case Some(x) => Set("None", "Debugonly", "Db", "Profiling", "Callout", "Detail").contains(x)
+            x
+        case None => "None"
+    }
+
     /**
      * by default CRC32 hash is used to detect file changes
      * but command line option --preferMD5=true can force MD5

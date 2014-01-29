@@ -885,7 +885,7 @@ class ListMetadata(session: Session) extends ApexAction(session: Session) {
                     writer.println(line)
             }
             writer.close()
-            config.responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
+            responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
         }
     }
 }
@@ -895,12 +895,14 @@ class ListMetadata(session: Session) extends ApexAction(session: Session) {
  *@param session - SFDC session
  * Extra command line params:
  * --codeFile=/path/to/file with apex code to execute
+ * --logFile=/path/to/file where log will be stored
  */
 class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
     def act: Unit = {
         val codeFile = new File(config.getRequiredProperty("codeFile").get)
         val apexCode = scala.io.Source.fromFile(codeFile).getLines().mkString("\n")
-        val executeAnonymousResult = session.executeAnonymous(apexCode)
+        val (executeAnonymousResult, log) = session.executeAnonymous(apexCode)
+
         if (executeAnonymousResult.isSuccess) {
             responseWriter.println("RESULT=SUCCESS")
         } else {
@@ -921,6 +923,12 @@ class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
                 responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "text" -> problem))
                 config.responseWriter.endSection("ERROR LIST")
             }
+        }
+
+        if (!log.isEmpty) {
+            val logFile = config.getLogFile
+            FileUtils.writeFile(log, logFile)
+            responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
     }
 }

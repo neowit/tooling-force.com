@@ -19,7 +19,7 @@
 
 package com.neowit.utils
 
-import java.io.{File,FileInputStream,FileOutputStream}
+import java.io.{FileWriter, File, FileInputStream, FileOutputStream}
 import java.util.zip.CRC32
 import java.security.MessageDigest
 
@@ -142,5 +142,14 @@ object FileUtils {
         val crc = new CRC32()
         crc.update(bytes)
         crc.getValue
+    }
+
+    def writeFile(text: String, file: File) = {
+        val writer = new FileWriter(file)
+        try{
+            writer.write(text)
+        } finally{
+            writer.close()
+        }
     }
 }
