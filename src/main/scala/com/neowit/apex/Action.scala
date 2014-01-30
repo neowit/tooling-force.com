@@ -101,7 +101,7 @@ abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Se
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
         //setSpecificFiles requires file names that look like: classes/MyClass.cls
-        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "")).toArray)
+        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "unpackaged/")).toArray)
         //retrieveRequest.setSinglePackage(true) //do NOT use setSinglePackage(), it causes fileNames to lose "unpackaged/"
         setUpackaged(retrieveRequest)
 
@@ -283,16 +283,19 @@ class ListModified(session: Session) extends ApexAction(session: Session) {
 class ListConflicting(session: Session) extends RetrieveMetadata(session: Session) {
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[File]] = {
-        val fileMap = files.map(f => (session.getRelativePath(f).replaceFirst("src/", ""), f) ).toMap
+        val filesWithoutPackageXml = files.filterNot(_.getName == "package.xml").toList
+        if (filesWithoutPackageXml.isEmpty) {
+            Option(filesWithoutPackageXml)
+        } else {
+            val fileMap = filesWithoutPackageXml.map(f => (session.getRelativePath(f).replaceFirst("src/", "unpackaged/"), f) ).toMap
 
-        Try(retrieveFiles(files, reportMissing = false)) match {
+            Try(retrieveFiles(filesWithoutPackageXml, reportMissing = false)) match {
           case Success(retrieveResult) =>
               val newerProps = retrieveResult.getFileProperties.filter(
                   props => {
-                      val key = (if (null == props.getNamespacePrefix) "unpackaged" else props.getNamespacePrefix ) +
-                          File.separator + props.getFileName
+                            val key = props.getFileName
 
-                      val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).asInstanceOf[BigDecimal].toLong
+                            val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).toString.toLong
                       val millsRemote = MetadataType.getLastModifiedDateMills(props)
                       millsLocal < millsRemote
                   }
