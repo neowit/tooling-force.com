@@ -103,17 +103,20 @@ object ZipUtils extends Logging{
         fileMap.toMap
     }
 
-    def zipDirToBytes(rootDir: File, ignoreFile: File => Boolean = { _ => false}): Array[Byte] = {
+    def zipDirToBytes(rootDir: File, ignoreFileFunc: File => Boolean = { _ => false}, 
+                      preProcessFileFunc: File => File = {f=> f}): Array[Byte] = {
         val bos: ByteArrayOutputStream = new ByteArrayOutputStream
         val zos: ZipOutputStream = new ZipOutputStream(bos)
-        zipFiles("", Array[File](rootDir), zos, ignoreFile)
+        zipFiles("", Array[File](rootDir), zos, ignoreFileFunc, preProcessFileFunc)
         zos.close()
         bos.toByteArray
     }
 
-    private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream, ignoreFile: File => Boolean = { _ => false}) {
+    private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream,
+                         ignoreFileFunc: File => Boolean = { _ => false},
+                         preProcessFileFunc: File => File = {f=> f}) {
         for (file <- files) {
-            zipFile(relPath, file, zos, ignoreFile)
+            zipFile(relPath, file, zos, ignoreFileFunc, preProcessFileFunc)
         }
     }
 
@@ -121,7 +124,9 @@ object ZipUtils extends Logging{
         file.getName.startsWith(".") || file.getName.contains("~")
     }
 
-    private def zipFile(relPath: String, file: File, zos: ZipOutputStream, ignoreFile: File => Boolean = { _ => false}) {
+    private def zipFile(relPath: String, file: File, zos: ZipOutputStream,
+                        ignoreFileFunc: File => Boolean = { _ => false},
+                        preProcessFileFunc: File => File = {f=> f}) {
         if (!isIgnored(file)) {
             val filePath: String = relPath + file.getName
             if (file.isDirectory) {
@@ -130,19 +135,21 @@ object ZipUtils extends Logging{
                 dir.setTime(file.lastModified)
                 zos.putNextEntry(dir)
                 zos.closeEntry()
-                zipFiles(dirPath, file.listFiles, zos, ignoreFile)
-            } else if (!ignoreFile(file)){
-                addFile(filePath, file, zos )
+                zipFiles(dirPath, file.listFiles, zos, ignoreFileFunc, preProcessFileFunc)
+            } else if (!ignoreFileFunc(file)){
+                addFile(filePath, preProcessFileFunc(file), zos )
             }
         }
     }
 
-    private def addFile(filename: String, file: File, zos: ZipOutputStream): ZipEntry = {
+    private def addFile(filename: String, file: File, zos: ZipOutputStream,
+                        preProcessFileFunc: File => File = {f=> f}): ZipEntry = {
         val entry: ZipEntry = new ZipEntry(filename)
         entry.setTime(file.lastModified)
-        entry.setSize(file.length)
+        val filePreProcessed = preProcessFileFunc(file)
+        entry.setSize(filePreProcessed.length)
         zos.putNextEntry(entry)
-        val is: FileInputStream = new FileInputStream(file)
+        val is: FileInputStream = new FileInputStream(filePreProcessed)
         try {
             val src: FileChannel = is.getChannel
             val dest: WritableByteChannel = Channels.newChannel(zos)
