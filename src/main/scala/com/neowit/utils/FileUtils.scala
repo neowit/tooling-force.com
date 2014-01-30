@@ -84,6 +84,14 @@ object FileUtils {
             ""
         }
     }
+    def removeExtension(file: File): String = {
+        val extStart = file.getName.lastIndexOf(".")
+        if (extStart > 0) {
+            file.getName.take(extStart)
+        } else {
+            file.getName
+        }
+    }
     /**
      * a very basic file lister which will cause "out of memory" on a very deep directory tree
      * with lots of files
