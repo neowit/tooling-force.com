@@ -381,7 +381,7 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
             val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles)
 
             if (canDeploy) {
-                val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
+                val checkOnly = config.isCheckOnly
                 deploy(modifiedFiles, updateSessionDataOnSuccess = !checkOnly)
             }
         }
@@ -414,7 +414,7 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
         deployOptions.setPerformRetrieve(false)
         deployOptions.setAllowMissingFiles(true)
         deployOptions.setRollbackOnError(true)
-        val checkOnly = config.getProperty("checkOnly").getOrElse("false").toBoolean
+        val checkOnly = config.isCheckOnly
         deployOptions.setCheckOnly(checkOnly)
         //deployOptions.setPerformRetrieve(true)
 
