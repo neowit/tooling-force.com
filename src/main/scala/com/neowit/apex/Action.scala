@@ -366,7 +366,8 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
 
     def act {
         val modifiedFiles = new ListModified(session).getModifiedFiles
-        if (modifiedFiles.isEmpty) {
+        val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
+        if (filesWithoutPackageXml.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
             config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
