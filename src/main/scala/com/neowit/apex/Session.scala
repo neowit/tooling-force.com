@@ -116,6 +116,22 @@ class Session(config: Config) extends Logging {
             relPath
     }
 
+    /**
+     * keys usually look like so: unpackaged/classes/Messages.cls
+     * @param dirName - e.g. "classes"
+     * @param fileName - e.g. "Messages.cls"
+     * @return
+     */
+    def findFile(dirName: String, fileName: String): Option[String] = {
+        if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
+            Some("src/" + dirName + "/" + fileName)
+        } else {
+            //slow method
+            sessionProperties.getKeyByValue("Name", fileName)
+        }
+
+    }
+
     //Windows does not support cp -p (preserve last modified date) copy so have to assume that copy of all project files
     //on refresh takes no longer than this number of seconds
     private val SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC = if (config.isUnix) 0 else 1000 * 3
@@ -282,15 +298,17 @@ class Session(config: Config) extends Logging {
         retrieveResult
     }
 
-    def deploy(zipFile: Array[Byte], deployOptions: DeployOptions ):DeployResult = {
+    def deploy(zipFile: Array[Byte], deployOptions: DeployOptions ):(DeployResult, String) = {
+        var log = ""
         val deployResult = withRetry {
             val conn = getMetadataConnection
             val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
             val _deployResult = conn.checkDeployStatus(asyncResult.getId, true)
+            log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
             _deployResult
         }.asInstanceOf[DeployResult]
 
-        deployResult
+        (deployResult, log)
     }
 
     def describeMetadata(apiVersion: Double ):DescribeMetadataResult = {
@@ -346,19 +364,19 @@ class Session(config: Config) extends Logging {
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("50").toInt
     private def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
-        val waitTimeMilliSecs = ONE_SECOND
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + ONE_SECOND).toInt
         var attempts = 0
         var _asyncResult = asyncResult
         while (!_asyncResult.isDone) {
             blocking {
                 Thread.sleep(waitTimeMilliSecs)
-                logger.info("waiting result")
+                logger.info("waiting result, attempt " + attempts)
             }
             attempts += 1
             if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
                 throw new Exception("Request timed out.  If this is a large set " +
                     "of metadata components, check that the time allowed " +
-                    "by maxPollRequests is sufficient.")
+                    "by --maxPollRequests is sufficient and --pollWaitMillis is not too short.")
             }
             _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
             logger.info("Status is: " + _asyncResult.getState)

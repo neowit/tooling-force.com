@@ -47,6 +47,7 @@ object Runner extends Logging {
                     logger.error(ex)
                     logger.error(ex.printStackTrace())
                     appConfig.responseWriter.println("RESULT=FAILURE")
+                    appConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
             } finally {
                 appConfig.responseWriter.close()
             }

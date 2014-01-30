@@ -20,7 +20,7 @@
 package com.neowit.apex
 
 import com.neowit.utils._
-import java.io.{PrintWriter, File, FileOutputStream}
+import java.io.{FileWriter, PrintWriter, File, FileOutputStream}
 import com.sforce.soap.metadata._
 import scala.util.{Try, Failure, Success}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
@@ -33,14 +33,11 @@ import com.neowit.utils.ResponseWriter.MessageDetail
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
+import scala.util.matching.Regex
 
-class UnsupportedActionError(msg: String) extends Error(msg: String)
 
-class ActionError(msg: String) extends Error(msg: String) {
-    val writer = Config.getConfig.responseWriter
-    writer.println("RESULT=FAILURE")
-    writer.println(msg)
-}
+class ActionError(msg: String) extends Error(msg: String)
+class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
 
@@ -78,6 +75,24 @@ abstract class ApexAction(session: Session) extends AsyncAction {
     val config:Config = session.getConfig
     val responseWriter: ResponseWriter = config.responseWriter
 
+    /*
+    def addToMap(originalMap: Map[String, List[String]], key: String, value: String): Map[String, List[String]] = {
+        originalMap.get(key)  match {
+            case Some(list) =>
+                val newList: List[String] = value :: list
+                originalMap ++ Map(key -> newList)
+            case None => originalMap ++ Map(key -> List(value))
+        }
+    }
+    */
+    def addToMap(originalMap: Map[String, Set[String]], key: String, value: String): Map[String, Set[String]] = {
+        originalMap.get(key)  match {
+            case Some(list) =>
+                val newList: Set[String] = list + value
+                originalMap ++ Map(key -> newList)
+            case None => originalMap ++ Map(key -> Set(value))
+        }
+    }
 }
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
@@ -290,22 +305,22 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
             val fileMap = filesWithoutPackageXml.map(f => (session.getRelativePath(f).replaceFirst("src/", "unpackaged/"), f) ).toMap
 
             Try(retrieveFiles(filesWithoutPackageXml, reportMissing = false)) match {
-          case Success(retrieveResult) =>
-              val newerProps = retrieveResult.getFileProperties.filter(
-                  props => {
+                case Success(retrieveResult) =>
+                    val newerProps = retrieveResult.getFileProperties.filter(
+                        props => {
                             val key = props.getFileName
 
                             val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).toString.toLong
-                      val millsRemote = MetadataType.getLastModifiedDateMills(props)
-                      millsLocal < millsRemote
-                  }
-              )
-              val res = newerProps.map(p => {fileMap(p.getFileName)})
-              Some(res.toList)
+                            val millsRemote = MetadataType.getLastModifiedDateMills(props)
+                            millsLocal < millsRemote
+                        }
+                    )
+                    val res = newerProps.map(p => {fileMap(p.getFileName)})
+                    Some(res.toList)
 
-          case Failure(err) =>
+                case Failure(err) =>
                     throw err
-              }
+            }
         }
 
     }
@@ -337,36 +352,18 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
+ * --testsToRun=* OR "comma separated list of class.method names",
+ *      e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
+ *
+ *      class/method can be specified in two forms
+ *      - ClassName[.methodName] -  means specific method of specific class
+ *      - ClassName -  means *all* test methodsToKeep of specific class
+ *
+ *      if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
+ *                              the *current* deployment package
+ *
  */
 class DeployModified(session: Session) extends ApexAction(session: Session) {
-    private val alwaysIncludeNames = Set("src", "package.xml")
-
-    private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
-        val exclude = !modifiedFiles.contains(file) && !alwaysIncludeNames.contains(file.getName)
-        logger.trace(file.getName + " include=" + !exclude)
-        exclude
-    }
-
-    protected def hasConflicts(files: List[File]): Boolean = {
-        logger.info("Check Conflicts with Remote")
-        val checker = new ListConflicting(session)
-        checker.getFilesNewerOnRemote(files) match {
-            case Some(conflictingFiles) =>
-                if (!conflictingFiles.isEmpty) {
-                    config.responseWriter.println("RESULT=FAILURE")
-
-                    val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
-                    config.responseWriter.println(msg)
-                    conflictingFiles.foreach{
-                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
-                    }
-                    config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
-                }
-                !conflictingFiles.isEmpty
-            case None => false
-        }
-    }
-
     def act {
         val modifiedFiles = new ListModified(session).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
@@ -414,11 +411,15 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
         deployOptions.setPerformRetrieve(false)
         deployOptions.setAllowMissingFiles(true)
         deployOptions.setRollbackOnError(true)
+        val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
+        deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
+        //deployOptions.setRunTests(Array[String]())
         val checkOnly = config.isCheckOnly
         deployOptions.setCheckOnly(checkOnly)
         //deployOptions.setPerformRetrieve(true)
 
-        val deployResult = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _) ), deployOptions)
+        val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _),
+                                                                        disableNotNeededTests(_, testMethodsByClassName)), deployOptions)
 
         val deployDetails = deployResult.getDetails
         if (!deployResult.isSuccess) {
@@ -431,6 +432,44 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
                     val filePath = failureMessage.getFileName
                     val problem = failureMessage.getProblem
                     config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                }
+                //process test failures
+                val runTestResult = deployDetails.getRunTestResult
+                val metadataByXmlName = DescribeMetadata.getMap(session)
+
+                for ( failureMessage <- runTestResult.getFailures) {
+
+                    val problem = failureMessage.getMessage
+                    val className = failureMessage.getName
+                    //val filePath = allFilesToDeploySet.filter(_.getName == (className + ".cls")).head.getAbsolutePath
+                    //now parse stack trace
+                    val stackTrace = failureMessage.getStackTrace
+                    if (null != stackTrace) {
+                        //each line is separated by '\n'
+                        var showProblem = true
+                        for (traceLine <- stackTrace.split("\n")) {
+                            //Class.Test1.prepareData: line 13, column 1
+                            val (typeName, fileName, methodName, line, column) = parseStackTraceLine(traceLine)
+                            if ("Class" == typeName) {
+                                DescribeMetadata.getXmlNameBySuffix(session, "cls")  match {
+                                  case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
+                                    case Some(describeMetadataObject) =>
+                                        session.findFile(describeMetadataObject.getDirectoryName, fileName + ".cls") match {
+                                            case Some(_filePath) =>
+                                                val _problem = if (showProblem) problem else "...continuing stack trace in method " +methodName+ ". Details see above"
+                                                config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> _filePath, "text" -> _problem))
+                                            case None =>
+                                        }
+                                    case None =>
+                                  }
+                                  case None =>
+                                }
+                            }
+                            showProblem = false
+                        }
+                    }
+
+                    //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 }
                 config.responseWriter.endSection("ERROR LIST")
             }
@@ -474,7 +513,186 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
                 config.responseWriter.endSection("DEPLOYED FILES")
             }
         }
+        if (!log.isEmpty) {
+            val logFile = config.getLogFile
+            FileUtils.writeFile(log, logFile)
+            responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+        }
     }
+
+    private val alwaysIncludeNames = Set("src", "package.xml")
+
+    private def excludeFileFromZip(modifiedFiles: Set[File], file: File) = {
+        val exclude = !modifiedFiles.contains(file) && !alwaysIncludeNames.contains(file.getName)
+        logger.trace(file.getName + " include=" + !exclude)
+        exclude
+    }
+
+    protected def hasConflicts(files: List[File]): Boolean = {
+        logger.info("Check Conflicts with Remote")
+        val checker = new ListConflicting(session)
+        checker.getFilesNewerOnRemote(files) match {
+            case Some(conflictingFiles) =>
+                if (!conflictingFiles.isEmpty) {
+                    config.responseWriter.println("RESULT=FAILURE")
+
+                    val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
+                    config.responseWriter.println(msg)
+                    conflictingFiles.foreach{
+                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
+                    }
+                    config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
+                }
+                !conflictingFiles.isEmpty
+            case None => false
+        }
+    }
+
+    /**
+     * --testsToRun="comma separated list of class.method names",
+     *      e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
+     *
+     *      class/method can be specified in two forms
+     *      - ClassName.<methodName> -  means specific method of specific class
+     *      - ClassName -  means *all* test methodsToKeep of specific class
+     *      Special case: *  - means "run all test in all classes belonging to current deployment package"
+     * @return if user passed any classes to run tests via "testsToRun" the return them here
+     */
+    private def getTestMethodsByClassName(files: Set[File]): Map[String, Set[String]] = {
+        var methodsByClassName = Map[String, Set[String]]()
+        config.getProperty("testsToRun") match {
+            case Some(x) if "*" == x =>
+                //include all eligible classes
+                val classFiles = files.filter(_.getName.endsWith(".cls"))
+                for (classFile <- classFiles) {
+                    methodsByClassName += FileUtils.removeExtension(classFile) -> Set[String]()
+                }
+
+            case Some(x) if !x.isEmpty =>
+                for (classAndMethodStr <- x.split(","); if !classAndMethodStr.isEmpty) {
+                    val classAndMethod = classAndMethodStr.split("\\.")
+                    val className = classAndMethod(0).trim
+                    if (className.isEmpty) {
+                        throw new ActionError("invalid --testsToRun: " + x)
+                    }
+                    if (classAndMethod.size > 1) {
+                        val methodName = classAndMethod(1).trim
+                        if (methodName.isEmpty) {
+                            throw new ActionError("invalid --testsToRun: " + x)
+                        }
+                        methodsByClassName = addToMap(methodsByClassName, className, methodName)
+                    } else {
+                        methodsByClassName += className -> Set[String]()
+                    }
+                }
+            case _ => Map[String, Set[String]]()
+        }
+        methodsByClassName
+    }
+
+    /**
+     * if testsToRun contains names of specific methodsToKeep then we need to disable all other test methodsToKeep in deployment package
+     */
+    private def disableNotNeededTests(classFile: File, testMethodsByClassName: Map[String, Set[String]]): File = {
+        testMethodsByClassName.get(FileUtils.removeExtension(classFile)) match {
+          case Some(methodsSet) if !methodsSet.isEmpty =>
+              if (!config.isCheckOnly) {
+                  throw new ActionError("Single method test is experimental and only supported in --checkOnly=true mode.")
+              }
+              disableNotNeededTests(classFile, methodsSet)
+          case _ => classFile
+        }
+
+    }
+
+    /**
+     * this version is quite slow because it loads whole class code in memory before processing it.
+     * when/if SFDC Tooling API provides native tools to run selected methodsToKeep, consider switching
+     * 
+     * parse given file and comment out all test methodsToKeep which do not belong to provided methodsToKeep set
+     * @param classFile - file to transform
+     * @param methodsToKeep - test methodsToKeep to keep
+     * @return new file with unnecessary test methodsToKeep removed
+     */
+    private def disableNotNeededTests(classFile: File, methodsToKeep: Set[String]): File = {
+        //find testMethod or @isTest and then find first { after ( ... ) brackets
+        //[^\{]+   [^\)]*  [^\{]* - used to make it non-greedy and allow no more than one (, ) and {
+        val regexLeftCurly = """(?i)(\btestMethod|@\bisTest)\b[^\{]+\([^\)]*\)[^\{]*\{""".r
+
+        //using names of all methods generate pattern to find them, something like this:
+        //(\btest1|\btest3)\s*\(\s*\)\s*\{""".r
+        val patternMethodNames = "(" + methodsToKeep.map("\\b" + _).mkString("|") + ")\\s*\\(\\s*\\)\\s*\\{"
+        val regexMethodNames = new Regex(patternMethodNames)
+
+        val source = scala.io.Source.fromFile(classFile)
+        val textIn = source.getLines().mkString("\n")
+        source.close()
+
+        val textOut = new mutable.StringBuilder(textIn)
+
+        var offset = 0
+        for (currentMatch <- regexLeftCurly.findAllMatchIn(textIn)) {
+
+            val curlyPos = currentMatch.end //current position of { after 'testMethod' keyword
+            //check if this is one of methodsToKeep we need to disable
+            //search only between 'testMethod' and '{'
+            val methodDefinitionStr = textIn.substring(currentMatch.start, currentMatch.end)
+            regexMethodNames.findFirstIn(methodDefinitionStr) match {
+              case Some(x) => //yes, this string contains method we need to keep
+              case None => //this string contains method we need to disable
+                  textOut.insert(offset + curlyPos, "return; ")
+                  offset += "return; ".length
+            }
+            logger.trace("========================================================")
+            logger.trace(textOut.toString())
+            logger.trace("=============== END ====================================")
+
+        }
+
+        val preparedFile = FileUtils.createTempFile(classFile.getName, ".cls")
+        val writer = new FileWriter(preparedFile)
+        try {
+            writer.write(textOut.toString())
+        } finally {
+            writer.close()
+        }
+        preparedFile
+    }
+
+
+    /**
+     *
+     * @param traceLine - Class.Test1.prepareData: line 13, column 1
+     * @return (typeName, fileName, methodName, line, column)
+     */
+    private def parseStackTraceLine(traceLine: String): (String, String, String, Int, Int ) = {
+        var typeName, fileName, methodName = ""
+        var line, column = 0
+
+        //Class
+        typeName = traceLine.takeWhile(_ != '.')
+        var dropLength = typeName.size + 1
+        //Test1
+        fileName = traceLine.drop(dropLength).takeWhile(_ != '.')
+        dropLength += fileName.size + 1
+        //prepareData
+        methodName = traceLine.drop(dropLength).takeWhile(_ != ':')
+        dropLength += methodName.size + 1
+        // line 13, column 1
+        val lineColStr = traceLine.drop(dropLength)
+        if (!lineColStr.isEmpty) {
+            val lineAndColArr = lineColStr.replaceFirst("line", "").replaceFirst("column", "").split(",")
+            if (lineAndColArr.size > 0) {
+                line = lineAndColArr(0).trim.toInt
+            }
+            if (lineAndColArr.size > 1) {
+                column = lineAndColArr(1).trim.toInt
+            }
+        }
+        (typeName, fileName, methodName, line, column)
+    }
+
+
 }
 
 /**
@@ -839,16 +1057,8 @@ class ListMetadata(session: Session) extends ApexAction(session: Session) {
 
         }
 
-        def addToMap(originalMap: Map[String, List[String]], key: String, value: String): Map[String, List[String]] = {
-            originalMap.get(key)  match {
-              case Some(list) =>
-                  val newList: List[String] = value :: list
-                  originalMap ++ Map(key -> newList)
-              case None => originalMap ++ Map(key -> List(value))
-            }
-        }
 
-        var resourcesByXmlTypeName = Map[String, List[String]]()
+        var resourcesByXmlTypeName = Map[String, Set[String]]()
         Try(session.listMetadata(queries.toArray, config.apiVersion)) match {
             case Success(fileProperties) =>
                 for (fileProp <- fileProperties) {
@@ -867,11 +1077,11 @@ class ListMetadata(session: Session) extends ApexAction(session: Session) {
             val tempFile = FileUtils.createTempFile("listMetadata", ".js")
             val writer = new PrintWriter(tempFile)
             resourcesByXmlTypeName.foreach{
-                case (k, v: List[String]) if k == null =>
+                case (k, v: Set[String]) if k == null =>
                     logger.trace("key is null for v=" + v)
-                case (key: String, values: List[String]) =>
+                case (key: String, values: Set[String]) =>
                     logger.trace("key=" + key)
-                    val line = JSONObject(Map(key -> JSONArray(values))).toString(ResponseWriter.defaultFormatter)
+                    val line = JSONObject(Map(key -> JSONArray(values.toList))).toString(ResponseWriter.defaultFormatter)
                     writer.println(line)
             }
             writer.close()
@@ -920,5 +1130,18 @@ class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
             FileUtils.writeFile(log, logFile)
             responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
+    }
+}
+/**
+ * 'RunTests' action runs specified tests and depending on --checkOnly flag deploys the code
+ *@param session - SFDC session
+ * Extra command line params:
+ * --specificFiles=/path/to/file with class names [and test names]
+ *          when method names are specified deployment is always in 'checkOnly' mode
+ * --logFile=/path/to/file where log will be stored
+ */
+class RunTests(session: Session) extends ApexAction(session: Session) {
+    def act: Unit = {
+
     }
 }
