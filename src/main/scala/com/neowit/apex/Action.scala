@@ -365,9 +365,10 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
  */
 class DeployModified(session: Session) extends ApexAction(session: Session) {
     def act {
+        val hasTestsToRun = None != config.getProperty("testsToRun")
         val modifiedFiles = new ListModified(session).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
-        if (filesWithoutPackageXml.isEmpty) {
+        if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
             config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
@@ -375,7 +376,7 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
             //first check if SFDC has newer version of files we are about to deploy
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
 
-            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles)
+            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles) || hasTestsToRun
 
             if (canDeploy) {
                 val checkOnly = config.isCheckOnly
@@ -529,22 +530,27 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
     }
 
     protected def hasConflicts(files: List[File]): Boolean = {
-        logger.info("Check Conflicts with Remote")
-        val checker = new ListConflicting(session)
-        checker.getFilesNewerOnRemote(files) match {
-            case Some(conflictingFiles) =>
-                if (!conflictingFiles.isEmpty) {
-                    config.responseWriter.println("RESULT=FAILURE")
+        if (!files.isEmpty) {
+            logger.info("Check Conflicts with Remote")
+            val checker = new ListConflicting(session)
+            checker.getFilesNewerOnRemote(files) match {
+                case Some(conflictingFiles) =>
+                    if (!conflictingFiles.isEmpty) {
+                        config.responseWriter.println("RESULT=FAILURE")
 
-                    val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
-                    config.responseWriter.println(msg)
-                    conflictingFiles.foreach{
-                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
+                        val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
+                        config.responseWriter.println(msg)
+                        conflictingFiles.foreach{
+                            f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
+                        }
+                        config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
                     }
-                    config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
-                }
-                !conflictingFiles.isEmpty
-            case None => false
+                    !conflictingFiles.isEmpty
+                case None => false
+            }
+        } else {
+            logger.debug("File list is empty, nothing to check for Conflicts with Remote")
+            false
         }
     }
 
