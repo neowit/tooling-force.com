@@ -59,13 +59,13 @@
             <version>${scala.version}</version>
         </dependency>
 
+        <!--
         <dependency>
             <groupId>com.typesafe</groupId>
             <artifactId>config</artifactId>
             <version>1.0.2</version>
             <type>jar</type>
         </dependency>
-        <!--
         <dependency>
             <groupId>com.typesafe</groupId>
             <artifactId>config</artifactId>
