@@ -472,6 +472,46 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
 
                     //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 }
+
+                //only display coverage details of files included in deployment package
+                val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
+                if (!runTestResult.getCodeCoverage.isEmpty) {
+                    responseWriter.println(coverageDetails)
+                }
+                val reportedNames = mutable.Set[String]()
+                for ( coverageResult <- runTestResult.getCodeCoverage) {
+                    reportedNames += coverageResult.getName
+                    //logger.debug("coverageResult.name=" + coverageResult.getName)
+                    //logger.debug("coverageResult.dml=" +coverageResult.getDmlInfo)
+                    //logger.debug("coverageResult.getType=" +coverageResult.getType)
+                    val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
+                    val coveragePercent = linesCovered * 100 / coverageResult.getNumLocations
+                    responseWriter.println(new MessageDetail(coverageDetails,
+                        Map("text" ->
+                            (coverageResult.getName +
+                            ": lines total " + coverageResult.getNumLocations +
+                            "; lines not covered " + coverageResult.getNumLocationsNotCovered +
+                            "; covered " + coveragePercent + "%"),
+                            "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
+                        )
+                    ))
+
+                }
+
+                val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
+                if (!runTestResult.getCodeCoverageWarnings.isEmpty) {
+                    responseWriter.println(coverageMessage)
+                }
+                for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
+                    if (null != coverageWarning.getName) {
+                        if (!reportedNames.contains(coverageWarning.getName)) {
+                            responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+                        }
+                    } else {
+                        responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+                    }
+
+                }
                 config.responseWriter.endSection("ERROR LIST")
             }
 
