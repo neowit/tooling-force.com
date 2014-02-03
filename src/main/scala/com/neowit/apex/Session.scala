@@ -106,8 +106,8 @@ class Session(config: Config) extends Logging {
     }
 
     def getKeyByRelativeFilePath(filePath: String): String = {
-        val relPath = if (filePath.startsWith("src/"))
-            filePath.replaceFirst("src/", "unpackaged/")
+        val relPath = if (filePath.startsWith("src" + File.separator))
+            filePath.replaceFirst("src" + File.separator, "unpackaged" + File.separator)
         else
             filePath
         if (relPath.endsWith("-meta.xml"))
@@ -123,11 +123,16 @@ class Session(config: Config) extends Logging {
      * @return
      */
     def findFile(dirName: String, fileName: String): Option[String] = {
-        if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
-            Some("src/" + dirName + "/" + fileName)
+        if (sessionProperties.containsKey("unpackaged" + File.separator + dirName + File.separator + fileName)) {
+            Some("src" + File.separator + dirName + File.separator + fileName)
         } else {
-            //slow method
-            sessionProperties.getKeyByValue("Name", fileName)
+            //looks like this file is not in session yet, last attempt, check if local file exists
+            val folder = new File(config.srcDir, dirName)
+            val file = new File(folder, fileName)
+            if (file.canRead)
+                Some(getRelativePath(file))
+            else
+                None
         }
 
     }

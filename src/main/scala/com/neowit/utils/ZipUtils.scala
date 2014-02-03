@@ -206,7 +206,7 @@ object ZipUtils extends Logging{
         try {
             Iterator
                 .continually (in.read(bytes))
-                .takeWhile (-1 !=)
+                .takeWhile (_ != -1)
                 .foreach (read=> {
                     out.write(bytes,0,read)
                     if (calculateMd5) md5.update(bytes, 0, read)
