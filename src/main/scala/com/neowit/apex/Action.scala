@@ -26,14 +26,14 @@ import scala.util.{Try, Failure, Success}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import scala.util.parsing.json._
 import scala.Predef._
-import scala.util.Failure
-import scala.Some
-import scala.util.Success
-import com.neowit.utils.ResponseWriter.MessageDetail
-import scala.util.parsing.json.JSONArray
-import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
 import scala.util.matching.Regex
+import scala.util.Failure
+import scala.Some
+import scala.util.parsing.json.JSONArray
+import scala.util.Success
+import com.neowit.utils.ResponseWriter.MessageDetail
+import scala.util.parsing.json.JSONObject
 
 
 class ActionError(msg: String) extends Error(msg: String)
@@ -413,6 +413,7 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
         deployOptions.setAllowMissingFiles(true)
         deployOptions.setRollbackOnError(true)
         val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
+        val isRunningTests = !testMethodsByClassName.isEmpty
         deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
         //deployOptions.setRunTests(Array[String]())
         val checkOnly = config.isCheckOnly
@@ -427,17 +428,31 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
             config.responseWriter.println("RESULT=FAILURE")
             if (null != deployDetails) {
                 config.responseWriter.startSection("ERROR LIST")
+
+                //display errors both as messages and as ERROR: lines
+                val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
+                if (!deployDetails.getComponentFailures.isEmpty) {
+                    responseWriter.println(componentFailureMessage)
+                }
                 for ( failureMessage <- deployDetails.getComponentFailures) {
                     val line = failureMessage.getLineNumber
                     val column = failureMessage.getColumnNumber
                     val filePath = failureMessage.getFileName
                     val problem = failureMessage.getProblem
-                    config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                    responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
                 }
                 //process test failures
                 val runTestResult = deployDetails.getRunTestResult
                 val metadataByXmlName = DescribeMetadata.getMap(session)
 
+                val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
+                if (null != runTestResult && !runTestResult.getFailures.isEmpty) {
+                    responseWriter.println(testFailureMessage)
+                }
+                if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
+                    responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+                }
                 for ( failureMessage <- runTestResult.getFailures) {
 
                     val problem = failureMessage.getMessage
@@ -458,7 +473,10 @@ class DeployModified(session: Session) extends ApexAction(session: Session) {
                                         session.findFile(describeMetadataObject.getDirectoryName, fileName + ".cls") match {
                                             case Some(_filePath) =>
                                                 val _problem = if (showProblem) problem else "...continuing stack trace in method " +methodName+ ". Details see above"
-                                                config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> _filePath, "text" -> _problem))
+                                                responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> _filePath, "text" -> _problem))
+                                                if (showProblem) {
+                                                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> _filePath, "text" -> problem)))
+                                                }
                                             case None =>
                                         }
                                     case None =>
