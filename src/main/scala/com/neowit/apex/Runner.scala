@@ -20,22 +20,35 @@
 package com.neowit.apex
 
 import com.neowit.utils._
+import com.neowit.apex.actions.{RetrieveError, ActionFactory}
 
 object Runner extends Logging {
     val appConfig = Config.getConfig
 
     def main(args: Array[String]) {
         if (args.isEmpty) {
-            appConfig.help()
-
+            help()
         } else {
+            var isGoodConfig = false
             try {
                 appConfig.load(args.toList)
                 run()
+                isGoodConfig = true
             } catch {
                 case ex: InvalidCommandLineException => appConfig.help()
                 case ex: MissingRequiredConfigParameterException =>
-                    logger.error(ex.getMessage)
+                    appConfig.getProperty("help") match {
+                        case Some(actionName) =>
+                            //display help for specific action
+                            help(actionName)
+                        case _ =>
+                            if (args.indexOf("--help") >=0) {
+                                help()
+                            } else {
+                                logger.error(ex.getMessage)
+                                throw ex
+                            }
+                    }
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
                     appConfig.responseWriter.println("RESULT=FAILURE")
@@ -49,7 +62,9 @@ object Runner extends Logging {
                     appConfig.responseWriter.println("RESULT=FAILURE")
                     appConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
             } finally {
-                appConfig.responseWriter.close()
+                if (isGoodConfig) {
+                    appConfig.responseWriter.close()
+                }
             }
         }
     }
@@ -58,15 +73,37 @@ object Runner extends Logging {
 
         val session = Session(appConfig)
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
-
         ActionFactory.getAction(session, session.getConfig.action) match {
-          case Some(action) => action.act
-          case None =>
+            case Some(action) => action.act()
+            case None =>
         }
 
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
+
     }
 
+    def help(actionName: String) {
+        val action = ActionFactory.getAction(null, actionName).get
+        println("\n--action=" + actionName)
+        println(" " + action.getSummary)
+        if (!action.getParamNames.isEmpty) {
+            println("Additional parameters:")
+            for(paramName <- action.getParamNames) {
+                println(action.getParamDescription(paramName))
+            }
+        }
+        if (!action.getExample.isEmpty) {
+            println("Example:")
+            println(action.getExample)
+        }
+    }
 
+    def help() {
+        appConfig.help()
+        println("Available Actions")
+        for (actionName <- ActionFactory.getActionNames) {
+            println("    --" + actionName + " see --help=" + actionName)
+        }
+    }
 }
