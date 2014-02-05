@@ -268,9 +268,10 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         }
         //only display coverage details of files included in deployment package
         val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
+        val hasCoverageData = !runTestResult.getCodeCoverage.isEmpty
         var coverageFile: Option[File] = None
         val coverageWriter = config.getProperty("reportCoverage").getOrElse("false").toString match {
-            case "true" =>
+            case "true" if hasCoverageData =>
                 coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
                 val writer = new PrintWriter(coverageFile.get)
                 Some(writer)
@@ -309,13 +310,13 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
                     filePath match {
                         case Some(relPath) =>
-                            val locations = mutable.MutableList[JSONObject]()
+                            val locations = mutable.MutableList[Int]()
                             for (codeLocation <- coverageResult.getLocationsNotCovered) {
-                                locations += JSONObject(Map("column" -> codeLocation.getColumn, "line" -> codeLocation.getLine))
+                                locations += codeLocation.getLine
                             }
-                            val str = JSONObject(Map("path" -> relPath, "locationsNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
+                            val str = JSONObject(Map("path" -> relPath, "linesNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
                             // end result looks like so:
-                            // {"path" : "src/classes/AccountController.cls", "locationsNotCovered" : [{"column" : 0, "line" : 8}, {"column": 0, "line": 9},...]}
+                            // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
                             writer.println(str)
                         case None =>
                     }
