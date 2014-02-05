@@ -314,10 +314,12 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                             for (codeLocation <- coverageResult.getLocationsNotCovered) {
                                 locations += codeLocation.getLine
                             }
-                            val str = JSONObject(Map("path" -> relPath, "linesNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
+                            val coverageJSON = JSONObject(Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
+                                                    "linesNotCoveredNum" -> coverageResult.getNumLocationsNotCovered,
+                                                    "linesNotCovered" -> JSONArray(locations.toList)))
                             // end result looks like so:
                             // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
-                            writer.println(str)
+                            writer.println(coverageJSON.toString(ResponseWriter.defaultFormatter))
                         case None =>
                     }
                 case None =>
