@@ -140,14 +140,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                 //process test successes and failures
                 val runTestResult = deployDetails.getRunTestResult
                 val metadataByXmlName = DescribeMetadata.getMap(session)
-                val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
-                  case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
-                  case None => ("classes", "cls")
-                }
-                val (triggerDir, triggerExtension) = metadataByXmlName.get("ApexTrigger") match {
-                    case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
-                    case None => ("triggers", "trigger")
-                }
+
 
                 val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
                 if (null != runTestResult && !runTestResult.getFailures.isEmpty) {
@@ -159,8 +152,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                 for ( failureMessage <- runTestResult.getFailures) {
 
                     val problem = failureMessage.getMessage
-                    val className = failureMessage.getName
-                    //val filePath = allFilesToDeploySet.filter(_.getName == (className + ".cls")).head.getAbsolutePath
+                    //val className = failureMessage.getName
                     //now parse stack trace
                     val stackTrace = failureMessage.getStackTrace
                     if (null != stackTrace) {
@@ -193,88 +185,28 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
                     //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 }
+                config.responseWriter.endSection("ERROR LIST")
 
-                //only display coverage details of files included in deployment package
-                val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
-                var coverageFile: Option[File] = None
-                val coverageWriter = config.getProperty("reportCoverage").getOrElse("false").toString match {
-                    case "true" =>
-                        coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
-                        val writer = new PrintWriter(coverageFile.get)
-                        Some(writer)
-                    case _ => None
-                }
-
-                if (!runTestResult.getCodeCoverage.isEmpty) {
-                    responseWriter.println(coverageDetails)
-                }
-
-                val reportedNames = mutable.Set[String]()
-                for ( coverageResult <- runTestResult.getCodeCoverage) {
-                    reportedNames += coverageResult.getName
-                    val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
-                    val coveragePercent = linesCovered * 100 / coverageResult.getNumLocations
-                    responseWriter.println(new MessageDetail(coverageDetails,
-                        Map("text" ->
-                            (coverageResult.getName +
-                                ": lines total " + coverageResult.getNumLocations +
-                                "; lines not covered " + coverageResult.getNumLocationsNotCovered +
-                                "; covered " + coveragePercent + "%"),
-                            "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
-                        )
-                    ))
-                    coverageWriter match {
-                      case Some(writer) =>
-                          val filePath = session.findFile(classDir, coverageResult.getName + "." + classExtension) match {
-                            case Some(relPath) => Some(relPath)
-                            case None =>
-                                //check if this is a trigger name
-                                session.findFile(triggerDir, coverageResult.getName + "." + triggerExtension) match {
-                                case Some(relPath) => Some(relPath)
-                                case None => None
-                            }
-                          }
-
-                          filePath match {
-                            case Some(relPath) =>
-                                val locations = mutable.MutableList[JSONObject]()
-                                for (codeLocation <- coverageResult.getLocationsNotCovered) {
-                                    locations += JSONObject(Map("column" -> codeLocation.getColumn, "line" -> codeLocation.getLine))
-                                }
-                                val str = JSONObject(Map("path" -> relPath, "locationsNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
-                                writer.println(str)
-                            case None =>
-                          }
-                      case None =>
-                    }
-                }
-
-                coverageWriter match {
-                    case Some(writer) =>
-                        writer.close()
-                        responseWriter.println("COVERAGE_FILE=" + coverageFile.get.getAbsolutePath)
+                val coverageReportFile = processCodeCoverage(runTestResult)
+                coverageReportFile match {
+                    case Some(coverageFile) =>
+                        responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
                     case _ =>
                 }
-
-                val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
-                if (!runTestResult.getCodeCoverageWarnings.isEmpty) {
-                    responseWriter.println(coverageMessage)
-                }
-                for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
-                    if (null != coverageWarning.getName) {
-                        if (!reportedNames.contains(coverageWarning.getName)) {
-                            responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
-                        }
-                    } else {
-                        responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
-                    }
-
-                }
-                config.responseWriter.endSection("ERROR LIST")
             }
 
 
-        } else {
+        } else { //deployResult.isSuccess = true
+
+            val runTestResult = deployDetails.getRunTestResult
+            if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
+                responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            }
+            processCodeCoverage(runTestResult) match {
+                case Some(coverageFile) =>
+                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                case _ =>
+            }
             //update session data for successful files
             if (updateSessionDataOnSuccess) {
                 val calculateMD5 = config.useMD5Hash
@@ -317,6 +249,101 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
             FileUtils.writeFile(log, logFile)
             responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
+    }
+
+    /**
+     * process code coverage results
+     * @param runTestResult - deployDetails.getRunTestResult
+     * @return set of file names (e.g. MyClass) for which we had coverage
+     */
+    private def processCodeCoverage(runTestResult: com.sforce.soap.metadata.RunTestsResult): Option[File] = {
+        val metadataByXmlName = DescribeMetadata.getMap(session)
+        val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
+            case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+            case None => ("classes", "cls")
+        }
+        val (triggerDir, triggerExtension) = metadataByXmlName.get("ApexTrigger") match {
+            case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+            case None => ("triggers", "trigger")
+        }
+        //only display coverage details of files included in deployment package
+        val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
+        var coverageFile: Option[File] = None
+        val coverageWriter = config.getProperty("reportCoverage").getOrElse("false").toString match {
+            case "true" =>
+                coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
+                val writer = new PrintWriter(coverageFile.get)
+                Some(writer)
+            case _ => None
+        }
+
+        if (!runTestResult.getCodeCoverage.isEmpty) {
+            responseWriter.println(coverageDetails)
+        }
+
+        val reportedNames = mutable.Set[String]()
+        for ( coverageResult <- runTestResult.getCodeCoverage) {
+            reportedNames += coverageResult.getName
+            val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
+            val coveragePercent = linesCovered * 100 / coverageResult.getNumLocations
+            responseWriter.println(new MessageDetail(coverageDetails,
+                Map("text" ->
+                    (coverageResult.getName +
+                        ": lines total " + coverageResult.getNumLocations +
+                        "; lines not covered " + coverageResult.getNumLocationsNotCovered +
+                        "; covered " + coveragePercent + "%"),
+                    "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
+                )
+            ))
+            coverageWriter match {
+                case Some(writer) =>
+                    val filePath = session.findFile(classDir, coverageResult.getName + "." + classExtension) match {
+                        case Some(relPath) => Some(relPath)
+                        case None =>
+                            //check if this is a trigger name
+                            session.findFile(triggerDir, coverageResult.getName + "." + triggerExtension) match {
+                                case Some(relPath) => Some(relPath)
+                                case None => None
+                            }
+                    }
+
+                    filePath match {
+                        case Some(relPath) =>
+                            val locations = mutable.MutableList[JSONObject]()
+                            for (codeLocation <- coverageResult.getLocationsNotCovered) {
+                                locations += JSONObject(Map("column" -> codeLocation.getColumn, "line" -> codeLocation.getLine))
+                            }
+                            val str = JSONObject(Map("path" -> relPath, "locationsNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
+                            // end result looks like so:
+                            // {"path" : "src/classes/AccountController.cls", "locationsNotCovered" : [{"column" : 0, "line" : 8}, {"column": 0, "line": 9},...]}
+                            writer.println(str)
+                        case None =>
+                    }
+                case None =>
+            }
+        }
+
+        val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
+        if (!runTestResult.getCodeCoverageWarnings.isEmpty) {
+            responseWriter.println(coverageMessage)
+        }
+        for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
+            if (null != coverageWarning.getName) {
+                if (!reportedNames.contains(coverageWarning.getName)) {
+                    responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+                }
+            } else {
+                responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+            }
+
+        }
+
+        coverageWriter match {
+            case Some(writer) =>
+                writer.close()
+            case _ =>
+        }
+        coverageFile
     }
 
     private val alwaysIncludeNames = Set("src", "package.xml")
