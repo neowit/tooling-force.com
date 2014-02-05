@@ -21,6 +21,7 @@ package com.neowit.apex
 
 import com.neowit.utils._
 import com.neowit.apex.actions.{RetrieveError, ActionFactory}
+import com.neowit.utils.ResponseWriter.Message
 
 object Runner extends Logging {
     val appConfig = Config.getConfig
@@ -55,12 +56,19 @@ object Runner extends Logging {
                     for(msg <- messages) {
                         appConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
+                    isGoodConfig = true
+                case e: com.sforce.soap.partner.fault.ApiFault =>
+                    logger.error(e)
+                    appConfig.responseWriter.println("RESULT=FAILURE")
+                    appConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
                     logger.error(ex.printStackTrace())
                     appConfig.responseWriter.println("RESULT=FAILURE")
                     appConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
+                    isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
                     appConfig.responseWriter.close()
