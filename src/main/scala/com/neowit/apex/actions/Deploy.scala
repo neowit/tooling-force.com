@@ -3,10 +3,11 @@ package com.neowit.apex.actions
 import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
-import java.io.{FileWriter, File}
+import java.io.{PrintWriter, FileWriter, File}
 import com.sforce.soap.metadata.DeployOptions
 import scala.collection.mutable
 import scala.util.matching.Regex
+import scala.util.parsing.json.{JSONArray, JSONObject}
 
 abstract class Deploy(session: Session) extends ApexAction(session: Session)
 
@@ -25,6 +26,7 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session)
  *
  *      if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
  *                              the *current* deployment package
+ * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */
 class DeployModified(session: Session) extends Deploy(session: Session) {
@@ -34,6 +36,10 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
     override def getParamDescription(paramName: String): String = paramName match{
         case "ignoreConflicts" => "--ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check"
         case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
+        case "reportCoverage" =>
+            """--reportCoverage=true|false (defaults to false) - if true then generate code coverage file
+              |Note: makes sence only when --testsToRun is also specified
+            """.stripMargin
         case "testsToRun" =>
             """--testsToRun=* OR "comma separated list of class.method names",
               |       e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
@@ -47,7 +53,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
             """.stripMargin
     }
 
-    override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun")
+    override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun", "reportCoverage")
 
     override def getSummary: String = "Deploy modified files and (if requested) run tests"
 
@@ -131,9 +137,17 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                     responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                     responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
                 }
-                //process test failures
+                //process test successes and failures
                 val runTestResult = deployDetails.getRunTestResult
                 val metadataByXmlName = DescribeMetadata.getMap(session)
+                val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
+                  case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+                  case None => ("classes", "cls")
+                }
+                val (triggerDir, triggerExtension) = metadataByXmlName.get("ApexTrigger") match {
+                    case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+                    case None => ("triggers", "trigger")
+                }
 
                 val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
                 if (null != runTestResult && !runTestResult.getFailures.isEmpty) {
@@ -182,15 +196,22 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
                 //only display coverage details of files included in deployment package
                 val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
+                var coverageFile: Option[File] = None
+                val coverageWriter = config.getProperty("reportCoverage").getOrElse("false").toString match {
+                    case "true" =>
+                        coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
+                        val writer = new PrintWriter(coverageFile.get)
+                        Some(writer)
+                    case _ => None
+                }
+
                 if (!runTestResult.getCodeCoverage.isEmpty) {
                     responseWriter.println(coverageDetails)
                 }
+
                 val reportedNames = mutable.Set[String]()
                 for ( coverageResult <- runTestResult.getCodeCoverage) {
                     reportedNames += coverageResult.getName
-                    //logger.debug("coverageResult.name=" + coverageResult.getName)
-                    //logger.debug("coverageResult.dml=" +coverageResult.getDmlInfo)
-                    //logger.debug("coverageResult.getType=" +coverageResult.getType)
                     val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
                     val coveragePercent = linesCovered * 100 / coverageResult.getNumLocations
                     responseWriter.println(new MessageDetail(coverageDetails,
@@ -202,7 +223,37 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                             "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
                         )
                     ))
+                    coverageWriter match {
+                      case Some(writer) =>
+                          val filePath = session.findFile(classDir, coverageResult.getName + "." + classExtension) match {
+                            case Some(relPath) => Some(relPath)
+                            case None =>
+                                //check if this is a trigger name
+                                session.findFile(triggerDir, coverageResult.getName + "." + triggerExtension) match {
+                                case Some(relPath) => Some(relPath)
+                                case None => None
+                            }
+                          }
 
+                          filePath match {
+                            case Some(relPath) =>
+                                val locations = mutable.MutableList[JSONObject]()
+                                for (codeLocation <- coverageResult.getLocationsNotCovered) {
+                                    locations += JSONObject(Map("column" -> codeLocation.getColumn, "line" -> codeLocation.getLine))
+                                }
+                                val str = JSONObject(Map("path" -> relPath, "locationsNotCovered" -> JSONArray(locations.toList))).toString(ResponseWriter.defaultFormatter)
+                                writer.println(str)
+                            case None =>
+                          }
+                      case None =>
+                    }
+                }
+
+                coverageWriter match {
+                    case Some(writer) =>
+                        writer.close()
+                        responseWriter.println("COVERAGE_FILE=" + coverageFile.get.getAbsolutePath)
+                    case _ =>
                 }
 
                 val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
