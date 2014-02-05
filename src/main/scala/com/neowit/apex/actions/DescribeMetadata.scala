@@ -44,6 +44,8 @@ object DescribeMetadata {
     def isValidApexFile(session: Session, file: File): Boolean = {
         if ("package.xml" == file.getName)
             true
+        else if (file.getName.endsWith("-meta.xml"))
+            true
         else
             getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
                 case Some(x) => true

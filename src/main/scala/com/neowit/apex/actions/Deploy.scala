@@ -85,8 +85,13 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         val metaXmlFiles = for (file <- files;
                                 metaXml = new File(file.getAbsolutePath + "-meta.xml")
                                 if metaXml.exists()) yield metaXml
+        //for every -meta.xml file make sure that its source file is also included
+        val extraSourceFiles = for (file <- files.filter(_.getName.endsWith("-meta.xml"));
+                                    sourceFile = new File(file.getAbsolutePath.replace("-meta.xml", ""))
+                                    if sourceFile.exists()) yield sourceFile
 
-        var allFilesToDeploySet = (files ++ metaXmlFiles).toSet
+
+        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles).toSet
 
         val packageXml = new MetaXml(config)
         val packageXmlFile = packageXml.getPackageXml
