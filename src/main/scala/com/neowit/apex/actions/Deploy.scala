@@ -115,11 +115,12 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
         val isRunningTests = !testMethodsByClassName.isEmpty
         deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
-        //deployOptions.setRunTests(Array[String]())
+
         val checkOnly = config.isCheckOnly
         deployOptions.setCheckOnly(checkOnly)
         //deployOptions.setPerformRetrieve(true)
 
+        logger.info("Deploying...")
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _),
             disableNotNeededTests(_, testMethodsByClassName)), deployOptions)
 
