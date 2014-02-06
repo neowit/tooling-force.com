@@ -367,9 +367,9 @@ class Session(config: Config) extends Logging {
 
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
-    private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("50").toInt
+    private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
     private def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
-        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + ONE_SECOND).toInt
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
         var attempts = 0
         var _asyncResult = asyncResult
         while (!_asyncResult.isDone) {
