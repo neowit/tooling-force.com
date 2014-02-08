@@ -83,6 +83,10 @@ class Session(config: Config) extends Logging {
         sessionProperties.getJsonData(key)
     }
 
+    def removeData(key: String) {
+        sessionProperties.remove(key)
+    }
+
     /**
      * return relative path inside project folder
      * this path is used as key in session
@@ -134,7 +138,20 @@ class Session(config: Config) extends Logging {
             else
                 None
         }
-
+    }
+    /**
+     * keys usually look like so: unpackaged/classes/Messages.cls
+     * @param dirName - e.g. "classes"
+     * @param fileName - e.g. "Messages.cls"
+     * @return
+     */
+    def findKey(dirName: String, fileName: String): Option[String] = {
+        val key = "unpackaged" + File.separator + dirName + File.separator + fileName
+        if (sessionProperties.containsKey(key)) {
+            Some(key)
+        } else {
+            None
+        }
     }
 
     //Windows does not support cp -p (preserve last modified date) copy so have to assume that copy of all project files
@@ -363,6 +380,14 @@ class Session(config: Config) extends Logging {
 
         }.asInstanceOf[com.sforce.soap.apex.ExecuteAnonymousResult]
         (executeAnonymousResult, log)
+    }
+
+    def delete(metadata: Array[com.sforce.soap.metadata.Metadata] ):AsyncResult = {
+        val deleteResult = withRetry {
+            val conn = getMetadataConnection
+            conn.delete(metadata)
+        }.asInstanceOf[AsyncResult]
+        deleteResult
     }
 
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call

@@ -90,4 +90,23 @@ class MetaXml(config: Config) {
         _package
     }
 
+    //scala.xml.XML.save("therm1.xml", node)
+    def packageToXml(_package: com.sforce.soap.metadata.Package): scala.xml.Elem = {
+        val packageXml =
+                <Package xmlns="http://soap.sforce.com/2006/04/metadata">
+                {
+                    for (typeMember <- _package.getTypes) yield {
+                        <types>
+                            {for (member <- typeMember.getMembers) yield
+                            <members>{member}</members>
+                            }
+                            <name>{typeMember.getName}</name>
+                        </types>
+                    }
+                }
+                    <version>{_package.getVersion}</version>
+                </Package>
+
+        packageXml
+    }
 }

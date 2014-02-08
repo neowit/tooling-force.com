@@ -238,20 +238,31 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
  * 'bulkRetrieve' action uses type list specified in a file and sends retrieve() call for each type
  *@param session - SFDC session
  * Extra command line params:
- * --specificTypes=/path/to/file with file list
+ * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
+ * --specificTypes=/path/to/file.js with extraction details
  * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
+ * --typesFileFormat=json|file-paths, default is 'json'
+ *  if format is set to "file-paths" then types list should look like so:
+ *  -------------------------------
+ *  objects/Account.object
+ *  classes/MyClass.cls
+ *  classes/A_Class.cls
+ *  -------------------------------
  */
 class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) {
 
     override def getExample: String =
-        """Suppose we want to retrieve all ApexClass-es and CustomObject-s.
-          |we can create a file (/home/test/types.txt) with following content
+        """Suppose we want to retrieve all members of ApexClass, ApprovalProcess, ApexComponent
+          |and selected members of ApexPage type.
+          |We can create a file (/home/test/types.js) with following content
           |---------------------------
-          |ApexClass
-          |CustomObject
+          |{"XMLName": "ApexClass", "members": ["*"]}
+          |{"XMLName": "ApprovalProcess", "members": ["*"]}
+          |{"XMLName": "ApexComponent", "members": ["*"]}
+          |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
           |---------------------------
           | and add to the command line:
-          |--specificTypes=/home/test/types.txt
+          |--specificTypes=/home/test/types.js
         """.stripMargin
 
     override def getParamDescription(paramName: String): String = {
@@ -266,11 +277,29 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
                   |if --updatePackageXMLOnSuccess=true then package.xml will be updated when types file contains
                   |types missing in package.xml
                 """.stripMargin
+            case "typesFileFormat" =>
+                """format of the file with components list, can be either 'json' (default) or 'file-paths'
+                  |if format is set to "file-paths" then types list should look like so:
+                  |-------------------------------
+                  |objects/My_Object__c
+                  |classes/MyClass.cls
+                  |classes/A_Class.cls
+                  |-------------------------------
+                  |
+                  |if format is not set or set to "json" then types list should look like so:
+                  |---------------------------
+                  |{"XMLName": "ApexClass", "members": ["*"]}
+                  |{"XMLName": "ApprovalProcess", "members": ["*"]}
+                  |{"XMLName": "ApexComponent", "members": ["*"]}
+                  |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
+                  |---------------------------
+                """.stripMargin
+            case "targetFolder" => "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
 
         }
     }
 
-    override def getParamNames: List[String] = List("specificTypes", "updatePackageXMLOnSuccess")
+    override def getParamNames: List[String] = List("specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder")
 
     override def getSummary: String =
         """using type list specified in a given file send retrieve() call for each type
@@ -322,26 +351,78 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
         retrieveResult
     }
 
+    /**
+     * list locally modified files using data from session.properties
+     */
+    def getComponentPaths: List[String] = {
+
+        //load file list from specified file
+        val componentListFile = new File(config.getRequiredProperty("specificTypes").get)
+        val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
+        components
+    }
+
     def act(): Unit = {
-        val tempFolder = FileUtils.createTempDir(config)
+        val tempFolder = config.getProperty("targetFolder")  match {
+          case Some(x) => new File(x)
+          case None =>
+              FileUtils.createTempDir(config)
+        }
 
         //load file list from specified file
         val typesFile = new File(config.getRequiredProperty("specificTypes").get)
-        val metadataByXmlName = DescribeMetadata.getMap(session)
+        val isJSONFormat = config.getProperty("typesFileFormat").getOrElse("json") == "json"
 
         var fileCountByType = Map[String, Int]()
         var errors = List[ResponseWriter.Message]()
         var membersByXmlName = new mutable.HashMap[String, List[String]]()
-        for (line <- scala.io.Source.fromFile(typesFile).getLines()) {
-            JSON.parseRaw(line)  match {
-                case Some(json) =>
-                    val data = json.asInstanceOf[JSONObject].obj
-                    val typeName = data("XMLName").asInstanceOf[String]
-                    val members = data("members").asInstanceOf[JSONArray].list.asInstanceOf[List[String]]
-                    membersByXmlName += typeName -> members
 
-                case None =>
-                    errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: " + line)
+
+        if (isJSONFormat) {
+            for (line <- scala.io.Source.fromFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
+                JSON.parseRaw(line)  match {
+                    case Some(json) =>
+                        val data = json.asInstanceOf[JSONObject].obj
+                        val typeName = data("XMLName").asInstanceOf[String]
+                        val members = data("members").asInstanceOf[JSONArray].list.asInstanceOf[List[String]]
+                        membersByXmlName += typeName -> members
+
+                    case None =>
+                        errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: '" + line + "'. Make sure you specified correct '--typesFileFormat' value")
+                }
+
+
+            }
+        } else {
+            //folder/file format
+            val metadataByDirName = DescribeMetadata.getDescribeByDirNameMap(session)
+            val componentsPaths = getComponentPaths
+
+            //classes -> List("MyClass.cls", "OtherClass.cls", ...), pages -> List("Page1.page")
+            val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != File.separatorChar))
+            for (dirName <- namesByDir.keySet) {
+                metadataByDirName.get(dirName) match {
+                  case Some(describeObject) =>
+
+                      var extension = describeObject.getSuffix
+                      if (null == extension) {
+                          extension = ""
+                      } else {
+                          extension = "." + extension
+                      }
+                      namesByDir.getOrElse(dirName, Nil) match {
+                          case _fileNames if !_fileNames.isEmpty && Nil != _fileNames =>
+
+                              val objNames = _fileNames.map(_.drop(dirName.size + 1)).map(
+                                  name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
+                              )
+                              membersByXmlName += describeObject.getXmlName -> objNames
+
+                          case _ =>
+                              throw new ActionError("Did not recognise values in directory: " + dirName)
+                      }
+                  case None =>
+                }
             }
         }
 
@@ -352,7 +433,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
                         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
-                        val fileCount = filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml").size
+                        val fileCount = filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml")).size
                         fileCountByType += typeName -> fileCount
                     case Failure(err) =>
                         err match {
@@ -369,7 +450,8 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
                 }
 
             }
-
+        }
+        if (errors.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
             config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))

@@ -4,7 +4,7 @@ import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
-import com.sforce.soap.metadata.DeployOptions
+import com.sforce.soap.metadata.{DeployProblemType, DeployOptions}
 import scala.collection.mutable
 import scala.util.matching.Regex
 import scala.util.parsing.json.{JSONArray, JSONObject}
@@ -140,8 +140,13 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                     val column = failureMessage.getColumnNumber
                     val filePath = failureMessage.getFileName
                     val problem = failureMessage.getProblem
-                    responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                    val problemType = failureMessage.getProblemType match {
+                        case DeployProblemType.Warning => ResponseWriter.WARN
+                        case DeployProblemType.Error => ResponseWriter.ERROR
+                        case _ => ResponseWriter.ERROR
+                    }
+                    responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                 }
                 //process test successes and failures
                 val runTestResult = deployDetails.getRunTestResult
@@ -276,7 +281,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
         val hasCoverageData = !runTestResult.getCodeCoverage.isEmpty
         var coverageFile: Option[File] = None
-        val coverageWriter = config.getProperty("reportCoverage").getOrElse("false").toString match {
+        val coverageWriter = config.getProperty("reportCoverage").getOrElse("false") match {
             case "true" if hasCoverageData =>
                 coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
                 val writer = new PrintWriter(coverageFile.get)
@@ -587,6 +592,18 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
 class DeploySpecificFiles(session: Session) extends DeployModified(session: Session) {
+    override def getExample: String =
+        """
+          |Suppose we want to deploy Account.trigger and AccountHandler.cls, content of file passed to --specificFiles
+          |may look like so
+          |-------------------------------
+          |src/classes/AccountHandler.cls
+          |src/triggers/Account.trigger
+          |-------------------------------
+          |
+          |then in addition to all normal command line parameters you add
+          |... --specificFiles=/tmp/file_list.txt
+        """.stripMargin
     override def getName: String = "deploySpecificFiles"
 
     override def getSummary: String = "action uses file list specified in a file and sends deploy() File-Based call"
@@ -708,4 +725,194 @@ class ListModified(session: Session) extends ApexAction(session: Session) {
         }
     }
 
+}
+
+/**
+ * 'deleteMetadata' action attempts to remove specified metadata components from SFDC
+ * using deploy() call with delete manifest file named destructiveChanges.xml
+ *@param session - SFDC session
+ * Extra command line params:
+ * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
+ * --specificComponents=/path/to/file with metadata components list, each component on its own line
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful
+ */
+class DeployDestructive(session: Session) extends Deploy(session: Session) {
+
+    override def getExample: String =
+        """
+          |Suppose we want to delete Account.trigger, AccountHandler.cls and MyCustomObject__c.MyCustomField__c,
+          |content of file passed to --specificComponents may look like so
+          |-------------------------------
+          |classes/AccountHandler.cls
+          |triggers/Account.trigger
+          |objects/MyCustomObject__c.object
+          |pages/Hello.page
+          |-------------------------------
+          |
+          |then in addition to all normal command line parameters you add
+          |... --specificComponents=/tmp/list.txt
+        """.stripMargin
+
+    override def getParamDescription(paramName: String): String = paramName match {
+        case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
+        case "specificComponents" => "--specificComponents=/path/to/file with component names"
+        case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful"
+    }
+
+    override def getParamNames: List[String] = List("checkOnly", "metadataComponents", "updateSessionDataOnSuccess", "backupDir")
+
+    override def getSummary: String =
+        s"""action attempts to remove specified metadata components from SFDC
+          |Note: removal of individual members (e.g. custom field) is not supported by this command.
+          |With $getName you can delete a Class or Custom Object, but not specific field of custom object.
+        """.stripMargin
+
+    override def getName: String = "deleteMetadata"
+
+    override def act(): Unit = {
+        val components = getComponentPaths
+        if (components.isEmpty) {
+            config.responseWriter.println("RESULT=FAILURE")
+            val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
+            responseWriter.println(new Message(ResponseWriter.ERROR, "no valid components in " + componentListFile))
+        } else {
+            val callingAnotherOrg = session.callingAnotherOrg
+
+            val deployOptions = new DeployOptions()
+            deployOptions.setPerformRetrieve(false)
+            deployOptions.setAllowMissingFiles(false)
+            deployOptions.setRollbackOnError(true)
+            val checkOnly = config.isCheckOnly
+            deployOptions.setCheckOnly(checkOnly)
+
+            val tempDir = generateDeploymentDir(components)
+            logger.info("Deleting...")
+            val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(tempDir), deployOptions)
+
+            val deployDetails = deployResult.getDetails
+            if (!deployResult.isSuccess) {
+                config.responseWriter.println("RESULT=FAILURE")
+                if (null != deployDetails) {
+                    config.responseWriter.startSection("ERROR LIST")
+
+                    //display errors both as messages and as ERROR: lines
+                    val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
+                    if (!deployDetails.getComponentFailures.isEmpty) {
+                        responseWriter.println(componentFailureMessage)
+                    }
+
+                    for ( failureMessage <- deployDetails.getComponentFailures) {
+                        //first part of the file usually looks like deleteMetadata/classes/AccountController.cls
+                        //make it src/classes/AccountController.cls
+                        val filePath = failureMessage.getFileName match {
+                            case null => ""
+                            case "" => ""
+                            case str =>
+                                val pathSplit = str.split(File.separatorChar)
+                                if (3 == pathSplit.size) {
+                                    //this is a standard 3 component path, make first part src/
+                                    "src" + str.dropWhile(_ != File.separatorChar)
+                                } else {
+                                    str
+                                }
+                        }
+                        val problemWithFilePath = if (filePath.isEmpty) failureMessage.getProblem else filePath + ": " + failureMessage.getProblem
+                        val problemType = failureMessage.getProblemType match {
+                            case DeployProblemType.Warning => ResponseWriter.WARN
+                            case DeployProblemType.Error => ResponseWriter.ERROR
+                            case _ => ResponseWriter.ERROR
+                        }
+                        responseWriter.println("ERROR", Map("type" -> problemType, "text" -> failureMessage.getProblem, "filePath" -> filePath))
+                        responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "text" -> problemWithFilePath, "filePath" -> filePath)))
+                    }
+                    config.responseWriter.endSection("ERROR LIST")
+                }
+            } else {
+                config.responseWriter.println("RESULT=SUCCESS")
+                val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false") == "true"
+                if (updateSessionDataOnSuccess) {
+                    responseWriter.debug("Updating session data")
+                    for (componentPath <- components) {
+                        val pair = componentPath.split(File.separatorChar)
+                        session.findKey(pair(0), pair(1)) match {
+                            case Some(key) =>
+                                session.removeData(key)
+                                responseWriter.debug("Removed session data for key: " + key)
+                            case None =>
+                        }
+                    }
+                    session.storeSessionData()
+                }
+            }
+        }
+
+    }
+    def generateDeploymentDir(componentPaths: List[String]): File = {
+        val tempDir = FileUtils.createTempDir(config)
+        val metaXml = new MetaXml(config)
+        //place destructiveChanges.xml and package.xml in this temp folder
+        val destructivePackage = getDestructiveChangesPackage(componentPaths)
+        val destructiveXml = metaXml.packageToXml(destructivePackage)
+        scala.xml.XML.save(new File(tempDir, "destructiveChanges.xml").getAbsolutePath, destructiveXml, enc = "UTF-8", xmlDecl = true )
+
+        val packageXml = metaXml.packageToXml(getEmptyPackage)
+        scala.xml.XML.save(new File(tempDir, "package.xml").getAbsolutePath, packageXml, enc = "UTF-8" )
+        tempDir
+    }
+    /**
+     * list locally modified files using data from session.properties
+     */
+    def getComponentPaths: List[String] = {
+
+        //load file list from specified file
+        val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
+        val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
+        components
+    }
+
+    def getDestructiveChangesPackage(componentsPaths: List[String]): com.sforce.soap.metadata.Package = {
+        val objectDescribeByXmlTypeName = DescribeMetadata.getMap(session)
+        val xmlTypeNameByDirName = objectDescribeByXmlTypeName.filter(pair => !pair._2.getDirectoryName.isEmpty).map(
+            pair => pair._2.getDirectoryName -> pair._1
+        )
+        val _package = new com.sforce.soap.metadata.Package()
+        _package.setVersion(config.apiVersion.toString)
+
+        val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != File.separatorChar))
+
+        val members = for (dirName <- namesByDir.keySet) yield {
+            val ptm = new com.sforce.soap.metadata.PackageTypeMembers()
+            xmlTypeNameByDirName.get(dirName) match {
+              case Some(xmlTypeName) =>
+                  ptm.setName(xmlTypeName)
+                  var extension = objectDescribeByXmlTypeName(xmlTypeName).getSuffix
+                  if (null == extension) {
+                      extension = ""
+                  } else {
+                      extension = "." + extension
+                  }
+
+                  val objNames = namesByDir.getOrElse(dirName, Nil) match {
+                      case _objNames if !_objNames.isEmpty && List("*") != _objNames=>
+                          _objNames.map(_.drop(dirName.size + 1)).map(
+                              name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
+                          ).toArray
+                      case _ =>
+                          throw new ActionError("Did not recognise directory: " + dirName)
+                  }
+
+                  ptm.setMembers(objNames)
+              case None =>
+            }
+            ptm
+        }
+        _package.setTypes(members.toArray)
+        _package
+
+    }
+    def getEmptyPackage: com.sforce.soap.metadata.Package = {
+        val _package = new com.sforce.soap.metadata.Package()
+        _package.setVersion(config.apiVersion.toString)
+        _package
+    }
 }

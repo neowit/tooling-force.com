@@ -37,7 +37,8 @@ object ActionFactory {
         "describeMetadata" -> "DescribeMetadata",
         "bulkRetrieve" -> "BulkRetrieve",
         "listMetadata" -> "ListMetadata",
-        "executeAnonymous" -> "ExecuteAnonymous"
+        "executeAnonymous" -> "ExecuteAnonymous",
+        "deleteMetadata" -> "DeployDestructive"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 

@@ -11,6 +11,9 @@ import scala.util.{Failure, Success, Try}
 object DescribeMetadata {
     private var describeMetadataObjectMap:Map[String, DescribeMetadataObject] = Map()
 
+    /**
+     * @return Map: XmlTypeName -> DescribeMetadataObject
+     */
     def getMap(session: Session): Map[String, DescribeMetadataObject] = {
         if (describeMetadataObjectMap.isEmpty) {
             val describer = new DescribeMetadata(session)
@@ -27,8 +30,26 @@ object DescribeMetadata {
         describeMetadataObjectMap
     }
 
+    /**
+     * @return Map: DirName -> DescribeMetadataObject
+     */
+    def getDescribeByDirNameMap(session: Session): Map[String, DescribeMetadataObject] = {
+        val objectDescribeByXmlTypeName = getMap(session)
+        //turn XmlName -> DescribeMetadataObject (XmlName, DirectoryName, ...)
+        //into DirectoryName -> DescribeMetadataObject
+        val describeByDirName = objectDescribeByXmlTypeName.filter(pair => !pair._2.getDirectoryName.isEmpty).map(
+            pair => pair._2.getDirectoryName -> pair._2
+        )
+        describeByDirName
+    }
+
     private var xmlNameBySuffix:Map[String, String] = Map()
 
+    /**
+     *
+     * @param suffix - file extension, e.g. '.cls'
+     * @return
+     */
     def getXmlNameBySuffix(session: Session, suffix: String): Option[String] = {
         if (xmlNameBySuffix.isEmpty) {
             val nameBySuffix = new mutable.HashMap[String, String]()
