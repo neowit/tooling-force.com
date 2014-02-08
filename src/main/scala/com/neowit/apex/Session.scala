@@ -96,7 +96,7 @@ class Session(config: Config) extends Logging {
     def getRelativePath(file: File): String = {
         val projectPath = config.projectDir.getAbsolutePath + File.separator
         val res = file.getAbsolutePath.substring(projectPath.length)
-        res
+        normalizePath(res)
     }
     /**
      * return relative path inside project folder
@@ -110,15 +110,22 @@ class Session(config: Config) extends Logging {
     }
 
     def getKeyByRelativeFilePath(filePath: String): String = {
-        val relPath = if (filePath.startsWith("src" + File.separator))
-            filePath.replaceFirst("src" + File.separator, "unpackaged" + File.separator)
+        val normalPath = normalizePath(filePath)
+        val relPath = if (normalPath.startsWith("src/"))
+            normalPath.replaceFirst("src/", "unpackaged/")
         else
-            filePath
+            normalPath
         if (relPath.endsWith("-meta.xml"))
             relPath.substring(0, relPath.length - "-meta.xml".length)
         else
             relPath
     }
+
+    /**
+     * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
+     * @return turns path\\to\file into path/to/file
+     */
+    def normalizePath(filePath: String) = FileUtils.normalizePath(filePath)
 
     /**
      * keys usually look like so: unpackaged/classes/Messages.cls
@@ -127,7 +134,7 @@ class Session(config: Config) extends Logging {
      * @return
      */
     def findFile(dirName: String, fileName: String): Option[String] = {
-        if (sessionProperties.containsKey("unpackaged" + File.separator + dirName + File.separator + fileName)) {
+        if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
             Some("src" + File.separator + dirName + File.separator + fileName)
         } else {
             //looks like this file is not in session yet, last attempt, check if local file exists
@@ -146,7 +153,7 @@ class Session(config: Config) extends Logging {
      * @return
      */
     def findKey(dirName: String, fileName: String): Option[String] = {
-        val key = "unpackaged" + File.separator + dirName + File.separator + fileName
+        val key = "unpackaged/" + dirName + "/" + fileName
         if (sessionProperties.containsKey(key)) {
             Some(key)
         } else {

@@ -808,10 +808,10 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
                             case null => ""
                             case "" => ""
                             case str =>
-                                val pathSplit = str.split(File.separatorChar)
+                                val pathSplit = str.split('/')
                                 if (3 == pathSplit.size) {
                                     //this is a standard 3 component path, make first part src/
-                                    "src" + str.dropWhile(_ != File.separatorChar)
+                                    "src" + str.dropWhile(_ != '/')
                                 } else {
                                     str
                                 }
@@ -833,7 +833,7 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
                 if (updateSessionDataOnSuccess) {
                     responseWriter.debug("Updating session data")
                     for (componentPath <- components) {
-                        val pair = componentPath.split(File.separatorChar)
+                        val pair = componentPath.split('/')
                         session.findKey(pair(0), pair(1)) match {
                             case Some(key) =>
                                 session.removeData(key)
@@ -878,7 +878,7 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
         val _package = new com.sforce.soap.metadata.Package()
         _package.setVersion(config.apiVersion.toString)
 
-        val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != File.separatorChar))
+        val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != '/'))
 
         val members = for (dirName <- namesByDir.keySet) yield {
             val ptm = new com.sforce.soap.metadata.PackageTypeMembers()

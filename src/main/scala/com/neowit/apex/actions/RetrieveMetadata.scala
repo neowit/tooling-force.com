@@ -30,7 +30,7 @@ abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Se
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
         //setSpecificFiles requires file names that look like: classes/MyClass.cls
-        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src" + File.separator, "unpackaged" + File.separator)).toArray)
+        retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "unpackaged/")).toArray)
         //retrieveRequest.setSinglePackage(true) //do NOT use setSinglePackage(), it causes fileNames to lose "unpackaged/"
         setUpackaged(retrieveRequest)
 
@@ -191,7 +191,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
         if (filesWithoutPackageXml.isEmpty) {
             Option(filesWithoutPackageXml)
         } else {
-            val fileMap = filesWithoutPackageXml.map(f => (session.getRelativePath(f).replaceFirst("src" + File.separator, "unpackaged" + File.separator), f) ).toMap
+            val fileMap = filesWithoutPackageXml.map(f => (session.getRelativePath(f).replaceFirst("src/", "unpackaged/"), f) ).toMap
 
             Try(retrieveFiles(filesWithoutPackageXml, reportMissing = false)) match {
                 case Success(retrieveResult) =>
@@ -359,7 +359,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
         //load file list from specified file
         val componentListFile = new File(config.getRequiredProperty("specificTypes").get)
         val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
-        components
+        components.map(FileUtils.normalizePath(_))
     }
 
     def act(): Unit = {
@@ -399,7 +399,7 @@ class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) 
             val componentsPaths = getComponentPaths
 
             //classes -> List("MyClass.cls", "OtherClass.cls", ...), pages -> List("Page1.page")
-            val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != File.separatorChar))
+            val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != '/'))
             for (dirName <- namesByDir.keySet) {
                 metadataByDirName.get(dirName) match {
                   case Some(describeObject) =>

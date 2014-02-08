@@ -22,8 +22,16 @@ package com.neowit.utils
 import java.io.{FileWriter, File, FileInputStream, FileOutputStream}
 import java.util.zip.CRC32
 import java.security.MessageDigest
+import java.util.regex.Matcher
 
 object FileUtils {
+
+    val regexSafeSeparator = Matcher.quoteReplacement(File.separator)
+    /**
+     * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
+     * @return turns path\\to\file into path/to/file
+     */
+    def normalizePath(filePath: String) = filePath.replaceAll(FileUtils.regexSafeSeparator, "/")
 
     def createTempDir(appConfig: Config): File = {
         val name = appConfig.action
