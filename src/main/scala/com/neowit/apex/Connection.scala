@@ -22,6 +22,7 @@ package com.neowit.apex
 import com.neowit.utils.{Config, Logging}
 
 object Connection extends Logging {
+    val CLIENT_NAME = "tooling-force.com/0.1"
 
     private def getConnectionConfig (appConfig: Config) = {
         val config = new com.sforce.ws.ConnectorConfig()
@@ -66,17 +67,24 @@ object Connection extends Logging {
         config
     }
 
+    private def setClient(connection: com.sforce.soap.partner.PartnerConnection): com.sforce.soap.partner.PartnerConnection = {
+        val callOptions = new com.sforce.soap.partner.CallOptions_element()
+        callOptions.setClient(CLIENT_NAME)
+        connection.__setCallOptions(callOptions)
+        connection
+    }
     def createPartnerConnection(appConfig: Config):com.sforce.soap.partner.PartnerConnection = {
         logger.debug("Creating NEW Partner Connection")
         val connectionConfig = getConnectionConfig(appConfig)
-        com.sforce.soap.partner.Connector.newConnection(connectionConfig)
+        setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig))
 
     }
     def getPartnerConnection(appConfig: Config, sessionId: String, serviceEndpoint: String):com.sforce.soap.partner.PartnerConnection = {
         val connectionConfig = getConnectionConfig(appConfig)
         connectionConfig.setSessionId(sessionId)
         connectionConfig.setServiceEndpoint(serviceEndpoint)
-        com.sforce.soap.partner.Connector.newConnection(connectionConfig)
+        val connection = com.sforce.soap.partner.Connector.newConnection(connectionConfig)
+        setClient(connection)
     }
 
     /**
@@ -107,7 +115,14 @@ object Connection extends Logging {
         connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/m/"))
 
         val metadataConnection = com.sforce.soap.metadata.Connector.newConnection(connectionConfig)
-        metadataConnection
+        setClient(metadataConnection)
+    }
+
+    private def setClient(connection: com.sforce.soap.metadata.MetadataConnection): com.sforce.soap.metadata.MetadataConnection = {
+        val callOptions = new com.sforce.soap.metadata.CallOptions_element()
+        callOptions.setClient(CLIENT_NAME)
+        connection.__setCallOptions(callOptions)
+        connection
     }
 
     /**
@@ -132,13 +147,19 @@ object Connection extends Logging {
         val partnerConnectionConfig = partnerConnection.getConfig
 
         val connectionConfig = getConnectionConfig(appConfig)
-        //Metadata api can not connect on its own (something is wrong with the jar which wsc generates)
-        //having to use a workaround - connect via SOAP and then use obtained session for metadata connection
+        //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
+        //having to use a workaround - connect via SOAP and then use obtained session for Tooling connection
         connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
         connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
 
         val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(connectionConfig)
-        toolingConnection
+        setClient(toolingConnection)
+    }
+    private def setClient(connection: com.sforce.soap.tooling.SoapConnection): com.sforce.soap.tooling.SoapConnection = {
+        val callOptions = new com.sforce.soap.tooling.CallOptions_element()
+        callOptions.setClient(CLIENT_NAME)
+        connection.__setCallOptions(callOptions)
+        connection
     }
 
     /**
@@ -163,13 +184,19 @@ object Connection extends Logging {
         val partnerConnectionConfig = partnerConnection.getConfig
 
         val connectionConfig = getConnectionConfig(appConfig)
-        //Metadata api can not connect on its own (something is wrong with the jar which wsc generates)
-        //having to use a workaround - connect via SOAP and then use obtained session for metadata connection
+        //Apex api can not connect on its own (something is wrong with the jar which wsc generates)
+        //having to use a workaround - connect via SOAP and then use obtained session for Apex connection
         connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
         connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/s/"))
 
         val apexConnection = com.sforce.soap.apex.Connector.newConnection(connectionConfig)
-        apexConnection
+        setClient(apexConnection)
+    }
+    private def setClient(connection: com.sforce.soap.apex.SoapConnection): com.sforce.soap.apex.SoapConnection = {
+        val callOptions = new com.sforce.soap.apex.CallOptions_element()
+        callOptions.setClient(CLIENT_NAME)
+        connection.__setCallOptions(callOptions)
+        connection
     }
 }
 
