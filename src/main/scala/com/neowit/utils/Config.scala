@@ -101,11 +101,13 @@ class Config extends Logging{
                         case "action" => nextOption(configFilePaths, map ++ Map("action" -> value), tail)
                         case _ => nextOption(configFilePaths, map ++ Map(key -> value), tail)
                     }
-                case _ =>
+                case x =>
+                    logger.debug("failed to parse command line param: " + x)
                     throw new InvalidCommandLineException
             }
         }
 
+        logger.trace("arglist=" + arglist)
         val (configFilePaths:List[String], opts) = nextOption(ListBuffer[String](), Map(), arglist)
         options = opts
         //logger.debug(options)
@@ -246,7 +248,7 @@ class Config extends Logging{
  Command line utility for working with force.com Metadata and Tooling API.
  https://github.com/neowit/tooling-force.com
 
-Command line parameters"
+Command line parameters
  --help : show this text
 
  --action=<action-name> - action to perform
