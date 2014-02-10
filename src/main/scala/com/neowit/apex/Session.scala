@@ -331,7 +331,8 @@ class Session(config: Config) extends Logging {
         var log = ""
         val deployResult = withRetry {
             val conn = getMetadataConnection
-            val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
+            //val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
+            val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions), isDeploy = true)
             val _deployResult = conn.checkDeployStatus(asyncResult.getId, true)
             log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
             _deployResult
@@ -400,14 +401,27 @@ class Session(config: Config) extends Logging {
     //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
-    private def wait(connection: MetadataConnection, asyncResult: AsyncResult): AsyncResult = {
+
+    private def wait(connection: MetadataConnection, asyncResult: AsyncResult, isDeploy: Boolean = false): AsyncResult = {
         val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
         var attempts = 0
         var _asyncResult = asyncResult
+        var lastReportTime = System.currentTimeMillis()
+        var testNumRun = 0
+        var testNumFailed = 0
+        val oldMessages = scala.collection.mutable.Set[String]()
+
         while (!_asyncResult.isDone) {
+            val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
             blocking {
                 Thread.sleep(waitTimeMilliSecs)
-                logger.info("waiting result, attempt " + attempts)
+            }
+            //report only once every 3 seconds
+            if (reportAttempt) {
+                logger.info("waiting result, poll #" + attempts)
+                lastReportTime = System.currentTimeMillis()
+            } else {
+                logger.trace("waiting result, poll #" + attempts)
             }
             attempts += 1
             if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
@@ -416,7 +430,37 @@ class Session(config: Config) extends Logging {
                     "by --maxPollRequests is sufficient and --pollWaitMillis is not too short.")
             }
             _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
-            logger.info("Status is: " + _asyncResult.getState)
+            logger.debug("Status is: " + _asyncResult.getState)
+
+            if (isDeploy) {
+                // Fetch in-progress details once for every 3 polls
+                val fetchDetails = isDeploy && attempts % 3 == 0
+                if (fetchDetails) {
+                    val _deployResult = connection.checkDeployStatus(_asyncResult.getId, fetchDetails)
+                    if (null != _deployResult.getStateDetail) {
+                        logger.info(_deployResult.getStateDetail)
+                    }
+                    val deployDetails = _deployResult.getDetails
+                    if (null != deployDetails && null != deployDetails.getRunTestResult) {
+                        val runTestResult = deployDetails.getRunTestResult
+                        if (null != runTestResult && (testNumRun != runTestResult.getNumTestsRun || testNumFailed != runTestResult.getNumFailures)) {
+                            if (testNumFailed != runTestResult.getNumFailures) {
+                                for (testFailure <- runTestResult.getFailures) {
+                                    val message = testFailure.getMessage
+                                    if (!oldMessages.contains(message)) {
+                                        logger.info(testFailure.getMethodName + ": " + message)
+                                        oldMessages += message
+                                    }
+                                }
+                            }
+                            testNumRun = runTestResult.getNumTestsRun
+                            testNumFailed = runTestResult.getNumFailures
+                            logger.info("Tests finished: " + testNumRun + ";  Failures: " + testNumFailed)
+                        }
+                    }
+
+                }
+            }
         }
         if (AsyncRequestState.Completed != _asyncResult.getState) {
             throw new Exception(_asyncResult.getStatusCode + " msg:" + _asyncResult.getMessage)
