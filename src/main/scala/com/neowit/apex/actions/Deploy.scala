@@ -297,7 +297,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         for ( coverageResult <- runTestResult.getCodeCoverage) {
             reportedNames += coverageResult.getName
             val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
-            val coveragePercent = linesCovered * 100 / coverageResult.getNumLocations
+            val coveragePercent = if (coverageResult.getNumLocations > 0) linesCovered * 100 / coverageResult.getNumLocations else 0
             responseWriter.println(new MessageDetail(coverageDetails,
                 Map("text" ->
                     (coverageResult.getName +
