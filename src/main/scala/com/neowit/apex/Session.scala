@@ -398,7 +398,6 @@ class Session(config: Config) extends Logging {
         deleteResult
     }
 
-    //TODO - when API v30 is available consider switching to synchronous version of retrieve call
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
 
@@ -407,8 +406,6 @@ class Session(config: Config) extends Logging {
         var attempts = 0
         var _asyncResult = asyncResult
         var lastReportTime = System.currentTimeMillis()
-        var testNumRun = 0
-        var testNumFailed = 0
         val oldMessages = scala.collection.mutable.Set[String]()
 
         while (!_asyncResult.isDone) {
@@ -440,22 +437,36 @@ class Session(config: Config) extends Logging {
                     if (null != _deployResult.getStateDetail) {
                         logger.info(_deployResult.getStateDetail)
                     }
+                    if (_deployResult.getNumberComponentsTotal > 0) {
+                        val componentsMessage = s"Components Total/Deployed/Errors: " +
+                            s"${_deployResult.getNumberComponentsTotal}/${_deployResult.getNumberComponentsDeployed}/${_deployResult.getNumberComponentErrors}"
+                        if (!oldMessages.contains(componentsMessage)) {
+                            logger.info(componentsMessage)
+                            oldMessages += componentsMessage
+                        }
+                    }
+
                     val deployDetails = _deployResult.getDetails
                     if (null != deployDetails && null != deployDetails.getRunTestResult) {
+
+                        if (_deployResult.getNumberTestsTotal > 0) {
+                            val testMessage = "Tests Total/Completed/Errors: "+
+                                s"${_deployResult.getNumberTestsTotal}/${_deployResult.getNumberTestsCompleted}/${_deployResult.getNumberTestErrors}"
+                            if (!oldMessages.contains(testMessage)) {
+                                logger.info(testMessage)
+                                oldMessages += testMessage
+                            }
+                        }
+
                         val runTestResult = deployDetails.getRunTestResult
-                        if (null != runTestResult && (testNumRun != runTestResult.getNumTestsRun || testNumFailed != runTestResult.getNumFailures)) {
-                            if (testNumFailed != runTestResult.getNumFailures) {
-                                for (testFailure <- runTestResult.getFailures) {
-                                    val message = testFailure.getMessage
-                                    if (!oldMessages.contains(message)) {
-                                        logger.info(testFailure.getMethodName + ": " + message)
-                                        oldMessages += message
-                                    }
+                        if (null != runTestResult ) {
+                            for (testFailure <- runTestResult.getFailures) {
+                                val message = testFailure.getMessage
+                                if (!oldMessages.contains(message)) {
+                                    logger.info(testFailure.getMethodName + ": " + message)
+                                    oldMessages += message
                                 }
                             }
-                            testNumRun = runTestResult.getNumTestsRun
-                            testNumFailed = runTestResult.getNumFailures
-                            logger.info("Tests finished: " + testNumRun + ";  Failures: " + testNumFailed)
                         }
                     }
 
