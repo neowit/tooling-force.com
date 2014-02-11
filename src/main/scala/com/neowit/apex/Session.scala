@@ -426,57 +426,71 @@ class Session(config: Config) extends Logging {
                     "of metadata components, check that the time allowed " +
                     "by --maxPollRequests is sufficient and --pollWaitMillis is not too short.")
             }
-            _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
-            logger.debug("Status is: " + _asyncResult.getState)
 
             if (isDeploy) {
                 // Fetch in-progress details once for every 3 polls
                 val fetchDetails = isDeploy && attempts % 3 == 0
                 if (fetchDetails) {
-                    val _deployResult = connection.checkDeployStatus(_asyncResult.getId, fetchDetails)
-                    if (null != _deployResult.getStateDetail) {
-                        logger.info(_deployResult.getStateDetail)
-                    }
-                    if (_deployResult.getNumberComponentsTotal > 0) {
-                        val componentsMessage = s"Components Total/Deployed/Errors: " +
-                            s"${_deployResult.getNumberComponentsTotal}/${_deployResult.getNumberComponentsDeployed}/${_deployResult.getNumberComponentErrors}"
-                        if (!oldMessages.contains(componentsMessage)) {
-                            logger.info(componentsMessage)
-                            oldMessages += componentsMessage
-                        }
-                    }
-
-                    val deployDetails = _deployResult.getDetails
-                    if (null != deployDetails && null != deployDetails.getRunTestResult) {
-
-                        if (_deployResult.getNumberTestsTotal > 0) {
-                            val testMessage = "Tests Total/Completed/Errors: "+
-                                s"${_deployResult.getNumberTestsTotal}/${_deployResult.getNumberTestsCompleted}/${_deployResult.getNumberTestErrors}"
-                            if (!oldMessages.contains(testMessage)) {
-                                logger.info(testMessage)
-                                oldMessages += testMessage
-                            }
-                        }
-
-                        val runTestResult = deployDetails.getRunTestResult
-                        if (null != runTestResult ) {
-                            for (testFailure <- runTestResult.getFailures) {
-                                val message = testFailure.getMessage
-                                if (!oldMessages.contains(message)) {
-                                    logger.info(testFailure.getMethodName + ": " + message)
-                                    oldMessages += message
-                                }
-                            }
-                        }
-                    }
-
+                    oldMessages ++= displayDeployProgress(connection, _asyncResult.getId, oldMessages.toSet)
                 }
             }
+            _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
+            logger.debug("Status is: " + _asyncResult.getState)
         }
         if (AsyncRequestState.Completed != _asyncResult.getState) {
             throw new Exception(_asyncResult.getStatusCode + " msg:" + _asyncResult.getMessage)
         }
         _asyncResult
+    }
+
+
+    /**
+     * when wait() is running during deploy() call we can show some useful progress information while user is waiting
+     * @param connection - live MetadataConnection
+     * @param asyncResultId - id of current async process
+     * @param displayedMessages - messages displayed so far (used to make sure we do not show same message twice)
+     * @return
+     */
+    private def displayDeployProgress(connection: MetadataConnection, asyncResultId: String, displayedMessages: Set[String]):Set[String] = {
+        val oldMessages = scala.collection.mutable.Set[String]() ++ displayedMessages
+
+        val _deployResult = connection.checkDeployStatus(asyncResultId, true)
+        if (null != _deployResult.getStateDetail) {
+            logger.info(_deployResult.getStateDetail)
+        }
+        if (_deployResult.getNumberComponentsTotal > 0) {
+            val componentsMessage = "COMPONENTS Total/Deployed/Errors: " +
+                s"${_deployResult.getNumberComponentsTotal}/${_deployResult.getNumberComponentsDeployed}/${_deployResult.getNumberComponentErrors}"
+            if (!oldMessages.contains(componentsMessage)) {
+                logger.info(componentsMessage)
+                oldMessages += componentsMessage
+            }
+        }
+
+        val deployDetails = _deployResult.getDetails
+        if (null != deployDetails && null != deployDetails.getRunTestResult) {
+
+            if (_deployResult.getNumberTestsTotal > 0) {
+                val testMessage = "TESTS Total/Completed/Errors: "+
+                    s"${_deployResult.getNumberTestsTotal}/${_deployResult.getNumberTestsCompleted}/${_deployResult.getNumberTestErrors}"
+                if (!oldMessages.contains(testMessage)) {
+                    logger.info(testMessage)
+                    oldMessages += testMessage
+                }
+            }
+
+            val runTestResult = deployDetails.getRunTestResult
+            if (null != runTestResult ) {
+                for (testFailure <- runTestResult.getFailures) {
+                    val message = testFailure.getMessage
+                    if (!oldMessages.contains(message)) {
+                        logger.info(testFailure.getMethodName + ": " + message)
+                        oldMessages += message
+                    }
+                }
+            }
+        }
+        oldMessages.toSet
     }
 
 
