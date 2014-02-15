@@ -308,6 +308,7 @@ class Session(config: Config) extends Logging {
         connectionPartner = None
         connectionMetadata = None
         connectionTooling = None
+        connectionApex = None
     }
 
     def getServerTimestamp = {
