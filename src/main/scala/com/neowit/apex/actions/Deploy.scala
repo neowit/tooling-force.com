@@ -189,8 +189,8 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                                     }
                                     case None =>
                                 }
+                                showProblem = false
                             }
-                            showProblem = false
                         }
                     }
 
