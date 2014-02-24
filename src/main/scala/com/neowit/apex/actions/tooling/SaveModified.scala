@@ -198,6 +198,13 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                         }
                     }
                 }
+                config.responseWriter.println("RESULT=SUCCESS")
+                config.responseWriter.println("FILE_COUNT=" + membersMap.size)
+                if (!config.isCheckOnly) {
+                    config.responseWriter.startSection("SAVED FILES")
+                    membersMap.values.foreach(f => config.responseWriter.println(f.getName))
+                    config.responseWriter.endSection("SAVED FILES")
+                }
 
             case "Failed" =>
                 logger.debug("Request failed")
