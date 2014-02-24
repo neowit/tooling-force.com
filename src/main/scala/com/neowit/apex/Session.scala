@@ -22,7 +22,6 @@ package com.neowit.apex
 import com.neowit.utils.{FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
-import com.sforce.soap.tooling._
 
 import scala.concurrent._
 import scala.Some
@@ -235,7 +234,7 @@ class Session(config: Config) extends Logging {
         conn
     }
 
-    private def getToolingConnection: SoapConnection = {
+    private def getToolingConnection: com.sforce.soap.tooling.SoapConnection = {
         import com.sforce.soap.tooling._
         val conn = connectionTooling match {
             case Some(connection) => connection
@@ -311,12 +310,40 @@ class Session(config: Config) extends Logging {
         connectionApex = None
     }
 
+    def getUserId: String = {
+        if (getData("UserInfo").isEmpty) {
+            //load from server
+            val userInfoResult = getUserInfo
+            val userInfoMap = Map (
+                "UserId" -> userInfoResult.getUserId,
+                "OrganizationId" -> userInfoResult.getOrganizationId
+            )
+            setData("UserInfo", userInfoMap)
+        }
+        getData("UserInfo")("UserId").asInstanceOf[String]
+    }
+    /***************** PartnerConnection ********************************************/
     def getServerTimestamp = {
         withRetry {
             getPartnerConnection.getServerTimestamp
         }.asInstanceOf[com.sforce.soap.partner.GetServerTimestampResult]
     }
 
+    def getUserInfo = {
+        withRetry {
+            getPartnerConnection.getUserInfo
+        }.asInstanceOf[com.sforce.soap.partner.GetUserInfoResult]
+    }
+
+    def query(queryString: String):com.sforce.soap.partner.QueryResult = {
+        val queryResult = withRetry {
+            val conn = getPartnerConnection
+            conn.query(queryString)
+        }.asInstanceOf[com.sforce.soap.partner.QueryResult]
+        queryResult
+    }
+
+    /***************** MetadataConnection ********************************************/
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {
             val conn = getMetadataConnection
@@ -378,7 +405,16 @@ class Session(config: Config) extends Logging {
         fileProperties
     }
 
+    def delete(metadata: Array[com.sforce.soap.metadata.Metadata] ):AsyncResult = {
+        val deleteResult = withRetry {
+            val conn = getMetadataConnection
+            conn.delete(metadata)
+        }.asInstanceOf[AsyncResult]
+        deleteResult
+    }
 
+
+    /***************** ApexConnection ********************************************/
     def executeAnonymous(apexCode: String ):(com.sforce.soap.apex.ExecuteAnonymousResult, String) = {
         var log = ""
         val executeAnonymousResult = withRetry {
@@ -391,14 +427,47 @@ class Session(config: Config) extends Logging {
         (executeAnonymousResult, log)
     }
 
-    def delete(metadata: Array[com.sforce.soap.metadata.Metadata] ):AsyncResult = {
+    /***************** ToolingConnection ********************************************/
+    def describeTooling:com.sforce.soap.tooling.DescribeGlobalResult = {
+        val describeResult = withRetry {
+            val conn = getToolingConnection
+            conn.describeGlobal()
+        }.asInstanceOf[com.sforce.soap.tooling.DescribeGlobalResult]
+        describeResult
+    }
+
+    def createTooling(objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+        val saveResult = withRetry {
+            val conn = getToolingConnection
+            conn.create(objects)
+        }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
+        saveResult
+    }
+
+    def deleteTooling(id: String):Array[com.sforce.soap.tooling.DeleteResult] = {
         val deleteResult = withRetry {
-            val conn = getMetadataConnection
-            conn.delete(metadata)
-        }.asInstanceOf[AsyncResult]
+            val conn = getToolingConnection
+            conn.delete(Array(id))
+        }.asInstanceOf[Array[com.sforce.soap.tooling.DeleteResult]]
         deleteResult
     }
 
+    def queryTooling(queryString: String):com.sforce.soap.tooling.QueryResult = {
+        val queryResult = withRetry {
+            val conn = getToolingConnection
+            conn.query(queryString)
+        }.asInstanceOf[com.sforce.soap.tooling.QueryResult]
+        queryResult
+    }
+    def retrieveTooling(fields: List[String], xmlTypeName: String, ids: List[String]):Array[com.sforce.soap.tooling.SObject] = {
+        val sobjects = withRetry {
+            val conn = getToolingConnection
+            conn.retrieve(fields.mkString(","), xmlTypeName, ids.toArray)
+        }.asInstanceOf[Array[com.sforce.soap.tooling.SObject]]
+        sobjects
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
 

@@ -30,6 +30,7 @@ object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
+        "saveModified" -> "tooling.SaveModified",
         "deployModified" -> "DeployModified",
         "deployAll" -> "DeployAll",
         "deploySpecificFiles" -> "DeploySpecificFiles",

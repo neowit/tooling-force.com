@@ -164,11 +164,11 @@ class DescribeMetadata(session: Session) extends ApexAction(session: Session) {
                 }
 
                 describeMetadataObjectMap
-            case Failure(throwed) => throw throwed
+            case Failure(thrown) => throw thrown
         }
     }
 
-    def act {
+    def act() {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")
