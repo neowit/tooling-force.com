@@ -229,7 +229,10 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                     val relativePath = successMessage.getFileName
                     val key = session.getKeyByRelativeFilePath(relativePath)
                     val f = new File(config.projectDir, relativePath)
-                    val xmlType = describeByDir(f.getParentFile.getName).getXmlName
+                    val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                      case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                      case None => "" //package.xml and -meta.xml do not have xmlType
+                    }
                     val localMills = f.lastModified()
 
                     val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
