@@ -30,29 +30,11 @@ class SaveError(msg: String) extends Error(msg: String)
  */
 class SaveModified(session: Session) extends DeployModified(session: Session) {
     val CONTAINER_PREFIX = "tooling-force.com"
-    override def act() {
-        val hasTestsToRun = None != config.getProperty("testsToRun")
-        val modifiedFiles = new ListModified(session).getModifiedFiles
-        val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
-        if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
-            config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-            config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
-        } else {
-            //first check if SFDC has newer version of files we are about to deploy
-            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
 
-            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles) || hasTestsToRun
-
-            if (canDeploy) {
-                val checkOnly = config.isCheckOnly
-                deploy(modifiedFiles, updateSessionDataOnSuccess = !checkOnly)
-            }
-        }
-    }
     //we can use ToolingApi in following cases
     //1. there are not -meta.xml files
     //2. there are no new files
+    //3. all files are supported by Tooling API
     def canUseTooling(files: List[File]): Boolean = {
         val hasMeta = None != files.find(_.getName.endsWith("-meta.xml"))
         if (hasMeta) {
@@ -143,44 +125,49 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
     }
 
     override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
-        withMetadataContainer(session) { container =>
-            val membersMap = (for(f <- files) yield {
-                val member = ApexMember.getInstance(f, session)
-                member.setMetadataContainerId(container.getId)
-                (member, f)
-            }).toMap
+        if (!canUseTooling(files)) {
+            //can not use tooling, fall back to metadata version - DeployModified
+            super.deploy(files, updateSessionDataOnSuccess)
+        } else {
+            withMetadataContainer(session) { container =>
+                val membersMap = (for(f <- files) yield {
+                    val member = ApexMember.getInstance(f, session)
+                    member.setMetadataContainerId(container.getId)
+                    (member, f)
+                }).toMap
 
-            val saveResults = session.createTooling(membersMap.map(_._1.getInstance).toArray)
-            val res = saveResults.head
-            if (res.isSuccess) {
-                val request = new ContainerAsyncRequest()
-                request.setIsCheckOnly(session.getConfig.isCheckOnly)
-                request.setMetadataContainerId(container.getId)
-                val requestResults = session.createTooling(Array(request))
-                for (res <- requestResults) {
-                    if (res.isSuccess) {
-                        val requestId = res.getId
-                        val soql = "SELECT Id, State, CompilerErrors, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
-                        val asyncQueryResult = session.queryTooling(soql)
-                        if (asyncQueryResult.getSize > 0) {
-                            var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
-                            while ("Queued" == _request.getState) {
-                                Thread.sleep(2000)
-                                _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                val saveResults = session.createTooling(membersMap.map(_._1.getInstance).toArray)
+                val res = saveResults.head
+                if (res.isSuccess) {
+                    val request = new ContainerAsyncRequest()
+                    request.setIsCheckOnly(session.getConfig.isCheckOnly)
+                    request.setMetadataContainerId(container.getId)
+                    val requestResults = session.createTooling(Array(request))
+                    for (res <- requestResults) {
+                        if (res.isSuccess) {
+                            val requestId = res.getId
+                            val soql = "SELECT Id, State, CompilerErrors, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
+                            val asyncQueryResult = session.queryTooling(soql)
+                            if (asyncQueryResult.getSize > 0) {
+                                var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                while ("Queued" == _request.getState) {
+                                    Thread.sleep(2000)
+                                    _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                }
+                                processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
                             }
-                            processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
+                        } else {
+                            throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
                         }
-                    } else {
-                        throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
                     }
+                } else {
+                    throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
                 }
-            } else {
-                throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
+
+
             }
-
-
+            session.storeSessionData()
         }
-        session.storeSessionData()
 
     }
 
