@@ -31,12 +31,6 @@ object MetadataType extends Logging {
     val CRC32 = "crc32"
     import com.sforce.soap.metadata.FileProperties
 
-    val dateFormatGmt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-    dateFormatGmt.setTimeZone(TimeZone.getTimeZone("GMT"))
-
-    def formatDateGMT(cal: Calendar):String = {
-        dateFormatGmt.format(cal.getTime) + ".000Z"
-    }
 
     def getKey(props: FileProperties): String = {
         props.getFileName
