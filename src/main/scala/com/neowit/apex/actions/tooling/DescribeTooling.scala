@@ -61,7 +61,7 @@ class DescribeTooling(session: Session) extends ApexAction(session: Session) {
     def loadFromFile: Map[String, DescribeGlobalSObjectResult] = {
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
 
-        for (line <- scala.io.Source.fromFile(config.storedDescribeMetadataResultFile).getLines()) {
+        for (line <- scala.io.Source.fromFile(config.storedDescribeToolingResultFile).getLines()) {
             //JSON.parseFull(line)
             JSON.parseRaw(line)  match {
                 case Some(json) =>
@@ -99,7 +99,7 @@ class DescribeTooling(session: Session) extends ApexAction(session: Session) {
                                 "isCustomSetting" -> _describeObject.isCustomSetting,
                                 "isCustom" -> _describeObject.isCustom,
                                 "isQueryable" -> _describeObject.getQueryable,
-                                "keyPrefix" -> _describeObject.getKeyPrefix,
+                                "keyPrefix" -> (if (null == _describeObject.getKeyPrefix) "" else _describeObject.getKeyPrefix),
                                 "name" -> _describeObject.getName
                             )
                             linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
