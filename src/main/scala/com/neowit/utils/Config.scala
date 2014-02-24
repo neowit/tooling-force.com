@@ -199,6 +199,17 @@ class Config extends Logging{
         file
     }
 
+    /**
+     * Local copy of Tooling Describe Global result
+     */
+    lazy val storedDescribeToolingResultFile:File  = {
+        val file = new File(sessionFolder, "describeTooling-result.js")
+        if (!file.exists) {
+            file.createNewFile()
+        }
+        file
+    }
+
     lazy val projectPath = getRequiredProperty("projectPath").get
     lazy val projectDir = new File(getRequiredProperty("projectPath").get)
     /* path to src folder */
