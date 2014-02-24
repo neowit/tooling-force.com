@@ -20,7 +20,7 @@
 package com.neowit.apex
 
 import com.sforce.soap.partner.sobject.SObject
-import com.neowit.utils.Logging
+import com.neowit.utils.{FileUtils, Config, ZuluTime, Logging}
 import java.util.{Calendar, TimeZone}
 import java.io.File
 import com.sforce.soap.metadata.{DeployResult, DeployMessage}
@@ -42,7 +42,7 @@ object MetadataType extends Logging {
 
     def getValueMap(props: FileProperties, localMills: Long, md5Hash: String, crc32: Long,
                     metaMills: Long, metaMd5Hash: String, metaCRC32: Long):Map[String, Any] = {
-        //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
+        /*
         val lastModifiedDateText = getLastModifiedDateText(props)
         val lastModifiedDateMills = getLastModifiedDateMills(props)
         val data = Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText,
@@ -51,16 +51,43 @@ object MetadataType extends Logging {
             Map("meta" + LOCAL_MILLS -> metaMills, "meta" + MD5 -> metaMd5Hash, "meta" + CRC32 -> metaCRC32) ++ data
         else
             data
-
+        */
+        getValueMap(getName(props), props.getType, Some(props.getId), props.getLastModifiedDate, localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
     }
 
-    def getValueMap(deployResult: DeployResult, message: DeployMessage, localMills: Long, md5Hash: String, crc32: Long,
+    def getValueMap(deployResult: DeployResult, message: DeployMessage, xmlType: String, localMills: Long, md5Hash: String, crc32: Long,
                     metaMills: Long, metaMd5Hash: String, metaCRC32: Long):Map[String, Any] = {
-        val lastModifiedDate = deployResult.getLastModifiedDate
+        val id = if (null == message.getId) None else Some(message.getId)
+        getValueMap(message.getFullName, xmlType, id, deployResult.getLastModifiedDate, localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
+    }
+
+    def getValueMap(config: Config, file: File, xmlType: String, id: Option[String], lastModifiedDate: Calendar, fileMeta: Option[File] ):Map[String, Any] = {
+        val calculateMD5 = config.useMD5Hash
+        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
+        val localMills = file.lastModified()
+        val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(file) else ""
+        val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(file) else -1L
+        val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash:Long) = fileMeta match {
+            case Some(fMeta) if fMeta.canRead =>
+                (   fMeta.lastModified(),
+                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L
+                )
+            case None => (-1L, "", -1L)
+        }
+        getValueMap(file.getName, xmlType, id, lastModifiedDate, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+    }
+    def getValueMap(fileName: String, xmlType: String, id: Option[String], lastModifiedDate: Calendar, localMills: Long,
+                    md5Hash: String, crc32: Long, metaMills: Long = -1L, metaMd5Hash: String = "", metaCRC32: Long = -1L):Map[String, Any] = {
         val lastModifiedDateMills = lastModifiedDate.getTime.getTime
-        val idVal = if (null == message.getId) Map() else Map("Id" -> message.getId)
-        val data = Map("Type" -> "TODO", "Name" -> message.getFullName, "LastModifiedDate" -> formatDateGMT(lastModifiedDate),
+        val idVal = id match {
+          case Some(s) => Map("Id" -> s)
+          case None => Map()
+        }
+        val data = Map("Type" -> xmlType, "Name" -> fileName, "LastModifiedDate" -> ZuluTime.formatDateGMT(lastModifiedDate),
             "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills, MD5 -> md5Hash, CRC32 -> crc32) ++ idVal
+
         if (metaMills > 0)
             Map("meta" + LOCAL_MILLS -> metaMills, "meta" + MD5 -> metaMd5Hash, "meta" + CRC32 -> metaCRC32) ++ data
         else
@@ -68,7 +95,8 @@ object MetadataType extends Logging {
     }
 
     def getLastModifiedDateText(props: FileProperties) = {
-        val lastModifiedDate = formatDateGMT(props.getLastModifiedDate)
+        //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
+        val lastModifiedDate = ZuluTime.formatDateGMT(props.getLastModifiedDate)
         lastModifiedDate
     }
     def getLastModifiedDateMills(props: FileProperties) = {
@@ -86,6 +114,7 @@ class MetadataType(val xmlName: String) extends Logging{
         }
     }
 
+    /*
     def getValueMap(obj: SObject):Map[String, String] = {
         val lastModifiedDate = getLastModifiedDate(obj).toString
         obj.getType match {
@@ -95,18 +124,6 @@ class MetadataType(val xmlName: String) extends Logging{
                 Map("Id" -> obj.getId, "Name" -> obj.getField("Name").toString, "ApiVersion" -> obj.getField("ApiVersion").toString, "LastModifiedDate" -> lastModifiedDate)
         }
     }
-    def getQueriableFields = {
-        val fNames = List("Id", "Name", "LastModifiedDate")
-        xmlName match {
-            case "StaticResource" => fNames
-            case _ =>
-                "ApiVersion" :: fNames
-        }
-
-    }
-    def getKey(obj: SObject): String = {
-        xmlName + "." + obj.getField("Name")
-    }
-
+    */
 }
 

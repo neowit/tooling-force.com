@@ -11,6 +11,7 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 
 abstract class Deploy(session: Session) extends ApexAction(session: Session)
 
+
 /**
  * 'deployModified' action grabs all modified files and sends deploy() File-Based call
  *@param session - SFDC session
@@ -223,10 +224,12 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                 val calculateMD5 = config.useMD5Hash
                 val calculateCRC32 = !calculateMD5  //by default use only CRC32
 
+                val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
                 for ( successMessage <- deployDetails.getComponentSuccesses) {
                     val relativePath = successMessage.getFileName
                     val key = session.getKeyByRelativeFilePath(relativePath)
                     val f = new File(config.projectDir, relativePath)
+                    val xmlType = describeByDir(f.getParentFile.getName).getXmlName
                     val localMills = f.lastModified()
 
                     val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
@@ -241,7 +244,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                         (-1L, "", -1L)
                     }
 
-                    val newData = MetadataType.getValueMap(deployResult, successMessage, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+                    val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
                     val oldData = session.getData(key)
                     session.setData(key, oldData ++ newData)
                 }
