@@ -4,12 +4,54 @@ import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
-import com.sforce.soap.metadata.{DeployProblemType, DeployOptions}
+import com.sforce.soap.metadata.{DescribeMetadataObject, DeployProblemType, DeployOptions}
 import scala.collection.mutable
 import scala.util.matching.Regex
 import scala.util.parsing.json.{JSONArray, JSONObject}
 
-abstract class Deploy(session: Session) extends ApexAction(session: Session)
+abstract class Deploy(session: Session) extends ApexAction(session: Session) {
+
+    /**
+     *
+     * @param fileName, e.g. "MyClass"
+     * @param extension, e.g. "cls"
+     * @return relative path in project folder, e.g. src/classes.MyClass.cls
+     */
+   def getRelativeFilePath(fileName: String, extension: String,
+                           metadataByXmlName: Map[String, DescribeMetadataObject]): Option[String] = {
+        val path = DescribeMetadata.getXmlNameBySuffix(session, extension) match {
+            case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
+                case Some(describeMetadataObject) =>
+                    session.findFile(describeMetadataObject.getDirectoryName, fileName + "." + extension)
+                case _ => None
+            }
+            case _ => None
+        }
+        path
+    }
+
+   private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
+    /**
+     * try to parse line and column number from error message looking like so
+     * ... line 155, column 41: ....
+     * @param errorMessage - message returned by deploy operation
+     * @return
+     */
+    def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
+
+        val pair = try {
+            val LineColumnRegex(line, column) = errorMessage
+            Some((line.toInt, column.toInt))
+        } catch {
+            case _:Throwable => None
+        }
+
+        pair
+
+
+    }
+
+}
 
 
 /**
@@ -82,6 +124,31 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
     }
 
     def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
+
+        /**
+         * @return (line, column, relativeFilePath)
+         */
+        def getMessageData(problem: String, typeName: String, fileName: String,
+                             metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
+            val suffix = typeName match {
+                case "Class" => "cls"
+                case "Trigger" => "trigger"
+                case _ => ""
+            }
+            val (line, column) = parseLineColumn(problem) match {
+                case Some((_line, _column)) => (_line, _column)
+                case None => (-1, -1)
+            }
+            val filePath =  if (!suffix.isEmpty) getRelativeFilePath(fileName, suffix, metadataByXmlName) match {
+                case Some(_filePath) => _filePath
+                case _ => ""
+            }
+            else ""
+
+            (line, column, filePath)
+
+        }
+
         //for every modified file add its -meta.xml if exists
         val metaXmlFiles = for (file <- files;
                                 metaXml = new File(file.getAbsolutePath + "-meta.xml")
@@ -173,26 +240,20 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                         for (traceLine <- stackTrace.split("\n")) {
                             //Class.Test1.prepareData: line 13, column 1
                             val (typeName, fileName, methodName, line, column) = parseStackTraceLine(traceLine)
-                            if ("Class" == typeName) {
-                                DescribeMetadata.getXmlNameBySuffix(session, "cls")  match {
-                                    case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
-                                        case Some(describeMetadataObject) =>
-                                            session.findFile(describeMetadataObject.getDirectoryName, fileName + ".cls") match {
-                                                case Some(_filePath) =>
-                                                    val _problem = if (showProblem) problem else "...continuing stack trace in method " +methodName+ ". Details see above"
-                                                    responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> _filePath, "text" -> _problem))
-                                                    if (showProblem) {
-                                                        responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> _filePath, "text" -> problem)))
-                                                    }
-                                                case None =>
-                                            }
-                                        case None =>
-                                    }
-                                    case None =>
-                                }
-                                showProblem = false
+                            val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
+                            val _problem = if (showProblem) problem else "...continuing stack trace in method " +methodName+ ". Details see above"
+                            responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
+                            if (showProblem) {
+                                responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
                             }
+                            showProblem = false
                         }
+                    } else { //no stack trace, try to parse cine/column/filePath from error message
+                        val typeName = failureMessage.getType
+                        val fileName = failureMessage.getName
+                        val (line, column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
+                        responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                        responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
                     }
 
                     //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))

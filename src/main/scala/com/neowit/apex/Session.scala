@@ -127,10 +127,9 @@ class Session(config: Config) extends Logging {
     def normalizePath(filePath: String) = FileUtils.normalizePath(filePath)
 
     /**
-     * keys usually look like so: unpackaged/classes/Messages.cls
      * @param dirName - e.g. "classes"
      * @param fileName - e.g. "Messages.cls"
-     * @return
+     * @return relative path in project folder, e.g. src/classes.MyClass.cls
      */
     def findFile(dirName: String, fileName: String): Option[String] = {
         if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
