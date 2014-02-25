@@ -1,15 +1,16 @@
 package com.neowit.apex.actions.tooling
 
-import com.sforce.soap.tooling.{ApexPageMember, ApexTriggerMember, ApexClassMember, SObject}
+import com.sforce.soap.tooling._
 import com.neowit.apex.Session
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata
 import com.neowit.utils.FileUtils
+import scala.Some
 
 class UnsupportedTypeForToolingException(msg: String) extends Exception(msg: String)
 
 object ApexMember {
-    val SUPPORTED_TYPES = Set("ApexClass", "ApexTrigger", "ApexPage")
+    val SUPPORTED_TYPES = Set("ApexClass", "ApexTrigger", "ApexPage", "ApexComponent")
     def getInstance(file: File, session: Session): ApexMember = {
         val member = DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
             case Some(xmlType) =>
@@ -17,6 +18,7 @@ object ApexMember {
                     case "ApexClass" => new ClassMember
                     case "ApexTrigger" => new TriggerMember
                     case "ApexPage" => new PageMember
+                    case "ApexComponent" => new ComponentMember
                     case _ => throw new UnsupportedTypeForToolingException("File " + file.getName + " with type=" + xmlType + " is not supported with Tooling API")
                 }
             case None => throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
@@ -98,6 +100,19 @@ class PageMember extends ApexMember {
     private val instance = new ApexPageMember()
 
     def getXmlType = "ApexPage"
+    protected def getInstanceImpl: SObject = instance
+
+    protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
+
+    protected def setBodyImpl(text: String): Unit = instance.setBody(text)
+
+    protected def setMetadataContainerIdImpl(containerId: String): Unit = instance.setMetadataContainerId(containerId)
+
+}
+class ComponentMember extends ApexMember {
+    private val instance = new ApexComponentMember()
+
+    def getXmlType = "ApexComponent"
     protected def getInstanceImpl: SObject = instance
 
     protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
