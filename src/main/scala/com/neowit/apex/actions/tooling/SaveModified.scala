@@ -123,6 +123,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
         container
     }
 
+    private val ONE_SECOND = 1000
     override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
         if (!canUseTooling(files)) {
             //can not use tooling, fall back to metadata version - DeployModified
@@ -135,6 +136,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                     (member, f)
                 }).toMap
 
+                val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toInt
                 val saveResults = session.createTooling(membersMap.map(_._1.getInstance).toArray)
                 val res = saveResults.head
                 if (res.isSuccess) {
@@ -149,9 +151,22 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                             val asyncQueryResult = session.queryTooling(soql)
                             if (asyncQueryResult.getSize > 0) {
                                 var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                var lastReportTime = System.currentTimeMillis()
+                                var attempts = 0
                                 while ("Queued" == _request.getState) {
-                                    Thread.sleep(2000)
-                                    _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                    val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
+                                    blocking {
+                                        Thread.sleep(waitTimeMilliSecs)
+                                        _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                    }
+                                    //report only once every 3 seconds
+                                    if (reportAttempt) {
+                                        logger.info("waiting result, poll #" + attempts)
+                                        lastReportTime = System.currentTimeMillis()
+                                    } else {
+                                        logger.trace("waiting result, poll #" + attempts)
+                                    }
+                                    attempts += 1
                                 }
                                 processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
                             }
