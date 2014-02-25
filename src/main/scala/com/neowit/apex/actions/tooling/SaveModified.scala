@@ -2,11 +2,15 @@ package com.neowit.apex.actions.tooling
 
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
-import com.neowit.apex.actions.{DescribeMetadata, ListModified, DeployModified}
-import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
-import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
-import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
-import com.neowit.utils.{ZuluTime, FileUtils, ResponseWriter}
+import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
+import com.sforce.soap.tooling.{ContainerAsyncRequest, MetadataContainer, SaveResult}
+import scala.util.parsing.json.JSON
+import com.neowit.utils.ResponseWriter.Message
+import com.neowit.utils.{ZuluTime, ResponseWriter}
+import scala.concurrent._
+import scala.util.parsing.json.JSONArray
+import scala.util.parsing.json.JSONObject
+import com.neowit.utils.ResponseWriter.MessageDetail
 
 class SaveError(msg: String) extends Error(msg: String)
 /**
@@ -50,12 +54,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
             return false
         }
         //check if all files supported by tooling api
-        val toolingSObjectNames = DescribeTooling.getMap(session).keySet
-        val hasUnsupportedType = None != files.find(f => {
-                                                            val key = session.getKeyByFile(f)
-                                                            !toolingSObjectNames.contains(session.getData(key).
-                                                                getOrElse("Type", "Unsupported").asInstanceOf[String])
-                                                        })
+        val hasUnsupportedType = None != files.find(f =>  !ApexMember.isSupportedType(f, session) )
         !hasUnsupportedType
     }
 
