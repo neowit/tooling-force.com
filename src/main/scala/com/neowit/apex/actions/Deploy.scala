@@ -17,8 +17,8 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
      * @param extension, e.g. "cls"
      * @return relative path in project folder, e.g. src/classes.MyClass.cls
      */
-   def getRelativeFilePath(fileName: String, extension: String,
-                           metadataByXmlName: Map[String, DescribeMetadataObject]): Option[String] = {
+    def getRelativeFilePath(fileName: String, extension: String,
+                            metadataByXmlName: Map[String, DescribeMetadataObject]): Option[String] = {
         val path = DescribeMetadata.getXmlNameBySuffix(session, extension) match {
             case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
                 case Some(describeMetadataObject) =>
@@ -30,14 +30,20 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
         path
     }
 
-   private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
+    //* ... line 155, column 41 ....
+    private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
+    //Class.Test1: line 19, column 1
+    val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
+    //Class.Test1.prepareData: line 13, column 1
+    val TypeFileMethodLineColumnRegex = """.*(Class|Trigger)\.(\w*)\.(\w*).*line (\d+), column (\d+).*""".r
+
     /**
      * try to parse line and column number from error message looking like so
      * ... line 155, column 41: ....
      * @param errorMessage - message returned by deploy operation
      * @return
      */
-    def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
+    protected def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
 
         val pair = try {
             val LineColumnRegex(line, column) = errorMessage
@@ -47,10 +53,39 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
         }
 
         pair
-
-
     }
+    /**
+     *
+     * @param traceLine -
+     *                  Class.Test1.prepareData: line 13, column 1
+     *                  Class.Test1: line 19, column 1
+     * @return (typeName, fileName, methodName, line, column)
+     */
+    protected def parseStackTraceLine(traceLine: String): Option[(String, String, String, Int, Int )] = {
 
+        //Class.Test1.prepareData: line 13, column 1
+        //val (typeName, fileName, methodName, line, column) =
+        try {
+            val TypeFileMethodLineColumnRegex(_typeName, _fileName, _methodName, _line, _column) = traceLine
+            Some((_typeName, _fileName, _methodName, _line.toInt, _column.toInt))
+        } catch {
+            case _:scala.MatchError =>
+                //Class.Test1: line 19, column 1
+                try {
+                    val TypeFileLineColumnRegex(_typeName, _fileName, _line, _column) = traceLine
+                    Some((_typeName, _fileName, "", _line.toInt, _column.toInt))
+                } catch {
+                    case _:scala.MatchError =>
+                    //... line 155, column 41: ....
+                        parseLineColumn(traceLine)  match {
+                          case Some((_line, _column)) => Some(("", "", "", _line, _column))
+                          case None => None
+                        }
+                    case _:Throwable => None
+                }
+            case _:Throwable => None
+        }
+    }
 }
 
 
@@ -239,12 +274,20 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                         var showProblem = true
                         for (traceLine <- stackTrace.split("\n")) {
                             //Class.Test1.prepareData: line 13, column 1
-                            val (typeName, fileName, methodName, line, column) = parseStackTraceLine(traceLine)
-                            val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
-                            val _problem = if (showProblem) problem else "...continuing stack trace in method " +methodName+ ". Details see above"
-                            responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
-                            if (showProblem) {
-                                responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                            parseStackTraceLine(traceLine) match {
+                              case Some((typeName, fileName, methodName, line, column)) =>
+                                  val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
+                                  val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
+                                  val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
+                                  responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
+                                  if (showProblem) {
+                                      responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                                  }
+                              case None => //failed to parse anything meaningful, fall back to simple message
+                                  responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
+                                  if (showProblem) {
+                                      responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
+                                  }
                             }
                             showProblem = false
                         }
@@ -570,41 +613,6 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         }
         preparedFile
     }
-
-
-    /**
-     *
-     * @param traceLine - Class.Test1.prepareData: line 13, column 1
-     * @return (typeName, fileName, methodName, line, column)
-     */
-    private def parseStackTraceLine(traceLine: String): (String, String, String, Int, Int ) = {
-        var typeName, fileName, methodName = ""
-        var line, column = 0
-
-        //Class
-        typeName = traceLine.takeWhile(_ != '.')
-        var dropLength = typeName.size + 1
-        //Test1
-        fileName = traceLine.drop(dropLength).takeWhile(_ != '.')
-        dropLength += fileName.size + 1
-        //prepareData
-        methodName = traceLine.drop(dropLength).takeWhile(_ != ':')
-        dropLength += methodName.size + 1
-        // line 13, column 1
-        val lineColStr = traceLine.drop(dropLength)
-        if (!lineColStr.isEmpty) {
-            val lineAndColArr = lineColStr.replaceFirst("line", "").replaceFirst("column", "").split(",")
-            if (lineAndColArr.size > 0) {
-                line = lineAndColArr(0).trim.toInt
-            }
-            if (lineAndColArr.size > 1) {
-                column = lineAndColArr(1).trim.toInt
-            }
-        }
-        (typeName, fileName, methodName, line, column)
-    }
-
-
 }
 
 /**
