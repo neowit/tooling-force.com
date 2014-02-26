@@ -295,6 +295,12 @@ class Session(config: Config) extends Logging {
                 reset()
                 //run once again
                 codeBlock
+            case ex:com.sforce.ws.ConnectionException =>
+                //sometimes WSC library returns ConnectionException instead of SoapFaultException when session is invalid
+                logger.trace(ex)
+                reset()
+                //run once again
+                codeBlock
             case ex:Throwable =>
                 throw ex
         }
