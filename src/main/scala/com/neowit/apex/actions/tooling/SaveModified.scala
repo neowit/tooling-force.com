@@ -196,7 +196,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                     // so all files will have the same LastModifiedDate and we can query single file to get LastModifiedDate
                     // for all members of current MetadataContainer
                     val member = membersMap.head._1
-                    val xmlType = member.getXmlType
+                    val xmlType = member.xmlType
                     val queryResult = session.query("select LastModifiedDate from " + xmlType + " where Id ='" + member.getEntityId + "'")
                     val records = queryResult.getRecords
                     if (!records.isEmpty) {
