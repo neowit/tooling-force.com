@@ -224,7 +224,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                 logger.debug("Request failed")
                 responseWriter.println("RESULT=FAILURE")
                 config.responseWriter.startSection("ERROR LIST")
-                if (!request.getCompilerErrors.isEmpty) {
+                if ("[]" != request.getCompilerErrors && !request.getCompilerErrors.isEmpty) {
                     JSON.parseRaw(request.getCompilerErrors) match {
                         case Some(x) if x.isInstanceOf[JSONArray] =>
                             logger.debug(x)
@@ -269,6 +269,18 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
 
                         case None =>
                     }
+                } else {
+                    //general error
+                    //display errors both as messages and as ERROR: lines
+                    val generalFailureMessage = new Message(ResponseWriter.WARN, "General failure")
+                    responseWriter.println(generalFailureMessage)
+                    val problem = request.getErrorMsg match {
+                        case "Can't alter metadata in an active org" => //attempt to deploy using Tooling API into Production
+                            request.getErrorMsg + "; If you are trying to deploy using Tooling API in Production org then switch to Metadata API."
+                        case s => s
+                    }
+                    responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
+                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
                 }
 
             case state =>
