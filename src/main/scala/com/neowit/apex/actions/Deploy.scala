@@ -22,7 +22,7 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
         val path = DescribeMetadata.getXmlNameBySuffix(session, extension) match {
             case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
                 case Some(describeMetadataObject) =>
-                    session.findFile(describeMetadataObject.getDirectoryName, fileName + "." + extension)
+                    session.getRelativePath(describeMetadataObject.getDirectoryName, fileName + "." + extension)
                 case _ => None
             }
             case _ => None
@@ -210,18 +210,35 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
         ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploySet, _))
         */
+        val checkOnly = config.isCheckOnly
+        val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
+        val isRunningTests = !testMethodsByClassName.isEmpty
+
+        //make sure that test class is part of deployment if user set specific methods to run
+        if (checkOnly && isRunningTests ) {
+            for (className <- testMethodsByClassName.keySet) {
+                testMethodsByClassName.get(className) match {
+                    case Some(x) if !x.isEmpty =>
+                        session.findFile(className, "ApexClass") match {
+                            case Some(f) =>
+                                allFilesToDeploySet += f
+                                allFilesToDeploySet += new File(f.getAbsolutePath + "-meta.xml")
+                            case None =>
+                        }
+                    case _ =>
+                }
+            }
+        }
 
         val deployOptions = new DeployOptions()
         deployOptions.setPerformRetrieve(false)
         deployOptions.setAllowMissingFiles(true)
         deployOptions.setRollbackOnError(true)
-        val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
-        val isRunningTests = !testMethodsByClassName.isEmpty
         deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
 
-        val checkOnly = config.isCheckOnly
         deployOptions.setCheckOnly(checkOnly)
         //deployOptions.setPerformRetrieve(true)
+
 
         logger.info("Deploying...")
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _),
@@ -419,11 +436,11 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
             ))
             coverageWriter match {
                 case Some(writer) =>
-                    val filePath = session.findFile(classDir, coverageResult.getName + "." + classExtension) match {
+                    val filePath = session.getRelativePath(classDir, coverageResult.getName + "." + classExtension) match {
                         case Some(relPath) => Some(relPath)
                         case None =>
                             //check if this is a trigger name
-                            session.findFile(triggerDir, coverageResult.getName + "." + triggerExtension) match {
+                            session.getRelativePath(triggerDir, coverageResult.getName + "." + triggerExtension) match {
                                 case Some(relPath) => Some(relPath)
                                 case None => None
                             }
