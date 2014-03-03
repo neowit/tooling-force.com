@@ -26,6 +26,7 @@ import com.sforce.soap.metadata._
 import scala.concurrent._
 import scala.Some
 import java.io.File
+import com.neowit.apex.actions.DescribeMetadata
 
 /**
  * manages local data store related to specific project
@@ -131,7 +132,7 @@ class Session(config: Config) extends Logging {
      * @param fileName - e.g. "Messages.cls"
      * @return relative path in project folder, e.g. src/classes.MyClass.cls
      */
-    def findFile(dirName: String, fileName: String): Option[String] = {
+    def getRelativePath(dirName: String, fileName: String): Option[String] = {
         if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
             Some("src" + File.separator + dirName + File.separator + fileName)
         } else {
@@ -142,6 +143,25 @@ class Session(config: Config) extends Logging {
                 Some(getRelativePath(file))
             else
                 None
+        }
+    }
+
+    /**
+     * using only file name, e.g. MyClass and "ApexClass" try to find existing file
+     * @param nameWithoutExtension, e.g. "MyClass"
+     * @param xmlName, e.g. "ApexClass"
+     * @return
+     */
+    def findFile(nameWithoutExtension: String, xmlName: String): Option[File] = {
+        DescribeMetadata.getDirAndSuffix(this, xmlName) match {
+          case Some((dirName, suffix)) =>
+              getRelativePath(dirName, nameWithoutExtension + "." + suffix) match {
+                case Some(relativePath) =>
+                    val f = new File(config.projectDir, relativePath)
+                    if (f.canRead) Some(f) else None
+                case _ => None
+              }
+          case _ => None
         }
     }
     /**

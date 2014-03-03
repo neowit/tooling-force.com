@@ -73,6 +73,18 @@ object DescribeMetadata {
                 case None => false
             }
     }
+
+    /**
+     * using provided xmlName try to find dirName and Suffix
+     * @param xmlName - e.g. "ApexClass"
+     * @return
+     */
+    def getDirAndSuffix(session: Session, xmlName: String):Option[(String, String)] = {
+        getMap(session).get(xmlName) match {
+            case Some(describeObject) => Some((describeObject.getDirectoryName, describeObject.getSuffix))
+            case None => None
+        }
+    }
 }
 
 /**
