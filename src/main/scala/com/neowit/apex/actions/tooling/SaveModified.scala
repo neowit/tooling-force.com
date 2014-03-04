@@ -3,7 +3,7 @@ package com.neowit.apex.actions.tooling
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
 import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
-import com.sforce.soap.tooling.{ContainerAsyncRequest, MetadataContainer, SaveResult}
+import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
 import scala.util.parsing.json.JSON
 import com.neowit.utils.ResponseWriter.Message
 import com.neowit.utils.{ZuluTime, ResponseWriter}
@@ -137,7 +137,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                 }).toMap
 
                 val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toInt
-                val saveResults = session.createTooling(membersMap.map(_._1.getInstance).toArray)
+                val saveResults = session.createTooling(membersMap.map(_._1.asInstanceOf[SObject]).toArray)
                 val res = saveResults.head
                 if (res.isSuccess) {
                     val request = new ContainerAsyncRequest()
@@ -197,7 +197,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                     // for all members of current MetadataContainer
                     val member = membersMap.head._1
                     val xmlType = member.xmlType
-                    val queryResult = session.query("select LastModifiedDate from " + xmlType + " where Id ='" + member.getEntityId + "'")
+                    val queryResult = session.query("select LastModifiedDate from " + xmlType + " where Id ='" + member.getContentEntityId + "'")
                     val records = queryResult.getRecords
                     if (!records.isEmpty) {
                         //2014-02-24T20:35:59.000Z
@@ -206,7 +206,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                         for (member <- membersMap.keys) {
                             val f = membersMap(member)
                             val key = session.getKeyByFile(f)
-                            val newData = MetadataType.getValueMap(config, f, xmlType, Some(member.getEntityId), lastModifiedDate, fileMeta = None)
+                            val newData = MetadataType.getValueMap(config, f, xmlType, Some(member.getContentEntityId), lastModifiedDate, fileMeta = None)
                             val oldData = session.getData(key)
                             session.setData(key, oldData ++ newData)
                         }

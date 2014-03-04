@@ -9,27 +9,22 @@ import com.neowit.utils.FileUtils
 class UnsupportedTypeForToolingException(msg: String) extends Exception(msg: String)
 
 object ApexMember {
-    type MemberGenerator = () => ApexMember
-    def newClassMember:MemberGenerator = () => new ClassMember
-    def newPageMember:MemberGenerator = () => new PageMember
-    def newTriggerMember:MemberGenerator = () => new TriggerMember
-    def newComponentMember:MemberGenerator = () => new ComponentMember
-
-    var SUPPORTED_TYPES_MAP = Map[String, MemberGenerator]()
-    //register known types
-    registerApexMemberType(newClassMember)
-    registerApexMemberType(newPageMember)
-    registerApexMemberType(newTriggerMember)
-    registerApexMemberType(newComponentMember)
+    val APEX_CLASS = "ApexClass"
+    val APEX_PAGE = "ApexPage"
+    val APEX_TRIGGER = "ApexTrigger"
+    val APEX_COMPONENT = "ApexComponent"
+    private val SUPPORTED_TYPES = Set[String](APEX_CLASS, APEX_PAGE, APEX_TRIGGER, APEX_COMPONENT)
 
     def getInstance(file: File, session: Session): ApexMember = {
         val member = DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
-            case Some(xmlType) =>
-                SUPPORTED_TYPES_MAP.get(xmlType) match {
-                    case Some(generator) => generator()
-                    case None =>
-                        throw new UnsupportedTypeForToolingException("File " + file.getName + " with type=" + xmlType + " is not supported with Tooling API")
-                }
+            case Some(xmlType) => xmlType match {
+                case APEX_CLASS => new ClassMember
+                case APEX_PAGE => new PageMember
+                case APEX_TRIGGER => new TriggerMember
+                case APEX_COMPONENT => new ComponentMember
+                case _ =>
+                    throw new UnsupportedTypeForToolingException("File " + file.getName + " with type=" + xmlType + " is not supported with Tooling API")
+            }
             case None => throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
         }
         member.setBody(file)
@@ -45,90 +40,37 @@ object ApexMember {
     def isSupportedType(file: File, session: Session): Boolean  = {
         DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
             case Some(xmlType) =>
-                SUPPORTED_TYPES_MAP.contains(xmlType)
+                SUPPORTED_TYPES.contains(xmlType)
             case None => false
         }
     }
 
-    private def registerApexMemberType(f: MemberGenerator) {
-        val member = f()
-        SUPPORTED_TYPES_MAP += member.xmlType -> f
-    }
 }
 
 trait ApexMember {
-    private var entityId: String = ""
-
-    def setMetadataContainerId(containerId: String) {setMetadataContainerIdImpl(containerId)}
-    def setBody(text: String) {setBodyImpl(text)}
-    def setBody(file: File) {
-        setBodyImpl(scala.io.Source.fromFile(file).mkString)
-    }
-    def setContentEntityId(id: String) {
-        entityId = id
-        setContentEntityIdImpl(id)
-    }
-
-    def getEntityId: String = { entityId }
-
-    def getInstance: SObject = { getInstanceImpl }
-
     val xmlType: String
-    protected def getInstanceImpl: SObject
-    protected def setMetadataContainerIdImpl(containerId: String)
-    protected def setBodyImpl(text: String)
-    protected def setContentEntityIdImpl(id: String)
+    def setBody(text: String)
+    def setMetadataContainerId(containerId: String)
+    def setContentEntityId(id: String)
+    def getContentEntityId: String
+
+    def setBody(file: File) {
+        setBody(scala.io.Source.fromFile(file).mkString)
+    }
 }
 
-class ClassMember extends ApexMember {
-    private val instance = new ApexClassMember()
-
-    val xmlType = "ApexClass"
-
-    protected def getInstanceImpl: SObject = instance
-
-    protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
-
-    protected def setBodyImpl(text: String): Unit = instance.setBody(text)
-
-    protected def setMetadataContainerIdImpl(containerId: String): Unit = instance.setMetadataContainerId(containerId)
+class ClassMember extends ApexClassMember with ApexMember {
+    val xmlType = ApexMember.APEX_CLASS
 }
 
-class TriggerMember extends ApexMember {
-    private val instance = new ApexTriggerMember()
-
-    val xmlType = "ApexTrigger"
-    protected def getInstanceImpl: SObject = instance
-
-    protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
-
-    protected def setBodyImpl(text: String): Unit = instance.asInstanceOf[ApexTriggerMember].setBody(text)
-
-    protected def setMetadataContainerIdImpl(containerId: String): Unit = instance.setMetadataContainerId(containerId)
+class TriggerMember extends ApexTriggerMember with ApexMember {
+    val xmlType = ApexMember.APEX_TRIGGER
 }
 
-class PageMember extends ApexMember {
-    private val instance = new ApexPageMember()
-
-    val xmlType = "ApexPage"
-    protected def getInstanceImpl: SObject = instance
-
-    protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
-
-    protected def setBodyImpl(text: String): Unit = instance.setBody(text)
-
-    protected def setMetadataContainerIdImpl(containerId: String): Unit = instance.setMetadataContainerId(containerId)
+class PageMember extends ApexPageMember with ApexMember {
+    val xmlType = ApexMember.APEX_PAGE
 }
 
-class ComponentMember extends ApexMember {
-    private val instance = new ApexComponentMember()
-
-    val xmlType = "ApexComponent"
-    protected def getInstanceImpl: SObject = instance
-
-    protected def setContentEntityIdImpl(id: String): Unit = instance.setContentEntityId(id)
-
-    protected def setBodyImpl(text: String): Unit = instance.setBody(text)
-
-    protected def setMetadataContainerIdImpl(containerId: String): Unit = instance.setMetadataContainerId(containerId)
+class ComponentMember extends ApexComponentMember with ApexMember {
+    val xmlType = ApexMember.APEX_COMPONENT
 }
