@@ -468,13 +468,23 @@ class Session(config: Config) extends Logging {
         }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
         saveResult
     }
+    def updateTooling(objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+        val saveResult = withRetry {
+            val conn = getToolingConnection
+            conn.update(objects)
+        }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
+        saveResult
+    }
 
-    def deleteTooling(id: String):Array[com.sforce.soap.tooling.DeleteResult] = {
+    def deleteTooling(ids: Array[String]):Array[com.sforce.soap.tooling.DeleteResult] = {
         val deleteResult = withRetry {
             val conn = getToolingConnection
-            conn.delete(Array(id))
+            conn.delete(ids)
         }.asInstanceOf[Array[com.sforce.soap.tooling.DeleteResult]]
         deleteResult
+    }
+    def deleteTooling(id: String):Array[com.sforce.soap.tooling.DeleteResult] = {
+        deleteTooling(Array(id))
     }
 
     def queryTooling(queryString: String):com.sforce.soap.tooling.QueryResult = {
