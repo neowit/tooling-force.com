@@ -29,7 +29,7 @@ abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Se
     def retrieveFiles(files: List[File], reportMissing: Boolean = true): RetrieveResult = {
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
-        //setSpecificFiles requires file names that look like: classes/MyClass.cls
+        //setSpecificFiles requires file names that look like: unpackaged/classes/MyClass.cls
         retrieveRequest.setSpecificFiles(files.map(session.getRelativePath(_).replaceFirst("src/", "unpackaged/")).toArray)
         //retrieveRequest.setSinglePackage(true) //do NOT use setSinglePackage(), it causes fileNames to lose "unpackaged/"
         setUpackaged(retrieveRequest)

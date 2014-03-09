@@ -718,10 +718,10 @@ class DeploySpecificFiles(session: Session) extends DeployModified(session: Sess
 
             //first check if SFDC has newer version of files we are about to deploy
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+            val callingAnotherOrg = session.callingAnotherOrg
 
-            val canDeploy = ignoreConflicts || !hasConflicts(files)
+            val canDeploy = callingAnotherOrg || ignoreConflicts || !hasConflicts(files)
             if (canDeploy) {
-                val callingAnotherOrg = session.callingAnotherOrg
                 val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
                 deploy(files, updateSessionDataOnSuccess)
             }
