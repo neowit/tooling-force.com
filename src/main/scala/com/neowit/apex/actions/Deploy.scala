@@ -11,25 +11,6 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 
 abstract class Deploy(session: Session) extends ApexAction(session: Session) {
 
-    /**
-     *
-     * @param fileName, e.g. "MyClass"
-     * @param extension, e.g. "cls"
-     * @return relative path in project folder, e.g. src/classes.MyClass.cls
-     */
-    def getRelativeFilePath(fileName: String, extension: String,
-                            metadataByXmlName: Map[String, DescribeMetadataObject]): Option[String] = {
-        val path = DescribeMetadata.getXmlNameBySuffix(session, extension) match {
-            case Some(xmlTypeName) => metadataByXmlName.get(xmlTypeName)  match {
-                case Some(describeMetadataObject) =>
-                    session.getRelativePath(describeMetadataObject.getDirectoryName, fileName + "." + extension)
-                case _ => None
-            }
-            case _ => None
-        }
-        path
-    }
-
     //* ... line 155, column 41 ....
     private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
     //Class.Test1: line 19, column 1
@@ -174,7 +155,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                 case Some((_line, _column)) => (_line, _column)
                 case None => (-1, -1)
             }
-            val filePath =  if (!suffix.isEmpty) getRelativeFilePath(fileName, suffix, metadataByXmlName) match {
+            val filePath =  if (!suffix.isEmpty) session.getRelativeFilePath(fileName, suffix) match {
                 case Some(_filePath) => _filePath
                 case _ => ""
             }

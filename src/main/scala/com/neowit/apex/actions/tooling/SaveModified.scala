@@ -237,7 +237,7 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                                 logger.debug(errObj)
                                 val xmlType = errObj("extent").asInstanceOf[String]
                                 val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
-                                val directory = describeMetadataResult.getDirectoryName
+                                //val directory = describeMetadataResult.getDirectoryName
                                 val extension = describeMetadataResult.getSuffix
                                 val fName = errObj("name").asInstanceOf[String]
                                 val line = errObj.get("line") match {
@@ -251,7 +251,10 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                                 val problem = errObj("problem").asInstanceOf[String]
                                 //val id = errObj("id")
 
-                                val filePath = config.srcPath + File.separator + directory + File.separator + fName + "." + extension
+                                val filePath =  if (!extension.isEmpty) session.getRelativeFilePath(fName, extension) match {
+                                    case Some(_filePath) => _filePath
+                                    case _ => ""
+                                }
                                 val problemType = "CompileError"
                                 responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                                 responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))

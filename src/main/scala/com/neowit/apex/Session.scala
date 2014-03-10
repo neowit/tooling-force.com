@@ -93,17 +93,6 @@ class Session(config: Config) extends Logging {
      * @param file - resource under project folder
      * @return - string, looks like: unpackaged/pages/Hello.page
      */
-    def getRelativePath(file: File): String = {
-        val projectPath = config.projectDir.getAbsolutePath + File.separator
-        val res = file.getAbsolutePath.substring(projectPath.length)
-        normalizePath(res)
-    }
-    /**
-     * return relative path inside project folder
-     * this path is used as key in session
-     * @param file - resource under project folder
-     * @return - string, looks like: unpackaged/pages/Hello.page
-     */
     def getKeyByFile(file: File): String = {
         val relativePath = getRelativePath(file)
         getKeyByRelativeFilePath(relativePath)
@@ -146,6 +135,34 @@ class Session(config: Config) extends Logging {
         }
     }
 
+    /**
+     * return relative path inside project folder
+     * this path is used as key in session
+     * @param file - resource under project folder
+     * @return - string, looks like: unpackaged/pages/Hello.page
+     */
+    def getRelativePath(file: File): String = {
+        val projectPath = config.projectDir.getAbsolutePath + File.separator
+        val res = file.getAbsolutePath.substring(projectPath.length)
+        normalizePath(res)
+    }
+    /**
+     * @param fileName, e.g. "MyClass"
+     * @param extension, e.g. "cls"
+     * @return relative path in project folder, e.g. src/classes.MyClass.cls
+     */
+    def getRelativeFilePath(fileName: String, extension: String ): Option[String] = {
+
+        val path = DescribeMetadata.getXmlNameBySuffix(this, extension) match {
+            case Some(xmlTypeName) => DescribeMetadata.getMap(this).get(xmlTypeName)  match {
+                case Some(describeMetadataObject) =>
+                    getRelativePath(describeMetadataObject.getDirectoryName, fileName + "." + extension)
+                case _ => None
+            }
+            case _ => None
+        }
+        path
+    }
     /**
      * using only file name, e.g. MyClass and "ApexClass" try to find existing file
      * @param nameWithoutExtension, e.g. "MyClass"
