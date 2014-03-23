@@ -21,7 +21,6 @@ package com.neowit.apex
 
 import com.neowit.utils._
 import com.neowit.apex.actions.{RetrieveError, ActionFactory}
-import com.neowit.utils.ResponseWriter.Message
 
 object Runner extends Logging {
     val appConfig = Config.getConfig

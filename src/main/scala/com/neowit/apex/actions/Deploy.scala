@@ -487,9 +487,8 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
                         val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
                         config.responseWriter.println(msg)
-                        conflictingFiles.foreach{
-                            f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
-                        }
+                        checker.generateConflictMessageDetails(conflictingFiles, msg).
+                            foreach{detail => config.responseWriter.println(detail)}
                         config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
                     }
                     !conflictingFiles.isEmpty

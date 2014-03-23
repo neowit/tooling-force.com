@@ -3,7 +3,7 @@ package com.neowit.apex.actions
 import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 import com.neowit.apex.{MetadataType, MetaXml, Session}
 import java.io.{FileOutputStream, File}
-import com.neowit.utils.{ResponseWriter, ZipUtils, FileUtils}
+import com.neowit.utils.{ZuluTime, ResponseWriter, ZipUtils, FileUtils}
 import scala.util.{Failure, Success, Try}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import scala.collection.mutable
@@ -186,10 +186,10 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
 
     override def getName: String = "listConflicts"
 
-    def getFilesNewerOnRemote(files: List[File]): Option[List[File]] = {
+    def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
         val filesWithoutPackageXml = files.filterNot(_.getName == "package.xml").toList
         if (filesWithoutPackageXml.isEmpty) {
-            Option(filesWithoutPackageXml)
+            Option(filesWithoutPackageXml.map(f => Map("file" -> f)))
         } else {
             val fileMap = filesWithoutPackageXml.map(f => (session.getRelativePath(f).replaceFirst("src/", "unpackaged/"), f) ).toMap
 
@@ -204,7 +204,18 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
                             millsLocal < millsRemote
                         }
                     )
-                    val res = newerProps.map(p => {fileMap(p.getFileName)})
+                    val res = newerProps.map(
+                        props => {
+                            val key = props.getFileName
+                            val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).toString.toLong
+                            Map(
+                                "file" -> fileMap(props.getFileName),
+                                "LastModifiedByName" -> props.getLastModifiedByName,
+                                "LastModifiedById" -> props.getLastModifiedById,
+                                "Remote-LastModifiedDate" -> ZuluTime.formatDateGMT(props.getLastModifiedDate),
+                                "Local-LastModifiedDate" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
+                            )
+                    })
                     Some(res.toList)
 
                 case Failure(err) =>
@@ -213,22 +224,47 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
         }
 
     }
+
+    /**
+     * using list of conflict data returned by getFilesNewerOnRemote() generate MessageDetail for given Message
+     * @param conflictingFiles
+     * @param msg
+     * @return
+     */
+    def generateConflictMessageDetails(conflictingFiles: List[Map[String, Any]], msg: Message):List[MessageDetail] = {
+        conflictingFiles.map(
+            prop => {
+                var text = ""
+                val filePath = prop.get("file")  match {
+                    case Some(x) =>
+                        val f = x.asInstanceOf[File]
+                        text = f.getName
+                        text += " => Modified By: " + prop.getOrElse("LastModifiedByName", "")
+                        text += "; at: " + prop.getOrElse("Remote-LastModifiedDate", "")
+                        text += "; Local version saved at: " + prop.getOrElse("Local-LastModifiedDate", "")
+                        f.getAbsolutePath
+                    case None => ""
+                }
+                //config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text)))
+                new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text))
+            }
+        )
+    }
+
     def act {
         val checker = new ListModified(session)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {
-            case Some(files) =>
+            case Some(fileProps) =>
                 config.responseWriter.println("RESULT=SUCCESS")
-                if (!files.isEmpty) {
+                if (!fileProps.isEmpty) {
                     val msg = new Message(ResponseWriter.INFO, "Outdated file(s) detected.")
                     config.responseWriter.println(msg)
-                    files.foreach{
-                        f => config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> f.getName)))
-                    }
+                    generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
                 } else {
                     config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
                 }
-                files.isEmpty
+                fileProps.isEmpty
             case None =>
         }
 
