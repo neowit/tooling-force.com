@@ -212,8 +212,8 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
                                 "file" -> fileMap(props.getFileName),
                                 "LastModifiedByName" -> props.getLastModifiedByName,
                                 "LastModifiedById" -> props.getLastModifiedById,
-                                "Remote-LastModifiedDate" -> ZuluTime.formatDateGMT(props.getLastModifiedDate),
-                                "Local-LastModifiedDate" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
+                                "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(props.getLastModifiedDate),
+                                "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
                             )
                     })
                     Some(res.toList)
@@ -240,8 +240,8 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
                         val f = x.asInstanceOf[File]
                         text = f.getName
                         text += " => Modified By: " + prop.getOrElse("LastModifiedByName", "")
-                        text += "; at: " + prop.getOrElse("Remote-LastModifiedDate", "")
-                        text += "; Local version saved at: " + prop.getOrElse("Local-LastModifiedDate", "")
+                        text += "; at: " + prop.getOrElse("Remote-LastModifiedDateStr", "")
+                        text += "; Local version saved at: " + prop.getOrElse("Local-LastModifiedDateStr", "")
                         f.getAbsolutePath
                     case None => ""
                 }

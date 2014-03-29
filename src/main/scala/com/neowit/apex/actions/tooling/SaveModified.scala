@@ -6,11 +6,12 @@ import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
 import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
 import scala.util.parsing.json.JSON
 import com.neowit.utils.ResponseWriter.Message
-import com.neowit.utils.{ZuluTime, ResponseWriter}
+import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
 import scala.concurrent._
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONObject
 import com.neowit.utils.ResponseWriter.MessageDetail
+import com.sforce.ws.bind.XmlObject
 
 class SaveError(msg: String) extends Error(msg: String)
 /**
@@ -185,6 +186,94 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
 
     }
 
+    /*
+    override protected def hasConflicts(files: List[File]): Boolean = {
+        if (!files.isEmpty) {
+            logger.info("Check Conflicts with Remote")
+            //!conflictingFiles.isEmpty
+            None != getFilesNewerOnRemote(files)
+        } else {
+            logger.debug("File list is empty, nothing to check for Conflicts with Remote")
+            false
+        }
+    }
+    */
+    override def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
+        val modificationDataByFile = getFilesModificationData(files)
+
+        val dataOrNone: List[Option[Map[String, Any]]] = for (file <- files) yield {
+            modificationDataByFile.get(file)  match {
+              case Some(data) =>
+                  val localMillis = ZuluTime.deserialize(data("Local-LastModifiedDateStr").toString).getTimeInMillis
+                  val remoteMillis = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString).getTimeInMillis
+
+                  if (localMillis < remoteMillis) Some(data) else None
+
+              case None => None
+            }
+        }
+        val res = dataOrNone.filter(_ != None).map(_.get)
+        if (res.isEmpty) None else Some(res)
+    }
+    /**
+     * find remote modification Date + ById for all provided files
+     * @param files - list of files to retrieve data for
+     * @return
+     */
+    private def getFilesModificationData(files: List[File]): Map[File, Map[String, Any]] = {
+        val filesByExtension = files.groupBy(f => FileUtils.getExtension(f))
+
+        val dataByFile = collection.mutable.HashMap[File, Map[String, Any]]()
+        for (extension <- filesByExtension.keys) {
+
+            DescribeMetadata.getXmlNameBySuffix(session, extension)  match {
+              case Some(xmlType) =>
+                  dataByFile ++= getFilesModificationData(xmlType, filesByExtension(extension))
+              case None => //did not recognise extension
+            }
+        }
+        dataByFile.toMap
+    }
+
+    /**
+     * retrieve modification data for single XML Type
+     * @param xmlType, e.g. ApexClass
+     * @param filesOfSameType - all files MUST be of the same XML Type
+     * @return
+     */
+    private def getFilesModificationData(xmlType: String, filesOfSameType: List[File]): Map[File, Map[String, Any]] = {
+        val fileById = collection.mutable.HashMap[String, File]()
+        for (file <- filesOfSameType) {
+            val key = session.getKeyByFile(file)
+            session.getData(key).get("Id")  match {
+                case Some(id) => fileById += id.toString -> file
+                case None =>
+            }
+        }
+        val ids = fileById.keys
+        if (!ids.isEmpty) {
+            val queryResult = session.query("select Id, Name, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
+                + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
+            val records = queryResult.getRecords
+            val dataByFile = records.map(record => {
+                val file = fileById(record.getId)
+                //2014-02-24T20:35:59.000Z
+                val lastModifiedStr = record.getField("LastModifiedDate").toString
+                val lastModifiedDate = ZuluTime.deserialize(lastModifiedStr)
+                val millsLocal = session.getData(session.getKeyByFile(file)).getOrElse("LastModifiedDateMills", 0).toString.toLong
+                file -> Map(
+                    "file" -> file,
+                    "LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
+                    "LastModifiedById" -> record.getField("LastModifiedById"),
+                    "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(lastModifiedDate),
+                    "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
+                )
+            }).toMap
+            dataByFile
+        } else {
+            Map()
+        }
+    }
 
     private def processSaveResult(request: ContainerAsyncRequest, membersMap: Map[ApexMember, File], updateSessionDataOnSuccess: Boolean) {
 
@@ -192,24 +281,20 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
             case "Completed" =>
                 logger.debug("Request succeeded")
                 if (updateSessionDataOnSuccess) {
-                    //here I am making bold assumption that SFDC commits MetadataContainer as a single transaction,
-                    // so all files will have the same LastModifiedDate and we can query single file to get LastModifiedDate
-                    // for all members of current MetadataContainer
-                    val member = membersMap.head._1
-                    val xmlType = member.xmlType
-                    val queryResult = session.query("select LastModifiedDate from " + xmlType + " where Id ='" + member.getContentEntityId + "'")
-                    val records = queryResult.getRecords
-                    if (!records.isEmpty) {
-                        //2014-02-24T20:35:59.000Z
-                        val lastModifiedStr = records(0).getField("LastModifiedDate").toString
-                        val lastModifiedDate = ZuluTime.deserialize(lastModifiedStr)
-                        for (member <- membersMap.keys) {
-                            val f = membersMap(member)
-                            val key = session.getKeyByFile(f)
-                            val newData = MetadataType.getValueMap(config, f, xmlType, Some(member.getContentEntityId), lastModifiedDate, fileMeta = None)
-                            val oldData = session.getData(key)
-                            session.setData(key, oldData ++ newData)
+                    val modificationDataByFile = getFilesModificationData(membersMap.values.toList)
+                    for (member <- membersMap.keys) {
+
+                        val f = membersMap(member)
+                        modificationDataByFile.get(f)  match {
+                          case Some(data) =>
+                              val key = session.getKeyByFile(f)
+                              val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
+                              val newData = MetadataType.getValueMap(config, f, member.xmlType, Some(member.getContentEntityId), lastModifiedDate, fileMeta = None)
+                              val oldData = session.getData(key)
+                              session.setData(key, oldData ++ newData)
+                          case None =>
                         }
+
                     }
                 }
                 config.responseWriter.println("RESULT=SUCCESS")

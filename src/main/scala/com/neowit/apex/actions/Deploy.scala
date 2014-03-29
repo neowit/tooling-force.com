@@ -476,11 +476,16 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
         exclude
     }
 
+    def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
+        val checker = new ListConflicting(session)
+        checker.getFilesNewerOnRemote(files)
+    }
+
     protected def hasConflicts(files: List[File]): Boolean = {
         if (!files.isEmpty) {
             logger.info("Check Conflicts with Remote")
             val checker = new ListConflicting(session)
-            checker.getFilesNewerOnRemote(files) match {
+            getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (!conflictingFiles.isEmpty) {
                         config.responseWriter.println("RESULT=FAILURE")
