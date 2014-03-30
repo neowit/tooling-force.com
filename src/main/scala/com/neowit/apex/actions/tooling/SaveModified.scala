@@ -12,9 +12,6 @@ import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONObject
 import com.neowit.utils.ResponseWriter.MessageDetail
 import com.sforce.ws.bind.XmlObject
-import scala.util.{Failure, Success}
-import ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 
 class SaveError(msg: String) extends Error(msg: String)
 /**
@@ -227,37 +224,18 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
     private def getFilesModificationData(files: List[File]): Map[File, Map[String, Any]] = {
         val filesByExtension = files.groupBy(f => FileUtils.getExtension(f))
 
-        val dataByFile = collection.mutable.HashMap[File, Map[String, Any]]()
+        val dataByFileCol = filesByExtension.keys.par.map(extension => {
+            DescribeMetadata.getXmlNameBySuffix(session, extension) match {
+                case Some(xmlType) =>
+                    val res = getFilesModificationData(xmlType, filesByExtension(extension))
+                    res
+                case None => Map[File, Map[String, Any]]() //did not recognise extension
+            }
 
-        val futures = for (extension <- filesByExtension.keys) yield {
-            val f = future {
-                DescribeMetadata.getXmlNameBySuffix(session, extension) match {
-                    case Some(xmlType) =>
-                        val res = getFilesModificationData(xmlType, filesByExtension(extension))
-                        logger.debug(xmlType + "=" + res)
-                        res
-                    case None => Map[File, Map[String, Any]]() //did not recognise extension
-                }
-            }
-            /*
-            f onComplete {
-                case Success(result) =>
-                    dataByFile ++= result.asInstanceOf[TraversableOnce[(File, Map[String, Any])]]
-                case Failure(t) => throw new SaveError(t.getMessage)
-            }
-            */
-            f
-        }
-        val f = Future.sequence(futures.toList)
-        f onComplete {
-            case Success(results) =>
-                results.foreach{
-                    result => dataByFile ++= result.asInstanceOf[TraversableOnce[(File, Map[String, Any])]]
-                }
-            case Failure(t) => throw new SaveError(t.getMessage)
-        }
-        Await.ready(f, Duration.Inf)
-        logger.debug("dataByFile = " +dataByFile)
+        })
+        //now convert ParIterable of maps into a single map
+        val dataByFile = dataByFileCol.foldLeft(Map[File, Map[String, Any]] ())(_ ++ _)
+
         dataByFile.toMap
     }
 
@@ -268,7 +246,6 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
      * @return
      */
     private def getFilesModificationData(xmlType: String, filesOfSameType: List[File]): Map[File, Map[String, Any]] = {
-        logger.debug("Getting modification data for " + xmlType)
         val fileById = collection.mutable.HashMap[String, File]()
         for (file <- filesOfSameType) {
             val key = session.getKeyByFile(file)
@@ -279,30 +256,26 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
         }
         val ids = fileById.keys
         if (!ids.isEmpty) {
-            val queryStr = "select Id, Name, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")"
-            logger.debug("xmlType=" + xmlType + ":: query=" + queryStr)
             val queryResult = session.query("select Id, Name, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
                 + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
             val records = queryResult.getRecords
-            val dataByFile = collection.mutable.HashMap[File, Map[String, Any]]()
-            records.foreach(record => {
+
+            val dataByFile = records.map(record => {
                 val file = fileById(record.getId)
                 //2014-02-24T20:35:59.000Z
                 val lastModifiedStr = record.getField("LastModifiedDate").toString
                 val lastModifiedDate = ZuluTime.deserialize(lastModifiedStr)
                 val millsLocal = session.getData(session.getKeyByFile(file)).getOrElse("LastModifiedDateMills", 0).toString.toLong
-                logger.debug("xmlType=" + xmlType + ":: lastModifiedStr=" + lastModifiedStr)
-                dataByFile +=
-                    file -> Map(
-                        "file" -> file,
-                        "LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
-                        "LastModifiedById" -> record.getField("LastModifiedById"),
-                        "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(lastModifiedDate),
-                        "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
-                    )
+
+                file -> Map(
+                    "file" -> file,
+                    "LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
+                    "LastModifiedById" -> record.getField("LastModifiedById"),
+                    "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(lastModifiedDate),
+                    "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
+                )
 
             })
-            logger.debug("single type dataByFile=" + dataByFile)
             dataByFile.toMap
         } else {
             Map()
