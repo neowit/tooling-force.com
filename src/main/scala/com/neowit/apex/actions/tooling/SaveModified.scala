@@ -187,18 +187,12 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
 
     }
 
-    /*
-    override protected def hasConflicts(files: List[File]): Boolean = {
-        if (!files.isEmpty) {
-            logger.info("Check Conflicts with Remote")
-            //!conflictingFiles.isEmpty
-            None != getFilesNewerOnRemote(files)
-        } else {
-            logger.debug("File list is empty, nothing to check for Conflicts with Remote")
-            false
-        }
-    }
-    */
+    /**
+     * when using Tooling try to avoid Metadata.retrieve() as it may be quite slow
+     * this method will override its parent in ApexDeploy and uses simple query() calls to load LastModifiedDate
+     * @param files - list of files to check for conflicts
+     * @return
+     */
     override def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
         val modificationDataByFile = getFilesModificationData(files)
 
@@ -350,12 +344,6 @@ class SaveModified(session: Session) extends DeployModified(session: Session) {
                                 val problemType = "CompileError"
                                 responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                                 responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
-                                /*
-                                val helper = TypeHelpers.getHelper(err.asInstanceOf[JSONObject])
-                                val directory = helper.directoryName
-
-
-                                */
                             }
                         case Some(x) if x.isInstanceOf[JSONObject] =>
                             logger.debug(x)
