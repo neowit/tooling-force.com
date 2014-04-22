@@ -35,7 +35,7 @@ Also supported a "project like" mode - where relevant metadata about deployments
 
 ## Installation
 
-Download lastest .jar file from [releases page](https://github.com/scottmotte/tooling-force.com/releases).
+Download lastest .jar file from [releases page](https://github.com/neowit/tooling-force.com/releases).
 Assuming .jar file name is `tooling-force.com-0.1.jar` you can run it like so: 
 
     java -jar tooling-force.com-0.1.jar
