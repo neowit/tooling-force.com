@@ -67,6 +67,17 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
             case _:Throwable => None
         }
     }
+
+    /**
+     * depending on the target of deployment and flags like "checkOnly" & "updateSessionDataOnSuccess" we may or may not
+     * need to update session data after successful deployment
+     @return
+     */
+    def isUpdateSessionDataOnSuccess: Boolean = {
+        val callingAnotherOrg = session.callingAnotherOrg
+        val updateSessionDataOnSuccess = !config.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+        updateSessionDataOnSuccess
+    }
 }
 
 
@@ -133,8 +144,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
             val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles) || hasTestsToRun
 
             if (canDeploy) {
-                val checkOnly = config.isCheckOnly
-                deploy(modifiedFiles, updateSessionDataOnSuccess = !checkOnly)
+                deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
             }
         }
     }
@@ -640,11 +650,7 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
     override def act() {
         val allFiles = getAllFiles
 
-        val callingAnotherOrg = session.callingAnotherOrg
-        val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
-        deploy(allFiles, updateSessionDataOnSuccess)
-
-
+        deploy(allFiles, isUpdateSessionDataOnSuccess)
     }
 
     /**
@@ -707,8 +713,7 @@ class DeploySpecificFiles(session: Session) extends DeployModified(session: Sess
 
             val canDeploy = callingAnotherOrg || ignoreConflicts || !hasConflicts(files)
             if (canDeploy) {
-                val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
-                deploy(files, updateSessionDataOnSuccess)
+                deploy(files, isUpdateSessionDataOnSuccess)
             }
         }
 
@@ -853,7 +858,6 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
             val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
             responseWriter.println(new Message(ResponseWriter.ERROR, "no valid components in " + componentListFile))
         } else {
-            val callingAnotherOrg = session.callingAnotherOrg
 
             val deployOptions = new DeployOptions()
             deployOptions.setPerformRetrieve(false)
@@ -906,8 +910,7 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
                 }
             } else {
                 config.responseWriter.println("RESULT=SUCCESS")
-                val updateSessionDataOnSuccess = !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false") == "true"
-                if (updateSessionDataOnSuccess) {
+                if (isUpdateSessionDataOnSuccess) {
                     responseWriter.debug("Updating session data")
                     for (componentPath <- components) {
                         val pair = componentPath.split('/')
