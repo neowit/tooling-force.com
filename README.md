@@ -1,8 +1,7 @@
-# A command line utility for working with salesforce.com Tooling API
+# A command line utility for working with salesforce.com Tooling & Metadata API
 
 Primary goal of tooling-force.com is to provide the means of interacting with
-force.com Tooling API from various command line tools and editor plugins like
-[vim-force.com](https://github.com/neowit/vim-force.com)
+force.com Medatata API and Tooling API from various command line tools and editor plugins like [vim-force.com](https://github.com/neowit/vim-force.com).
 
 
 ## DESCRIPTION                                             
