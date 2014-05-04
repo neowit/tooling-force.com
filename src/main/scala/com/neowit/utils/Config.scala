@@ -136,7 +136,7 @@ class Config extends Logging{
     /**
      * order of obtaining parameter value is as follows
      * 1. check java -Dkey=... command line parameter
-     * 2. check application command line parameter: java .... tooling-force.com.jar key=...
+     * 2. check application command line parameter: java .... tooling-force.com.jar --key=...
      * 3. check .properties file
      *
      * @param key name of property/parameter
