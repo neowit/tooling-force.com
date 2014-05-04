@@ -133,8 +133,19 @@ class Config extends Logging{
         //lastRunOutputFile
     }
 
+    /**
+     * order of obtaining parameter value is as follows
+     * 1. check java -Dkey=... command line parameter
+     * 2. check application command line parameter: java .... tooling-force.com.jar key=...
+     * 3. check .properties file
+     *
+     * @param key name of property/parameter
+     */
     def getProperty(key:String):Option[String] = {
-        val cmdLineValue = options.get(key)
+        val cmdLineValue = scala.util.Properties.propOrNone( key ) match {
+          case Some(s) => Some(s)
+          case None => options.get(key)
+        }
         val configValue = mainProps.getPropertyOption(key)
         val res = cmdLineValue match {
             case None => configValue match {
