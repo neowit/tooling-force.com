@@ -5,7 +5,7 @@ import scala.collection.mutable
 import com.neowit.apex.Session
 import scala.util.{Failure, Success, Try}
 import scala.util.parsing.json.{JSON, JSONObject, JSONArray}
-import com.neowit.utils.ResponseWriter
+import com.neowit.utils.{BasicConfig, ResponseWriter}
 import java.io.{PrintWriter, File}
 import com.neowit.apex.actions.ApexAction
 
@@ -17,7 +17,7 @@ object DescribeTooling {
      */
     def getMap(session: Session): Map[String, DescribeGlobalSObjectResult] = {
         if (describeToolingObjectMap.isEmpty) {
-            val describer = new DescribeTooling(session)
+            val describer = new DescribeTooling(session.basicConfig)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {
@@ -32,7 +32,7 @@ object DescribeTooling {
     }
 }
 
-class DescribeTooling(session: Session) extends ApexAction(session: Session) {
+class DescribeTooling(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
     override def getExample: String = ""
 
     override def getParamDescription(paramName: String): String = paramName match {

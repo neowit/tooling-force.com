@@ -20,7 +20,8 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   "commons-logging" %  "commons-logging" % "1.1.3",
-  "org.scalatest" %  "scalatest_2.10" % "2.0" % "test"
+  "org.scalatest" %  "scalatest_2.10" % "2.0" % "test",
+  "com.typesafe.akka" % "akka-actor_2.10" % "2.2-M1"
 )
 
 //exportJars := true

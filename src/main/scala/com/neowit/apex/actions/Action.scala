@@ -28,6 +28,7 @@ class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
+        "serverStart" -> "com.neowit.ServerStart",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
         "saveModified" -> "tooling.SaveModified",
@@ -43,14 +44,15 @@ object ActionFactory {
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 
-    def getAction(session:Session, name: String): Option[Action] = {
+    def getAction(basicConfig: BasicConfig, name: String): Option[Action] = {
 
         //convert all keys to lower case
         val lowerCaseMap = REGISTERED_ACTIONS.map{case (key, value) => key.toLowerCase -> value}
         lowerCaseMap.get(name.toLowerCase) match {
           case Some(action) =>
-              val constructor = Class.forName("com.neowit.apex.actions." + action).getConstructor(classOf[Session])
-              Some(constructor.newInstance(session).asInstanceOf[Action])
+              val fullClassName = if (action.indexOf(".") < 0) "com.neowit.apex.actions." + action else action
+              val constructor = Class.forName(fullClassName).getConstructor(classOf[BasicConfig])
+              Some(constructor.newInstance(basicConfig).asInstanceOf[Action])
           case None => throw new UnsupportedActionError("--action=" + name + " is not supported")
         }
     }
@@ -59,10 +61,11 @@ object ActionFactory {
 trait Action extends Logging with ActionHelp {
     def act(): Unit
 }
-trait AsyncAction extends Action {
+abstract class AsyncAction (basicConfig: BasicConfig) extends Action {
 }
 
-abstract class ApexAction(session: Session) extends AsyncAction {
+abstract class ApexAction(basicConfig: BasicConfig) extends AsyncAction(basicConfig) {
+    val session = Session(basicConfig)
     //need to def (as opposed to val) to stop from failing when called for help() display without session
     def config:Config = session.getConfig
     def responseWriter: ResponseWriter = config.responseWriter

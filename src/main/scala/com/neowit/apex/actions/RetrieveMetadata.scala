@@ -3,15 +3,21 @@ package com.neowit.apex.actions
 import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 import com.neowit.apex.{MetadataType, MetaXml, Session}
 import java.io.{FileOutputStream, File}
-import com.neowit.utils.{ZuluTime, ResponseWriter, ZipUtils, FileUtils}
+import com.neowit.utils._
 import scala.util.{Failure, Success, Try}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import scala.collection.mutable
 import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
+import scala.util.Failure
+import scala.Some
+import scala.util.Success
+import com.neowit.utils.ResponseWriter.MessageDetail
+import scala.util.parsing.json.JSONArray
+import scala.util.parsing.json.JSONObject
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
-abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Session) {
+abstract class RetrieveMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
 
     def setUpackaged(retrieveRequest: RetrieveRequest) {
         val metaXml = new MetaXml(session.getConfig)
@@ -108,7 +114,7 @@ abstract class RetrieveMetadata(session: Session) extends ApexAction(session: Se
  * 'refresh' action is 'retrieve' for all elements specified in package.xml
  *@param session - SFDC session
  */
-class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Session) {
+class RefreshMetadata(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
 
 
     override def getParamDescription(paramName: String): String = ""
@@ -124,7 +130,7 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
     def act() {
         //first check if we have modified files
         val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
-        val modifiedFileChecker = new ListModified(session)
+        val modifiedFileChecker = new ListModified(session.basicConfig)
         val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
 
         if (modifiedFiles.isEmpty) {
@@ -171,7 +177,7 @@ class RefreshMetadata(session: Session) extends RetrieveMetadata(session: Sessio
 /**
  * check local modified files against their Remote versions to see if remote is newer
  */
-class ListConflicting(session: Session) extends RetrieveMetadata(session: Session) {
+class ListConflicting(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
 
 
     override def getExample: String = ""
@@ -252,7 +258,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
     }
 
     def act {
-        val checker = new ListModified(session)
+        val checker = new ListModified(session.basicConfig)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
@@ -285,7 +291,7 @@ class ListConflicting(session: Session) extends RetrieveMetadata(session: Sessio
  *  classes/A_Class.cls
  *  -------------------------------
  */
-class BulkRetrieve(session: Session) extends RetrieveMetadata(session: Session) {
+class BulkRetrieve(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
 
     override def getExample: String =
         """Suppose we want to retrieve all members of ApexClass, ApprovalProcess, ApexComponent

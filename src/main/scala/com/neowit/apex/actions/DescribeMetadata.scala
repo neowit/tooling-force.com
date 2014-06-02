@@ -4,7 +4,7 @@ import com.sforce.soap.metadata.{ListMetadataQuery, DescribeMetadataObject}
 import com.neowit.apex.Session
 import scala.collection.mutable
 import java.io.{PrintWriter, File}
-import com.neowit.utils.{ResponseWriter, FileUtils}
+import com.neowit.utils.{BasicConfig, ResponseWriter, FileUtils}
 import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
 import scala.util.{Failure, Success, Try}
 
@@ -16,7 +16,7 @@ object DescribeMetadata {
      */
     def getMap(session: Session): Map[String, DescribeMetadataObject] = {
         if (describeMetadataObjectMap.isEmpty) {
-            val describer = new DescribeMetadata(session)
+            val describer = new DescribeMetadata(session.basicConfig)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {
@@ -89,11 +89,11 @@ object DescribeMetadata {
 
 /**
  * 'decribeMetadata' action saves result of describeMetadata call in JSON format
- *@param session - SFDC session
+ *@param basicConfig - config
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
-class DescribeMetadata(session: Session) extends ApexAction(session: Session) {
+class DescribeMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
 
     override def getExample: String = ""
 
@@ -193,11 +193,11 @@ class DescribeMetadata(session: Session) extends ApexAction(session: Session) {
 
 /**
  * 'listMetadata' action uses type list specified in a file and sends listMetadata() call for specified types
- *@param session - SFDC session
+ *@param basicConfig - Basic Config
  * Extra command line params:
  * --specificTypes=/path/to/file with types list
  */
-class ListMetadata(session: Session) extends ApexAction(session: Session) {
+class ListMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
 
     override def getExample: String = ""
 

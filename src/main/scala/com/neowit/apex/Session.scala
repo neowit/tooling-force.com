@@ -19,7 +19,7 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{FileUtils, Logging, Config}
+import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
@@ -32,7 +32,7 @@ import com.neowit.apex.actions.DescribeMetadata
  * manages local data store related to specific project
  */
 object Session {
-    def apply(appConfig: Config) = new Session(appConfig)
+    def apply(basicConfig: BasicConfig) = new Session(basicConfig)
 }
 
 /**
@@ -40,9 +40,11 @@ object Session {
  * 1. Maintains/stores persistent connection and can resue connection
  * 2. Maintains cache of some important information about project metadata (Pages, Classes, etc)
  *
- * @param config - main application config
+ * @param basicConfig - main application config
  */
-class Session(config: Config) extends Logging {
+class Session(val basicConfig: BasicConfig) extends Logging {
+
+    val config = Config.getConfig(basicConfig)
 
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None

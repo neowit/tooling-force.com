@@ -23,7 +23,8 @@ import com.neowit.utils._
 import com.neowit.apex.actions.{RetrieveError, ActionFactory}
 
 object Runner extends Logging {
-    val appConfig = Config.getConfig
+    val basicConfig = new BasicConfig()
+    //var appConfig = Config.getConfig(new BasicConfig())
 
     def main(args: Array[String]) {
         if (args.isEmpty) {
@@ -31,13 +32,13 @@ object Runner extends Logging {
         } else {
             var isGoodConfig = false
             try {
-                appConfig.load(args.toList)
+                basicConfig.load(args.toList)
                 run()
                 isGoodConfig = true
             } catch {
-                case ex: InvalidCommandLineException => appConfig.help()
+                case ex: InvalidCommandLineException => basicConfig.help()
                 case ex: MissingRequiredConfigParameterException =>
-                    appConfig.getProperty("help") match {
+                    basicConfig.getProperty("help") match {
                         case Some(actionName) =>
                             //display help for specific action
                             help(actionName)
@@ -51,26 +52,26 @@ object Runner extends Logging {
                     }
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
-                    appConfig.responseWriter.println("RESULT=FAILURE")
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
                     for(msg <- messages) {
-                        appConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
+                        basicConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    appConfig.responseWriter.println("RESULT=FAILURE")
-                    appConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    basicConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
                     logger.error(ex.printStackTrace())
-                    appConfig.responseWriter.println("RESULT=FAILURE")
-                    appConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    basicConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
-                    appConfig.responseWriter.close()
+                    basicConfig.responseWriter.close()
                 }
             }
         }
@@ -78,9 +79,8 @@ object Runner extends Logging {
     def run () {
         val start = System.currentTimeMillis
 
-        val session = Session(appConfig)
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
-        ActionFactory.getAction(session, session.getConfig.action) match {
+        ActionFactory.getAction(basicConfig, basicConfig.action) match {
             case Some(action) => action.act()
             case None =>
         }
@@ -107,7 +107,7 @@ object Runner extends Logging {
     }
 
     def help() {
-        appConfig.help()
+        basicConfig.help()
         println("Available Actions")
         for (actionName <- ActionFactory.getActionNames) {
             println("    --" + actionName + " see --help=" + actionName)

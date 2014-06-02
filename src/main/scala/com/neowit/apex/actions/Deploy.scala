@@ -2,14 +2,14 @@ package com.neowit.apex.actions
 
 import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
-import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
+import com.neowit.utils.{BasicConfig, FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
 import com.sforce.soap.metadata.{DescribeMetadataObject, DeployProblemType, DeployOptions}
 import scala.collection.mutable
 import scala.util.matching.Regex
 import scala.util.parsing.json.{JSONArray, JSONObject}
 
-abstract class Deploy(session: Session) extends ApexAction(session: Session) {
+abstract class Deploy(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
 
     //* ... line 155, column 41 ....
     private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
@@ -99,7 +99,7 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */
-class DeployModified(session: Session) extends Deploy(session: Session) {
+class DeployModified(basicConfig: BasicConfig) extends Deploy(basicConfig: BasicConfig) {
 
     override def getExample: String = ""
 
@@ -131,7 +131,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
     def act() {
         val hasTestsToRun = None != config.getProperty("testsToRun")
-        val modifiedFiles = new ListModified(session).getModifiedFiles
+        val modifiedFiles = new ListModified(basicConfig).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
@@ -487,14 +487,14 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
     }
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
-        val checker = new ListConflicting(session)
+        val checker = new ListConflicting(session.basicConfig)
         checker.getFilesNewerOnRemote(files)
     }
 
     protected def hasConflicts(files: List[File]): Boolean = {
         if (!files.isEmpty) {
             logger.info("Check Conflicts with Remote")
-            val checker = new ListConflicting(session)
+            val checker = new ListConflicting(session.basicConfig)
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (!conflictingFiles.isEmpty) {
@@ -633,7 +633,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
  * Extra command line params:
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
-class DeployAll(session: Session) extends DeployModified(session: Session) {
+class DeployAll(basicConfig: BasicConfig) extends DeployModified(basicConfig: BasicConfig) {
 
     override def getName: String = "deployAll"
 
@@ -674,7 +674,7 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
  * --specificFiles=/path/to/file with file list
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
-class DeploySpecificFiles(session: Session) extends DeployModified(session: Session) {
+class DeploySpecificFiles(basicConfig: BasicConfig) extends DeployModified(basicConfig: BasicConfig) {
     override def getExample: String =
         """
           |Suppose we want to deploy Account.trigger and AccountHandler.cls, content of file passed to --specificFiles
@@ -752,7 +752,7 @@ class DeploySpecificFiles(session: Session) extends DeployModified(session: Sess
 /**
  * list modified files (compared to their stored session data)
  */
-class ListModified(session: Session) extends ApexAction(session: Session) {
+class ListModified(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
     override def getExample: String = ""
 
     override def getParamDescription(paramName: String): String = ""
@@ -818,7 +818,7 @@ class ListModified(session: Session) extends ApexAction(session: Session) {
  * --specificComponents=/path/to/file with metadata components list, each component on its own line
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful
  */
-class DeployDestructive(session: Session) extends Deploy(session: Session) {
+class DeployDestructive(basicConfig: BasicConfig) extends Deploy(basicConfig: BasicConfig) {
 
     override def getExample: String =
         """

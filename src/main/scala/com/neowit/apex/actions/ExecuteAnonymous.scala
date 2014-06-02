@@ -2,7 +2,7 @@ package com.neowit.apex.actions
 
 import com.neowit.apex.Session
 import java.io.File
-import com.neowit.utils.FileUtils
+import com.neowit.utils.{BasicConfig, FileUtils}
 
 /**
  * 'executeAnonymous' action Executes the specified block of Apex anonymously and returns the result
@@ -11,7 +11,7 @@ import com.neowit.utils.FileUtils
  * --codeFile=/path/to/file with apex code to execute
  * --logFile=/path/to/file where log shall be stored
  */
-class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
+class ExecuteAnonymous(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
 
     override def getExample: String = ""
 
