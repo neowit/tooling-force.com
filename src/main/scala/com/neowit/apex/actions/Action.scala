@@ -61,8 +61,7 @@ object ActionFactory {
 trait Action extends Logging with ActionHelp {
     def act(): Unit
 }
-abstract class AsyncAction (basicConfig: BasicConfig) extends Action {
-}
+abstract class AsyncAction (basicConfig: BasicConfig) extends Action
 
 abstract class ApexAction(basicConfig: BasicConfig) extends AsyncAction(basicConfig) {
     val session = Session(basicConfig)

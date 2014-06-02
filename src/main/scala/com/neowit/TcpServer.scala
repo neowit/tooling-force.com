@@ -7,13 +7,14 @@ import java.io._
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.Props
-import com.neowit.apex.actions.{AsyncAction}
+import com.neowit.apex.actions.AsyncAction
 import com.neowit.utils.BasicConfig
+import com.neowit.apex.Runner
 
 case class Message(socket: Socket)
 case class Ping(socket: Socket)
 case class Shutdown(socket: Socket)
-case class Command(socket: Socket, params: Map[String, Any])
+case class Command(socket: Socket, commandLine: String)
 
 //this is for testing only
 object MyServer extends App{
@@ -24,7 +25,7 @@ object MyServer extends App{
 class ServerStart (basicConfig: BasicConfig) extends AsyncAction(basicConfig: BasicConfig) {
     override def act(): Unit = {
         val port = basicConfig.getProperty("port").getOrElse("8888").toInt
-        val timeoutMillis = basicConfig.getProperty("timeoutMillis").getOrElse("30000").toInt
+        val timeoutMillis = basicConfig.getProperty("timeoutSec").getOrElse("30").toInt * 1000
         val server = new TcpServer(port, timeoutMillis)
         server.start()
     }
@@ -40,8 +41,8 @@ class ServerStart (basicConfig: BasicConfig) extends AsyncAction(basicConfig: Ba
     override def getParamDescription(paramName: String): String = {
         paramName match {
             case "port" => "Port number, e.g. 8888"
-            case "timeoutMillis" =>
-                """Number of milliseconds the server will wait new connection.
+            case "timeoutSec" =>
+                """Number of seconds the server will wait for new connections.
                   |Once last command is completed and if no new connections is established within 'timeoutMillis'
                   |the server will shut itself down""".stripMargin
             case _ => "unsupported parameter"
@@ -107,7 +108,7 @@ class CommandParser extends Actor {
             inputLines(0) match {
                 case "ping" => processorActor ! new Ping(socket)
                 case "shutdown" => processorActor ! new Shutdown(socket)
-                case _ => new Command(socket, Map("commandLine" -> inputLines(0)))
+                case _ => processorActor ! new Command(socket, inputLines(0))
             }
         }
         //parser actor is no longer needed, stop it
@@ -124,7 +125,7 @@ class CommandProcessor extends Actor {
     def receive = {
         case Ping(socket) => ping(socket)
         case Shutdown(socket) => shutdown(socket)
-        case Command(socket, params) => processCommand(socket, params)
+        case Command(socket, commandLine) => processCommand(socket, commandLine)
         case _ => println("huh?")
     }
 
@@ -161,17 +162,39 @@ class CommandProcessor extends Actor {
     /**
      * generic command
      * @param socket
-     * @param params
+     * @param commandLine
      */
-    def processCommand(socket: Socket, params: Map[String, Any]) {
-        println("received command: " + params("commandLine"))
+    def processCommand(socket: Socket, commandLine: String) {
+        println("received command: " + commandLine)
 
-        val out = new PrintWriter(socket.getOutputStream, true)
-        out.println("your command have been processed")
+        val commandLineArgs:Array[String] = commandLine match {
+            case x if !x.isEmpty =>
+              //command line looks like: --key2="value 1" --key2=value2 --key3="value 33"
+              val args1 = x.toString.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
+              //args1: Array("--key2="value 1"", "--key2=value2", "--key3="value 33"")
+              //need to get rid of quotes around values with spaces
+              args1.map(s => {val two = s.split('='); two(0) + "=" + removeQuotes(two(1))})
+          case _ => Array()
+        }
+
+        val out = new PrintStream(socket.getOutputStream, true)
+        //redirect system out and err to show messages on the client rather than server
+        System.setOut(out)
+        System.setErr(out)
+
+        val runner = new Runner()
+        runner.execute(commandLineArgs)
+
+        //out.println("your command have been processed")
         out.close()
         done(socket)
     }
 
+    private def removeQuotes(str: String) = {
+        val left = if (!str.isEmpty && '"' == str(0)) str.substring(1) else str
+        val right = if (!left.isEmpty && '"' == left(left.length-1)) left.substring(0, left.length-1) else left
+        right
+    }
 }
 
 

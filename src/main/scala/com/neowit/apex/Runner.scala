@@ -23,10 +23,17 @@ import com.neowit.utils._
 import com.neowit.apex.actions.{RetrieveError, ActionFactory}
 
 object Runner extends Logging {
-    val basicConfig = new BasicConfig()
     //var appConfig = Config.getConfig(new BasicConfig())
-
     def main(args: Array[String]) {
+        val runner = new Runner()
+        runner.execute(args)
+    }
+}
+
+class Runner extends Logging {
+    val basicConfig = new BasicConfig()
+
+    def execute(args: Array[String]) {
         if (args.isEmpty) {
             help()
         } else {
@@ -43,7 +50,7 @@ object Runner extends Logging {
                             //display help for specific action
                             help(actionName)
                         case _ =>
-                            if (args.indexOf("--help") >=0) {
+                            if (args.indexOf("--help") >= 0) {
                                 help()
                             } else {
                                 logger.error(ex.getMessage)
@@ -53,7 +60,7 @@ object Runner extends Logging {
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
                     basicConfig.responseWriter.println("RESULT=FAILURE")
-                    for(msg <- messages) {
+                    for (msg <- messages) {
                         basicConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
@@ -76,7 +83,8 @@ object Runner extends Logging {
             }
         }
     }
-    def run () {
+
+    private def run () {
         val start = System.currentTimeMillis
 
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
@@ -92,25 +100,25 @@ object Runner extends Logging {
 
     def help(actionName: String) {
         val action = ActionFactory.getAction(null, actionName).get
-        println("\n--action=" + actionName)
-        println(" " + action.getSummary)
+        System.out.println("\n--action=" + actionName)
+        System.out.println(" " + action.getSummary)
         if (!action.getParamNames.isEmpty) {
-            println("Additional parameters:")
+            System.out.println("Additional parameters:")
             for(paramName <- action.getParamNames) {
-                println(action.getParamDescription(paramName))
+                System.out.println(action.getParamDescription(paramName))
             }
         }
         if (!action.getExample.isEmpty) {
-            println("Example:")
-            println(action.getExample)
+            System.out.println("Example:")
+            System.out.println(action.getExample)
         }
     }
 
     def help() {
         basicConfig.help()
-        println("Available Actions")
+        System.out.println("Available Actions")
         for (actionName <- ActionFactory.getActionNames) {
-            println("    --" + actionName + " see --help=" + actionName)
+            System.out.println("    --" + actionName + " see --help=" + actionName)
         }
     }
 }
