@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import akka.actor.Props
 import com.neowit.apex.actions.AsyncAction
 import com.neowit.utils.BasicConfig
-import com.neowit.apex.Runner
+import com.neowit.apex.{Executor}
 
 case class Message(socket: Socket)
 case class Ping(socket: Socket)
@@ -182,7 +182,7 @@ class CommandProcessor extends Actor {
         System.setOut(out)
         System.setErr(out)
 
-        val runner = new Runner()
+        val runner = new Executor()
         runner.execute(commandLineArgs)
 
         //out.println("your command have been processed")

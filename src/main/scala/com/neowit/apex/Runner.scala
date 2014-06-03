@@ -25,12 +25,12 @@ import com.neowit.apex.actions.{RetrieveError, ActionFactory}
 object Runner extends Logging {
     //var appConfig = Config.getConfig(new BasicConfig())
     def main(args: Array[String]) {
-        val runner = new Runner()
+        val runner = new Executor()
         runner.execute(args)
     }
 }
 
-class Runner extends Logging {
+class Executor extends Logging {
     val basicConfig = new BasicConfig()
 
     def execute(args: Array[String]) {

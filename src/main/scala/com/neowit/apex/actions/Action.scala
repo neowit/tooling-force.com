@@ -31,7 +31,7 @@ object ActionFactory {
         "serverStart" -> "com.neowit.ServerStart",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
-        "saveModified" -> "tooling.SaveModified",
+        "saveModified" -> "com.neowit.apex.actions.tooling.SaveModified",
         "deployModified" -> "DeployModified",
         "deployAll" -> "DeployAll",
         "deploySpecificFiles" -> "DeploySpecificFiles",
