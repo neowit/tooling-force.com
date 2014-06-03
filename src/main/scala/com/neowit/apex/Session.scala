@@ -44,7 +44,7 @@ object Session {
  */
 class Session(val basicConfig: BasicConfig) extends Logging {
 
-    val config = Config.getConfig(basicConfig)
+    val config = new Config(basicConfig)
 
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None

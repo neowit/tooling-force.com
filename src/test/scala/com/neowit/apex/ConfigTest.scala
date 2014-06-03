@@ -23,10 +23,10 @@ import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
 import java.util.Properties
 import java.lang.IllegalArgumentException
-import com.neowit.utils.{Config, OptionProperties, InvalidCommandLineException}
+import com.neowit.utils.{BasicConfig, Config, OptionProperties, InvalidCommandLineException}
 
 class ConfigTest extends FunSuite with PrivateMethodTester {
-    val appConfig = Config.getConfig
+    val appConfig = new Config(new BasicConfig)
 
     val FAIL = false
     def withFile(testCode: (File, FileWriter) => Any) {

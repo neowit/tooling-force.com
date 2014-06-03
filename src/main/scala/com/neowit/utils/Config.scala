@@ -186,18 +186,6 @@ regardless of whether it is also specified in config file or not
     lazy val action = getRequiredProperty("action").get
 }
 
-object Config extends Logging {
-    private var config: Config = null
-
-    def getConfig = {
-        config
-    }
-    def getConfig(basicConfig: BasicConfig) = {
-        config = new Config(basicConfig)
-        config
-    }
-}
-
 class Config(basicConfig: BasicConfig) extends Logging{
     val apiVersion:Double = 29.0
 
