@@ -170,10 +170,13 @@ class CommandProcessor extends Actor {
         val commandLineArgs:Array[String] = commandLine match {
             case x if !x.isEmpty =>
               //command line looks like: --key2="value 1" --key2=value2 --key3="value 33"
-              val args1 = x.toString.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
-              //args1: Array("--key2="value 1"", "--key2=value2", "--key3="value 33"")
+              val args1 = x.trim.toString.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
+              //args1: Array("--key2="value 1"", "--key2=value2", "--key3='value 33'")
               //need to get rid of quotes around values with spaces
-              args1.map(s => {val two = s.split('='); two(0) + "=" + removeQuotes(two(1))})
+              args1.map(s => {
+                  val two = s.split('=')
+                  two(0) + "=" + removeQuotes(removeQuotes(two(1), '"'), '\'')
+              })
           case _ => Array()
         }
 
@@ -190,9 +193,17 @@ class CommandProcessor extends Actor {
         done(socket)
     }
 
-    private def removeQuotes(str: String) = {
-        val left = if (!str.isEmpty && '"' == str(0)) str.substring(1) else str
-        val right = if (!left.isEmpty && '"' == left(left.length-1)) left.substring(0, left.length-1) else left
+    /**
+     * convert
+     * --key2="value 1"
+     * into
+     * --key2=value 1
+     * @param str - key="value" string
+     * @return
+     */
+    private def removeQuotes(str: String, quote: Char) = {
+        val left = if (!str.isEmpty && quote == str(0)) str.substring(1) else str
+        val right = if (!left.isEmpty && quote == left(left.length-1)) left.substring(0, left.length-1) else left
         right
     }
 }
