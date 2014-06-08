@@ -59,19 +59,19 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         val proxyPort = basicConfig.getProperty("http.proxyPort")
 
         if (None != proxyHost && None != proxyPort) {
-            System.setProperty("http.proxyHost", proxyHost.get)
-            System.setProperty("http.proxyPort", proxyPort.get)
+            System.setProperty("https.proxyHost", proxyHost.get)
+            System.setProperty("https.proxyPort", proxyPort.get)
         }
         val proxyUsername = basicConfig.getProperty("http.proxyUsername") match {
             case Some(s) => Some(s)
             case None => basicConfig.getProperty("http.proxyUser")
         }
         if (None != proxyUsername )
-            System.setProperty("http.proxyUser", proxyUsername.get)
+            System.setProperty("https.proxyUser", proxyUsername.get)
 
         val proxyPassword = basicConfig.getProperty("http.proxyPassword")
         if (None != proxyPassword )
-            System.setProperty("http.proxyPassword", proxyPassword.get)
+            System.setProperty("https.proxyPassword", proxyPassword.get)
     }
 
 }
