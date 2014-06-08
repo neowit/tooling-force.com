@@ -17,7 +17,7 @@ class SaveError(msg: String) extends Error(msg: String)
 /**
  * Unlike SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
  *
- * @param session - SFDC session
+ * @param basicConfig - main config
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
@@ -321,20 +321,20 @@ class SaveModified(basicConfig: BasicConfig) extends DeployModified(basicConfig:
                             for (err <- x.asInstanceOf[JSONArray].list) {
                                 val errObj = err.asInstanceOf[JSONObject].obj
                                 logger.debug(errObj)
-                                val xmlType = errObj("extent").asInstanceOf[String]
+                                val xmlType = getErrorObjectValue(errObj, "extent").get.asInstanceOf[String]
                                 val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
                                 //val directory = describeMetadataResult.getDirectoryName
                                 val extension = describeMetadataResult.getSuffix
-                                val fName = errObj("name").asInstanceOf[String]
-                                val line = errObj.get("line") match {
+                                val fName = getErrorObjectValue(errObj, "name").get.asInstanceOf[String]
+                                val line = getErrorObjectValue(errObj, "line") match {
                                     case Some(l) => l.asInstanceOf[BigDecimal].toInt
                                     case None => -1
                                 }
-                                val column = errObj.get("col") match {
+                                val column = getErrorObjectValue(errObj, "col") match {
                                     case Some(c) => c.asInstanceOf[BigDecimal].toInt
                                     case None => -1
                                 }
-                                val problem = errObj("problem").asInstanceOf[String]
+                                val problem = getErrorObjectValue(errObj, "problem").get.asInstanceOf[String]
                                 //val id = errObj("id")
 
                                 val filePath =  if (!extension.isEmpty) session.getRelativeFilePath(fName, extension) match {
@@ -372,4 +372,18 @@ class SaveModified(basicConfig: BasicConfig) extends DeployModified(basicConfig:
         }
     }
 
+    /**
+     * in Summer'14 SFDC broke ContainerAsyncRequest.getCompilerErrors
+     * for every field in getCompilerErrors() JSON - SFDC Orgs starting Summer'14 return JSON arrays instead of normal
+     * values, even though we are calling SFDC with API v29.0, so have to check value type (Any or JSONArray) first
+     * @param errObj - single element (JSONObject) of ContainerAsyncRequest.getCompilerErrors JSONArray
+     * @param fName - field name in errObj
+     */
+    def getErrorObjectValue(errObj: Map[String, Any], fName: String): Option[Any] = {
+        errObj.get(fName)  match {
+          case Some(x) if x.isInstanceOf[JSONArray] => Some(x.asInstanceOf[JSONArray].list(0))
+          case Some(x) => Some(x)
+          case None => None
+        }
+    }
 }
