@@ -21,6 +21,9 @@ package com.neowit.apex
 
 import com.neowit.utils._
 import com.neowit.apex.actions.{RetrieveError, ActionFactory}
+import scala.concurrent.{ExecutionContext, Future}
+import ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 object Runner extends Logging {
     //var appConfig = Config.getConfig(new BasicConfig())
@@ -85,14 +88,21 @@ class Executor extends Logging {
     }
 
     private def run () {
-        val start = System.currentTimeMillis
-
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
+        val start = System.currentTimeMillis
+        //report usage if allowed
+        val usage = new UsageReporter(basicConfig)
+        val usageFuture = Future {
+            usage.report()
+        }
+
         ActionFactory.getAction(basicConfig, basicConfig.action) match {
             case Some(action) => action.act()
             case None =>
         }
 
+        //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
+        //scala.concurrent.Await.result(usageFuture, Duration.Inf)
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
 
