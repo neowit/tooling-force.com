@@ -19,7 +19,7 @@
 
 package com.neowit.apex
 
-import java.util.zip.CRC32
+import java.security.MessageDigest
 
 import com.neowit.utils.{FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
@@ -65,25 +65,22 @@ class Session(config: Config) extends Logging {
         val emptySession = (None, None)
         if (!callingAnotherOrg) {
             val connectionData = getData("session")
-            connectionData.get("checksum") match {
-              case Some(checksum) =>
-                  if (checksum == getChecksum)
+            connectionData.get("hash") match {
+              case Some(hash) if hash == getHash =>
                   (connectionData.get("sessionId").map(_.toString), connectionData.get("serviceEndpoint").map(_.toString))
-                  else
-                      emptySession
-              case None =>
+              case _ =>
                   emptySession
             }
         } else {
             emptySession
         }
     }
-    //checksum is used to check if current session Id was generated against current set of login credentials
-    private def getChecksum: String = {
-        val crc32 = new CRC32()
+    //hash is used to check if current session Id was generated against current set of login credentials
+    private def getHash: String = {
+        val md5 = MessageDigest.getInstance("SHA-256")
+        md5.reset()
         val str = config.username + config.password + config.soapEndpoint
-        crc32.update(str.getBytes)
-        crc32.getValue.toString
+        md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
     }
 
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
@@ -91,7 +88,7 @@ class Session(config: Config) extends Logging {
             sessionProperties.setJsonData("session", Map(
                             "sessionId" -> connectionConfig.getSessionId,
                             "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
-                            "checksum" -> getChecksum
+                            "hash" -> getHash
             ))
         } else {
             sessionProperties.remove("session")
