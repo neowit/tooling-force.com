@@ -19,12 +19,13 @@
 
 package com.neowit.apex
 
+import java.util.zip.CRC32
+
 import com.neowit.utils.{FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
 import scala.concurrent._
-import scala.Some
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata
 
@@ -61,18 +62,34 @@ class Session(config: Config) extends Logging {
     }
     def getSavedConnectionData = {
 
+        val emptySession = (None, None)
         if (!callingAnotherOrg) {
-            (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+            sessionProperties.getPropertyOption("checksum") match {
+              case Some(checksum) if checksum == getChecksum =>
+                  (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+              case None =>
+                  emptySession
+            }
         } else {
-            (None, None)
+            emptySession
         }
     }
+    //checksum is used to check if current session Id was generated against current set of login credentials
+    private def getChecksum: String = {
+        val crc32 = new CRC32()
+        val str = config.username + config.password + config.soapEndpoint
+        crc32.update(str.getBytes)
+        crc32.getValue.toString
+    }
+
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
         if (!callingAnotherOrg) {
             sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
             sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
+            sessionProperties.setProperty("checksum", getChecksum)
         } else {
             sessionProperties.remove("sessionId")
+            sessionProperties.remove("checksum")
         }
         storeSessionData()
     }
@@ -345,6 +362,7 @@ class Session(config: Config) extends Logging {
     def reset() {
         sessionProperties.remove("sessionId")
         sessionProperties.remove("serviceEndpoint")
+        sessionProperties.remove("checksum")
         storeSessionData()
         connectionPartner = None
         connectionMetadata = None
