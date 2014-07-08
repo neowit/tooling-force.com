@@ -60,13 +60,17 @@ class Session(config: Config) extends Logging {
     def storeSessionData() {
         config.storeSessionProps()
     }
-    def getSavedConnectionData = {
+    def getSavedConnectionData :(Option[String], Option[String])= {
 
         val emptySession = (None, None)
         if (!callingAnotherOrg) {
-            sessionProperties.getPropertyOption("checksum") match {
-              case Some(checksum) if checksum == getChecksum =>
-                  (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+            val connectionData = getData("session")
+            connectionData.get("checksum") match {
+              case Some(checksum) =>
+                  if (checksum == getChecksum)
+                  (connectionData.get("sessionId").map(_.toString), connectionData.get("serviceEndpoint").map(_.toString))
+                  else
+                      emptySession
               case None =>
                   emptySession
             }
@@ -84,12 +88,13 @@ class Session(config: Config) extends Logging {
 
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
         if (!callingAnotherOrg) {
-            sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
-            sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
-            sessionProperties.setProperty("checksum", getChecksum)
+            sessionProperties.setJsonData("session", Map(
+                            "sessionId" -> connectionConfig.getSessionId,
+                            "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
+                            "checksum" -> getChecksum
+            ))
         } else {
-            sessionProperties.remove("sessionId")
-            sessionProperties.remove("checksum")
+            sessionProperties.remove("session")
         }
         storeSessionData()
     }
@@ -360,9 +365,7 @@ class Session(config: Config) extends Logging {
         }
     }
     def reset() {
-        sessionProperties.remove("sessionId")
-        sessionProperties.remove("serviceEndpoint")
-        sessionProperties.remove("checksum")
+        sessionProperties.remove("session")
         storeSessionData()
         connectionPartner = None
         connectionMetadata = None
