@@ -19,6 +19,8 @@
 
 package com.neowit.apex
 
+import java.security.MessageDigest
+
 import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
@@ -61,20 +63,38 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     def storeSessionData() {
         config.storeSessionProps()
     }
-    def getSavedConnectionData = {
+    def getSavedConnectionData :(Option[String], Option[String])= {
 
+        val emptySession = (None, None)
         if (!callingAnotherOrg) {
-            (sessionProperties.getPropertyOption("sessionId"), sessionProperties.getPropertyOption("serviceEndpoint"))
+            val connectionData = getData("session")
+            connectionData.get("hash") match {
+              case Some(hash) if hash == getHash =>
+                  (connectionData.get("sessionId").map(_.toString), connectionData.get("serviceEndpoint").map(_.toString))
+              case _ =>
+                  emptySession
+            }
         } else {
-            (None, None)
+            emptySession
         }
     }
+    //hash is used to check if current session Id was generated against current set of login credentials
+    private def getHash: String = {
+        val md5 = MessageDigest.getInstance("SHA-256")
+        md5.reset()
+        val str = config.username + config.password + config.soapEndpoint
+        md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+    }
+
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
         if (!callingAnotherOrg) {
-            sessionProperties.setProperty("sessionId", connectionConfig.getSessionId)
-            sessionProperties.setProperty("serviceEndpoint", connectionConfig.getServiceEndpoint)
+            sessionProperties.setJsonData("session", Map(
+                            "sessionId" -> connectionConfig.getSessionId,
+                            "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
+                            "hash" -> getHash
+            ))
         } else {
-            sessionProperties.remove("sessionId")
+            sessionProperties.remove("session")
         }
         storeSessionData()
     }
@@ -345,8 +365,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }
     }
     def reset() {
-        sessionProperties.remove("sessionId")
-        sessionProperties.remove("serviceEndpoint")
+        sessionProperties.remove("session")
         storeSessionData()
         connectionPartner = None
         connectionMetadata = None
