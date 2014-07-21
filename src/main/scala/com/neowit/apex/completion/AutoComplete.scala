@@ -1,0 +1,317 @@
+package com.neowit.apex.completion
+
+import java.io.{FileInputStream, File}
+import java.util.regex.Pattern
+
+import com.neowit.apex.parser.TreeListener
+import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
+import org.antlr.v4.runtime._
+import org.antlr.v4.runtime.tree.ParseTreeWalker
+
+import scala.io.Source
+
+
+class AutoComplete(file: File, lexer: ApexcodeLexer, line: Int, column: Int) {
+
+
+    def DEBUG_getCaret(lines: List[String], text: String):(Int, Int) =  {
+        val linesBefore = lines.takeWhile(_.indexOf(text) < 0).length
+        val lineNum = linesBefore
+        val column = lines(lineNum).indexOf(text)
+        (lineNum+1, column)
+
+    }
+
+
+    def listOptions:List[String] = {
+        //extractor.parser.getATN
+        //val tokens: CommonTokenStream = new CommonTokenStream(lexer)
+        //find caret position
+        val symbol = "cls"
+        //val offset = Source.fromFile(file).mkString.indexOf("cls.")
+
+        //DEBUG
+        val (dbg_line, dbg_column) = DEBUG_getCaret(Source.fromFile(file).getLines().toList, "cls.")
+        val caret = new Caret(dbg_line-1, dbg_column, symbol, file)
+        //END DEBUG
+        //uncomment below when debug is done
+        //val caret = new Caret(line-1, column, symbol, file)
+
+        val tokenSource = new CodeCompletionTokenSource(lexer, caret)
+        val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)
+        val parser = new ApexcodeParser(tokens)
+
+        parser.setBuildParseTree(true)
+        parser.setErrorHandler(new CompletionErrorStrategy())
+        //parser.getInterpreter.setPredictionMode(PredictionMode.LL)
+
+        try {
+            val tree = parser.compilationUnit()
+        } catch {
+            case e:CaretReachedException =>
+                //find symbol type
+                val definition = findSymbolDefinition(caret, e, tokenSource)
+                return listOptions(definition, tokenSource.getCursorToken)
+            case e:Throwable =>
+        }
+
+        /*
+        val walker = new ParseTreeWalker()
+        val listener = new TreeListener(parser)
+        walker.walk(listener, tree)
+        */
+
+        List()
+    }
+
+    private def listOptions(definition: Option[(Token, String)], cursorToken: Option[Token]): List[String] = {
+        //scan current and other class files in class folder and build tree for all of them
+        val input = new ANTLRInputStream(new FileInputStream(file))
+        val lexer = new ApexcodeLexer(input)
+
+        /* TODO implement CompletionTokenStream to bypass erroneous place,
+            i.e. modify stream and insert appropriate token instead of current incomplete one
+            this can be done by looking at what tokens are acceptable at the point of error
+        val tokens = cursorToken match {
+          case Some(token) => new CompletionTokenStream(lexer, token)
+          case None => new CommonTokenStream(lexer)
+        }
+        */
+        val tokens = new CommonTokenStream(lexer)
+
+        val parser = new ApexcodeParser(tokens)
+        //parser.setErrorHandler(new BailErrorStrategy())
+        parser.setErrorHandler(new CompletionIgnoreErrorStrategy())
+        //parser.setErrorHandler(new CompletionErrorStrategy())
+        val tree = parser.compilationUnit()
+        val walker = new ParseTreeWalker()
+        val extractor = new TreeListener(parser)
+        walker.walk(extractor, tree)
+
+        extractor.dump()
+        List()
+    }
+
+
+    def findSymbolDefinition(caret: Caret, caretException: CaretReachedException, tokenSource: CodeCompletionTokenSource ): Option[(Token, String)] = {
+
+        //TODO
+        //Validate scope of found definition & definitionToken, to make sure we did not pickup a definition in a random, unrelated scope
+
+        //starting from tokenSource.lastPotentialDefinitionPosition go backwards, consuming tokens
+        //until we find complete Apex construct, i.e. type name or collection definition
+        val tokens = tokenSource.getTokens.take(tokenSource.lastPotentialDefinitionPosition )
+        val iter = tokens.reverseIterator
+        var stop = false
+        var definitionToken: Option[Token] = None
+        var level = 0
+        var definition = ""
+        while (iter.hasNext && !stop) {
+            val token = iter.next()
+            if (CompletionUtils.isWordToken(token)) {
+                if (0 == level) {
+                    //found definition
+                    definitionToken = Some(token)
+                    stop = true
+                }
+            } else {
+                //non word, possibly collection
+                if (Set(">", "]", "}").contains(token.getText)) {
+                    level = level + 1
+                } else if (Set("<", "[", "{").contains(token.getText)) {
+                    level = level - 1
+                }
+
+            }
+            definition = token.getText + definition
+
+        }
+
+        definitionToken match {
+          case Some(x) =>
+              println("type=" + x.getText)
+              println("type.full=" + definition)
+              return Some((x, definition))
+          case None =>
+                println("definition not found")
+        }
+
+        None
+    }
+
+}
+
+object CompletionUtils {
+
+    private val WORD_PATTERN_STR = "^[\\$A-Za-z_][A-Za-z0-9_]*$"
+    private val WORD_PATTERN: Pattern = Pattern.compile(WORD_PATTERN_STR)
+
+    def isWordToken(token: Token): Boolean = {
+        WORD_PATTERN.matcher(token.getText).matches
+    }
+
+    def getOffset(file: File, line: Int, startIndex: Int): Int = {
+        val text = scala.io.Source.fromFile(file).mkString
+        //val bytes = text.take
+        var lineNum: Int = 0
+        var pos = 0
+        while ( lineNum < line && pos < text.length ) {
+            val ch = text(pos)
+            if ('\n' == ch) {
+                lineNum += 1
+            }
+            pos = pos + 1
+        }
+        val offset = pos + startIndex
+        offset
+    }
+}
+
+object CaretToken {
+    final val CARET_TOKEN_TYPE: Int = -2
+    def apply(source: org.antlr.v4.runtime.misc.Pair[TokenSource, CharStream], channel: Int, start: Int, stop: Int) =
+        new org.antlr.v4.runtime.CommonToken(source, CaretToken.CARET_TOKEN_TYPE, channel, start, stop) with CaretTokenTrait
+
+    def apply(oldToken: Token) = {
+        val token = new org.antlr.v4.runtime.CommonToken(oldToken) with CaretTokenTrait
+        token.setType(CaretToken.CARET_TOKEN_TYPE)
+        token.setOriginalToken(oldToken)
+        token
+    }
+}
+
+trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
+
+    private var originalToken: Token = null
+
+    def setOriginalToken(token: Token) {
+        originalToken = token
+    }
+    def getOriginalToken: Token = {
+        originalToken
+    }
+
+    def getOriginalType: Int = {
+        return originalToken.getType
+    }
+
+}
+
+
+class Caret(val line:  Int, val startIndex: Int, val symbol:String, file: File) {
+
+    def getOffset: Int = {
+        CompletionUtils.getOffset(file, line, startIndex)
+    }
+}
+
+
+/**
+ *
+ * used to stop parser at current cursor position
+ */
+class CodeCompletionTokenSource( source: TokenSource, caret: Caret) extends TokenSource {
+
+    private var tokenFactory: TokenFactory[_] = CommonTokenFactory.DEFAULT
+    private var caretToken: Token = null
+    private val tokenFactorySourcePair = new misc.Pair(source, source.getInputStream)
+
+    private val caretOffset = caret.getOffset
+
+    private val stack= scala.collection.mutable.Stack[Token]()
+    var lastPotentialDefinitionPosition = -1
+
+    def getTokens: Array[Token] = {
+        stack.toArray.reverse
+    }
+
+    /**
+     * @return original token which was is replaced by CaretToken
+     */
+    def getCursorToken:Option[Token] = {
+        if (null != caretToken && null != caretToken.asInstanceOf[CaretTokenTrait].getOriginalToken) {
+            Some(caretToken.asInstanceOf[CaretTokenTrait].getOriginalToken)
+        } else {
+            None
+        }
+    }
+
+    def nextToken: Token = {
+        if (caretToken == null) {
+            var token: Token = source.nextToken
+
+            println("token=" + token.toString)
+            if (token.getStopIndex + 1 < caretOffset) {
+                stack.push(token)
+                if (caret.symbol == token.getText) {
+                    lastPotentialDefinitionPosition = stack.length - 1
+                }
+            }
+            else if (token.getStartIndex > caretOffset) {
+                token = CaretToken(tokenFactorySourcePair, Token.DEFAULT_CHANNEL, caretOffset, caretOffset)
+                caretToken = token
+            }
+            else {
+                if (token.getStopIndex + 1 == caretOffset && token.getStopIndex >= token.getStartIndex) {
+                    if (!isWordToken(token)) {
+                        return token
+                    }
+                }
+                token = CaretToken(token)
+                caretToken = token
+            }
+            return token
+        }
+        throw new UnsupportedOperationException("Attempted to look past the caret.")
+    }
+
+    def getLine: Int = {
+        source.getLine
+    }
+
+    def getCharPositionInLine: Int = {
+        source.getCharPositionInLine
+    }
+
+    def getInputStream: CharStream = {
+        source.getInputStream
+    }
+
+    def getSourceName: String = {
+        source.getSourceName
+    }
+
+    def getTokenFactory: TokenFactory[_] = {
+        tokenFactory
+    }
+
+    def setTokenFactory(tokenFactory: TokenFactory[_]) {
+        source.setTokenFactory(tokenFactory)
+        this.tokenFactory = if (tokenFactory != null) tokenFactory else CommonTokenFactory.DEFAULT
+    }
+
+    protected def isWordToken(token: Token): Boolean = {
+        CompletionUtils.isWordToken(token)
+    }
+}
+
+/**
+ * CompletionTokenStream allows to remove incomplete token under cursor to limit the possibility of erroneous input
+ * @param tokenSource
+ */
+class CompletionTokenStream(tokenSource: TokenSource, offendingToken: Token) extends CommonTokenStream(tokenSource) {
+    override def nextTokenOnChannel(i: Int, channel: Int): Int = {
+        var index = i
+        val token = get(super.nextTokenOnChannel(index, channel))
+        if (token.getStartIndex == offendingToken.getStartIndex) {
+            index = index + 1
+            if (get(super.nextTokenOnChannel(index, channel)).getText == ".") {
+                index = index + 1
+                if (CompletionUtils.isWordToken(get(super.nextTokenOnChannel(index, channel)))) {
+                    index = index + 1
+                }
+            }
+        }
+        super.nextTokenOnChannel(index, channel)
+    }
+}

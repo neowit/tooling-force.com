@@ -550,16 +550,16 @@ primary
     |   'this'
     |   'super'
     |   literal
-    |   soqlLiteral
     |   Identifier
     |   type '.' 'class'
     |   'void' '.' 'class'
     |   nonWildcardTypeArguments (explicitGenericInvocationSuffix | 'this' arguments)
+    |   SoqlLiteral
     ;
 
 creator
     :   nonWildcardTypeArguments createdName classCreatorRest
-    |   createdName (arrayCreatorRest | classCreatorRest)
+    |   createdName (arrayCreatorRest | classCreatorRest | mapCreatorRest | setCreatorRest)
     ;
 
 createdName
@@ -577,6 +577,14 @@ arrayCreatorRest
         |   expression ']' ('[' expression ']')* ('[' ']')*
         )
     ;
+
+mapCreatorRest
+    :   '{' ( Identifier | literal ) '=>' ( literal | expression ) (',' (Identifier | literal) '=>' ( literal | expression ) )* '}'
+    ;
+
+setCreatorRest
+	: '{' ( literal | expression ) (',' ( literal | expression ))* '}'
+	;
 
 classCreatorRest
     :   arguments classBody?
@@ -616,8 +624,8 @@ arguments
 
 // Apex - SOQL literal
 
-soqlLiteral
-    : '[' .*? ']'
+SoqlLiteral
+    : '[' 'select' .*? ']'
 	;
 	
 // LEXER
@@ -991,6 +999,7 @@ MOD_ASSIGN      : '%=';
 LSHIFT_ASSIGN   : '<<=';
 RSHIFT_ASSIGN   : '>>=';
 URSHIFT_ASSIGN  : '>>>=';
+
 
 // §3.8 Identifiers (must appear after all keywords in the grammar)
 
