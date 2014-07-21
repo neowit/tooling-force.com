@@ -172,7 +172,7 @@ memberDeclaration
    for invalid return type after parsing.
  */
 methodDeclaration
-    :   (type|'void') Identifier formalParameters ('[' ']')*
+    :   'override'? (type|'void') Identifier formalParameters ('[' ']')*
         ('throws' qualifiedNameList)?
         (   methodBody
         |   ';'
