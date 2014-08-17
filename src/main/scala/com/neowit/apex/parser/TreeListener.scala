@@ -1,6 +1,7 @@
 package com.neowit.apex.parser
 
-import com.neowit.apex.parser.antlr.ApexcodeParser.{FieldDeclarationContext, MemberDeclarationContext, BlockContext, EnumDeclarationContext}
+import com.neowit.apex.parser.antlr.ApexcodeParser._
+import org.antlr.v4.runtime.tree.{Tree, ParseTree}
 import org.antlr.v4.runtime.{ParserRuleContext, TokenStream}
 
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
@@ -12,6 +13,8 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     val tree = new mutable.LinkedHashMap[String, Member]()
     //contains stack of current class/method hierarchy, currently processed class is at the top
     val stack= mutable.Stack[Member]()
+
+    val classBodyMembers = mutable.ListBuffer[ClassBodyMember]()
 
     def dump() {
         for(key <- tree.keySet) {
@@ -95,6 +98,69 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
         super.enterBlock(ctx)
     }
 
+    override def enterClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
+        //super.enterClassBodyDeclaration(ctx)
+        //stack
+        val bodyMember = new ClassBodyMember(ctx)
+        classBodyMembers.+= (bodyMember)
+        println("isMethod=" + bodyMember.isMethod)
+
+    }
+
+    override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
+        //super.exitClassBodyDeclaration(ctx)
+        //stack.pop()
+    }
+}
+
+trait ChildrenList[T] {
+    def getChild(i: Int): Tree
+
+    /** How many children are there? If there is none, then this
+      *  node represents a leaf node.
+      */
+    def getChildCount(): Int
+}
+class ClassBodyMember(ctx: ClassBodyDeclarationContext) {
+    //def isMethod: Boolean = !ctx.getRuleContexts(classOf[ApexcodeParser.MethodDeclarationContext]).isEmpty
+    def isMethod: Boolean = !findRuleContexts(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).isEmpty
+
+    /**
+     * find children satisfying given context type
+     * @param ctxType
+     * @tparam T
+     * @return
+     */
+    def findRuleContexts[T <: ParserRuleContext](ctx: ParseTree, ctxType: Class[T]): List[T] = {
+        val foundChildren = mutable.ListBuffer[T]()
+        if (ctx.getChildCount > 0) {
+            for(child <- getChildren[ParseTree](ctx)) {
+                if (child.getClass == ctxType) {
+                    foundChildren += child.asInstanceOf[T]
+                }
+            }
+            if (foundChildren.isEmpty) {
+                //descend 1 level
+                for(child <- getChildren[ParseTree](ctx)) {
+                    foundChildren ++= findRuleContexts(child, ctxType)
+                }
+
+            }
+        }
+        foundChildren.toList
+    }
+
+    def getChildren[T](ctx:ParseTree): List[T] = {
+        var children = mutable.ListBuffer[T]()
+        var i = 0
+        while (i < ctx.getChildCount) {
+            val child = ctx.getChild(i)
+            children += child.asInstanceOf[T]
+
+            i += 1
+        }
+        children.toList
+    }
 }
 
 object Visibility {
