@@ -2,22 +2,18 @@ package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
-import org.antlr.v4.runtime.{ParserRuleContext, TokenStream}
 
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
-//TODO fix Tree generation code.
-//At the moment it does not look liek the tree is properly constructted
 
 class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
-    val tree = new mutable.LinkedHashMap[String, Member]()
+    val tree = new mutable.LinkedHashMap[String, Member]()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
+
     //contains stack of current class/method hierarchy, currently processed class is at the top
-    //val stack= mutable.Stack[Member]()
     val stack= mutable.Stack[Member]()
 
-    //val classBodyMembers = mutable.ListBuffer[ClassBodyMember]()
 
     def dump() {
         for(key <- tree.keySet) {
@@ -47,7 +43,7 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     override def enterClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         val member = ctx match {
             case EnumMember(context) => new EnumMember(ctx)
-            case MethodMember(context) => new MethodMember(ctx)
+            case MethodMember(context) => new MethodMember(ctx, parser)
             case FieldMember(context) => new FieldMember(ctx, parser)
             case _ => new ClassBodyMember(ctx)
         }
@@ -69,7 +65,7 @@ trait Member {
 
     def getIdentity:String
     def getSignature:String
-    def getType: String = ""//TODO
+    def getType: String = getIdentity
 
     def getVisibility: String = "private" //TODO
 
@@ -85,7 +81,7 @@ trait Member {
 
     override def toString: String = {
         //val txt = getIdentity
-        val txt = getSignature
+        val txt = getSignature + " => type=" + getType + "; id=" + getIdentity
         val chlds = new StringBuilder()
         for (x <- children) {
             chlds.++= (x.toString)
@@ -95,6 +91,7 @@ trait Member {
         else
             txt + "\n - "
     }
+
 }
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
@@ -107,8 +104,8 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
         ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).mkString(" ")
     }
 
-    override def getType: String = getIdentity
 }
+
 object ClassBodyMember {
 
     def isInnerClass(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.ClassDeclarationContext]).nonEmpty
@@ -141,6 +138,13 @@ object ClassBodyMember {
         } else {
             foundChildren.toList
         }
+    }
+    def findChild[T <: ParseTree](ctx: ParseTree, ctxType: Class[T]): Option[T] = {
+        val foundChildren = findChildren(ctx, ctxType)
+        if (foundChildren.nonEmpty)
+            Some(foundChildren.head)
+        else
+            None
     }
 
     def getChildren[T](ctx:ParseTree): List[T] = {
@@ -185,7 +189,7 @@ object EnumMember {
 class EnumMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx) {
 
     override def getIdentity:String = {
-        ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).mkString(" ").replaceAll("\\{|\\}|;", "")
+        ClassBodyMember.findChildren(ctx, classOf[EnumDeclarationContext]).head.Identifier().getText
     }
 
     override def getSignature: String = {
@@ -232,7 +236,7 @@ object MethodMember {
         if (ClassBodyMember.isMethod(ctx)) Some(ctx) else None
     }
 }
-class MethodMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx) {
+class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
 
     override def getIdentity:String = {
         //... <Type> methodName (formalParameters)
@@ -244,9 +248,21 @@ class MethodMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx
         }
     }
     override def getSignature:String = {
-        val start = ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).mkString(" ").replaceAll("\\{|\\}|;", "")
-        val params = getArgs.mkString(",")
-        start + s"($params)"
+        ClassBodyMember.findChild(ctx, classOf[MethodDeclarationContext]) match {
+            case Some(methodDeclaration) =>
+                val start = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
+                            .filter(null!= _.getChild(classOf[TerminalNodeImpl], 0))
+                            .map(_.getChild(classOf[TerminalNodeImpl], 0)).mkString(" ")
+                val params = getArgs.mkString(", ")
+
+                if (start.nonEmpty)
+                    start + " " + getType + " " + getIdentity + s"($params)"
+                else
+                    getType + " " + getIdentity + s"($params)"
+
+            case None => //fall back
+                getIdentity + ": Signature is NOT COVERED by current implementation" //TODO - perhaps throwing an exception may be better?
+        }
     }
 
     def getArgs:List[MethodParameter] = {
@@ -276,6 +292,15 @@ class MethodMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx
         } else {
             List()
         }
+    }
+    override def getType: String = {
+        val declarationContexts = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        if (declarationContexts.nonEmpty) {
+            val declarationContext = declarationContexts.head
+            if (null != declarationContext.`type`())
+                return parser.getTokenStream.getText(declarationContext.`type`())
+        }
+        "void"
     }
 }
 
