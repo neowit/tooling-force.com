@@ -1,9 +1,9 @@
 package com.neowit.apex.completion
 
-import java.io.{FileInputStream, File}
+import java.io.{FilenameFilter, FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.TreeListener
+import com.neowit.apex.parser.{Member, TreeListener}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.ParseTreeWalker
@@ -11,33 +11,14 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker
 import scala.io.Source
 
 
-class AutoComplete(file: File, lexer: ApexcodeLexer, line: Int, column: Int) {
+class AutoComplete(file: File, line: Int, column: Int) {
 
-
-    def DEBUG_getCaret(lines: List[String], text: String):(Int, Int) =  {
-        val linesBefore = lines.takeWhile(_.indexOf(text) < 0).length
-        val lineNum = linesBefore
-        val column = lines(lineNum).indexOf(text)
-        (lineNum+1, column)
-
-    }
-
-
-    def listOptions:List[String] = {
-        //extractor.parser.getATN
-        //val tokens: CommonTokenStream = new CommonTokenStream(lexer)
+    def listOptions:List[Member] = {
         //find caret position
         val symbol = "cls"
-        //val offset = Source.fromFile(file).mkString.indexOf("cls.")
+        val caret = new Caret(line-1, column, symbol, file)
 
-        //DEBUG
-        val (dbg_line, dbg_column) = DEBUG_getCaret(Source.fromFile(file).getLines().toList, "cls.")
-        val caret = new Caret(dbg_line-1, dbg_column, symbol, file)
-        //END DEBUG
-        //uncomment below when debug is done
-        //val caret = new Caret(line-1, column, symbol, file)
-
-        val tokenSource = new CodeCompletionTokenSource(lexer, caret)
+        val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
         val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)
         val parser = new ApexcodeParser(tokens)
 
@@ -51,23 +32,24 @@ class AutoComplete(file: File, lexer: ApexcodeLexer, line: Int, column: Int) {
             case e:CaretReachedException =>
                 //find symbol type
                 val definition = findSymbolDefinition(caret, e, tokenSource)
-                return listOptions(definition, tokenSource.getCursorToken)
+                definition match {
+                  case Some(tuple) =>
+                      return listOptions(tuple, tokenSource.getCursorToken)
+                  case None =>
+                }
             case e:Throwable =>
         }
 
-        /*
-        val walker = new ParseTreeWalker()
-        val listener = new TreeListener(parser)
-        walker.walk(listener, tree)
-        */
-
         List()
     }
-
-    private def listOptions(definition: Option[(Token, String)], cursorToken: Option[Token]): List[String] = {
-        //scan current and other class files in class folder and build tree for all of them
+    private def getLexer(file: File): ApexcodeLexer = {
         val input = new ANTLRInputStream(new FileInputStream(file))
         val lexer = new ApexcodeLexer(input)
+        lexer
+    }
+
+    private def listOptions(definition: (Token, String), cursorToken: Option[Token]): List[Member] = {
+        //scan current and other class files in class folder and build tree for all of them
 
         /* TODO implement CompletionTokenStream to bypass erroneous place,
             i.e. modify stream and insert appropriate token instead of current incomplete one
@@ -77,19 +59,57 @@ class AutoComplete(file: File, lexer: ApexcodeLexer, line: Int, column: Int) {
           case None => new CommonTokenStream(lexer)
         }
         */
-        val tokens = new CommonTokenStream(lexer)
 
+        //extractor.dump()
+        //check if we have enough in the current file to list completion options
+        println("Potential LOCAL signatures:")
+        listOptions(definition, file, Some(new CompletionIgnoreErrorStrategy())) match {
+          case Some(members) =>
+              return members.toList
+          case None =>
+              //scan other available files
+              println("\ntry to find definitions in other project files")
+              val classFiles = file.getParentFile.listFiles(new FilenameFilter(){
+                  override def accept(parentDir: File, name: String): Boolean = name.endsWith(".cls")
+              })
+              for (currentFile <- classFiles ) {
+                  listOptions(definition, currentFile) match {
+                    case Some(members) =>
+                        return members.toList
+                    case None =>
+                  }
+              }
+        }
+
+        List()
+    }
+
+    def listOptions(definition: (Token, String), file: File, errorStrategy: Option[ANTLRErrorStrategy] = None): Option[List[Member]] = {
+        val lexer = getLexer(file)
+        val tokens = new CommonTokenStream(lexer)
         val parser = new ApexcodeParser(tokens)
-        //parser.setErrorHandler(new BailErrorStrategy())
-        parser.setErrorHandler(new CompletionIgnoreErrorStrategy())
-        //parser.setErrorHandler(new CompletionErrorStrategy())
+        errorStrategy match {
+          case Some(completionErrorStrategy) =>
+              //parser.setErrorHandler(new BailErrorStrategy())
+              //parser.setErrorHandler(new CompletionErrorStrategy())
+              parser.setErrorHandler(completionErrorStrategy)
+          case None =>
+        }
         val tree = parser.compilationUnit()
         val walker = new ParseTreeWalker()
         val extractor = new TreeListener(parser)
         walker.walk(extractor, tree)
+        //has definition
+        extractor.tree.get(definition._2) match {
+            case Some(member) =>
+                val members = member.children
+                println("Potential signatures:")
+                println(members.map(_.getSignature).mkString("\n"))
+                Some(members.toList)
+            case None =>
+                None
+        }
 
-        extractor.dump()
-        List()
     }
 
 
@@ -192,7 +212,7 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
     }
 
     def getOriginalType: Int = {
-        return originalToken.getType
+        originalToken.getType
     }
 
 }
