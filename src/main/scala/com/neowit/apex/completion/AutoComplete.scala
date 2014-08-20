@@ -50,7 +50,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
         lexer
     }
 
-    private def listOptions(definition: (Token, String), cursorToken: Option[Token]): List[Member] = {
+    private def listOptions(caret: Caret): List[Member] = {
         //scan current and other class files in class folder and build tree for all of them
 
         /* TODO implement CompletionTokenStream to bypass erroneous place,
@@ -65,7 +65,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
         //extractor.dump()
         //check if we have enough in the current file to list completion options
         println("Potential LOCAL signatures:")
-        listOptions(definition, file, Some(new CompletionIgnoreErrorStrategy())) match {
+        listOptions(caret, file, Some(new CompletionIgnoreErrorStrategy())) match {
           case Some(members) =>
               return members.toList
           case None =>
@@ -75,7 +75,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
                   override def accept(parentDir: File, name: String): Boolean = name.endsWith(".cls")
               })
               for (currentFile <- classFiles ) {
-                  listOptions(definition, currentFile) match {
+                  listOptions(caret, currentFile) match {
                     case Some(members) =>
                         return members.toList
                     case None =>
@@ -86,7 +86,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
         List()
     }
 
-    def listOptions(definition: (Token, String), file: File, errorStrategy: Option[ANTLRErrorStrategy] = None): Option[List[Member]] = {
+    def listOptions(caret: Caret, file: File, errorStrategy: Option[ANTLRErrorStrategy] = None): Option[List[Member]] = {
         val lexer = getLexer(file)
         val tokens = new CommonTokenStream(lexer)
         val parser = new ApexcodeParser(tokens)
@@ -102,7 +102,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
         val extractor = new TreeListener(parser)
         walker.walk(extractor, tree)
         //has definition
-        extractor.tree.get(definition._2) match {
+        extractor.tree.get(caret.symbol) match {
             case Some(member) =>
                 val members = member.children
                 println("Potential signatures:")
@@ -122,54 +122,6 @@ class AutoComplete(file: File, line: Int, column: Int) {
         None
 
     }
-    /*
-    def findSymbolDefinition(caret: Caret, caretException: CaretReachedException, tokenSource: CodeCompletionTokenSource ): Option[(Token, String)] = {
-
-        //TODO
-        //Validate scope of found definition & definitionToken, to make sure we did not pickup a definition in a random, unrelated scope
-
-        //starting from tokenSource.lastPotentialDefinitionPosition go backwards, consuming tokens
-        //until we find complete Apex construct, i.e. type name or collection definition
-        val tokens = tokenSource.getTokens.take(tokenSource.lastPotentialDefinitionPosition )
-        val iter = tokens.reverseIterator
-        var stop = false
-        var definitionToken: Option[Token] = None
-        var level = 0
-        var definition = ""
-        while (iter.hasNext && !stop) {
-            val token = iter.next()
-            if (CompletionUtils.isWordToken(token)) {
-                if (0 == level) {
-                    //found definition
-                    definitionToken = Some(token)
-                    stop = true
-                }
-            } else {
-                //non word, possibly collection
-                if (Set(">", "]", "}").contains(token.getText)) {
-                    level = level + 1
-                } else if (Set("<", "[", "{").contains(token.getText)) {
-                    level = level - 1
-                }
-
-            }
-            definition = token.getText + definition
-
-        }
-
-        definitionToken match {
-          case Some(x) =>
-              println("type=" + x.getText)
-              println("type.full=" + definition)
-              return Some((x, definition))
-          case None =>
-                println("definition not found")
-        }
-
-        None
-    }
-    */
-
 }
 
 object CompletionUtils {
@@ -230,9 +182,18 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
 
 
 class Caret(val line:  Int, val startIndex: Int, val symbol:String, file: File) {
+    private var tokenType: String = ""
 
     def getOffset: Int = {
         CompletionUtils.getOffset(file, line, startIndex)
+    }
+
+    def setType(path: String): Unit = {
+        tokenType = path
+    }
+
+    def getType: String = {
+        tokenType
     }
 }
 
