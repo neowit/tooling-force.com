@@ -3,10 +3,11 @@ package com.neowit.apex.completion
 import java.io.{FilenameFilter, FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.{Member, TreeListener}
+import com.neowit.apex.parser.antlr.ApexcodeParser.VariableDeclaratorContext
+import com.neowit.apex.parser.{ClassBodyMember, Member, TreeListener}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.tree.ParseTreeWalker
+import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 
 import scala.io.Source
 
@@ -19,7 +20,8 @@ class AutoComplete(file: File, line: Int, column: Int) {
         val caret = new Caret(line-1, column, symbol, file)
 
         val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
-        val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)
+        //val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
+        val tokens: CommonTokenStream = new CommonTokenStream(getLexer(file)) //DEBUG
         val parser = new ApexcodeParser(tokens)
 
         parser.setBuildParseTree(true)
@@ -113,6 +115,14 @@ class AutoComplete(file: File, line: Int, column: Int) {
     }
 
 
+    // try to find definition using parse tree
+    def findSymbolDefinition(caret: Caret, caretException: CaretReachedException, tokenSource: CodeCompletionTokenSource ): Option[(Token, String)] = {
+        //def filter(ctx: ParseTree): Boolean = ctx.getText == caret.symbol
+        //ClassBodyMember.findChild(caretException.finalContext, classOf[VariableDeclaratorContext], filter) TODO
+        None
+
+    }
+    /*
     def findSymbolDefinition(caret: Caret, caretException: CaretReachedException, tokenSource: CodeCompletionTokenSource ): Option[(Token, String)] = {
 
         //TODO
@@ -158,6 +168,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
 
         None
     }
+    */
 
 }
 

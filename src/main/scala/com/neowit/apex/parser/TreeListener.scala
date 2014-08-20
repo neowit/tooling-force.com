@@ -1,6 +1,7 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
+import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
 
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
@@ -52,6 +53,36 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
 
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         //super.exitClassBodyDeclaration(ctx)
+    }
+
+
+    private val identifierMap = mutable.Map[String, Set[TerminalNode]]()
+    /**
+     * record all identifiers for future use
+     */
+    override def visitTerminal(node: TerminalNode): Unit = {
+        val symbol: Token = node.getSymbol
+        if (symbol.getType == ApexcodeParser.Identifier
+                && !node.getParent.isInstanceOf[ClassOrInterfaceTypeContext]
+            && !node.getParent.isInstanceOf[CreatedNameContext]
+            && !node.getParent.isInstanceOf[PrimaryContext]
+        ) {
+            val name = symbol.getText
+            identifierMap.get(name) match {
+              case Some(nodes) =>
+                  identifierMap(name) = nodes + node
+              case None =>
+                  identifierMap(symbol.getText) = Set(node)
+            }
+        }
+    }
+
+    /**
+     * @param name - name of identifier (e.g. variable name or method name)
+     * @return list of identifiers matching this name
+     */
+    def getIdentifiers(name: String): Option[Set[TerminalNode]] = {
+        identifierMap.get(name)
     }
 }
 
@@ -129,11 +160,12 @@ object ClassBodyMember {
      * @tparam T
      * @return
      */
-    def findChildren[T <: ParseTree](ctx: ParseTree, ctxType: Class[T]): List[T] = {
-        val foundChildren = getChildren[ParseTree](ctx).filter(_.getClass == ctxType).map(_.asInstanceOf[T])
+    def findChildren[T <: ParseTree](ctx: ParseTree, ctxType: Class[T],
+                                     filter: ParseTree => Boolean = { _ => true}): List[T] = {
+        val foundChildren = getChildren[ParseTree](ctx, filter).filter(_.getClass == ctxType).map(_.asInstanceOf[T])
         if (foundChildren.isEmpty) {
             //descend 1 level
-            val res= getChildren[ParseTree](ctx).map(findChildren(_, ctxType)).flatMap(_.toList)
+            val res= getChildren[ParseTree](ctx, filter).map(findChildren(_, ctxType, filter)).flatMap(_.toList)
             res
         } else {
             foundChildren.toList
@@ -147,12 +179,14 @@ object ClassBodyMember {
             None
     }
 
-    def getChildren[T](ctx:ParseTree): List[T] = {
+    def getChildren[T](ctx:ParseTree, filter: ParseTree => Boolean = { _ => true}): List[T] = {
         var children = mutable.ListBuffer[T]()
         var i = 0
         while (i < ctx.getChildCount) {
             val child = ctx.getChild(i)
-            children += child.asInstanceOf[T]
+            if (filter(child)) {
+                children += child.asInstanceOf[T]
+            }
 
             i += 1
         }
@@ -214,7 +248,7 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
     }
 
     override def getType: String = {
-        var fieldDeclarationContexts = ClassBodyMember.findChildren(ctx, classOf[FieldDeclarationContext])
+        val fieldDeclarationContexts = ClassBodyMember.findChildren(ctx, classOf[FieldDeclarationContext])
         if (fieldDeclarationContexts.nonEmpty) {
             val fieldDeclarationContext = fieldDeclarationContexts.head
             if (null != fieldDeclarationContext.`type`())

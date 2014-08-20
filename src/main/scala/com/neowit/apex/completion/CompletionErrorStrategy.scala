@@ -20,7 +20,7 @@ class CompletionIgnoreErrorStrategy extends DefaultErrorStrategy {
     }
 }
 
-class CompletionErrorStrategy extends CompletionIgnoreErrorStrategy {
+class CompletionErrorStrategy extends DefaultErrorStrategy {
 
     override def reportError(recognizer: Parser, e: RecognitionException) {
         if (e != null && e.getOffendingToken != null &&
@@ -29,6 +29,7 @@ class CompletionErrorStrategy extends CompletionIgnoreErrorStrategy {
         }
         super.reportError(recognizer, e)
     }
+
 
 
 
