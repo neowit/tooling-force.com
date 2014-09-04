@@ -27,8 +27,9 @@
 */
 
 /** 
- *  An Apexcode grammar derived from Java 1.7 grammar for ANTLR v4 derived from ANTLR v3 Java grammar.
+ *  An Apexcode grammar derived from Java 1.7 grammar for ANTLR v4.
  *  Uses ANTLR v4's left-recursive expression notation.
+ *  
  *  @maintainer: Andrey Gavrikov
  *
  *  You can test with

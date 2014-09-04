@@ -3,11 +3,11 @@ package com.neowit.apex.completion
 import java.io.{FilenameFilter, FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.antlr.ApexcodeParser.VariableDeclaratorContext
+import com.neowit.apex.parser.antlr.ApexcodeParser._
 import com.neowit.apex.parser.{ClassBodyMember, Member, TreeListener}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
+import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
 
 import scala.io.Source
 
@@ -17,7 +17,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
     def listOptions:List[Member] = {
         //find caret position
         val symbol = "cls"
-        val caret = new Caret(line-1, column, symbol, file)
+        val caret = new Caret(line, column, symbol, file)
 
         val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
         //val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
@@ -32,13 +32,15 @@ class AutoComplete(file: File, line: Int, column: Int) {
             val tree = parser.compilationUnit()
         } catch {
             case e:CaretReachedException =>
+                return listOptions(caret)
+                /*
                 //find symbol type
                 val definition = findSymbolDefinition(caret, e, tokenSource)
                 definition match {
                   case Some(tuple) =>
-                      return listOptions(tuple, tokenSource.getCursorToken)
                   case None =>
                 }
+                */
             case e:Throwable =>
         }
 
@@ -51,17 +53,6 @@ class AutoComplete(file: File, line: Int, column: Int) {
     }
 
     private def listOptions(caret: Caret): List[Member] = {
-        //scan current and other class files in class folder and build tree for all of them
-
-        /* TODO implement CompletionTokenStream to bypass erroneous place,
-            i.e. modify stream and insert appropriate token instead of current incomplete one
-            this can be done by looking at what tokens are acceptable at the point of error
-        val tokens = cursorToken match {
-          case Some(token) => new CompletionTokenStream(lexer, token)
-          case None => new CommonTokenStream(lexer)
-        }
-        */
-
         //extractor.dump()
         //check if we have enough in the current file to list completion options
         println("Potential LOCAL signatures:")
@@ -102,25 +93,124 @@ class AutoComplete(file: File, line: Int, column: Int) {
         val extractor = new TreeListener(parser)
         walker.walk(extractor, tree)
         //has definition
-        extractor.tree.get(caret.symbol) match {
-            case Some(member) =>
-                val members = member.children
-                println("Potential signatures:")
-                println(members.map(_.getSignature).mkString("\n"))
-                Some(members.toList)
-            case None =>
-                None
+        val definition = findSymbolType(caret, extractor)
+        definition match {
+          case Some((parseTree, typeContext)) =>
+              println("caret type =" + typeContext.getText)
+              extractor.tree.get(typeContext.getText) match {
+                  case Some(member) =>
+                      val members = member.children
+                      println("Potential signatures:")
+                      println("-" + members.map(_.getSignature).mkString("\n-"))
+                      return Some(members.toList)
+                  case None =>
+                      None
+              }
+          case None =>
         }
+        return None
 
     }
 
 
     // try to find definition using parse tree
-    def findSymbolDefinition(caret: Caret, caretException: CaretReachedException, tokenSource: CodeCompletionTokenSource ): Option[(Token, String)] = {
+    def findSymbolType(caret: Caret, extractor: TreeListener): Option[(ParseTree, TypeContext)] = {
         //def filter(ctx: ParseTree): Boolean = ctx.getText == caret.symbol
         //ClassBodyMember.findChild(caretException.finalContext, classOf[VariableDeclaratorContext], filter) TODO
-        None
+        extractor.getIdentifiers(caret.symbol) match {
+          case Some(nodes) =>
+              //remove node which matches the caret
+              nodes.toList.find(n => caret.equals(n.getSymbol))  match {
+                case Some(caretNode) =>
+                    val potentialDefinitionNodes = nodes - caretNode
+                    /* sort by proximity to caret*/
+                    //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
+                    //now find one which is closest to the caret and most likely definition
+                    val distances = collection.mutable.ArrayBuffer[(Int, ParseTree, TerminalNode)]()
+                    for (node <- potentialDefinitionNodes ) {
+                        distanceToCommonParent(caretNode, node) match {
+                          case Some((steps, commonParent)) =>
+                              distances += ((steps, commonParent, node))
+                          case None =>
+                        }
+                        println(node)
+                    }
+                    //find one with shortest distance
+                    distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption  match {
+                      case Some((steps, commonParent, n)) =>
+                          println(steps + "=" + n)
+                          //node which we found is most likely definition of one under caret
+                          return getTypeParent(n) match {
+                            case Some((pt, typeContext)) => Some((pt, typeContext))
+                            case None => None
+                          }
 
+                      case None =>
+                    }
+                case None =>
+              }
+              println(nodes)
+          case None =>
+        }
+        None
+    }
+
+
+    /**
+     *
+     * @param n - node which may contain type definition
+     *       1:   e.g. String str;
+     *       2:   str.
+     *          in this case n will be node containing str in line 1:
+     * @return
+     */
+    private def getTypeParent(n: ParseTree): Option[(ParseTree, TypeContext)] = {
+        if (null == n) {
+            None
+        } else {
+            n match {
+                case x: ClassDeclarationContext => Some((x, x.`type`()))
+                //case x: TypeBoundContext => Some((x, x.`type`()))
+                case x: MethodDeclarationContext => Some((x, x.`type`()))
+                case x: FieldDeclarationContext => Some((x, x.`type`()))
+                case x: InterfaceMethodDeclarationContext => Some((x, x.`type`()))
+                case x: TypeArgumentContext => Some((x, x.`type`()))
+                case x: FormalParameterContext => Some((x, x.`type`()))
+                case x: LastFormalParameterContext => Some((x, x.`type`()))
+                case x: AnnotationTypeElementRestContext => Some((x, x.`type`()))
+                case x: LocalVariableDeclarationContext => Some((x, x.`type`()))
+                case x: EnhancedForControlContext => Some((x, x.`type`()))
+                case x: ExpressionContext => Some((x, x.`type`()))
+                case x: PrimaryContext => Some((x, x.`type`()))
+                case _ => getTypeParent(n.getParent)
+            }
+        }
+
+    }
+
+    private def distanceToCommonParent(caret: TerminalNode, node: TerminalNode): Option[(Int, ParseTree)] = {
+        def getParents(parent: ParseTree, parents: List[ParseTree]): List[ParseTree] = {
+            if (null != parent) {
+                getParents(parent.getParent, parent :: parents)
+            } else {
+                parents
+            }
+        }
+        val caretParents = getParents(caret.getParent, List()).reverse //from nearest parent to farthest
+        val nodeParents = getParents(node.getParent, List()).reverse
+        //in theory the nearest parent should be most likely definition
+        //count number of steps to nearest parent
+        var i = 0
+        for (p <- caretParents) {
+            nodeParents.find(_ == p) match {
+                case Some(commonParent) =>
+                    //found common parent
+                    return Some(i, commonParent)
+                case None =>
+            }
+            i += 1
+        }
+        None
     }
 }
 
@@ -194,6 +284,10 @@ class Caret(val line:  Int, val startIndex: Int, val symbol:String, file: File) 
 
     def getType: String = {
         tokenType
+    }
+
+    def equals(node: Token): Boolean = {
+        line == node.getLine && startIndex == node.getCharPositionInLine
     }
 }
 

@@ -64,8 +64,8 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
         val symbol: Token = node.getSymbol
         if (symbol.getType == ApexcodeParser.Identifier
                 && !node.getParent.isInstanceOf[ClassOrInterfaceTypeContext]
-            && !node.getParent.isInstanceOf[CreatedNameContext]
-            && !node.getParent.isInstanceOf[PrimaryContext]
+                && !node.getParent.isInstanceOf[CreatedNameContext]
+                && !node.getParent.isInstanceOf[PrimaryContext]
         ) {
             val name = symbol.getText
             identifierMap.get(name) match {
@@ -127,12 +127,13 @@ trait Member {
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
     def getIdentity:String = {
-        ctx.getToken(ApexcodeParser.Identifier, 0).getText
+        //ctx.getToken(ApexcodeParser.Identifier, 0).getText
+        ctx.Identifier().getText
     }
 
 
     def getSignature: String = {
-        ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).mkString(" ")
+        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
     }
 
 }
@@ -258,6 +259,7 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
     }
 
     override def getSignature: String = {
+        //TODO
         val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                              .map(ClassBodyMember.findChildren(_, classOf[TerminalNodeImpl])).map(_.head).mkString(" ")
 
