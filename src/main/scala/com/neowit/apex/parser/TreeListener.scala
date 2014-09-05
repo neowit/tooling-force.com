@@ -31,7 +31,7 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     }
 
     override def enterClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext): Unit ={
-        val member = new ClassMember(ctx)
+        val member = if (ClassBodyMember.isInnerClass(ctx)) new InnerClassMember(ctx) else new ClassMember(ctx)
         registerMember(member)
         tree += ((member.getPath, member))
         stack.push(member)
@@ -46,9 +46,11 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
             case EnumMember(context) => new EnumMember(ctx)
             case MethodMember(context) => new MethodMember(ctx, parser)
             case FieldMember(context) => new FieldMember(ctx, parser)
-            case _ => new ClassBodyMember(ctx)
+            case _ => null;//new ClassBodyMember(ctx)
         }
-        registerMember(member)
+        if (null != member) {
+            registerMember(member)
+        }
     }
 
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
@@ -138,12 +140,37 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
 
 }
 
+class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
+
+    override def getSignature: String = {
+        val clsBodyDeclaration = ctx.getParent.getParent
+        ClassBodyMember.findChildren(clsBodyDeclaration, classOf[TerminalNodeImpl]).map(_.getText).mkString(" ")
+    }
+
+}
+
 object ClassBodyMember {
 
-    def isInnerClass(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.ClassDeclarationContext]).nonEmpty
+    def isInnerClass(ctx: ParseTree): Boolean = {
+        ctx.getParent match {
+            case pp:ApexcodeParser.MemberDeclarationContext => true
+            case _ => false
+        }
+    }
     def isMethod(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
     def isEnum(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.EnumDeclarationContext]).nonEmpty
-    def isField(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.FieldDeclarationContext]).nonEmpty
+    def isField(ctx: ParseTree): Boolean = {
+        getChild[ApexcodeParser.MemberDeclarationContext](ctx, classOf[ApexcodeParser.MemberDeclarationContext]) match {
+            case Some(memberDeclarationContext) =>
+                getChild[ApexcodeParser.FieldDeclarationContext](memberDeclarationContext, classOf[ApexcodeParser.FieldDeclarationContext])  match {
+                case Some(x) =>
+                    true
+                case None => false
+            }
+            case None => false
+        }
+    }
+
     def isStatic(ctx: ParseTree): Boolean = {
         //classOrInterfaceModifier-s
         val modifierContexts = findChildren(ctx, classOf[ApexcodeParser.ClassOrInterfaceModifierContext])
@@ -156,7 +183,7 @@ object ClassBodyMember {
     }
 
     /**
-     * find children satisfying given context type
+     * find children (recursively) satisfying given context type
      * @param ctxType
      * @tparam T
      * @return
@@ -194,10 +221,27 @@ object ClassBodyMember {
         children.toList
     }
 
+    def getChild[T](ctx:ParseTree, filter: ParseTree => Boolean = { _ => true}): Option[T] = {
+        var i = 0
+        while (i < ctx.getChildCount) {
+            val child = ctx.getChild(i)
+            if (filter(child)) {
+                return Some(child.asInstanceOf[T])
+            }
+
+            i += 1
+        }
+        None
+    }
+
+    def getChild[T](ctx:ParseTree, cls: Class[T]): Option[T] = {
+        getChild(ctx, n => n.getClass == cls)
+    }
 }
 
-class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
+abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
 
+    /*
     def getIdentity:String = {
         ctx.getToken(ApexcodeParser.Identifier, 0) match {
             case node: TerminalNode => node.getText
@@ -207,13 +251,11 @@ class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
         }
     }
 
-    lazy val isInnerClass: Boolean = ClassBodyMember.isInnerClass(ctx)
-
-
     //try to identify and include only items belonging to method/class/field signature, as opposed to body
     def getSignature: String = {
-        ctx.getText
+        "unsupported body member type: " + ctx.getText
     }
+    */
 }
 
 object EnumMember {
@@ -240,6 +282,7 @@ object FieldMember {
     }
 }
 class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
+    val fieldDeclarationContext = ctx.memberDeclaration().fieldDeclaration()
 
     override def getIdentity:String = {
         val fieldDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[VariableDeclaratorIdContext])
@@ -249,6 +292,12 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
     }
 
     override def getType: String = {
+        if (null != fieldDeclarationContext && null != fieldDeclarationContext.`type`()) {
+            fieldDeclarationContext.`type`().getText
+        } else {
+            "void"
+        }
+        /*
         val fieldDeclarationContexts = ClassBodyMember.findChildren(ctx, classOf[FieldDeclarationContext])
         if (fieldDeclarationContexts.nonEmpty) {
             val fieldDeclarationContext = fieldDeclarationContexts.head
@@ -256,13 +305,18 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
                 return parser.getTokenStream.getText(fieldDeclarationContext.`type`())
         }
         "void"
+        */
     }
 
     override def getSignature: String = {
-        //TODO
+        //TODO - here it returns: public public String innerStr
+
         val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                              .map(ClassBodyMember.findChildren(_, classOf[TerminalNodeImpl])).map(_.head).mkString(" ")
 
+        /*
+        val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
+        */
         modifiers + " " + getType + " " + getIdentity
     }
 }

@@ -4,12 +4,10 @@ import java.io.{FilenameFilter, FileInputStream, File}
 import java.util.regex.Pattern
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
-import com.neowit.apex.parser.{ClassBodyMember, Member, TreeListener}
+import com.neowit.apex.parser.{Member, TreeListener}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
-
-import scala.io.Source
 
 
 class AutoComplete(file: File, line: Int, column: Int) {
@@ -101,7 +99,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
                   case Some(member) =>
                       val members = member.children
                       println("Potential signatures:")
-                      println("-" + members.map(_.getSignature).mkString("\n-"))
+                      println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
                       return Some(members.toList)
                   case None =>
                       None
