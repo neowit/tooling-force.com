@@ -8,6 +8,7 @@ import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
+import scala.util.parsing.json.JSONObject
 
 class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     val tree = new mutable.LinkedHashMap[String, Member]()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
@@ -125,6 +126,12 @@ trait Member {
             txt + "\n - "
     }
 
+    def toJson: JSONObject = {
+        val data = Map("identity" -> getIdentity, "signature" -> getSignature, "type" -> getType,
+                        "visibility" -> getVisibility)
+        JSONObject(data)
+    }
+
 }
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
@@ -138,6 +145,13 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
         ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
     }
 
+    override def getVisibility: String = {
+        //go up the tree (if needed) to get to ClassBodyDeclarationContext and from there find visibility
+        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+          case Some(member) => ClassBodyMember.getVisibility(member)
+          case None => "private"
+        }
+    }
 }
 
 class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
@@ -180,6 +194,21 @@ object ClassBodyMember {
                 children.nonEmpty && "static" == children(0).getText
             })
         x.isDefined
+    }
+
+    def getVisibility(ctx: ParseTree): String = {
+        ctx match {
+            case _cxt: ClassBodyDeclarationContext =>
+                val modifiers = _cxt.modifier().filter(
+                                                        m => Set("private", "public").contains(
+                                                            m.classOrInterfaceModifier().getChild(0).getText))
+                if (modifiers.nonEmpty) {
+                    modifiers(0).classOrInterfaceModifier().getChild(classOf[TerminalNodeImpl], 0).getText
+                } else {
+                    "private"
+                }
+            case _ => "TODO"
+        }
     }
 
     /**
@@ -237,25 +266,31 @@ object ClassBodyMember {
     def getChild[T](ctx:ParseTree, cls: Class[T]): Option[T] = {
         getChild(ctx, n => n.getClass == cls)
     }
+
+    def getParent[T](ctx:ParseTree, ctxType: Class[T]): Option[T] = {
+        if (ctx.getClass == ctxType) {
+            Some(ctx.asInstanceOf[T])
+        } else {
+            if (null != ctx.getParent) {
+                getParent(ctx.getParent, ctxType)
+            } else {
+                None
+            }
+        }
+    }
 }
 
 abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
 
-    /*
-    def getIdentity:String = {
-        ctx.getToken(ApexcodeParser.Identifier, 0) match {
-            case node: TerminalNode => node.getText
-            case _ =>
-                //fall back to first level of terminal nodes
-                ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).mkString(" ").replaceAll("\\{|\\}|;", "")
-        }
+    //same as Member.toJson but with "isStatic"
+    override def toJson: JSONObject = {
+        val data = super.toJson.obj + ("isStatic" -> ClassBodyMember.isStatic(ctx))
+        JSONObject(data)
     }
 
-    //try to identify and include only items belonging to method/class/field signature, as opposed to body
-    def getSignature: String = {
-        "unsupported body member type: " + ctx.getText
+    override def getVisibility: String = {
+        ClassBodyMember.getVisibility(ctx)
     }
-    */
 }
 
 object EnumMember {
@@ -297,26 +332,15 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
         } else {
             "void"
         }
-        /*
-        val fieldDeclarationContexts = ClassBodyMember.findChildren(ctx, classOf[FieldDeclarationContext])
-        if (fieldDeclarationContexts.nonEmpty) {
-            val fieldDeclarationContext = fieldDeclarationContexts.head
-            if (null != fieldDeclarationContext.`type`())
-                return parser.getTokenStream.getText(fieldDeclarationContext.`type`())
-        }
-        "void"
-        */
     }
 
     override def getSignature: String = {
-        //TODO - here it returns: public public String innerStr
-
+        /* //this also works, but looks too cumbersome
         val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                              .map(ClassBodyMember.findChildren(_, classOf[TerminalNodeImpl])).map(_.head).mkString(" ")
 
-        /*
-        val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
         */
+        val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
         modifiers + " " + getType + " " + getIdentity
     }
 }
