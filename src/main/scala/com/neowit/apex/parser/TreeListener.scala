@@ -196,16 +196,17 @@ object ClassBodyMember {
         x.isDefined
     }
 
+    val VISIBILITIES = Set("private", "public", "protected", "global", "webservice")
+
     def getVisibility(ctx: ParseTree): String = {
         ctx match {
             case _cxt: ClassBodyDeclarationContext =>
-                val modifiers = _cxt.modifier().filter(
-                                                        m => Set("private", "public").contains(
-                                                            m.classOrInterfaceModifier().getChild(0).getText))
-                if (modifiers.nonEmpty) {
-                    modifiers(0).classOrInterfaceModifier().getChild(classOf[TerminalNodeImpl], 0).getText
-                } else {
-                    "private"
+                val modifier = _cxt.modifier().find(
+                                                    m => VISIBILITIES.contains(
+                                                            m.classOrInterfaceModifier().getChild(0).getText.toLowerCase))
+                modifier match {
+                  case Some(modifierContext) => modifierContext.classOrInterfaceModifier().getChild(classOf[TerminalNodeImpl], 0).getText
+                  case None => "private"
                 }
             case _ => "TODO"
         }
