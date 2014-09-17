@@ -1,6 +1,6 @@
 package com.neowit.apex.actions
 
-import com.neowit.apex.{MetadataType, MetaXml, Session}
+import com.neowit.apex.{MetadataType, MetaXml}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{BasicConfig, FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
@@ -83,7 +83,6 @@ abstract class Deploy(basicConfig: BasicConfig) extends ApexAction(basicConfig: 
 
 /**
  * 'deployModified' action grabs all modified files and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
@@ -629,7 +628,6 @@ class DeployModified(basicConfig: BasicConfig) extends Deploy(basicConfig: Basic
 
 /**
  * 'deployAll' action grabs all project files and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
@@ -669,7 +667,6 @@ class DeployAll(basicConfig: BasicConfig) extends DeployModified(basicConfig: Ba
 
 /**
  * 'deploySpecificFiles' action uses file list specified in a file and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --specificFiles=/path/to/file with file list
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
@@ -812,7 +809,6 @@ class ListModified(basicConfig: BasicConfig) extends ApexAction(basicConfig: Bas
 /**
  * 'deleteMetadata' action attempts to remove specified metadata components from SFDC
  * using deploy() call with delete manifest file named destructiveChanges.xml
- *@param session - SFDC session
  * Extra command line params:
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
  * --specificComponents=/path/to/file with metadata components list, each component on its own line

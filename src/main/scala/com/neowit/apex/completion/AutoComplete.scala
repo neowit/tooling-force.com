@@ -3,6 +3,7 @@ package com.neowit.apex.completion
 import java.io.{FilenameFilter, FileInputStream, File}
 import java.util.regex.Pattern
 
+import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import com.neowit.apex.parser.{Member, TreeListener}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
@@ -10,12 +11,31 @@ import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
 
 
-class AutoComplete(file: File, line: Int, column: Int) {
+class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Map[String, Member]()) {
 
+    def getBaseToken: Caret = {
+        val str = scala.io.Source.fromFile(file).getLines().toList(line-1)
+        var startIndex = column - 1
+        val leftStr = str.substring(0, startIndex)
+        var keepGoing = true
+        var symbol = ""
+        val WORD_CHARS = "\\w|_|0-9".r
+        //find first word (not dot or brackets)
+        while (keepGoing && startIndex >= 0) {
+            startIndex -= 1
+            val ch = leftStr.charAt(startIndex).toString
+            WORD_CHARS.findFirstIn(ch) match {
+              case Some(x) => symbol = x + symbol
+              case None => if (symbol.nonEmpty) keepGoing = false
+            }
+        }
+        new Caret(line, startIndex + 1, symbol, file)
+    }
     def listOptions:List[Member] = {
-        //find caret position
+        //find base position
         val symbol = "cls"
-        val caret = new Caret(line, column, symbol, file)
+        //val caret = new Caret(line, column, symbol, file)
+        val caret = getBaseToken
 
         val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
         //val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
@@ -31,19 +51,12 @@ class AutoComplete(file: File, line: Int, column: Int) {
         } catch {
             case e:CaretReachedException =>
                 return listOptions(caret)
-                /*
-                //find symbol type
-                val definition = findSymbolDefinition(caret, e, tokenSource)
-                definition match {
-                  case Some(tuple) =>
-                  case None =>
-                }
-                */
             case e:Throwable =>
         }
 
         List()
     }
+
     private def getLexer(file: File): ApexcodeLexer = {
         val input = new ANTLRInputStream(new FileInputStream(file))
         val lexer = new ApexcodeLexer(input)
@@ -95,11 +108,13 @@ class AutoComplete(file: File, line: Int, column: Int) {
         definition match {
           case Some((parseTree, typeContext)) =>
               println("caret type =" + typeContext.getText)
-              extractor.tree.get(typeContext.getText) match {
+              val fullApexTree = cachedTree ++ extractor.tree
+              fullApexTree.get(typeContext.getText) match {
                   case Some(member) =>
                       val members = member.children
                       println("Potential signatures:")
                       println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
+                      println("\n\n" + members.map(m => m.toJson).mkString("\n "))
                       return Some(members.toList)
                   case None =>
                       None
@@ -113,8 +128,6 @@ class AutoComplete(file: File, line: Int, column: Int) {
 
     // try to find definition using parse tree
     def findSymbolType(caret: Caret, extractor: TreeListener): Option[(ParseTree, TypeContext)] = {
-        //def filter(ctx: ParseTree): Boolean = ctx.getText == caret.symbol
-        //ClassBodyMember.findChild(caretException.finalContext, classOf[VariableDeclaratorContext], filter) TODO
         extractor.getIdentifiers(caret.symbol) match {
           case Some(nodes) =>
               //remove node which matches the caret
@@ -137,7 +150,7 @@ class AutoComplete(file: File, line: Int, column: Int) {
                     distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption  match {
                       case Some((steps, commonParent, n)) =>
                           println(steps + "=" + n)
-                          //node which we found is most likely definition of one under caret
+                          //node which we found is most likely a definition of one under caret
                           return getTypeParent(n) match {
                             case Some((pt, typeContext)) => Some((pt, typeContext))
                             case None => None

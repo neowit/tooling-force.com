@@ -6,7 +6,6 @@ import com.neowit.utils.{BasicConfig, FileUtils}
 
 /**
  * 'executeAnonymous' action Executes the specified block of Apex anonymously and returns the result
- *@param session - SFDC session
  * Extra command line params:
  * --codeFile=/path/to/file with apex code to execute
  * --logFile=/path/to/file where log shall be stored

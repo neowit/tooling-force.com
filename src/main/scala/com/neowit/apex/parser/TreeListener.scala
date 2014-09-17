@@ -1,5 +1,6 @@
 package com.neowit.apex.parser
 
+import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
@@ -10,6 +11,9 @@ import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.util.parsing.json.JSONObject
 
+object TreeListener {
+    type ApexTree = Map[String, Member]
+}
 class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     val tree = new mutable.LinkedHashMap[String, Member]()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
@@ -22,6 +26,10 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
             println(key + ": " + tree.get(key).get.toString)
         }
     }
+    def getTree: ApexTree = {
+        tree.toMap
+    }
+
     def registerMember(member: Member) {
         if (stack.nonEmpty) {
             val parentMember = stack.top
