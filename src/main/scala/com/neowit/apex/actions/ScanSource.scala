@@ -28,8 +28,14 @@ class ScanSource (basicConfig: BasicConfig) extends ApexAction(basicConfig: Basi
     }
 
     def scan(files: List[File]): Unit = {
-        val scanner = new SourceScanner(files)
-        scanner.scan()
+        var completeScan = false
+        val config = session.getConfig
+        val scanner = SourceScannerCache.getScanResult(config.projectDir) match {
+          case Some(_scanner) => _scanner
+          case None => completeScan = true; new SourceScanner(files)
+        }
+
+        scanner.scan(completeScan)
         SourceScannerCache.addScanResult(config.projectDir, scanner)
 
     }
