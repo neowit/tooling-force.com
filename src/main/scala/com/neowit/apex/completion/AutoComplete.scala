@@ -33,19 +33,20 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
     }
     def listOptions:List[Member] = {
         //find base position
-        val symbol = "cls"
+        //val symbol = "cls"
         //val caret = new Caret(line, column, symbol, file)
-        val caret = getBaseToken
+        val baseToken = getBaseToken
 
-        val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
+        //val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
         //val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
         val tokens: CommonTokenStream = new CommonTokenStream(getLexer(file)) //DEBUG
         val parser = new ApexcodeParser(tokens)
 
         parser.setBuildParseTree(true)
         parser.setErrorHandler(new CompletionErrorStrategy())
-        //parser.getInterpreter.setPredictionMode(PredictionMode.LL)
 
+        listOptions(baseToken)
+        /*
         try {
             val tree = parser.compilationUnit()
         } catch {
@@ -55,6 +56,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         }
 
         List()
+        */
     }
 
     private def getLexer(file: File): ApexcodeLexer = {
