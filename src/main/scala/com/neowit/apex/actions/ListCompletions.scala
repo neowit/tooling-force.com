@@ -7,6 +7,8 @@ import com.neowit.apex.parser.SourceScanner
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.utils.BasicConfig
 
+import scala.util.parsing.json.JSONArray
+
 class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig){
 
     override def act(): Unit = {
@@ -36,7 +38,8 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
             }
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
             val members = completion.listOptions
-            config.responseWriter.println(members.map(_.toJson))
+            val jsonArray = members.map(_.toJson).toList
+            config.responseWriter.println(JSONArray(jsonArray).toString())
         }
     }
 
