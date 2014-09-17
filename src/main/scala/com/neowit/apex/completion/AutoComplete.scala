@@ -10,27 +10,54 @@ import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
 
+import scala.util.matching.Regex
+
 
 class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Map[String, Member]()) {
 
     def getBaseToken: Caret = {
         val str = scala.io.Source.fromFile(file).getLines().toList(line-1)
-        var startIndex = column - 1
+        val startIndex = column - 1
         val leftStr = str.substring(0, startIndex)
+        val WORD_CHARS = "\\w|_".r
+        val EXPRESSION_CHARS = "\\w|_|\\[|\\]".r
+
+        val symbolBoundaries = getExpressionBoundaries(leftStr, startIndex, WORD_CHARS)
+        val expressionBoundaries = getExpressionBoundaries(leftStr, startIndex, EXPRESSION_CHARS)
+        //cls. will return: symbol = "cls"
+        val symbol = leftStr.substring(symbolBoundaries._1, symbolBoundaries._2 +1 )
+        val expression = leftStr.substring(expressionBoundaries._1, expressionBoundaries._2 + 1)
+        new Caret(line, symbolBoundaries._1, symbol, expression, file)
+    }
+
+    /**
+     * scan str backwards starting startIndex while regex matches
+     * @param str
+     * @param r
+     * @return
+     */
+    def getExpressionBoundaries(str: String, startIndex: Integer, r: Regex): (Int, Int) = {
         var keepGoing = true
         var symbol = ""
-        val WORD_CHARS = "\\w|_|0-9".r
+        var index = startIndex
+        var end = -1
         //find first word (not dot or brackets)
-        while (keepGoing && startIndex >= 0) {
-            startIndex -= 1
-            val ch = leftStr.charAt(startIndex).toString
-            WORD_CHARS.findFirstIn(ch) match {
-              case Some(x) => symbol = x + symbol
-              case None => if (symbol.nonEmpty) keepGoing = false
+        while (keepGoing && index >= 0) {
+            index -= 1
+            val ch = str.charAt(index).toString
+            r.findFirstIn(ch) match {
+                case Some(x) =>
+                    symbol = x + symbol
+                    if (end < 0) {
+                        end = index
+                    }
+                case None => if (symbol.nonEmpty) keepGoing = false
             }
         }
-        new Caret(line, startIndex + 1, symbol, file)
+        val start = index+1
+        (start, end)
     }
+
     def listOptions:List[Member] = {
         //find base position
         //val symbol = "cls"
@@ -284,7 +311,7 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
 }
 
 
-class Caret(val line:  Int, val startIndex: Int, val symbol:String, file: File) {
+class Caret(val line:  Int, val startIndex: Int, val symbol:String, expression: String, file: File) {
     private var tokenType: String = ""
 
     def getOffset: Int = {
