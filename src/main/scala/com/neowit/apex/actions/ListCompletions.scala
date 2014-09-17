@@ -38,8 +38,8 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
             }
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
             val members = completion.listOptions
-            val jsonArray = members.map(_.toJson).toList
-            config.responseWriter.println(JSONArray(jsonArray).toString())
+            //dump completion options into a file - 1 line per option
+            config.responseWriter.println(members.map(_.toJson).mkString("\n"))
         }
     }
 
