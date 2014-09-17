@@ -293,7 +293,8 @@ abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member 
 
     //same as Member.toJson but with "isStatic"
     override def toJson: JSONObject = {
-        val data = super.toJson.obj + ("isStatic" -> ClassBodyMember.isStatic(ctx))
+        val isStaticNum = if (ClassBodyMember.isStatic(ctx)) 1 else 0
+        val data = super.toJson.obj + ("isStatic" -> isStaticNum)
         JSONObject(data)
     }
 

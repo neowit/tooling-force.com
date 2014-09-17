@@ -28,7 +28,7 @@ class SourceScanner (files: List[File]) {
             walker.walk(extractor, tree)
             completeTree.++= (extractor.getTree)
         }
-        println(getTree) //TODO remove
+        //println(getTree)
     }
 
     def getTree: ApexTree = {

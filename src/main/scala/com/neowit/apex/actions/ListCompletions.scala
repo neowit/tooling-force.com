@@ -39,6 +39,7 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
             val members = completion.listOptions
             //dump completion options into a file - 1 line per option
+            config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println(members.map(_.toJson).mkString("\n"))
         }
     }
