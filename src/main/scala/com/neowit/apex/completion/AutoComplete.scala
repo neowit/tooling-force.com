@@ -155,8 +155,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                           return None
                       }
               }
-          case None => //check if this is one of apex internal types
+          case None => //symbol is not defined in the current file
               val typeName = caret.symbol
+              //check if this is one of apex internal types
               ApexModel.getMembers(typeName).find(_.getSignature.toLowerCase == typeName.toLowerCase) match {
                   case Some(typeMember) => return Some(typeMember.getChildren)
                   case None =>
@@ -202,6 +203,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                           }
 
                       case None =>
+                            //cursor symbol is not defined in the current file
                     }
                 case None =>
               }
