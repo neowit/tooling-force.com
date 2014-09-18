@@ -3,6 +3,7 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.completion.AutoComplete
+import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.utils.BasicConfig
 
@@ -32,10 +33,26 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
             val members = completion.listOptions
             //dump completion options into a file - 1 line per option
             config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println(members.map(_.toJson).mkString("\n"))
+            config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
         }
     }
 
+    private def sortMembers(members: List[Member]): List[Member] = {
+        val res = members.sortWith(
+            (m1, m2) => {
+                //static members on top then alphabetically
+                val m1static = if (m1.isStatic) 1 else 0
+                val m2static = if (m2.isStatic) 1 else 0
+                val staticRes = m1static - m2static
+                if (0 == staticRes) {
+                    m1.getIdentity.compareTo(m2.getIdentity) < 0
+                } else {
+                    staticRes > 0
+                }
+            }
+        )
+        res
+    }
     override def getExample: String = ""
 
     override def getParamDescription(paramName: String): String = {
