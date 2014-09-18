@@ -21,21 +21,30 @@ object ApexModel {
     private val memberByNamespace: Map[String, ApexModelMember] = load()
 
     def getMembers(namespace: String): List[Member] = {
-        memberByNamespace.get(namespace.toLowerCase) match {
-          case Some(member) => member.getChildren
-          case None =>
-              //check if we can load this from "System"
-              memberByNamespace.get("system") match {
-                  case Some(system) =>
-                      system.getChildren.find(_.getIdentity.toLowerCase == namespace.toLowerCase) match {
-                        case Some(typeMember) =>
-                            typeMember.getChildren
-                        case None => List()
-                      }
-                  case None => List()
-              }
-
+        if (namespace.indexOf(".") > 0) {
+            //this is most likely something like ApexPages.StandardController, i.e. type ApexPages.StandardController in namespace "ApexPages"
+            val types = getMembers(namespace.split("\\.")(0))
+            return types.find(_.getSignature.toLowerCase == namespace.toLowerCase) match {
+              case Some(member) => member.getChildren
+              case None => List()
+            }
         }
+        val members = memberByNamespace.get(namespace.toLowerCase) match {
+          case Some(member) => member.getChildren
+          case None => List()
+        }
+
+        //check if we can load this from "System"
+        val systemMembers = memberByNamespace.get("system") match {
+            case Some(system) =>
+                system.getChildren.find(_.getIdentity.toLowerCase == namespace.toLowerCase) match {
+                    case Some(typeMember) =>
+                        typeMember.getChildren
+                    case None => List()
+                }
+            case None => List()
+        }
+        members ++ systemMembers
     }
     def getInstanceMembers(typeName: String): List[Member] = {
         ApexModel.getMembers("(instance methods)").find(_.getIdentity.toLowerCase == typeName.toLowerCase) match {
