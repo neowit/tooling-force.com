@@ -159,8 +159,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
               val typeName = caret.symbol
               ApexModel.getMembers(typeName).find(_.getSignature.toLowerCase == typeName.toLowerCase) match {
                   case Some(typeMember) => return Some(typeMember.getChildren)
-          case None =>
-        }
+                  case None =>
+              }
               val staticMembers = ApexModel.getMembers(typeName)
               if (staticMembers.nonEmpty) {
                   return Some(staticMembers)
@@ -172,7 +172,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
 
 
     // try to find definition using parse tree
-    def findSymbolType(caret: Caret, extractor: TreeListener): Option[(ParseTree, TypeContext)] = {
+    def findSymbolType(caret: Caret, extractor: TreeListener): Option[(ParseTree, ParserRuleContext)] = {
         extractor.getIdentifiers(caret.symbol) match {
           case Some(nodes) =>
               //remove node which matches the caret
@@ -220,7 +220,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
      *          in this case n will be node containing str in line 1:
      * @return
      */
-    private def getTypeParent(n: ParseTree): Option[(ParseTree, TypeContext)] = {
+    private def getTypeParent(n: ParseTree): Option[(ParseTree, ParserRuleContext)] = {
         if (null == n) {
             None
         } else {
@@ -238,6 +238,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                 case x: EnhancedForControlContext => Some((x, x.`type`()))
                 case x: ExpressionContext => Some((x, x.`type`()))
                 case x: PrimaryContext => Some((x, x.`type`()))
+                case x: CatchClauseContext => Some((x, x.catchType().qualifiedName(0)))
                 case _ => getTypeParent(n.getParent)
             }
         }
