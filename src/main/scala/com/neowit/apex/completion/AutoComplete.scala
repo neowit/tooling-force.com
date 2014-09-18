@@ -145,8 +145,15 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                       println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
                       println("\n\n" + members.map(m => m.toJson).mkString("\n "))
                       return Some(members.toList)
-                  case None =>
-                      None
+                  case None => //check if this is one of standard Apex types
+                      val typeName = typeContext.getText
+                      val staticMembers = ApexModel.getMembers(typeName)
+                      val instanceMethods = ApexModel.getInstanceMembers(typeName)
+                      if (staticMembers.nonEmpty || instanceMethods.nonEmpty) {
+                          return Some(staticMembers ++ instanceMethods)
+                      } else {
+                          return None
+                      }
               }
           case None =>
         }

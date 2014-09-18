@@ -12,7 +12,7 @@ object ApexModel {
         val doc = xml.XML.load(is)
         for(namespace <- doc \ "namespace" ) {
             val name = (namespace \ "@name").text.toLowerCase
-            println("namespace=" + name)
+            //println("namespace=" + name)
             memberByNamespace += (name -> new ApexNamespace(namespace))
         }
         memberByNamespace.result()
@@ -36,7 +36,13 @@ object ApexModel {
               }
 
         }
-
+    }
+    def getInstanceMembers(typeName: String): List[Member] = {
+        ApexModel.getMembers("(instance methods)").find(_.getIdentity.toLowerCase == typeName.toLowerCase) match {
+          case Some(_type) =>
+              _type.getChildren
+          case None => List()
+        }
     }
 
 }
@@ -67,11 +73,11 @@ trait ApexModelMember extends Member {
         for(childType <- childrenNames) {
             for (node <- getApexType \ childType) {
                 val member = node match {
-                    case ApexType(node) => new ApexType(node)
-                    case ApexMethod(node) => new ApexMethod(node)
+                    case ApexType(_) => new ApexType(node)
+                    case ApexMethod(_) => new ApexMethod(node)
                 }
                 member.parent = Some(this)
-                addChild(member)
+                this.addChild(member)
             }
         }
         isLoaded = true
@@ -83,13 +89,13 @@ trait ApexModelMember extends Member {
         }
         super.getChildren
     }
-
 }
 class ApexNamespace(namespace: Node) extends ApexModelMember {
     override def getApexType: Node = namespace
 
     override def isStatic: Boolean = true
     override protected def childrenNames = List("type")
+
 }
 
 object ApexType {

@@ -99,21 +99,25 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
 
 trait Member {
     var parent: Option[Member] = None
-    private val children = mutable.ListBuffer[Member]()
+    private val children = mutable.HashMap[String, Member]()
 
     def addChild(member: Member) {
-        children.+=(member)
+        children.+=(member.getIdentity -> member)
     }
     def getParent: Option[Member] = {
         parent
     }
-    def getChildren: List[Member] = children.toList
+    def getChildren: List[Member] = children.values.toList
+
+    def getChild(identity : String): Option[Member] = {
+      children.get(identity)
+    }
 
     def getIdentity:String
     def getSignature:String
     def getType: String = getIdentity
 
-    def getDoc: String = "" //TODO - implement documentation retrieval
+    def getDoc: String = " " //TODO - implement documentation retrieval
 
     def getVisibility: String = "private" //TODO
 
@@ -144,7 +148,7 @@ trait Member {
 
     def toJson: JSONObject = {
         val data = Map("identity" -> getIdentity, "signature" -> getSignature, "type" -> getType,
-                        "visibility" -> getVisibility)
+                        "visibility" -> getVisibility, "doc" -> getDoc)
         JSONObject(data)
     }
 
