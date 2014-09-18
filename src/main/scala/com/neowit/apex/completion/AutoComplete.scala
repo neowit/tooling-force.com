@@ -140,7 +140,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
               val fullApexTree = cachedTree ++ extractor.tree
               fullApexTree.get(typeContext.getText) match {
                   case Some(member) =>
-                      val members = member.children
+                      val members = member.getChildren
                       println("Potential signatures:")
                       println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
                       println("\n\n" + members.map(m => m.toJson).mkString("\n "))

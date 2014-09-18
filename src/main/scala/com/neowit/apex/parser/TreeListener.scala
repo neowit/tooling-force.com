@@ -99,17 +99,25 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
 
 trait Member {
     var parent: Option[Member] = None
-    val children = mutable.ListBuffer[Member]()
+    private val children = mutable.ListBuffer[Member]()
 
     def addChild(member: Member) {
         children.+=(member)
     }
+    def getParent: Option[Member] = {
+        parent
+    }
+    def getChildren: List[Member] = children.toList
 
     def getIdentity:String
     def getSignature:String
     def getType: String = getIdentity
 
+    def getDoc: String = "" //TODO - implement documentation retrieval
+
     def getVisibility: String = "private" //TODO
+
+    def isStatic: Boolean
 
     def getPath: String = {
 
@@ -148,6 +156,8 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
         ctx.Identifier().getText
     }
 
+
+    override def isStatic: Boolean = false
 
     def getSignature: String = {
         ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
@@ -301,6 +311,7 @@ abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member 
     override def getVisibility: String = {
         ClassBodyMember.getVisibility(ctx)
     }
+    override def isStatic: Boolean = ClassBodyMember.isStatic(ctx)
 }
 
 object EnumMember {
@@ -319,6 +330,8 @@ class EnumMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx) 
     }
 
     override def getType: String = getIdentity
+
+    override def isStatic: Boolean = false
 }
 
 object FieldMember {
@@ -443,6 +456,8 @@ class MethodParameter(ctx: ApexcodeParser.FormalParameterContext) extends Member
         val modifierContext = ctx.getRuleContext(classOf[ApexcodeParser.VariableModifierContext], 0)
         if (null == modifierContext) "" else  modifierContext.getText
     }
+
+    override def isStatic: Boolean = false
 
     override def toString: String = getSignature
 }

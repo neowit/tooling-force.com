@@ -3,11 +3,8 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.completion.AutoComplete
-import com.neowit.apex.parser.SourceScanner
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.utils.BasicConfig
-
-import scala.util.parsing.json.JSONArray
 
 class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig){
 
