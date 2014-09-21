@@ -46,30 +46,41 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
 
     }
     */
-    /*
-    def listOptions(definitionNode: ParseTree, typeContext:ParserRuleContext, extractor: TreeListener): Option[List[Member]] = {
-        println("caret type =" + typeContext.getText)
-        val fullApexTree = cachedTree ++ extractor.tree
-        fullApexTree.get(typeContext.getText) match {
+    /**
+     * method to lis final options
+     * @param caretType
+     * @param fullApexTree
+     * @return
+     */
+    def listOptions(caretType: String, caret: AToken, fullApexTree: ApexTree): List[Member] = {
+        println("caret type =" + caretType)
+        //val fullApexTree = cachedTree ++ extractor.tree
+        val allMembers = fullApexTree.get(caretType) match {
             case Some(member) =>
                 val members = member.getChildren
                 println("Potential signatures:")
                 println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
                 println("\n\n" + members.map(m => m.toJson).mkString("\n "))
-                return Some(members.toList)
+                members.toList
             case None => //check if this is one of standard Apex types
-                val typeName = typeContext.getText
+                val typeName = caretType
                 val staticMembers = ApexModel.getMembers(typeName)
                 val instanceMethods = ApexModel.getInstanceMembers(typeName)
                 if (staticMembers.nonEmpty || instanceMethods.nonEmpty) {
-                    return Some(staticMembers ++ instanceMethods)
+                    staticMembers ++ instanceMethods
                 } else {
-                    return None
+                    List()
                 }
+        }
+        if (caret.symbol.nonEmpty) {
+            val lowerSymbol = caret.symbol.toLowerCase()
+            //filter out members which do not start with caret.symbol
+            allMembers.filter(_.getSignature.toLowerCase.startsWith(lowerSymbol))
+        } else {
+            allMembers
         }
 
     }
-    */
 
     /**
      * find blockStatement where caret reside
