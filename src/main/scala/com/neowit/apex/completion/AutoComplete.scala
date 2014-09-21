@@ -285,14 +285,17 @@ object CompletionUtils {
     def getOffset(file: File, line: Int, startIndex: Int): Int = {
         val text = scala.io.Source.fromFile(file).mkString
         //val bytes = text.take
-        var lineNum: Int = 0
+        var lineNum: Int = 1
         var pos = 0
+
         while ( lineNum < line && pos < text.length ) {
-            val ch = text(pos)
+            val ch = text.charAt(pos)
             if ('\n' == ch) {
                 lineNum += 1
             }
-            pos = pos + 1
+            if (lineNum < line) {
+                pos = pos + 1
+            }
         }
         val offset = pos + startIndex
         offset
@@ -326,6 +329,8 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
     def getOriginalType: Int = {
         originalToken.getType
     }
+    var prevToken: Token = null
+
 
 }
 

@@ -2,7 +2,7 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apex.completion.AutoComplete
+import com.neowit.apex.completion.{AutoComplete2, AutoComplete}
 import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.utils.BasicConfig
@@ -29,7 +29,7 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
                 case Some(sourceScanner) => sourceScanner.getTree
                 case None => Map()
             }
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
+            val completion = new AutoComplete2(inputFile, line.toInt, column.toInt, cachedTree)
             val members = completion.listOptions
             //dump completion options into a file - 1 line per option
             config.responseWriter.println("RESULT=SUCCESS")

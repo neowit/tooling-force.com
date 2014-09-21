@@ -43,7 +43,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         val parser = new ApexcodeParser(tokens)
 
         parser.setBuildParseTree(true)
-        parser.setErrorHandler(new CompletionErrorStrategy())
+        parser.setErrorHandler(new CompletionErrorStrategy2())
         //val tree = parser.compilationUnit()
         //val walker = new ParseTreeWalker()
         //val extractor = new TreeListener(parser)
@@ -53,12 +53,24 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         try {
             val tree = parser.compilationUnit()
         } catch {
-            case ex: CaretReachedException =>
+            case ex: CaretReachedException2 =>
+                println("found caret?")
+                //println(ex.getToken.getText)
+                breakpoint(ex)
             case e:Throwable =>
         }
 
         List()
 
+    }
+
+    def breakpoint(ex: CaretReachedException2): Unit = {
+        //at this point ex contains all information we need to build full statement on which ctrl+space was pressed
+        //e.g.: MyClass.MyInnerClass.
+        //ex: cls.
+        //ex: cls[1].
+        val cause = ex.cause
+        println(cause.getCtx.getText)
     }
 
     private def getLexer(file: File): ApexcodeLexer = {
@@ -94,8 +106,10 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
 
         private var tokenFactory: TokenFactory[_] = CommonTokenFactory.DEFAULT
         private var caretToken: Token = null
+        private val tokenFactorySourcePair = new misc.Pair(source, source.getInputStream)
 
         private val caretOffset = caret.getOffset
+        private var prevToken: Token = null
 
         def getLine: Int = {
             source.getLine
@@ -113,22 +127,37 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
             source.getSourceName
         }
         def nextToken: Token = {
-            var token: Token = source.nextToken
-            println("token=" + token.toString)
-            if (token.getStopIndex + 1 < caretOffset) {
-                //before target token
+            if (null == caretToken) {
+                var token: Token = source.nextToken
+                println("token=" + token.toString)
+                if (token.getStopIndex + 1 < caretOffset) {
+                    //before target token
+                    prevToken = token
 
-            } else if (token.getStartIndex > caretOffset) {
-                //token = CaretToken(tokenFactorySourcePair, Token.DEFAULT_CHANNEL, caretOffset, caretOffset)
-                //found target?
-                caretToken = token
-                throw new CaretReachedException(token)
-            }
-            else {
-                throw new IllegalAccessError("Why are we here?")//TODO find out when we can get here
+                } else if (token.getStartIndex > caretOffset) {
+                    //token = CaretToken(tokenFactorySourcePair, Token.DEFAULT_CHANNEL, caretOffset, caretOffset)
+                    //found target?
+                    //caretToken = prevToken
+                    val t = CaretToken2(tokenFactorySourcePair, Token.DEFAULT_CHANNEL, caretOffset, caretOffset)
+                    t.setOriginalToken(token)
+                    t.prevToken = prevToken
+                    token = t
+                    caretToken = token
+                } else {
+                    if (token.getStopIndex + 1 == caretOffset && token.getStopIndex >= token.getStartIndex) {
+                        if (!isWordToken(token)) {
+                            return token
+                        }
+                    }
+                    val t = CaretToken2(token)
+                    t.prevToken = prevToken
+                    token = t
+                    caretToken = token
+                }
+                return token
             }
 
-            token
+            throw new UnsupportedOperationException("Attempted to look past the caret.")
         }
         def getTokenFactory: TokenFactory[_] = {
             tokenFactory
@@ -140,7 +169,49 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         }
     }
 
-    class CaretReachedException(token: Token) extends RuntimeException
+    protected def isWordToken(token: Token): Boolean = {
+        CompletionUtils.isWordToken(token)
+    }
 }
 
+class CaretReachedException2(val finalContext: RuleContext, val cause: RecognitionException)
+    extends RuntimeException(cause) {
+
+}
+
+class CompletionErrorStrategy2 extends DefaultErrorStrategy {
+
+    override def reportError(recognizer: Parser, e: RecognitionException) {
+        if (e != null && e.getOffendingToken != null &&
+            e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
+            return
+        }
+        super.reportError(recognizer, e)
+    }
+
+
+    override def recover(recognizer: Parser, e: RecognitionException) {
+        if (e != null && e.getOffendingToken != null &&
+            e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
+            throw new CaretReachedException2(recognizer.getContext, e)
+        }
+        super.recover(recognizer, e)
+    }
+
+}
+
+
+object CaretToken2 {
+    final val CARET_TOKEN_TYPE: Int = -2
+    def apply(tokenFactorySourcePair: misc.Pair[TokenSource, CharStream], channel: Int, start: Int, stop: Int) = {
+        new org.antlr.v4.runtime.CommonToken(tokenFactorySourcePair, CaretToken2.CARET_TOKEN_TYPE, channel, start, stop) with CaretTokenTrait
+    }
+
+    def apply(oldToken: Token) = {
+        val token = new org.antlr.v4.runtime.CommonToken(oldToken) with CaretTokenTrait
+        token.setType(CaretToken2.CARET_TOKEN_TYPE)
+        token.setOriginalToken(oldToken)
+        token
+    }
+}
 
