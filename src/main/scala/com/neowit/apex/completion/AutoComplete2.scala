@@ -29,26 +29,10 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
             case Some((parseTree, typeContext)) =>
                 //typeContext contains node type, e.g. SomeClass of the first token in expressionTokens
                 val startType = typeContext.getText
-                fullApexTree.get(startType) match {
-                    case Some(_member) => //e.g. someClassInstance
-                        val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
-                        return members
-
-                    case None => //check if this is one of standard Apex types
-                        ApexModel.getNamespace(startType) match {
-                            case Some(namespaceMember) =>
-                                val members = resolveExpression(namespaceMember, expressionTokens.tail, fullApexTree)
-                                return members
-                            case None => //check if caret is one of system types
-                                val allMembers = ApexModel.getInstanceMembers(startType)
-                                val members:List[Member] = if (expressionTokens.size > 1) {
-                                    //filter out members that do not match caret prefix
-                                    filterByPrefix(allMembers, expressionTokens.tail.head.symbol)
-                                } else {
-                                    allMembers
-                                }
-                                return members
-                        }
+                findMember(startType, fullApexTree) match {
+                  case Some(member) =>
+                      return resolveExpression(member, expressionTokens.tail, fullApexTree)
+                  case None =>
                 }
             case None => //final attempt - check if current symbol is a namespace or one of System types
                 //check if this is something like MyClass.MySubclass
@@ -64,7 +48,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                                 return members
                             case None => //check if caret is part of System
-                                val allMembers = ApexModel.getSystemMembers(expressionTokens.head.symbol)
+                                val allMembers = ApexModel.getSystemTypeMembers(expressionTokens.head.symbol)
                                 val members: List[Member] = if (expressionTokens.size > 1) {
                                     //filter out members that do not match caret prefix
                                     filterByPrefix(allMembers, expressionTokens.tail.head.symbol)
@@ -79,7 +63,23 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         List()
     }
 
-    //TODO resolve subsequent members of expressionTokens list and return list of options for the very last AToken
+    private def findMember(typeName: String, apexTree: ApexTree): Option[Member] = {
+        apexTree.get(typeName) match {
+            case Some(_member) => //e.g. someClassInstance
+                return Some(_member)
+
+            case None => //check if this is one of standard Apex types
+                ApexModel.getNamespace(typeName) match {
+                    case Some(namespaceMember) =>
+                        Some(namespaceMember)
+                    case None => //check if caret is one of system types
+                        ApexModel.getInstanceTypeMember(typeName)
+                }
+        }
+
+    }
+
+    //TODO add support for collections str[1] or mylist.get()
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree ): List[Member] = {
         if (Nil == expressionTokens) {
             return parentType.getChildren
@@ -93,7 +93,11 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         //see if we can find the exact match
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
-                return resolveExpression(_childMember, tokensToGo, apexTree)
+                findMember(_childMember.getType, apexTree) match {
+                    case Some(_member) =>
+                        return resolveExpression(_member, tokensToGo, apexTree)
+                    case None => List()
+                }
             case None => //parent does not have a child with this identity, return partial match
                 val partialMatchChildren = filterByPrefix(parentType.getChildren, token.symbol)
                 if (partialMatchChildren.isEmpty) {
@@ -105,9 +109,11 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
 
         }
     }
+
     private def filterByPrefix(members: List[Member], prefix: String): List[Member] = {
         members.filter(_.getIdentity.toLowerCase.startsWith(prefix.toLowerCase))
     }
+
     private def getApexTypeMembers(typeName: String): List[Member] = {
         val staticMembers = ApexModel.getMembers(typeName.toLowerCase) match {
           case x :: xs => x :: xs
