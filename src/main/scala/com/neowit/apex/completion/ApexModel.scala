@@ -29,29 +29,38 @@ object ApexModel {
               case None => List()
             }
         }
-        val members = memberByNamespace.get(namespace.toLowerCase) match {
+        val members = getNamespace(namespace) match {
           case Some(member) => member.getChildren
-          case None => List()
+          case none => List()
         }
 
         //check if we can load this from "System"
-        val systemMembers = memberByNamespace.get("system") match {
-            case Some(system) =>
-                system.getChildren.find(_.getIdentity.toLowerCase == namespace.toLowerCase) match {
-                    case Some(typeMember) =>
-                        typeMember.getChildren
-                    case None => List()
-                }
-            case None => List()
-        }
+        val systemMembers = getSystemMembers(namespace)
         members ++ systemMembers
     }
+
     def getInstanceMembers(typeName: String): List[Member] = {
         ApexModel.getMembers("(instance methods)").find(_.getIdentity.toLowerCase == typeName.toLowerCase) match {
           case Some(_type) =>
               _type.getChildren
           case None => List()
         }
+    }
+
+    def getNamespace(namespace: String): Option[Member] = {
+        memberByNamespace.get(namespace.toLowerCase)
+    }
+    def getSystemMembers(systemType: String): List[Member] = {
+        memberByNamespace.get("system") match {
+            case Some(system) =>
+                system.getChildren.find(_.getIdentity.toLowerCase == systemType.toLowerCase) match {
+                    case Some(typeMember) =>
+                        typeMember.getChildren
+                    case None => List()
+                }
+            case None => List()
+        }
+
     }
 
 }
