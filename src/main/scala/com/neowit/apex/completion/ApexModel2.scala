@@ -99,10 +99,10 @@ object ApexModel2 {
 
     }
 
-    def getSystemTypeMembers(systemType: String): List[Member] = {
+    def getSystemTypeMembers(systemType: String, isStatic: Boolean): List[Member] = {
         getSystemTypeMember(systemType)  match {
             case Some(typeMember) =>
-                typeMember.getChildren
+                if (isStatic) typeMember.asInstanceOf[ApexModel2Member].getStaticChildren else typeMember.getChildren
             case None => List()
         }
     }
@@ -128,6 +128,9 @@ trait ApexModel2Member extends Member {
             loadMembers()
         }
         super.getChildren
+    }
+    def getStaticChildren: List[Member] = {
+        getChildren.filter(_.isStatic)
     }
 
     def loadMembers(): Unit = {  }

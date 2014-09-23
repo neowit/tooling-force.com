@@ -48,7 +48,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                                 return members
                             case None => //check if caret is part of System
-                                val allMembers = ApexModel2.getSystemTypeMembers(expressionTokens.head.symbol)
+                                val allMembers = ApexModel2.getSystemTypeMembers(expressionTokens.head.symbol, isStatic = true)
                                 val members: List[Member] = if (expressionTokens.size > 1) {
                                     //filter out members that do not match caret prefix
                                     filterByPrefix(allMembers, expressionTokens.tail.head.symbol)
