@@ -6,22 +6,22 @@ import spray.json._
 //import DefaultJsonProtocol._
 
 object ApexModelJsonProtocol extends DefaultJsonProtocol {
-    //implicit val namespaceFormat = jsonFormat1(ApexNamespace2)
-    implicit val apexTypeFormat: JsonFormat[ApexType2] = lazyFormat(jsonFormat(ApexType2, "name", "superType", "methods", "tag", "ctors", "fqn"))
-    implicit val apexMethodFormat: JsonFormat[ApexMethod2] = lazyFormat(jsonFormat(ApexMethod2, "s", "n", "v", "p", "h", "r", "d"))
+    //implicit val namespaceFormat = jsonFormat1(ApexNamespace)
+    implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "methods", "tag", "ctors", "fqn"))
+    implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
     //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
 
-object ApexModel2 {
+object ApexModel {
 
     private val NAMESPACES = List("ApexPages", "Approval", "Auth", "Database", "Dom", "Flow", "KbManagement", "Messaging", "QuickAction", "Reports", "Schema", "System" )
 
-    private val memberByNamespace: Map[String, ApexModel2Member] = load()
+    private val memberByNamespace: Map[String, ApexModelMember] = load()
 
-    def load(): Map[String, ApexModel2Member] = {
-        val memberByNamespace = Map.newBuilder[String, ApexModel2Member]
+    def load(): Map[String, ApexModelMember] = {
+        val memberByNamespace = Map.newBuilder[String, ApexModelMember]
         for (namespace <- NAMESPACES) {
-            memberByNamespace += (namespace.toLowerCase -> new ApexNamespace2(namespace))
+            memberByNamespace += (namespace.toLowerCase -> new ApexNamespace(namespace))
         }
 
         memberByNamespace.result()
@@ -74,13 +74,13 @@ object ApexModel2 {
     def getSystemTypeMembers(systemType: String, isStatic: Boolean): List[Member] = {
         getSystemTypeMember(systemType)  match {
             case Some(typeMember) =>
-                if (isStatic) typeMember.asInstanceOf[ApexModel2Member].getStaticChildren else typeMember.getChildren
+                if (isStatic) typeMember.asInstanceOf[ApexModelMember].getStaticChildren else typeMember.getChildren
             case None => List()
         }
     }
 }
 
-trait ApexModel2Member extends Member {
+trait ApexModelMember extends Member {
     //override def getIdentity: String = ???
 
     //override def getSignature: String = ???
@@ -107,7 +107,7 @@ trait ApexModel2Member extends Member {
 
     def loadMembers(): Unit = {  }
 }
-case class ApexNamespace2(name: String) extends ApexModel2Member {
+case class ApexNamespace(name: String) extends ApexModelMember {
 
     import ApexModelJsonProtocol._
 
@@ -139,11 +139,11 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
         val doc = scala.io.Source.fromInputStream(is.openStream()).getLines().mkString
         val jsonAst = JsonParser(doc)
         val types = jsonAst.asJsObject.fields //Map[typeName -> type description JSON]
-        val typesWithSuperTypes = List.newBuilder[ApexType2]
+        val typesWithSuperTypes = List.newBuilder[ApexType]
         for (typeName <- types.keys) {
             val typeJson = types(typeName)
             println("typeName=" + typeName)
-            val apexTypeMember = typeJson.convertTo[ApexType2]
+            val apexTypeMember = typeJson.convertTo[ApexType]
 
             apexTypeMember.parent = Some(this)
             addChild(apexTypeMember)
@@ -168,7 +168,7 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
         }
     }
 }
-case class ApexType2(name: String, superType: Option[String], methods: List[ApexMethod2], tag: String, ctors: List[ApexMethod2], fqn: String) extends ApexModel2Member {
+case class ApexType(name: String, superType: Option[String], methods: List[ApexMethod], tag: String, ctors: List[ApexMethod], fqn: String) extends ApexModelMember {
 
     override def getIdentity: String = name
     override def getSignature: String = fqn
@@ -187,7 +187,7 @@ case class ApexType2(name: String, superType: Option[String], methods: List[Apex
 
     override def getSuperType: Option[String] = superType
 }
-case class ApexMethod2(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModel2Member {
+case class ApexMethod(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModelMember {
     override def getIdentity: String = n
     override def getSignature: String = d
     override def isStatic: Boolean = "1" == s
@@ -196,7 +196,7 @@ case class ApexMethod2(s: String, n: String, v: String, p: List[String], h: Stri
 }
 
 /*
-case class ApexParam2(paramType: String) extends ApexModel2Member {
+case class ApexParam2(paramType: String) extends ApexModelMember {
     override def getIdentity: String = paramType
     override def getSignature: String = paramType
     override def isStatic: Boolean = false
