@@ -2,7 +2,7 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apex.completion.{AutoComplete2, AutoComplete}
+import com.neowit.apex.completion.{AutoComplete2}
 import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.utils.BasicConfig

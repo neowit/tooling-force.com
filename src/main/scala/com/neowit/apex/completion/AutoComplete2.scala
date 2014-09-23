@@ -43,12 +43,12 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                         return members
 
                     case None =>
-                        ApexModel.getNamespace(startType) match {
+                        ApexModel2.getNamespace(startType) match {
                             case Some(_member) => //caret is a namespace
                                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                                 return members
                             case None => //check if caret is part of System
-                                val allMembers = ApexModel.getSystemTypeMembers(expressionTokens.head.symbol)
+                                val allMembers = ApexModel2.getSystemTypeMembers(expressionTokens.head.symbol)
                                 val members: List[Member] = if (expressionTokens.size > 1) {
                                     //filter out members that do not match caret prefix
                                     filterByPrefix(allMembers, expressionTokens.tail.head.symbol)
@@ -69,11 +69,15 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                 return Some(_member)
 
             case None => //check if this is one of standard Apex types
-                ApexModel.getNamespace(typeName) match {
+                ApexModel2.getNamespace(typeName) match {
                     case Some(namespaceMember) =>
                         Some(namespaceMember)
-                    case None => //check if caret is one of system types
-                        ApexModel.getInstanceTypeMember(typeName)
+                    case None =>
+                        //check if caret is fully qualified type with namespace
+                        ApexModel2.getTypeMember(typeName) match {
+                          case Some(member) => Some(member)
+                          case None => None
+                        }
                 }
         }
 
@@ -115,12 +119,12 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
     }
 
     private def getApexTypeMembers(typeName: String): List[Member] = {
-        val staticMembers = ApexModel.getMembers(typeName.toLowerCase) match {
+        val staticMembers = ApexModel2.getMembers(typeName.toLowerCase) match {
           case x :: xs => x :: xs
           case Nil => //check if caret is part of System
-              ApexModel.getMembers("system." + typeName)
+              ApexModel2.getMembers("system." + typeName)
         }
-        staticMembers ++ ApexModel.getInstanceMembers(typeName)
+        staticMembers ++ ApexModel2.getInstanceMembers(typeName)
     }
 
     /**
@@ -141,8 +145,8 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                 members.toList
             case None => //check if this is one of standard Apex types
                 val typeName = caretType
-                val staticMembers = ApexModel.getMembers(typeName)
-                val instanceMethods = ApexModel.getInstanceMembers(typeName)
+                val staticMembers = ApexModel2.getMembers(typeName)
+                val instanceMethods = ApexModel2.getInstanceMembers(typeName)
                 if (staticMembers.nonEmpty || instanceMethods.nonEmpty) {
                     staticMembers ++ instanceMethods
                 } else {

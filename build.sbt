@@ -24,5 +24,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" % "akka-actor_2.10" % "2.2-M1"
 )
 
+libraryDependencies += "io.spray" %%  "spray-json" % "1.3.0"
+
 //exportJars := true
 
