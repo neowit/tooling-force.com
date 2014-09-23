@@ -102,7 +102,7 @@ trait Member {
     private val children = mutable.HashMap[String, Member]()
 
     def addChild(member: Member) {
-        children.+=(member.getIdentity -> member)
+        children.+=(member.getIdentity.toLowerCase() -> member)
     }
     def getParent: Option[Member] = {
         parent
@@ -110,7 +110,7 @@ trait Member {
     def getChildren: List[Member] = children.values.toList
 
     def getChild(identity : String): Option[Member] = {
-      children.get(identity)
+      children.get(identity.toLowerCase())
     }
 
     def getIdentity:String
