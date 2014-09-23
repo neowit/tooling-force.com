@@ -116,6 +116,7 @@ trait Member {
     def getIdentity:String
     def getSignature:String
     def getType: String = getIdentity
+    def getFullType: String = getType //e.g. MyClass.InnerClass
 
     def getDoc: String = " " //TODO - implement documentation retrieval
 
@@ -182,7 +183,13 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
         val clsBodyDeclaration = ctx.getParent.getParent
         ClassBodyMember.findChildren(clsBodyDeclaration, classOf[TerminalNodeImpl]).map(_.getText).mkString(" ")
     }
-
+    override def getFullType: String = {
+        getParent match {
+            case Some(parentMember) if !this.getType.startsWith(parentMember.getType + ".") =>
+                parentMember.getType + "." + this.getType
+            case _ => super.getFullType
+        }
+    }
 }
 
 object ClassBodyMember {
@@ -301,6 +308,30 @@ object ClassBodyMember {
             }
         }
     }
+
+    /**
+     * when type of current Member is Inner Class - resolve full inner class type
+     * e.g.
+     *  public InnerClass var;
+     * will be resolved as
+     *  public OuterClass.InnerClass var;
+     *
+     * @param member
+     * @return
+     */
+    def getFullTypeIfTypeIsInnerClass(member: Member, parentMember: Option[Member]): Option[String] = {
+        parentMember match {
+          case Some(_parentMember) =>
+              _parentMember.getChild(member.getType) match {
+                  case Some(_member) if _member.isInstanceOf[InnerClassMember] =>
+                      println("_member.getFullType=" + _member.getFullType)
+                      Some(_member.getFullType)
+                  case _ => None
+              }
+          case _ => None
+        }
+
+    }
 }
 
 abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
@@ -316,6 +347,17 @@ abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member 
         ClassBodyMember.getVisibility(ctx)
     }
     override def isStatic: Boolean = ClassBodyMember.isStatic(ctx)
+
+    override def getFullType: String = {
+        ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent) match {
+          case Some(fullType) => fullType
+          case None => ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent.flatMap(_.getParent)) match {
+            case Some(fullType) => fullType
+            case None => this.getType
+          }
+        }
+    }
+
 }
 
 object EnumMember {

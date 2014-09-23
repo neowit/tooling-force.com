@@ -93,7 +93,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         //see if we can find the exact match
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
-                findMember(_childMember.getType, apexTree) match {
+                findMember(_childMember.getFullType, apexTree) match {
                     case Some(_member) =>
                         return resolveExpression(_member, tokensToGo, apexTree)
                     case None => List()
