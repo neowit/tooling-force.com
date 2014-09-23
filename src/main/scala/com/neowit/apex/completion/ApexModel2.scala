@@ -7,7 +7,7 @@ import spray.json._
 
 object ApexModelJsonProtocol extends DefaultJsonProtocol {
     //implicit val namespaceFormat = jsonFormat1(ApexNamespace2)
-    implicit val apexTypeFormat: JsonFormat[ApexType2] = lazyFormat(jsonFormat(ApexType2, "name", "methods", "tag", "ctors", "fqn"))
+    implicit val apexTypeFormat: JsonFormat[ApexType2] = lazyFormat(jsonFormat(ApexType2, "name", "superType", "methods", "tag", "ctors", "fqn"))
     implicit val apexMethodFormat: JsonFormat[ApexMethod2] = lazyFormat(jsonFormat(ApexMethod2, "s", "n", "v", "p", "h", "r", "d"))
     //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
@@ -148,10 +148,26 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
     override def isLoaded:Boolean = isDoneLoading
 
     override def loadMembers(): Unit = {
-        val is = getClass.getClassLoader.getResource("apex-doc/" + name + ".json")
+        loadFile(name)
+        if ("System" == name) {
+            //add Exception to System namespace
+            loadFile("Exception")
+            //add methods from System.System
+            getChild("System") match {
+              case Some(systemMember) =>
+                  systemMember.getChildren.foreach(this.addChild)
+              case None =>
+            }
+        }
+        isDoneLoading = true
+    }
+
+    private def loadFile(namespace: String): Unit = {
+        val is = getClass.getClassLoader.getResource("apex-doc/" + namespace + ".json")
         val doc = scala.io.Source.fromInputStream(is.openStream()).getLines().mkString
         val jsonAst = JsonParser(doc)
         val types = jsonAst.asJsObject.fields //Map[typeName -> type description JSON]
+        val typesWithSuperTypes = List.newBuilder[ApexType2]
         for (typeName <- types.keys) {
             val typeJson = types(typeName)
             println("typeName=" + typeName)
@@ -159,11 +175,28 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
 
             apexTypeMember.parent = Some(this)
             addChild(apexTypeMember)
+
+            //if current Apex Type has a super type then extend it accordingly
+            if (apexTypeMember.superType.isDefined) {
+                typesWithSuperTypes += apexTypeMember
         }
-        isDoneLoading = true
+        }
+        //now when we loaded everything - process types that have super types
+        for (apexTypeMember <- typesWithSuperTypes.result()) {
+            apexTypeMember.superType match {
+                case Some(_typeName) =>
+                    //top-up with children from super type
+                    getChild(_typeName) match {
+                        case Some(superTypeMember) =>
+                            superTypeMember.getChildren.foreach(apexTypeMember.addChild)
+                        case None =>
+                    }
+                case None =>
     }
 }
-case class ApexType2(name: String, methods: List[ApexMethod2], tag: String, ctors: List[ApexMethod2], fqn: String) extends ApexModel2Member {
+    }
+}
+case class ApexType2(name: String, superType: Option[String], methods: List[ApexMethod2], tag: String, ctors: List[ApexMethod2], fqn: String) extends ApexModel2Member {
 
     override def getIdentity: String = name
     override def getSignature: String = fqn
@@ -178,6 +211,7 @@ case class ApexType2(name: String, methods: List[ApexMethod2], tag: String, ctor
         }
         isDoneLoading = true
     }
+    override def getSuperType: Option[String] = superType
 }
 case class ApexMethod2(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModel2Member {
     override def getIdentity: String = n

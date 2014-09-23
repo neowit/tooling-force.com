@@ -118,6 +118,8 @@ trait Member {
     def getType: String = getIdentity
     def getFullType: String = getType //e.g. MyClass.InnerClass
 
+    def getSuperType: Option[String] = None
+
     def getDoc: String = " " //TODO - implement documentation retrieval
 
     def getVisibility: String = "private" //TODO
