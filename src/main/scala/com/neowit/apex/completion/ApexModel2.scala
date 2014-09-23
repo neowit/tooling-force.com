@@ -14,22 +14,14 @@ object ApexModelJsonProtocol extends DefaultJsonProtocol {
 
 object ApexModel2 {
 
-    val NAMESPACES = List("ApexPages", "Approval", "Auth", "Database", "Dom", "Flow", "KbManagement", "Messaging", "QuickAction", "Reports", "Schema", "System" )
+    private val NAMESPACES = List("ApexPages", "Approval", "Auth", "Database", "Dom", "Flow", "KbManagement", "Messaging", "QuickAction", "Reports", "Schema", "System" )
 
     private val memberByNamespace: Map[String, ApexModel2Member] = load()
 
     def load(): Map[String, ApexModel2Member] = {
         val memberByNamespace = Map.newBuilder[String, ApexModel2Member]
         for (namespace <- NAMESPACES) {
-            /*
-            val is = getClass.getClassLoader.getResource("apex-doc/" + namespace + ".json")
-            val doc = scala.io.Source.fromInputStream(is.openStream()).getLines().mkString
-            val jsonAst = JsonParser(doc)
-            //println(jsonAst.prettyPrint)
-            */
-
             memberByNamespace += (namespace.toLowerCase -> new ApexNamespace2(namespace))
-
         }
 
         memberByNamespace.result()
@@ -40,8 +32,8 @@ object ApexModel2 {
 
     /**
      *
-     * @param fqn, possible values look like
-     *           String or System.String
+     * @param fqn, short of fully qualified name,
+     *           possible values look like: String or System.String
      * @return
      */
     def getTypeMember(fqn: String): Option[Member] = {
@@ -75,17 +67,6 @@ object ApexModel2 {
         members
     }
 
-    def getInstanceMembers(typeName: String): List[Member] = {
-        //TODO
-        /*
-        ApexModel.getMembers("(instance methods)").find(_.getIdentity.toLowerCase == typeName.toLowerCase) match {
-            case Some(typeMember) =>
-                Some(typeMember)
-            case None => None
-        }
-        */
-        List()
-    }
     def getSystemTypeMember(systemType: String): Option[Member] = {
         getTypeMember("System." + systemType)
     }

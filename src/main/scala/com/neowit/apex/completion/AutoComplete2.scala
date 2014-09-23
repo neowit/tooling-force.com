@@ -119,12 +119,11 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
     }
 
     private def getApexTypeMembers(typeName: String): List[Member] = {
-        val staticMembers = ApexModel2.getMembers(typeName.toLowerCase) match {
+        ApexModel2.getMembers(typeName.toLowerCase) match {
           case x :: xs => x :: xs
           case Nil => //check if caret is part of System
               ApexModel2.getMembers("system." + typeName)
         }
-        staticMembers ++ ApexModel2.getInstanceMembers(typeName)
     }
 
     /**
@@ -145,16 +144,10 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                 members.toList
             case None => //check if this is one of standard Apex types
                 val typeName = caretType
-                val staticMembers = ApexModel2.getMembers(typeName)
-                val instanceMethods = ApexModel2.getInstanceMembers(typeName)
-                if (staticMembers.nonEmpty || instanceMethods.nonEmpty) {
-                    staticMembers ++ instanceMethods
-                } else {
-                    List()
-                }
+                ApexModel2.getMembers(typeName)
         }
         if (caret.symbol.nonEmpty) {
-            val lowerSymbol = caret.symbol.toLowerCase()
+            val lowerSymbol = caret.symbol.toLowerCase
             //filter out members which do not start with caret.symbol
             allMembers.filter(_.getSignature.toLowerCase.startsWith(lowerSymbol))
         } else {
