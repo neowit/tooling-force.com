@@ -102,21 +102,29 @@ trait Member {
     private val children = mutable.HashMap[String, Member]()
 
     def addChild(member: Member) {
-        children.+=(member.getIdentity.toLowerCase() -> member)
+        getChild(member.getIdentity) match {
+          case Some(_existingMember) => //this child already exists, do not overwrite
+          case None =>
+              children.+=(member.getIdentity.toLowerCase() -> member)
+        }
     }
     def getParent: Option[Member] = {
         parent
     }
-    def getChildren: List[Member] = children.values.toList
+    def getChildren: List[Member] = {
+        children.values.toList
+    }
 
     def getChild(identity : String): Option[Member] = {
-      children.get(identity.toLowerCase())
+      children.get(identity.toLowerCase)
     }
 
     def getIdentity:String
     def getSignature:String
     def getType: String = getIdentity
-    def getFullType: String = getType //e.g. MyClass.InnerClass
+
+    //e.g. MyClass.InnerClass
+    def getFullType: String = getType
 
     def getSuperType: Option[String] = None
 

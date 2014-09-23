@@ -219,16 +219,16 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                             distances += ((steps, commonParent, node))
                         case None =>
                     }
-                    println(node)
+                    //println(node)
                 }
                 //find one with shortest distance
                 distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption  match {
                     case Some((steps, commonParent, n)) =>
-                        println(steps + "=" + n)
+                        //println(steps + "=" + n)
                         //node which we found is most likely a definition of one under caret
                         return getTypeParent(n) match {
-                            case Some((pt, typeContext)) => Some((pt, typeContext))
-                            case None => None
+                            case Some((pt, typeContext)) if null != typeContext => Some((pt, typeContext))
+                            case _ => None
                         }
 
                     case None =>
@@ -241,7 +241,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
                     case None =>
                 }
                 */
-                println(potentialDefinitionNodes)
+                //println(potentialDefinitionNodes)
             case None =>
         }
         None
@@ -395,7 +395,7 @@ class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = M
         //get all tokens till caret
         //val allTokens = tokenStream.get(startIndex, endTokenIndex)
 
-        println(cause.getCtx.getText)
+        //println(cause.getCtx.getText)
         expressionTokens.result()
     }
     private def consumeUntil(tokenStream: CommonTokenStream, startTokenIndex: Integer, str: String): Int = {

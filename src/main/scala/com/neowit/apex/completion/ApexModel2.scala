@@ -1,7 +1,7 @@
 package com.neowit.apex.completion
 
 import com.neowit.apex.parser.Member
-import scala.collection.JavaConversions._
+//import scala.collection.JavaConversions._
 import spray.json._
 //import DefaultJsonProtocol._
 
@@ -31,6 +31,7 @@ object ApexModel2 {
             memberByNamespace += (namespace.toLowerCase -> new ApexNamespace2(namespace))
 
         }
+
         memberByNamespace.result()
     }
     def getNamespace(namespace: String): Option[Member] = {
@@ -86,17 +87,7 @@ object ApexModel2 {
         List()
     }
     def getSystemTypeMember(systemType: String): Option[Member] = {
-        memberByNamespace.get("system") match {
-            case Some(system) =>
-                system.getChildren.find(_.getIdentity.toLowerCase == systemType.toLowerCase) match {
-                    case Some(typeMember) =>
-                        return Some(typeMember)
-                    case None =>
-                }
-            case None =>
-        }
-        None
-
+        getTypeMember("System." + systemType)
     }
 
     def getSystemTypeMembers(systemType: String, isStatic: Boolean): List[Member] = {
@@ -179,7 +170,7 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
             //if current Apex Type has a super type then extend it accordingly
             if (apexTypeMember.superType.isDefined) {
                 typesWithSuperTypes += apexTypeMember
-        }
+            }
         }
         //now when we loaded everything - process types that have super types
         for (apexTypeMember <- typesWithSuperTypes.result()) {
@@ -192,8 +183,8 @@ case class ApexNamespace2(name: String) extends ApexModel2Member {
                         case None =>
                     }
                 case None =>
-    }
-}
+            }
+        }
     }
 }
 case class ApexType2(name: String, superType: Option[String], methods: List[ApexMethod2], tag: String, ctors: List[ApexMethod2], fqn: String) extends ApexModel2Member {
@@ -209,14 +200,17 @@ case class ApexType2(name: String, superType: Option[String], methods: List[Apex
             method.parent = Some(this)
             addChild(method)
         }
+
         isDoneLoading = true
     }
+
     override def getSuperType: Option[String] = superType
 }
 case class ApexMethod2(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModel2Member {
     override def getIdentity: String = n
     override def getSignature: String = d
     override def isStatic: Boolean = "1" == s
+    override def getDoc: String = h
 
 }
 
