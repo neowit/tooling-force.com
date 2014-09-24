@@ -1,6 +1,7 @@
 package com.neowit.apex.completion
 
 import java.io.{FileInputStream, File}
+import java.util.regex.Pattern
 
 import com.neowit.apex.parser.{TreeListener, Member}
 import com.neowit.apex.parser.TreeListener.ApexTree
@@ -9,7 +10,7 @@ import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
-class AutoComplete2(file: File, line: Int, column: Int, cachedTree: ApexTree = Map[String, Member]()) {
+class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Map[String, Member]()) {
     def listOptions:List[Member] = {
         val expressionTokens = getCaretStatement
         val lexer = getLexer(file)
@@ -547,4 +548,53 @@ object CaretToken2 {
         token
     }
 }
+trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
+
+    private var originalToken: Token = null
+
+    def setOriginalToken(token: Token) {
+        originalToken = token
+    }
+    def getOriginalToken: Token = {
+        originalToken
+    }
+
+    def getOriginalType: Int = {
+        originalToken.getType
+    }
+    var prevToken: Token = null
+
+
+}
+
+object CompletionUtils {
+
+    private val WORD_PATTERN_STR = "^[\\$A-Za-z_][A-Za-z0-9_]*$"
+    private val WORD_PATTERN: Pattern = Pattern.compile(WORD_PATTERN_STR)
+
+    def isWordToken(token: Token): Boolean = {
+        WORD_PATTERN.matcher(token.getText).matches
+    }
+
+    def getOffset(file: File, line: Int, startIndex: Int): Int = {
+        val text = scala.io.Source.fromFile(file).mkString
+        //val bytes = text.take
+        var lineNum: Int = 1
+        var pos = 0
+
+        while ( lineNum < line && pos < text.length ) {
+            val ch = text.charAt(pos)
+            if ('\n' == ch) {
+                lineNum += 1
+            }
+            if (lineNum < line) {
+                pos = pos + 1
+            }
+        }
+        val offset = pos + startIndex
+        offset
+    }
+}
+
+
 
