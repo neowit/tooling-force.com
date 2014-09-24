@@ -155,7 +155,20 @@ trait Member {
       children.get(identity.toLowerCase)
     }
 
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
     def getIdentity:String
+
+    /**
+     * for most member types Identity is unique (for Methods it is not)
+     */
+    def getIdentityToDisplay:String = getIdentity
+
     def getSignature:String
     def getType: String = getIdentity
 
@@ -196,11 +209,16 @@ trait Member {
     }
 
     def toJson: JSONObject = {
-        val data = Map("identity" -> getIdentity, "signature" -> getSignature, "type" -> getType,
+        val data = Map("identity" -> getIdentityToDisplay, "realIdentity" -> getIdentity,
+                        "signature" -> getSignature, "type" -> getType,
                         "visibility" -> getVisibility, "doc" -> getDoc)
         JSONObject(data)
     }
 
+    override def equals(o: Any): Boolean = {
+        o.isInstanceOf[Member] && this.getSignature.toLowerCase == o.asInstanceOf[Member].getSignature.toLowerCase
+    }
+    override def hashCode = getIdentity.toLowerCase.hashCode
 }
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
@@ -529,7 +547,7 @@ object MethodMember {
 }
 class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
 
-    override def getIdentity:String = {
+    def getMethodName:String = {
         //... <Type> methodName (formalParameters)
         val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
         if (methodDeclarationContext.nonEmpty) {
@@ -538,6 +556,39 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
             ""
         }
     }
+
+    override def equals(o: Any): Boolean = {
+        if (super.equals(o)) {
+            //check that params also match
+            val otherMethod = o.asInstanceOf[MethodMember]
+            otherMethod.getArgs.map(_.getType.toLowerCase).mkString == this.getArgs.map(_.getType.toLowerCase).mkString
+        } else {
+            false
+        }
+    }
+
+    override def hashCode = {
+        super.hashCode + getArgs.map(_.getType).mkString.hashCode
+    }
+
+    /**
+     * several methods may have the same name but different parameters and static context
+     * @return
+     */
+    override def getIdentity:String = {
+        //... <Type> methodName (formalParameters)
+        getMethodName + getArgs.map(_.getType).mkString
+    }
+
+    /**
+     * several methods may have the same name but different parameters and static context
+     * however when returning completion result we need to list method name only
+     * @return
+     */
+    override def getIdentityToDisplay:String = {
+        getMethodName
+    }
+
     override def getSignature:String = {
         ClassBodyMember.findChild(ctx, classOf[MethodDeclarationContext]) match {
             case Some(methodDeclaration) =>
