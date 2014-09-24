@@ -177,7 +177,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         val parser = new ApexcodeParser(tokens)
 
         parser.setBuildParseTree(true)
-        parser.setErrorHandler(new CompletionErrorStrategy2())
+        parser.setErrorHandler(new CompletionErrorStrategy())
         //val tree = parser.compilationUnit()
         //val walker = new ParseTreeWalker()
         //val extractor = new TreeListener(parser)
@@ -187,7 +187,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         try {
             val tree = parser.compilationUnit()
         } catch {
-            case ex: CaretReachedException2 =>
+            case ex: CaretReachedException =>
                 println("found caret?")
                 //println(ex.getToken.getText)
                 //listOptions(ex)
@@ -330,7 +330,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
      * "completion[some.num(other[nn])].goes.her|)" => List(completion[], goes, her)
      * "completion(some.num[other]).goes.her|)" => List( completion(), goes, her)
      */
-    private def resolveExpression(ex: CaretReachedException2): List[AToken] = {
+    private def resolveExpression(ex: CaretReachedException): List[AToken] = {
         val expressionTokens = List.newBuilder[AToken]
         //at this point ex contains all information we need to build full statement on which ctrl+space was pressed
         //e.g.: MyClass.MyInnerClass.
@@ -508,12 +508,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
     }
 }
 
-class CaretReachedException2(val recognizer: Parser, val finalContext: RuleContext, val cause: RecognitionException)
+class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: RecognitionException)
     extends RuntimeException(cause) {
 
 }
 
-class CompletionErrorStrategy2 extends DefaultErrorStrategy {
+class CompletionErrorStrategy extends DefaultErrorStrategy {
 
     override def reportError(recognizer: Parser, e: RecognitionException) {
         if (e != null && e.getOffendingToken != null &&
@@ -527,7 +527,7 @@ class CompletionErrorStrategy2 extends DefaultErrorStrategy {
     override def recover(recognizer: Parser, e: RecognitionException) {
         if (e != null && e.getOffendingToken != null &&
             e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
-            throw new CaretReachedException2(recognizer, recognizer.getContext, e)
+            throw new CaretReachedException(recognizer, recognizer.getContext, e)
         }
         super.recover(recognizer, e)
     }
