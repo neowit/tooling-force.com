@@ -21,7 +21,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         val extractor = new TreeListener(parser)
         walker.walk(extractor, tree)
 
-        //TODO
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
         //List( someClassInstance, method(), goes, her)
         val fullApexTree = cachedTree ++ extractor.tree
@@ -128,36 +127,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
     }
 
     /**
-     * method to lis final options
-     * @param caretType
-     * @param fullApexTree
-     * @return
-     */
-    def listOptions(caretType: String, caret: AToken, fullApexTree: ApexTree): List[Member] = {
-        println("caret type =" + caretType)
-        //val fullApexTree = cachedTree ++ extractor.tree
-        val allMembers = fullApexTree.get(caretType) match {
-            case Some(member) =>
-                val members = member.getChildren
-                println("Potential signatures:")
-                println("-" + members.map(m => m.getIdentity + "=> " + m.getSignature).mkString("\n-"))
-                println("\n\n" + members.map(m => m.toJson).mkString("\n "))
-                members.toList
-            case None => //check if this is one of standard Apex types
-                val typeName = caretType
-                ApexModel.getMembers(typeName)
-        }
-        if (caret.symbol.nonEmpty) {
-            val lowerSymbol = caret.symbol.toLowerCase
-            //filter out members which do not start with caret.symbol
-            allMembers.filter(_.getSignature.toLowerCase.startsWith(lowerSymbol))
-        } else {
-            allMembers
-        }
-
-    }
-
-    /**
      * find blockStatement where caret reside
      *
      * vari| - list of all elements that can start with “vari” in current scope
@@ -228,14 +197,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                     case None =>
                     //cursor symbol is not defined in the current file
                 }
-                /*
-                //remove node which matches the caret
-                nodes.toList.find(n => caretAToken.equals(n.getSymbol))  match {
-                    case Some(caretNode) =>
-                    case None =>
-                }
-                */
-                //println(potentialDefinitionNodes)
             case None =>
         }
         None
