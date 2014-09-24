@@ -216,7 +216,8 @@ trait Member {
     }
 
     override def equals(o: Any): Boolean = {
-        o.isInstanceOf[Member] && this.getSignature.toLowerCase == o.asInstanceOf[Member].getSignature.toLowerCase
+        o.isInstanceOf[Member] && this.getClass == o.getClass &&
+            this.getIdentity.toLowerCase == o.asInstanceOf[Member].getIdentity.toLowerCase
     }
     override def hashCode = getIdentity.toLowerCase.hashCode
 }
@@ -568,7 +569,7 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
     }
 
     override def hashCode = {
-        super.hashCode + getArgs.map(_.getType).mkString.hashCode
+        (getIdentity.toLowerCase + getArgs.map(_.getType).mkString).hashCode
     }
 
     /**
