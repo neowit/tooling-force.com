@@ -3,7 +3,7 @@ package com.neowit.apex.completion
 import java.io.{FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.{TreeListener, Member}
+import com.neowit.apex.parser.{ClassBodyMember, TreeListener, Member}
 import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
@@ -29,7 +29,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
             case Some((parseTree, typeContext)) =>
                 //typeContext contains node type, e.g. SomeClass of the first token in expressionTokens
                 val startType = typeContext.getText
-                findMember(startType, fullApexTree) match {
+                findMember(startType, fullApexTree, ctx = Some(typeContext)) match {
                   case Some(member) =>
                       return resolveExpression(member, expressionTokens.tail, fullApexTree)
                   case None =>
@@ -63,25 +63,39 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         List()
     }
 
-    private def findMember(typeName: String, apexTree: ApexTree): Option[Member] = {
+    private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
         apexTree.get(typeName) match {
             case Some(_member) => //e.g. someClassInstance
                 return Some(_member)
+            case None => //maybe this is a short definition of inner class, let's resolve it to full type name
+                if (ctx.isDefined) {
+                    ClassBodyMember.getTopMostClassContext(ctx.get) match {
+                        case Some(classContext) if null != classContext.asInstanceOf[ClassDeclarationContext].Identifier() =>
+                            val topClassTypeName = classContext.asInstanceOf[ClassDeclarationContext].Identifier()
+                            apexTree.get(topClassTypeName + "." + typeName) match {
+                                case Some(_member) =>
+                                    return Some(_member)
+                                case None =>
+                            }
+                        case None =>
+                    }
+                }
 
-            case None => //check if this is one of standard Apex types
-                ApexModel.getNamespace(typeName) match {
-                    case Some(namespaceMember) =>
-                        Some(namespaceMember)
-                    case None =>
-                        //check if caret is fully qualified type with namespace
-                        ApexModel.getTypeMember(typeName) match {
-                          case Some(member) => Some(member)
-                          case None => None
-                        }
+        }
+        //check if this is one of standard Apex types
+        ApexModel.getNamespace(typeName) match {
+            case Some(namespaceMember) =>
+                Some(namespaceMember)
+            case None =>
+                //check if caret is fully qualified type with namespace
+                ApexModel.getTypeMember(typeName) match {
+                    case Some(member) => Some(member)
+                    case None => None
                 }
         }
 
     }
+
 
     //TODO add support for collections str[1] or mylist.get()
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree ): List[Member] = {

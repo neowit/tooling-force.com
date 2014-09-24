@@ -142,7 +142,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         val typesWithSuperTypes = List.newBuilder[ApexType]
         for (typeName <- types.keys) {
             val typeJson = types(typeName)
-            println("typeName=" + typeName)
+            //println("typeName=" + typeName)
             val apexTypeMember = typeJson.convertTo[ApexType]
 
             apexTypeMember.parent = Some(this)

@@ -102,10 +102,14 @@ trait Member {
     private val children = mutable.HashMap[String, Member]()
 
     def addChild(member: Member) {
-        getChild(member.getIdentity) match {
-          case Some(_existingMember) => //this child already exists, do not overwrite
-          case None =>
-              children.+=(member.getIdentity.toLowerCase -> member)
+        try {
+            getChild(member.getIdentity) match {
+                case Some(_existingMember) => //this child already exists, do not overwrite
+                case None =>
+                    children.+=(member.getIdentity.toLowerCase -> member)
+            }
+        } catch {
+            case ex:Throwable => println("failed to add member of parent: " + this.getIdentity)
         }
     }
     def getParent: Option[Member] = {
@@ -425,17 +429,41 @@ object ClassBodyMember {
     }
 
     def getParent[T](ctx:ParseTree, ctxType: Class[T]): Option[T] = {
-        if (ctx.getClass == ctxType) {
-            Some(ctx.asInstanceOf[T])
-        } else {
-            if (null != ctx.getParent) {
-                getParent(ctx.getParent, ctxType)
-            } else {
+        def getParentImpl[T](ctx: ParseTree, ctxType: Class[T]): Option[T] = {
+            if (null == ctx) {
                 None
+            } else {
+                if (ctx.getClass == ctxType) {
+                    Some(ctx.asInstanceOf[T])
+                } else {
+                    if (null != ctx.getParent) {
+                        getParentImpl(ctx.getParent, ctxType)
+                    } else {
+                        None
+                    }
+                }
             }
         }
+        getParentImpl(ctx.getParent, ctxType)
     }
 
+    /**
+     * find top most class declaration context compared to current context
+     * @param ctx - context used as a start point of climbing parse tree
+     * @return higher level class declaration if there is one
+     */
+    def getTopMostClassContext(ctx: ParseTree): Option[ParseTree] = {
+        getParent(ctx, classOf[ClassDeclarationContext]) match {
+            case Some(classCtx) => getTopMostClassContext(classCtx)
+            case None =>
+                if (ctx.isInstanceOf[ClassDeclarationContext]) {
+                    Some(ctx)
+                } else {
+                    None
+                }
+        }
+
+    }
     /**
      * when type of current Member is Inner Class - resolve full inner class type
      * e.g.
