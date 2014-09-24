@@ -105,14 +105,50 @@ trait Member {
         getChild(member.getIdentity) match {
           case Some(_existingMember) => //this child already exists, do not overwrite
           case None =>
-              children.+=(member.getIdentity.toLowerCase() -> member)
+              children.+=(member.getIdentity.toLowerCase -> member)
         }
     }
     def getParent: Option[Member] = {
         parent
     }
+
+    /**
+     * find parent which matches specified filter
+     * @param filter - condition
+     * @return
+     */
+    def findParent(filter: (Member) => Boolean): Option[Member] = {
+        getParent match {
+          case Some(parentMember) =>
+              if (filter(parentMember)) Some(parentMember) else parentMember.findParent(filter)
+          case None => None
+        }
+    }
+
     def getChildren: List[Member] = {
         children.values.toList
+    }
+
+    /**
+     * this method is only relevant when current member is a Class or Inner Class
+     * use this method to get children of this member and super type members
+     * @param parseTree previously generated parse tree
+     * @return
+     */
+    def getChildrenWithInheritance(parseTree: ApexTree): List[Member] = {
+        getFullSuperType match {
+          case Some(superTypeName) => parseTree.get(superTypeName) match {
+            case Some(superTypeMember) =>
+                val superTypeChildren = superTypeMember.getChildrenWithInheritance(parseTree)
+                val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
+                val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
+                                            superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
+                )
+                superTypeChildrenMinusMyChildren ++ getChildren
+            case None => getChildren
+          }
+          case None => getChildren
+        }
     }
 
     def getChild(identity : String): Option[Member] = {
@@ -127,6 +163,8 @@ trait Member {
     def getFullType: String = getType
 
     def getSuperType: Option[String] = None
+
+    def getFullSuperType: Option[String] = None
 
     def getDoc: String = " " //TODO - implement documentation retrieval
 
@@ -185,6 +223,19 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
           case None => "private"
         }
     }
+
+    override def getSuperType: Option[String] = {
+        //if one of ctx children is "extends" then the next one will be TypeContext with the name of super class
+        val extendIndex = ClassBodyMember.findChildIndex(ctx, _ctx => "extends" == _ctx.getText.toLowerCase)
+        if (extendIndex > 0 && ctx.getChildCount > extendIndex) {
+            val superTypeContext = ctx.getChild(extendIndex + 1) //TypeContext goes after TerminalNode "extend"
+            if (null != superTypeContext) {
+                return Some(superTypeContext.getText)
+            }
+        }
+        None
+    }
+    override def getFullSuperType: Option[String] = this.getSuperType
 }
 
 class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
@@ -198,6 +249,34 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
             case Some(parentMember) if !this.getType.startsWith(parentMember.getType + ".") =>
                 parentMember.getType + "." + this.getType
             case _ => super.getFullType
+        }
+    }
+
+    override def getFullSuperType: Option[String] = {
+        this.getSuperType match {
+          case Some(superTypeName) =>
+              //check if superTypeName is full or partial type name
+              findParent(_.isInstanceOf[ClassMember]) match {
+                  case Some(parentClassMember) if superTypeName.indexOf(".") < 1 =>
+                      //inner class can inherit from
+                      //1. stand alone class (not inner) e.g. MyClass - no further processing needed to get Full Super Type
+                      //2. inner class from another class, according to Apex rules must be defined as OtherClass.InnerClass
+                      //   - no further processing needed to get Full Super Type
+                      //3. inner class in the current class:
+                      //   - can be defined as CurrentClass.InnerClass or InnerClass
+                      //     here we are making sure that if InnerClass is specified then it is resolved as CurrentClass.InnerClass
+
+                      //is this a partially defined inner class? like Inner instead of Outer.Inner
+                      parentClassMember.getChild(superTypeName) match {
+                          case Some(member) => //yes it is, let's add outer class name to full type
+                              Some(parentClassMember.getType + "." + superTypeName)
+                          case None => //assume that full super type name is already provided
+                              Some(superTypeName)
+                      }
+
+                  case _ => Some(superTypeName)
+              }
+          case None => None
         }
     }
 }
@@ -301,6 +380,25 @@ object ClassBodyMember {
             i += 1
         }
         None
+    }
+
+    /**
+     *
+     * @param ctx parent context
+     * @param filter - predicate to apply
+     * @return index of a direct child which matches specified predicate
+     */
+    def findChildIndex(ctx: ParseTree, filter: (ParseTree) => Boolean): Int = {
+        var i = 0
+        while (i < ctx.getChildCount) {
+            val child = ctx.getChild(i)
+            if (filter(child)) {
+                return i
+            }
+
+            i += 1
+        }
+        -1
     }
 
     def getChild[T](ctx:ParseTree, cls: Class[T]): Option[T] = {

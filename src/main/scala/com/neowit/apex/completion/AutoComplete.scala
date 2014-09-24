@@ -86,11 +86,11 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
     //TODO add support for collections str[1] or mylist.get()
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree ): List[Member] = {
         if (Nil == expressionTokens) {
-            return parentType.getChildren
+            return parentType.getChildrenWithInheritance(apexTree)
         }
         val token: AToken = expressionTokens.head
         if (token.symbol.isEmpty) {
-            return parentType.getChildren
+            return parentType.getChildrenWithInheritance(apexTree)
         }
         val tokensToGo = expressionTokens.tail
 
@@ -103,7 +103,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                     case None => List()
                 }
             case None => //parent does not have a child with this identity, return partial match
-                val partialMatchChildren = filterByPrefix(parentType.getChildren, token.symbol)
+                val partialMatchChildren = filterByPrefix(parentType.getChildrenWithInheritance(apexTree), token.symbol)
                 if (partialMatchChildren.isEmpty) {
                     //token.symbol may be apex type
                     getApexTypeMembers(token.symbol)
