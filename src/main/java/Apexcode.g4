@@ -84,6 +84,8 @@ classOrInterfaceModifier
         |   'final'      // class only -- does not apply to interfaces
         |   'global'     // class or interface
         |   'webservice' // class only -- does not apply to interfaces
+        |   'override'   // method only
+        |   'virtual'    // method only
         )
     ;
 
