@@ -10,7 +10,8 @@ scalacOptions ++= Seq(
   "-deprecation", 
   "-encoding", "UTF-8",
   "-feature", 
-  "-unchecked"
+  "-unchecked",
+  "-target:jvm-1.6"
 )
 
 resolvers ++= Seq(
