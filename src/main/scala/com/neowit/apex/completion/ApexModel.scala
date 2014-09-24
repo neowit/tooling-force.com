@@ -119,6 +119,17 @@ case class ApexNamespace(name: String) extends ApexModelMember {
     private var isDoneLoading = false
     override def isLoaded:Boolean = isDoneLoading
 
+    //some methods are spread between namespaces,
+    //e.g. Database classes are in Database namespace, while Database methods are in System.Database class
+    override def getChildren: List[Member] = {
+        val myChildren = super.getChildren
+        //check if System namespace has class with the name of current namespace
+        val extraMembers = if ("System" != name) {
+            ApexModel.getSystemTypeMembers(name, true)
+        } else List()
+
+        myChildren ++ extraMembers
+    }
     override def loadMembers(): Unit = {
         loadFile(name)
         if ("System" == name) {
