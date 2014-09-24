@@ -596,12 +596,12 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
                 val start = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                             .filter(null!= _.getChild(classOf[TerminalNodeImpl], 0))
                             .map(_.getChild(classOf[TerminalNodeImpl], 0)).mkString(" ")
-                val params = getArgs.mkString(", ")
+                val params = getArgs.mkString(",")
 
                 if (start.nonEmpty)
-                    start + " " + getType + " " + getIdentity + s"($params)"
+                    start + " " + getType + " " + getMethodName + s"($params)"
                 else
-                    getType + " " + getIdentity + s"($params)"
+                    getType + " " + getMethodName + s"($params)"
 
             case None => //fall back
                 getIdentity + ": Signature is NOT COVERED by current implementation" //TODO - perhaps throwing an exception may be better?
