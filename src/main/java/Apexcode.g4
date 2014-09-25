@@ -167,6 +167,7 @@ memberDeclaration
     |   annotationTypeDeclaration
     |   classDeclaration
     |   enumDeclaration
+    |   propertyDeclaration
     ;
 
 /* We use rule this even for void methods which cannot have [] after parameters.
@@ -197,6 +198,14 @@ genericConstructorDeclaration
 
 fieldDeclaration
     :   type variableDeclarators ';'
+    ;
+
+propertyDeclaration
+    :   type variableDeclarators propertyBodyDeclaration
+    ;
+
+propertyBodyDeclaration
+    :   '{' propertyBlock propertyBlock '}'
     ;
 
 interfaceBodyDeclaration
@@ -431,6 +440,11 @@ statement
     |   statementExpression ';'
     |   Identifier ':' statement
     ;
+
+propertyBlock
+	:	('get' | 'set') ';'
+	|	('get' block | 'set' block)
+	;
 
 catchClause
     :   'catch' '(' variableModifier* catchType Identifier ')' block
