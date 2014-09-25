@@ -55,6 +55,7 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
             case EnumMember(context) => new EnumMember(ctx)
             case MethodMember(context) => new MethodMember(ctx, parser)
             case FieldMember(context) => new FieldMember(ctx, parser)
+            case PropertyMember(context) => new PropertyMember(ctx, parser)
             case _ => null;//new ClassBodyMember(ctx)
         }
         if (null != member) {
@@ -325,6 +326,7 @@ object ClassBodyMember {
             case None => false
         }
     }
+    def isProperty(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.PropertyDeclarationContext]).nonEmpty
 
     def isStatic(ctx: ParseTree): Boolean = {
         //classOrInterfaceModifier-s
@@ -533,6 +535,35 @@ class EnumMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx) 
     override def getType: String = getIdentity
 
     override def isStatic: Boolean = false
+}
+
+object PropertyMember {
+    def unapply(ctx: ParseTree): Option[ParseTree] = {
+        if (ClassBodyMember.isProperty(ctx)) Some(ctx) else None
+    }
+}
+class PropertyMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
+    val propertyDeclarationContext = ctx.memberDeclaration().propertyDeclaration()
+
+    override def getIdentity: String = {
+        propertyDeclarationContext.variableDeclarators().variableDeclarator().find(null != _.variableDeclaratorId()) match {
+          case Some(variableDeclaratorIdContext) => variableDeclaratorIdContext.getText
+          case None => ""
+        }
+    }
+
+    override def getType: String = {
+        if (null != propertyDeclarationContext && null != propertyDeclarationContext.`type`()) {
+            propertyDeclarationContext.`type`().getText
+        } else {
+            "void"
+        }
+    }
+
+    override def getSignature: String = {
+        val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
+        modifiers + " " + getType + " " + getIdentity
+    }
 }
 
 object FieldMember {
