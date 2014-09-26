@@ -163,7 +163,7 @@ trait Member {
           case _ => member.setParent(this)
         }
         try {
-            getChild(member.getIdentity.toLowerCase) match {
+            getChild(member.getIdentity.toLowerCase, withHierarchy = false) match {
                 case Some(_existingMember) => //this child already exists, do not overwrite
                 case None =>
                     children.+=(member.getIdentity.toLowerCase -> member)
@@ -255,7 +255,7 @@ trait Member {
         }
     }
 
-    def getChild(identity : String): Option[Member] = {
+    def getChild(identity : String, withHierarchy: Boolean = true): Option[Member] = {
 
         def findChildHierarchically(identity: String, apexTree: ApexTree = new ApexTree): Option[Member] = {
             getSuperType match {
@@ -283,7 +283,7 @@ trait Member {
 
         children.get(identity.toLowerCase) match {
             case Some(childMember) => Some(childMember)
-            case None => findChildHierarchically(identity.toLowerCase, getApexTree)
+            case None => if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
     }
 
