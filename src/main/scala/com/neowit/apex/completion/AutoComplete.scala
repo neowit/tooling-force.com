@@ -79,7 +79,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         val typeName = memberWithTypeToResolve.getFullType
         //first check if this is one of parsed classes
         memberWithTypeToResolve.getApexTree.getClassMemberByType(typeName) match {
-          case Some(typeMember) => Some(typeMember)
+          case Some(typeMember) => return Some(typeMember)
           case None =>
                 //now check if memberType is the type of inner class in the current Main/Outer class
                 val innerClassMember = memberWithTypeToResolve.getTopMostClassMember match {
