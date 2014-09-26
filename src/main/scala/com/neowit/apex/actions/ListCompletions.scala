@@ -3,8 +3,7 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.completion.{AutoComplete}
-import com.neowit.apex.parser.Member
-import com.neowit.apex.parser.TreeListener.ApexTree
+import com.neowit.apex.parser.{ApexTree, Member}
 import com.neowit.utils.BasicConfig
 
 class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig){
@@ -27,7 +26,7 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
 
             val cachedTree:ApexTree = SourceScannerCache.getScanResult(config.projectDir)  match {
                 case Some(sourceScanner) => sourceScanner.getTree
-                case None => Map()
+                case None => new ApexTree
             }
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
             val members = completion.listOptions

@@ -3,16 +3,19 @@ package com.neowit.apex.completion
 import java.io.{FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.{ClassBodyMember, TreeListener, Member}
-import com.neowit.apex.parser.TreeListener.ApexTree
+import com.neowit.apex.parser.{ApexTree, ClassBodyMember, TreeListener, Member}
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
-class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Map[String, Member]()) {
+class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
     def listOptions:List[Member] = {
         val expressionTokens = getCaretStatement
+        if (expressionTokens.isEmpty) {
+            //looks like the file is too broken to get to the point where caret resides
+            return List()
+        }
         val lexer = getLexer(file)
         val tokens = new CommonTokenStream(lexer)
         val parser = new ApexcodeParser(tokens)
@@ -23,7 +26,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
         //List( someClassInstance, method(), goes, her)
-        val fullApexTree = cachedTree ++ extractor.tree
+        val fullApexTree = cachedTree
+        cachedTree.extend(extractor.tree)
+        //val fullApexTree = cachedTree ++ extractor.tree
         val definition = findSymbolType(expressionTokens.head, extractor)
         definition match {
             case Some((parseTree, typeContext)) =>
@@ -37,7 +42,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
             case None => //final attempt - check if current symbol is a namespace or one of System types
                 //check if this is something like MyClass.MySubclass
                 val startType = expressionTokens.head.symbol
-                fullApexTree.get(startType) match {
+                fullApexTree.getClassMemberByType(startType) match {
                     case Some(_member) => //e.g. someClassInstance
                         val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                         return members
@@ -63,6 +68,43 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         List()
     }
 
+    private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
+        //check if this is a top level type
+        apexTree.getClassMemberByType(typeName) match {
+          case Some(classMember) =>
+              //this will cover OuterClass and OuterClass.InnerClass cases
+              return Some(classMember)
+          case None => // check if current type name is short (not FQN) class name of inner class in the current file
+              if (ctx.isDefined) {
+                  ClassBodyMember.getTopMostClassContext(ctx.get) match {
+                      case Some(classContext) if null != classContext.asInstanceOf[ClassDeclarationContext].Identifier() =>
+                          val topClassTypeName = classContext.asInstanceOf[ClassDeclarationContext].Identifier()
+                          apexTree.getClassMemberByType(topClassTypeName + "."  + typeName) match {
+                            case Some(_classMember) =>
+                                return Some(_classMember)
+                            case None =>
+                          }
+
+                      case None =>
+                  }
+              }
+
+        }
+        //check if this is one of standard Apex types
+        ApexModel.getNamespace(typeName) match {
+            case Some(namespaceMember) =>
+                Some(namespaceMember)
+            case None =>
+                //check if caret is fully qualified type with namespace
+                ApexModel.getTypeMember(typeName) match {
+                    case Some(member) => Some(member)
+                    case None => None
+                }
+        }
+
+
+    }
+    /*
     private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
         apexTree.get(typeName) match {
             case Some(_member) => //e.g. someClassInstance
@@ -95,6 +137,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
         }
 
     }
+    */
 
 
     //TODO add support for collections str[1] or mylist.get()
@@ -176,6 +219,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree = Ma
                 //listOptions(ex)
                 return resolveExpression(ex)
             case e:Throwable =>
+                println(e.getMessage)
         }
 
         List()

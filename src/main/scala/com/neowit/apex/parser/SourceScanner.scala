@@ -2,14 +2,13 @@ package com.neowit.apex.parser
 
 import java.io.{FileInputStream, File}
 
-import com.neowit.apex.parser.TreeListener.ApexTree
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import com.neowit.utils.Logging
 import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.antlr.v4.runtime.{CommonTokenStream, ANTLRInputStream}
 
 class SourceScanner (files: List[File]) extends Logging {
-    val completeTree = Map.newBuilder[String, Member]
+    val completeTree = new ApexTree
     val fileModificationTimes = Map.newBuilder[String, Long]
 
     private def getLexer(file: File): ApexcodeLexer = {
@@ -37,7 +36,7 @@ class SourceScanner (files: List[File]) extends Logging {
                 val tree = parser.compilationUnit()
                 val extractor = new TreeListener(parser)
                 walker.walk(extractor, tree)
-                completeTree.++=(extractor.getTree)
+                completeTree.extend(extractor.getTree)
                 fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
             }
         }
@@ -45,7 +44,7 @@ class SourceScanner (files: List[File]) extends Logging {
     }
 
     def getTree: ApexTree = {
-        completeTree.result()
+        completeTree
     }
 }
 

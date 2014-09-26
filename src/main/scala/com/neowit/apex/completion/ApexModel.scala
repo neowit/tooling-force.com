@@ -81,12 +81,12 @@ object ApexModel {
 }
 
 trait ApexModelMember extends Member {
-    //override def getIdentity: String = ???
+    //this is for cases when we load stuff from System.<Class> into appropriate <Class> namespace
+    //e.g. System.Database methods are loaded into Database namespace
+    override def isParentChangeAllowed: Boolean = true
 
-    //override def getSignature: String = ???
-
-    //override def isStatic: Boolean = ???
     override def getVisibility: String = "public"
+    override def getType: String = getIdentity
 
     override def getPath: String = getParent match {
         case Some(member) => member.getIdentity
@@ -156,7 +156,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
             //println("typeName=" + typeName)
             val apexTypeMember = typeJson.convertTo[ApexType]
 
-            apexTypeMember.parent = Some(this)
+            apexTypeMember.setParent(this)
             addChild(apexTypeMember)
 
             //if current Apex Type has a super type then extend it accordingly
@@ -189,7 +189,7 @@ case class ApexType(name: String, superType: Option[String], methods: List[ApexM
     override def isLoaded:Boolean = isDoneLoading
     override def loadMembers(): Unit = {
         for (method <- methods) {
-            method.parent = Some(this)
+            //method.setParent(this)
             addChild(method)
         }
 
