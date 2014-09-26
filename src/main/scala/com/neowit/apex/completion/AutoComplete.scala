@@ -3,7 +3,7 @@ package com.neowit.apex.completion
 import java.io.{FileInputStream, File}
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.{ApexTree, ClassBodyMember, TreeListener, Member}
+import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
@@ -31,7 +31,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         //val fullApexTree = cachedTree ++ extractor.tree
         val definition = findSymbolType(expressionTokens.head, extractor)
         definition match {
-            case Some((parseTree, typeContext)) =>
+            case (Some((parseTree, typeContext)), None) =>
                 //typeContext contains node type, e.g. SomeClass of the first token in expressionTokens
                 val startType = typeContext.getText
                 findMember(startType, fullApexTree, ctx = Some(typeContext)) match {
@@ -39,7 +39,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                       return resolveExpression(member, expressionTokens.tail, fullApexTree)
                   case None =>
                 }
-            case None => //final attempt - check if current symbol is a namespace or one of System types
+            case (None, Some(_member)) =>
+                val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+                return members
+            case _ => //final attempt - check if current symbol is a namespace or one of System types
                 //check if this is something like MyClass.MySubclass
                 val startType = expressionTokens.head.symbol
                 fullApexTree.getClassMemberByType(startType) match {
@@ -240,41 +243,23 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): Option[(ParseTree, ParseTree)] = {
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): (Option[(ParseTree, ParseTree)], Option[Member]) = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
             ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
                 case Some(classDeclarationContext) =>
                     if ("this" == symbol) {
-                        return Some(classDeclarationContext, classDeclarationContext.Identifier())
+                        return (Some((classDeclarationContext, classDeclarationContext.Identifier())), None)
                     } else {
                         //super
                         //TODO
-                        /*
-                        findMember(classDeclarationContext.Identifier().getText, memberTree, Some(classDeclarationContext)) match {
-                            case Some(thisClassMember) =>
-                                thisClassMember.getSuperTypeIdentity match {
-                                    case Some(superTypeName) =>
-                                        findMember(superTypeName, memberTree) match {
-                                            case Some(superTypeMember) =>
-                                                return (None, Some(superTypeMember))
-                                            case None =>
-                                        }
-                                    case None =>
-                                }
-                            case None =>
+                        return findMember(classDeclarationContext.Identifier().getText, extractor.getTree, Some(caretAToken.finalContext)) match {
+                          case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
+                          case _ => (None, None)
                         }
-                        ClassBodyMember.getParent(classDeclarationContext, classOf[ClassDeclarationContext]) match {
-                            case Some(superClassDeclarationContext) =>
-                                return (Some(superClassDeclarationContext, superClassDeclarationContext.Identifier()), None)
-                            case None => None
-
-                        }
-                        */
-                        None
                     }
-                case None => None
+                case None => (None, None)
             }
 
         } else {
@@ -287,7 +272,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                             if (parentNode.isInstanceOf[ClassDeclarationContext]) {
                                 //looks like this atoken is a class name
                                 //return Some((potentialDefinitionNodes.head.getSymbol, parentNode))
-                                return getTypeParent(parentNode)
+                                return (getTypeParent(parentNode), None)
 
                             }
                         }
@@ -310,8 +295,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                             //println(steps + "=" + n)
                             //node which we found is most likely a definition of one under caret
                             return getTypeParent(n) match {
-                                case Some((pt, typeContext)) if null != typeContext => Some((pt, typeContext))
-                                case _ => None
+                                case Some((pt, typeContext)) if null != typeContext => (Some((pt, typeContext)), None)
+                                case _ => (None, None)
                             }
 
                         case None =>
@@ -319,7 +304,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                     }
                 case None =>
             }
-            None
+            (None, None)
         }
     }
 

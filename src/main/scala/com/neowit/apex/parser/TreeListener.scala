@@ -424,6 +424,17 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
     def getInnerClassByType(innerClassTypeName: String): Option[InnerClassMember] = {
         innerClassByClassName.get(innerClassTypeName.toLowerCase)
     }
+
+    /**
+     * if this class extends another class then find Member of that other class
+     * @return
+     */
+    def getSuperClassMember: Option[Member] = {
+        this.getFullSuperType match {
+          case Some(fullSuperType) => getApexTree.getClassMemberByType(fullSuperType)
+          case None => None
+        }
+    }
 }
 
 object InnerClassMember {
