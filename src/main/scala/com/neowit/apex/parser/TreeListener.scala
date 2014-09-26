@@ -16,10 +16,10 @@ class ApexTree {
 
     def getMember(identity: String): Option[Member] = {
         val lowerCaseIdentity = identity.toLowerCase
-        if (identity.indexOf(".") > 0) {
+        if (lowerCaseIdentity.indexOf(".") > 0) {
             //TODO resolve hierarchically
             //resolve OuterClass.InnerClass in two steps
-            val identities = identity.split("\\.")
+            val identities = lowerCaseIdentity.split("\\.")
             if (identities.length > 1) {
                 tree.get(identities.head) match {
                     case Some(outerClassMember) =>
@@ -92,7 +92,10 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     override def enterClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext): Unit ={
         val member = if (ClassBodyMember.isInnerClass(ctx)) new InnerClassMember(ctx) else new ClassMember(ctx)
         registerMember(member)
-        tree.addMember(member)
+        if (!member.isInstanceOf[InnerClassMember]) {
+            //only top level classes shall be registered in the root of main tree
+            tree.addMember(member)
+        }
         stack.push(member)
 
     }
@@ -216,7 +219,19 @@ trait Member {
         children.values.toList
     }
 
-    def getSuperTypeIdentity: Option[String] = None
+    /**
+     * using provided typeName check if this type is defined in the current Outer Class
+     * @param typeName
+     * @return
+     */
+    def findMemberByTypeLocally(typeName: String): Option[Member] = {
+        getTopMostClassMember match {
+          case Some(outerClassMember) =>
+              outerClassMember.getInnerClassByType(typeName)
+          case None => None
+        }
+    }
+
     /**
      * this method is only relevant when current member is a Class or Inner Class
      * use this method to get children of this member and super type members
@@ -225,16 +240,17 @@ trait Member {
      */
     def getChildrenWithInheritance(apexTree: ApexTree): List[Member] = {
         getSuperType match {
-          case Some(superType) => apexTree.getClassMemberByType(superType) match {
-            case Some(superTypeMember) =>
-                val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
-                val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
-                val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
-                                            superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
-                )
-                superTypeChildrenMinusMyChildren ++ getChildren
-            case None => getChildren
-          }
+          case Some(superType) =>
+              apexTree.getClassMemberByType(superType).orElse(findMemberByTypeLocally(superType)) match {
+                  case Some(superTypeMember) =>
+                      val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
+                      val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
+                      val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
+                          superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
+                      )
+                      superTypeChildrenMinusMyChildren ++ getChildren
+                  case None => getChildren
+              }
           case None => getChildren
         }
     }
@@ -242,13 +258,25 @@ trait Member {
     def getChild(identity : String): Option[Member] = {
 
         def findChildHierarchically(identity: String, apexTree: ApexTree = new ApexTree): Option[Member] = {
-            getSuperTypeIdentity match {
-                case Some(superIdentity) =>
-                    apexTree.getMember(superIdentity) match {
-                        case Some(superTypeMember) =>
-                            superTypeMember.getChild(identity)
-                        case None => None
+            getSuperType match {
+                case Some(superType) =>
+                    //first check if superType is an inner class in the current main/outer class
+                    val innerSuperClassMember = getParent match {
+                      case Some(parentMember:ClassMember) =>
+                          parentMember.getInnerClassByType(superType)
+                      case _ => None
                     }
+                    innerSuperClassMember match {
+                      case Some(member) => member.getChild(identity)
+                      case None =>
+                          //fall back to the main tree
+                          apexTree.getClassMemberByType(superType) match {
+                              case Some(superTypeMember) =>
+                                  superTypeMember.getChild(identity)
+                              case None => None
+                          }
+                    }
+
                 case None => None
             }
         }
@@ -289,6 +317,7 @@ trait Member {
 
     def isStatic: Boolean
 
+    /*
     def getPath: String = {
 
         def resolveFullPath(currentPath: String): String = getParent match {
@@ -298,6 +327,7 @@ trait Member {
         val res = resolveFullPath(getIdentity)
         res
     }
+    */
 
     override def toString: String = {
         //val txt = getIdentity
@@ -324,6 +354,27 @@ trait Member {
             this.getIdentity.toLowerCase == o.asInstanceOf[Member].getIdentity.toLowerCase
     }
     override def hashCode = getIdentity.toLowerCase.hashCode
+
+    def getTopMostClassMember: Option[ClassMember] = {
+        if (this.isInstanceOf[ClassMember] && !this.isInstanceOf[InnerClassMember]) {
+            return Some(this.asInstanceOf[ClassMember])
+        }
+        def getParentByType[T <: Member](m: Member, classType: Class[T]): Option[Member] = {
+            m.getParent match {
+              case Some(member) =>
+                  if (member.getClass == classType) {
+                      Some(member)
+                  } else {
+                      getParentByType(member, classType)
+                  }
+              case None => None
+            }
+        }
+        getParentByType(this, classOf[ClassMember]) match {
+          case Some(member) => Some(member.asInstanceOf[ClassMember])
+          case None => None
+        }
+    }
 }
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
@@ -377,9 +428,6 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
 
 object InnerClassMember {
     private val IDENTITY_PREFIX = "InnerClass:"
-    def getFullIdentity(outerClassIdentity: String, innerClassIdentity: String): String = {
-        outerClassIdentity + "." + IDENTITY_PREFIX + innerClassIdentity
-    }
 }
 class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
 
@@ -402,18 +450,6 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
             case Some(parentMember) if !this.getType.startsWith(parentMember.getType + ".") =>
                 parentMember.getType + "." + this.getType
             case _ => super.getFullType
-        }
-    }
-
-    override def getSuperTypeIdentity: Option[String] = {
-        getFullSuperType match {
-          case Some(superTypeName) =>
-              getApexTree.getClassMemberByType(superTypeName) match {
-                  case Some(superTypeMember) =>
-                      Some(superTypeMember.getIdentity)
-                  case None => None
-              }
-          case None => None
         }
     }
 
@@ -449,7 +485,7 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
 
 
     override def getIdentity: String = this.getParent match {
-        case Some(parentMember) => InnerClassMember.getFullIdentity(parentMember.getIdentity, super.getIdentity)
+        case Some(parentMember) => InnerClassMember.IDENTITY_PREFIX +  super.getIdentity
         case None => "" //this case is only relevant when we are adding child to parent first time, as Inner Class requires parent to resolve adentity
     }
 
@@ -617,6 +653,7 @@ object ClassBodyMember {
         }
 
     }
+
     /**
      * when type of current Member is Inner Class - resolve full inner class type
      * e.g.
@@ -638,7 +675,6 @@ object ClassBodyMember {
               }
           case _ => None
         }
-
     }
 }
 

@@ -88,11 +88,6 @@ trait ApexModelMember extends Member {
     override def getVisibility: String = "public"
     override def getType: String = getIdentity
 
-    override def getPath: String = getParent match {
-        case Some(member) => member.getIdentity
-        case None => "System"
-    }
-
     protected def isLoaded: Boolean = true
 
     override def getChildren: List[Member] = {

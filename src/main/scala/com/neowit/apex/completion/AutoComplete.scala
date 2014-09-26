@@ -68,6 +68,47 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         List()
     }
 
+    /**
+     * get member which defines the type of current member
+     * e.g. SomeClass var;
+     * if this member is 'var' then we will return member of SomeClass
+     * @param memberWithTypeToResolve
+     * @return
+     */
+    private def findTypeMember(memberWithTypeToResolve: Member): Option[Member] = {
+        val typeName = memberWithTypeToResolve.getFullType
+        //first check if this is one of parsed classes
+        memberWithTypeToResolve.getApexTree.getClassMemberByType(typeName) match {
+          case Some(typeMember) => Some(typeMember)
+          case None =>
+                //now check if memberType is the type of inner class in the current Main/Outer class
+                val innerClassMember = memberWithTypeToResolve.getTopMostClassMember match {
+                  case Some(outerClassMember) =>
+                      outerClassMember.getInnerClassByType(typeName)
+                  case None => None
+                }
+                innerClassMember match {
+                  case Some(member) =>
+                      //type of memberToResolve is inner class defined by current member
+                      return Some(member)
+                  case None =>
+                }
+        }
+
+        //search in main tree and current file failed, let's see if memberType is one of apex types
+        //check if this is one of standard Apex types
+        ApexModel.getNamespace(typeName) match {
+            case Some(namespaceMember) =>
+                Some(namespaceMember)
+            case None =>
+                //check if caret is fully qualified type with namespace
+                ApexModel.getTypeMember(typeName) match {
+                    case Some(member) => Some(member)
+                    case None => None
+                }
+        }
+
+    }
     private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
         //check if this is a top level type
         apexTree.getClassMemberByType(typeName) match {
@@ -104,41 +145,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
 
     }
-    /*
-    private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
-        apexTree.get(typeName) match {
-            case Some(_member) => //e.g. someClassInstance
-                return Some(_member)
-            case None => //maybe this is a short definition of inner class, let's resolve it to full type name
-                if (ctx.isDefined) {
-                    ClassBodyMember.getTopMostClassContext(ctx.get) match {
-                        case Some(classContext) if null != classContext.asInstanceOf[ClassDeclarationContext].Identifier() =>
-                            val topClassTypeName = classContext.asInstanceOf[ClassDeclarationContext].Identifier()
-                            apexTree.get(topClassTypeName + "." + typeName) match {
-                                case Some(_member) =>
-                                    return Some(_member)
-                                case None =>
-                            }
-                        case None =>
-                    }
-                }
-
-        }
-        //check if this is one of standard Apex types
-        ApexModel.getNamespace(typeName) match {
-            case Some(namespaceMember) =>
-                Some(namespaceMember)
-            case None =>
-                //check if caret is fully qualified type with namespace
-                ApexModel.getTypeMember(typeName) match {
-                    case Some(member) => Some(member)
-                    case None => None
-                }
-        }
-
-    }
-    */
-
 
     //TODO add support for collections str[1] or mylist.get()
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree ): List[Member] = {
@@ -154,7 +160,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         //see if we can find the exact match
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
-                findMember(_childMember.getFullType, apexTree) match {
+                findTypeMember(_childMember) match {
                     case Some(_member) =>
                         return resolveExpression(_member, tokensToGo, apexTree)
                     case None => List()
@@ -226,49 +232,95 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
     }
 
+    /**
+     *
+     * @param caretAToken
+     * @param extractor
+     * @return
+     *         - ParseTree - declarationContext
+     *         - ParseTree = identifier or type context
+     */
     private def findSymbolType(caretAToken: AToken, extractor: TreeListener): Option[(ParseTree, ParseTree)] = {
-        extractor.getIdentifiers(caretAToken.symbol) match {
-            case Some(potentialDefinitionNodes) =>
-                //val potentialDefinitionNodes = nodes - caretNode
-                if (1 == potentialDefinitionNodes.size) {
-                    val parentNode = potentialDefinitionNodes.head.getParent
-                    if (null != parentNode) {
-                        if (parentNode.isInstanceOf[ClassDeclarationContext]) {
-                            //looks like this atoken is a class name
-                            //return Some((potentialDefinitionNodes.head.getSymbol, parentNode))
-                            return getTypeParent(parentNode)
+        val symbol = caretAToken.symbol.toLowerCase
+        if ("this" == symbol || "super" == symbol) {
+            //process special cases: this & super
+            ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
+                case Some(classDeclarationContext) =>
+                    if ("this" == symbol) {
+                        return Some(classDeclarationContext, classDeclarationContext.Identifier())
+                    } else {
+                        //super
+                        //TODO
+                        /*
+                        findMember(classDeclarationContext.Identifier().getText, memberTree, Some(classDeclarationContext)) match {
+                            case Some(thisClassMember) =>
+                                thisClassMember.getSuperTypeIdentity match {
+                                    case Some(superTypeName) =>
+                                        findMember(superTypeName, memberTree) match {
+                                            case Some(superTypeMember) =>
+                                                return (None, Some(superTypeMember))
+                                            case None =>
+                                        }
+                                    case None =>
+                                }
+                            case None =>
+                        }
+                        ClassBodyMember.getParent(classDeclarationContext, classOf[ClassDeclarationContext]) match {
+                            case Some(superClassDeclarationContext) =>
+                                return (Some(superClassDeclarationContext, superClassDeclarationContext.Identifier()), None)
+                            case None => None
 
                         }
+                        */
+                        None
                     }
-                }
-                /* sort by proximity to caret*/
-                //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
-                //now find one which is closest to the caret and most likely definition
-                val distances = collection.mutable.ArrayBuffer[(Int, ParseTree, TerminalNode)]()
-                for (node <- potentialDefinitionNodes ) {
-                    distanceToCommonParent(caretAToken.finalContext, node) match {
-                        case Some((steps, commonParent)) =>
-                            distances += ((steps, commonParent, node))
+                case None => None
+            }
+
+        } else {
+            extractor.getIdentifiers(caretAToken.symbol) match {
+                case Some(potentialDefinitionNodes) =>
+                    //val potentialDefinitionNodes = nodes - caretNode
+                    if (1 == potentialDefinitionNodes.size) {
+                        val parentNode = potentialDefinitionNodes.head.getParent
+                        if (null != parentNode) {
+                            if (parentNode.isInstanceOf[ClassDeclarationContext]) {
+                                //looks like this atoken is a class name
+                                //return Some((potentialDefinitionNodes.head.getSymbol, parentNode))
+                                return getTypeParent(parentNode)
+
+                            }
+                        }
+                    }
+                    /* sort by proximity to caret*/
+                    //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
+                    //now find one which is closest to the caret and most likely definition
+                    val distances = collection.mutable.ArrayBuffer[(Int, ParseTree, TerminalNode)]()
+                    for (node <- potentialDefinitionNodes) {
+                        distanceToCommonParent(caretAToken.finalContext, node) match {
+                            case Some((steps, commonParent)) =>
+                                distances += ((steps, commonParent, node))
+                            case None =>
+                        }
+                        //println(node)
+                    }
+                    //find one with shortest distance
+                    distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption match {
+                        case Some((steps, commonParent, n)) =>
+                            //println(steps + "=" + n)
+                            //node which we found is most likely a definition of one under caret
+                            return getTypeParent(n) match {
+                                case Some((pt, typeContext)) if null != typeContext => Some((pt, typeContext))
+                                case _ => None
+                            }
+
                         case None =>
+                        //cursor symbol is not defined in the current file
                     }
-                    //println(node)
-                }
-                //find one with shortest distance
-                distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption  match {
-                    case Some((steps, commonParent, n)) =>
-                        //println(steps + "=" + n)
-                        //node which we found is most likely a definition of one under caret
-                        return getTypeParent(n) match {
-                            case Some((pt, typeContext)) if null != typeContext => Some((pt, typeContext))
-                            case _ => None
-                        }
-
-                    case None =>
-                    //cursor symbol is not defined in the current file
-                }
-            case None =>
+                case None =>
+            }
+            None
         }
-        None
     }
 
 
