@@ -226,10 +226,21 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
     }
 
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): Option[(ParseTree, ParserRuleContext)] = {
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): Option[(ParseTree, ParseTree)] = {
         extractor.getIdentifiers(caretAToken.symbol) match {
             case Some(potentialDefinitionNodes) =>
                 //val potentialDefinitionNodes = nodes - caretNode
+                if (1 == potentialDefinitionNodes.size) {
+                    val parentNode = potentialDefinitionNodes.head.getParent
+                    if (null != parentNode) {
+                        if (parentNode.isInstanceOf[ClassDeclarationContext]) {
+                            //looks like this atoken is a class name
+                            //return Some((potentialDefinitionNodes.head.getSymbol, parentNode))
+                            return getTypeParent(parentNode)
+
+                        }
+                    }
+                }
                 /* sort by proximity to caret*/
                 //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
                 //now find one which is closest to the caret and most likely definition
@@ -269,12 +280,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      *          in this case n will be node containing str in line 1:
      * @return
      */
-    private def getTypeParent(n: ParseTree): Option[(ParseTree, ParserRuleContext)] = {
+    private def getTypeParent(n: ParseTree): Option[(ParseTree, ParseTree)] = {
         if (null == n) {
             None
         } else {
             n match {
-                case x: ClassDeclarationContext => Some((x, x.`type`()))
+                case x: ClassDeclarationContext => Some((x, x.Identifier()))
                 //case x: TypeBoundContext => Some((x, x.`type`()))
                 case x: MethodDeclarationContext => Some((x, x.`type`()))
                 case x: FieldDeclarationContext => Some((x, x.`type`()))
