@@ -205,7 +205,7 @@ propertyDeclaration
     ;
 
 propertyBodyDeclaration
-    :   '{' propertyBlock propertyBlock '}'
+    :   '{' propertyBlock propertyBlock? '}'
     ;
 
 interfaceBodyDeclaration
@@ -442,8 +442,8 @@ statement
     ;
 
 propertyBlock
-	:	('get' | 'set') ';'
-	|	('get' block | 'set' block)
+	:	modifier* ('get' | 'set') ';'
+	|	modifier* ('get' block | 'set' block)
 	;
 
 catchClause
