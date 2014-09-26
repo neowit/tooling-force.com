@@ -104,7 +104,7 @@ trait Member {
 
     def addChild(member: Member) {
         try {
-            getChild(member.getIdentity) match {
+            getChild(member.getIdentity.toLowerCase) match {
                 case Some(_existingMember) => //this child already exists, do not overwrite
                 case None =>
                     children.+=(member.getIdentity.toLowerCase -> member)
@@ -137,14 +137,14 @@ trait Member {
     /**
      * this method is only relevant when current member is a Class or Inner Class
      * use this method to get children of this member and super type members
-     * @param parseTree previously generated parse tree
+     * @param apexTree previously generated parse tree
      * @return
      */
-    def getChildrenWithInheritance(parseTree: ApexTree): List[Member] = {
-        getFullSuperType match {
-          case Some(superTypeName) => parseTree.get(superTypeName) match {
+    def getChildrenWithInheritance(apexTree: ApexTree): List[Member] = {
+        getSuperTypeIdentity match {
+          case Some(superTypeName) => apexTree.get(superTypeName) match {
             case Some(superTypeMember) =>
-                val superTypeChildren = superTypeMember.getChildrenWithInheritance(parseTree)
+                val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
                 val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
                 val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
                                             superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
@@ -156,8 +156,28 @@ trait Member {
         }
     }
 
-    def getChild(identity : String): Option[Member] = {
-      children.get(identity.toLowerCase)
+    def getChild(identity : String, apexTree: Option[ApexTree] = None): Option[Member] = {
+
+        def findChildHierarchically(identity: String, apexTree: Option[ApexTree] = None): Option[Member] = {
+            apexTree match {
+                case Some(tree) =>
+                    getSuperTypeIdentity match {
+                        case Some(superTypeName) =>
+                            tree.get(superTypeName) match {
+                                case Some(superTypeMember) =>
+                                    superTypeMember.getChild(identity, Some(tree))
+                                case None => None
+                            }
+                        case None => None
+                    }
+                case None => None
+            }
+        }
+
+        children.get(identity.toLowerCase) match {
+            case Some(childMember) => Some(childMember)
+            case None => findChildHierarchically(identity.toLowerCase, apexTree)
+        }
     }
 
     /**
@@ -170,7 +190,7 @@ trait Member {
     def getIdentity:String
 
     /**
-     * for most member types Identity is unique (for Methods it is not)
+     * for most member types Identity is unique (for Methods and Inner Classes it is not)
      */
     def getIdentityToDisplay:String = getIdentity
 
@@ -262,6 +282,12 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
     override def getFullSuperType: Option[String] = this.getSuperType
 }
 
+object InnerClassMember {
+    private val IDENTITY_PREFIX = "InnerClass:"
+    def getFullIdentity(outerClassIdentity: String, innerClassIdentity: String): String = {
+        outerClassIdentity + "." + IDENTITY_PREFIX + innerClassIdentity
+    }
+}
 class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
 
     override def getSignature: String = {
@@ -277,6 +303,12 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
     }
 
     override def getFullSuperType: Option[String] = {
+    override def getIdentity: String = this.getParent match {
+        case Some(parentMember) => InnerClassMember.getFullIdentity(parentMember.getIdentity, super.getIdentity)
+        case None => throw new IllegalAccessError("never expected to get to this place")
+    }
+
+    override def getIdentityToDisplay: String = super.getIdentity
         this.getSuperType match {
           case Some(superTypeName) =>
               //check if superTypeName is full or partial type name
