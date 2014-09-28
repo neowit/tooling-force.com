@@ -258,7 +258,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
             }
 
         } else {
-            extractor.targetMember match {
+            extractor.getTargetMember match {
               case Some(parentMemberOfCaret) =>
                   return (None, findSymbolInMemberHierarchy(parentMemberOfCaret, symbol, fullCachedTree))
               case None => //current symbol is not defined in the current class

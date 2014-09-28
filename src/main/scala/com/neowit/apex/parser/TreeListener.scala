@@ -11,8 +11,6 @@ import scala.collection.JavaConversions._
 import scala.util.parsing.json.JSONObject
 
 class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClassName: mutable.LinkedHashMap[String, ClassMember]) {
-    //private val tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
-    //private val classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
 
     def this() {
         this(
@@ -72,7 +70,7 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
         tree ++= anotherTree.tree
         classByClassName ++= anotherTree.classByClassName
     }
-    //TODO
+
     override def clone = {
         val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
         val _classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
@@ -86,8 +84,10 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
-    val stack= mutable.Stack[Member]()
+    val memberScopeStack = mutable.Stack[Member]()
+    private var targetMember: Option[Member] = None
 
+    def getTargetMember: Option[Member] = targetMember
 
     def dump(): Unit = {
         tree.dump()
@@ -98,8 +98,8 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     def registerMember(member: Member) {
         member.setApexTree(tree)
-        if (stack.nonEmpty) {
-            val parentMember = stack.top
+        if (memberScopeStack.nonEmpty) {
+            val parentMember = memberScopeStack.top
             //member.setParent(parentMember)
             parentMember.addChild(member)
         }
@@ -113,11 +113,11 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
             //only top level classes shall be registered in the root of main tree
             tree.addMember(member)
         }
-        stack.push(member)
+        memberScopeStack.push(member)
 
     }
     override def exitClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext) {
-        stack.pop()
+        memberScopeStack.pop()
 
     }
 
@@ -143,7 +143,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         }
         member match {
             case m: MethodMember =>
-                stack.push(m)
+                memberScopeStack.push(m)
             case _ =>
         }
     }
@@ -151,7 +151,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         ctx match {
             case MethodMember(context) =>
-                stack.pop()
+                memberScopeStack.pop()
             case _ =>
         }
     }
@@ -168,10 +168,10 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
                 && !node.getParent.isInstanceOf[PrimaryContext]
         ) {
             val name = symbol.getText
-            val identifier = if (stack.isEmpty)
+            val identifier = if (memberScopeStack.isEmpty)
                                 new Identifier(node, None)
                             else
-                                new Identifier(node, Some(stack.top))
+                                new Identifier(node, Some(memberScopeStack.top))
             identifierMap.get(name) match {
               case Some(nodes) =>
                   identifierMap(name) = nodes + identifier
@@ -181,19 +181,14 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         }
     }
 
-
-    /*
-    override def enterVariableDeclarator(ctx: VariableDeclaratorContext): Unit = {
-    }
-    */
-
-
     override def enterEveryRule(ctx: ParserRuleContext): Unit = {
         checkTargetMember(ctx.getStart)
 
     }
 
     override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
+        //cycle through all variables declared in the current expression
+        //String a, b, c;
         for (varDeclarationCtx <- ctx.localVariableDeclaration().variableDeclarators().variableDeclarator()) {
             val member = new LocalVariableMember(ctx.localVariableDeclaration(), varDeclarationCtx)
             registerMember(member)
@@ -203,7 +198,6 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     }
 
     override def enterFieldDeclaration(ctx: FieldDeclarationContext): Unit = {
-
         val member = new FieldMember(ctx)
         registerMember(member)
     }
@@ -223,7 +217,6 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         identifierMap.get(name)
     }
 
-    var targetMember: Option[Member] = None
     override def visitErrorNode(node: ErrorNode): Unit = {
         checkTargetMember(node.getSymbol)
     }
@@ -236,8 +229,8 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
             //we are in progress of parsing file where completion needs to be done
             println("target node=" + token.getText)
             println("target node.Line=" + token.getLine)
-            if (stack.nonEmpty) {
-                targetMember = Some(stack.top)
+            if (memberScopeStack.nonEmpty) {
+                targetMember = Some(memberScopeStack.top)
             }
         }
 
