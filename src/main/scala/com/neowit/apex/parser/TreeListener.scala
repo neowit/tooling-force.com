@@ -65,6 +65,7 @@ class ApexTree {
         classByClassName ++= anotherTree.classByClassName
     }
 }
+
 class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
@@ -103,23 +104,41 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         stack.pop()
 
     }
+
+    override def enterEnumDeclaration(ctx: EnumDeclarationContext): Unit = {
+        val member = new EnumMember(ctx)
+        registerMember(member)
+
+    }
+
+    override def enterPropertyDeclaration(ctx: PropertyDeclarationContext): Unit = {
+        val member = new PropertyMember(ctx)
+        registerMember(member)
+
+    }
+
     override def enterClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         val member = ctx match {
-            case EnumMember(context) => new EnumMember(ctx)
             case MethodMember(context) => new MethodMember(ctx, parser)
-            //case FieldMember(context) => new FieldMember(ctx, parser)
-            case PropertyMember(context) => new PropertyMember(ctx, parser)
             case _ => null;//new ClassBodyMember(ctx)
         }
         if (null != member) {
             registerMember(member)
         }
+        member match {
+            case m: MethodMember =>
+                stack.push(m)
+            case _ =>
+        }
     }
 
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
-        //super.exitClassBodyDeclaration(ctx)
+        ctx match {
+            case MethodMember(context) =>
+                stack.pop
+            case _ =>
+        }
     }
-
 
     private val identifierMap = mutable.Map[String, Set[Identifier]]()
     /**
@@ -147,15 +166,18 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     }
 
 
+    /*
     override def enterVariableDeclarator(ctx: VariableDeclaratorContext): Unit = {
-        val member = new VariableMember(ctx)
-        registerMember(member)
     }
+    */
 
 
     override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
-        //val member = new VariableMember(ctx)
-        //registerMember(member)
+        for (varDeclarationCtx <- ctx.localVariableDeclaration().variableDeclarators().variableDeclarator()) {
+            val member = new LocalVariableMember(ctx.localVariableDeclaration(), varDeclarationCtx)
+            registerMember(member)
+            println(ctx.getText)
+        }
 
     }
 
@@ -163,6 +185,13 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
         val member = new FieldMember(ctx)
         registerMember(member)
+    }
+
+
+    override def enterFormalParameter(ctx: FormalParameterContext): Unit = {
+        val member = new MethodParameter(ctx)
+        registerMember(member)
+
     }
 
     /**
@@ -548,7 +577,11 @@ object ClassBodyMember {
             case _ => false
         }
     }
-    def isMethod(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
+    //def isMethod(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
+    def isMethod(ctx: ParseTree): Boolean = {
+        val memberDeclarations = getChildren(ctx, _.isInstanceOf[MemberDeclarationContext])
+        memberDeclarations.nonEmpty && getChildren(memberDeclarations.head, _.isInstanceOf[MethodDeclarationContext]).nonEmpty
+    }
     def isEnum(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.EnumDeclarationContext]).nonEmpty
     def isField(ctx: ParseTree): Boolean = {
         getChild[ApexcodeParser.MemberDeclarationContext](ctx, classOf[ApexcodeParser.MemberDeclarationContext]) match {
@@ -757,10 +790,10 @@ object EnumMember {
         if (ClassBodyMember.isEnum(ctx)) Some(ctx) else None
     }
 }
-class EnumMember(ctx: ClassBodyDeclarationContext) extends ClassBodyMember(ctx) {
+class EnumMember(ctx: EnumDeclarationContext) extends Member {
 
     override def getIdentity:String = {
-        ClassBodyMember.findChildren(ctx, classOf[EnumDeclarationContext]).head.Identifier().getText
+        ctx.Identifier().getText
     }
 
     override def getSignature: String = {
@@ -778,28 +811,39 @@ object PropertyMember {
     }
 }
 
-class PropertyMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
-    val propertyDeclarationContext = ctx.memberDeclaration().propertyDeclaration()
+class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
 
     override def getIdentity: String = {
-        propertyDeclarationContext.variableDeclarators().variableDeclarator().find(null != _.variableDeclaratorId()) match {
+        ctx.variableDeclarators().variableDeclarator().find(null != _.variableDeclaratorId()) match {
           case Some(variableDeclaratorIdContext) => variableDeclaratorIdContext.getText
           case None => ""
         }
     }
 
     override def getType: String = {
-        if (null != propertyDeclarationContext && null != propertyDeclarationContext.`type`()) {
-            propertyDeclarationContext.`type`().getText
+        if (null != ctx && null != ctx.`type`()) {
+            ctx.`type`().getText
         } else {
             "void"
         }
     }
 
     override def getSignature: String = {
-        val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
+        val modifiers = getModifiers.mkString(" ")
         modifiers + " " + getType + " " + getIdentity
     }
+
+    private def getModifiers: List[String] = {
+        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+            case Some(classBodyDeclarationCtx) =>
+                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
+            case None => List()
+        }
+    }
+
+    val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
+
+    override def isStatic: Boolean = _isStatic
 }
 
 object FieldMember {
@@ -826,17 +870,21 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
     }
 
     override def getSignature: String = {
-        /* //this also works, but looks too cumbersome
-        val modifiers = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
-                             .map(ClassBodyMember.findChildren(_, classOf[TerminalNodeImpl])).map(_.head).mkString(" ")
-
-        */
-        //val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
-        val modifiers = "" //TODO
+        val modifiers = getModifiers.mkString(" ")
         modifiers + " " + getType + " " + getIdentity
     }
 
-    override def isStatic: Boolean = false //TODO
+    private def getModifiers: List[String] = {
+        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+            case Some(classBodyDeclarationCtx) =>
+                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
+            case None => List()
+        }
+    }
+
+    val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
+
+    override def isStatic: Boolean = _isStatic
 }
 
 object MethodMember {
@@ -966,7 +1014,10 @@ class MethodParameter(ctx: ApexcodeParser.FormalParameterContext) extends Member
     override def toString: String = getSignature
 }
 
-class VariableMember(ctx: ApexcodeParser.VariableDeclaratorContext) extends Member {
+/**
+ * one LocalVariableDeclarationStatementContext can define multiple variables
+ */
+class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVariableDeclarationContext, ctx: ApexcodeParser.VariableDeclaratorContext) extends Member {
     /**
      * @return
      * for class it is class name
@@ -976,35 +1027,9 @@ class VariableMember(ctx: ApexcodeParser.VariableDeclaratorContext) extends Memb
      */
     override def getIdentity: String = ctx.variableDeclaratorId().Identifier().getText
 
-    override def getType: String = ctx.getParent match {
-      case parent: FormalParameterContext => parent.`type`().getText
-      case parent: LocalVariableDeclarationContext => parent.`type`().getText
-      case parent: VariableDeclaratorsContext => //VariableDeclaratorsContext
-          "" //TODO
-      case parent =>
-          //throw new NotImplementedError("getType for " + parent.getClass.getName + " is not implemented yet")
-            "" //TODO
-    }
+    override def getType: String = localVariableDeclarationCtx.`type`().getText
 
-    override def getSignature: String = getType + " " + getIdentity //TODO
+    override def getSignature: String = getType + " " + getIdentity
 
-    override def isStatic: Boolean = false //TODO
+    override def isStatic: Boolean = false //local variables are never static
 }
-
-/* TODO
-class LocalVariableMember(ctx: ApexcodeParser.LocalVariableDeclarationStatementContext) extends Member {
-    override def getIdentity: String = ctx.localVariableDeclaration().variableDeclarators().Identifier().getText
-
-    override def getType: String = ctx.getParent match {
-        case parent: FormalParameterContext => parent.`type`().getText
-        case parent: LocalVariableDeclarationContext => parent.`type`().getText
-        case parent => throw new NotImplementedError("getType for " + parent.getClass.getName + " is not implemented yet")
-    }
-
-    override def getSignature: String = ??? //TODO
-
-    override def isStatic: Boolean = false //TODO
-
-}
-
-*/
