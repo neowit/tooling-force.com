@@ -21,7 +21,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         val parser = new ApexcodeParser(tokens)
         val tree = parser.compilationUnit()
         val walker = new ParseTreeWalker()
-        val extractor = new TreeListener(parser)
+        val extractor = new TreeListener(parser, line, column)
         walker.walk(extractor, tree)
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
@@ -243,6 +243,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
+    /*
     private def findSymbolType(caretAToken: AToken, extractor: TreeListener): (Option[(ParseTree, ParseTree)], Option[Member]) = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
@@ -291,6 +292,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                         }
                         //println(node)
                     }
+
                     //find one with shortest distance
                     distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption match {
                         case Some((steps, commonParent, n)) =>
@@ -309,6 +311,51 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
             (None, None)
         }
     }
+    */
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): (Option[(ParseTree, ParseTree)], Option[Member]) = {
+        val symbol = caretAToken.symbol.toLowerCase
+        if ("this" == symbol || "super" == symbol) {
+            //process special cases: this & super
+            ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
+                case Some(classDeclarationContext) =>
+                    if ("this" == symbol) {
+                        return (Some((classDeclarationContext, classDeclarationContext.Identifier())), None)
+                    } else {
+                        //super
+                        //TODO
+                        return findMember(classDeclarationContext.Identifier().getText, extractor.getTree, Some(caretAToken.finalContext)) match {
+                            case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
+                            case _ => (None, None)
+                        }
+                    }
+                case None => (None, None)
+            }
+
+        } else {
+            extractor.targetMember match {
+              case Some(parentMemberOfCaret) =>
+                  return (None, findSymbolInMemberHierarchy(parentMemberOfCaret, symbol))
+              case None =>
+            }
+            (None, None)
+        }
+    }
+
+    def findSymbolInMemberHierarchy(parentMember: Member, identity: String): Option[Member] = {
+        parentMember.getChild(identity, withHierarchy = true) match {
+          case Some(definitionMember) =>
+              //definitionMember //member that defines type of token under cursor
+              //now find the type of this member
+              findTypeMember(definitionMember)
+          case None =>
+                parentMember.getParent match {
+                  case Some(x) =>
+                      findSymbolInMemberHierarchy(x, identity)
+                  case None => None
+                }
+        }
+    }
+
 
 
     /**
@@ -317,9 +364,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      * @param from - target must be reachable from the same scope where 'from' is defined
      * @return
      */
-    def isReachable(target: ParseTree, from: ParseTree): Boolean = {
+    def isReachable(target: ParseTree, from: Identifier): Boolean = {
         //get nearest parent with scope (classBody, block, statement)
         val scopeContexts = Set[Class[_ <: ParseTree]](classOf[ClassBodyContext], classOf[BlockContext], classOf[StatementContext])
+        /*
         def isInScope(target: ParseTree, scope: Option[ParserRuleContext]): Boolean = {
             scope match {
               case Some(context) =>
@@ -335,6 +383,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
         }
         isInScope(target, ClassBodyMember.getParent(from, ctx => scopeContexts.contains(ctx.getClass)))
+        */
+        false
     }
 
     /**

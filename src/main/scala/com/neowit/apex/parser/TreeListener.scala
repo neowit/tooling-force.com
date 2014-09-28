@@ -2,7 +2,7 @@ package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.Token
-import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
+import org.antlr.v4.runtime.tree.{ErrorNode, TerminalNodeImpl, TerminalNode, ParseTree}
 
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
 
@@ -65,7 +65,7 @@ class ApexTree {
         classByClassName ++= anotherTree.classByClassName
     }
 }
-class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
+class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
@@ -107,7 +107,7 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
         val member = ctx match {
             case EnumMember(context) => new EnumMember(ctx)
             case MethodMember(context) => new MethodMember(ctx, parser)
-            case FieldMember(context) => new FieldMember(ctx, parser)
+            //case FieldMember(context) => new FieldMember(ctx, parser)
             case PropertyMember(context) => new PropertyMember(ctx, parser)
             case _ => null;//new ClassBodyMember(ctx)
         }
@@ -121,7 +121,7 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
     }
 
 
-    private val identifierMap = mutable.Map[String, Set[TerminalNode]]()
+    private val identifierMap = mutable.Map[String, Set[Identifier]]()
     /**
      * record all identifiers for future use
      */
@@ -133,23 +133,60 @@ class TreeListener (val parser: ApexcodeParser) extends ApexcodeBaseListener {
                 && !node.getParent.isInstanceOf[PrimaryContext]
         ) {
             val name = symbol.getText
+            val identifier = if (stack.isEmpty)
+                                new Identifier(node, None)
+                            else
+                                new Identifier(node, Some(stack.top))
             identifierMap.get(name) match {
               case Some(nodes) =>
-                  identifierMap(name) = nodes + node
+                  identifierMap(name) = nodes + identifier
               case None =>
-                  identifierMap(symbol.getText) = Set(node)
+                  identifierMap(symbol.getText) = Set(identifier)
             }
         }
+    }
+
+
+    override def enterVariableDeclarator(ctx: VariableDeclaratorContext): Unit = {
+        val member = new VariableMember(ctx)
+        registerMember(member)
+    }
+
+
+    override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
+        //val member = new VariableMember(ctx)
+        //registerMember(member)
+
+    }
+
+    override def enterFieldDeclaration(ctx: FieldDeclarationContext): Unit = {
+
+        val member = new FieldMember(ctx)
+        registerMember(member)
     }
 
     /**
      * @param name - name of identifier (e.g. variable name or method name)
      * @return list of identifiers matching this name
      */
-    def getIdentifiers(name: String): Option[Set[TerminalNode]] = {
+    def getIdentifiers(name: String): Option[Set[Identifier]] = {
         identifierMap.get(name)
     }
+
+    var targetMember: Option[Member] = None
+    override def visitErrorNode(node: ErrorNode): Unit = {
+        if (line > 0 && node.getSymbol.getLine == line) {
+            //we are in progress of parsing file where completion needs to be done
+            println("error node=" + node.getSymbol.getText)
+            println("error node.Line=" + node.getSymbol.getLine)
+            if (stack.nonEmpty) {
+                targetMember = Some(stack.top)
+            }
+        }
+    }
 }
+
+class Identifier(node: TerminalNode, parentMember: Option[Member])
 
 trait Member {
     private var parent: Option[Member] = None
@@ -740,6 +777,7 @@ object PropertyMember {
         if (ClassBodyMember.isProperty(ctx)) Some(ctx) else None
     }
 }
+
 class PropertyMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
     val propertyDeclarationContext = ctx.memberDeclaration().propertyDeclaration()
 
@@ -769,8 +807,8 @@ object FieldMember {
         if (ClassBodyMember.isField(ctx)) Some(ctx) else None
     }
 }
-class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
-    val fieldDeclarationContext = ctx.memberDeclaration().fieldDeclaration()
+class FieldMember(ctx: FieldDeclarationContext) extends Member {
+    val fieldDeclarationContext = ctx
 
     override def getIdentity:String = {
         val fieldDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[VariableDeclaratorIdContext])
@@ -793,9 +831,12 @@ class FieldMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) exte
                              .map(ClassBodyMember.findChildren(_, classOf[TerminalNodeImpl])).map(_.head).mkString(" ")
 
         */
-        val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
+        //val modifiers = ctx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).mkString(" ")
+        val modifiers = "" //TODO
         modifiers + " " + getType + " " + getIdentity
     }
+
+    override def isStatic: Boolean = false //TODO
 }
 
 object MethodMember {
@@ -925,3 +966,45 @@ class MethodParameter(ctx: ApexcodeParser.FormalParameterContext) extends Member
     override def toString: String = getSignature
 }
 
+class VariableMember(ctx: ApexcodeParser.VariableDeclaratorContext) extends Member {
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = ctx.variableDeclaratorId().Identifier().getText
+
+    override def getType: String = ctx.getParent match {
+      case parent: FormalParameterContext => parent.`type`().getText
+      case parent: LocalVariableDeclarationContext => parent.`type`().getText
+      case parent: VariableDeclaratorsContext => //VariableDeclaratorsContext
+          "" //TODO
+      case parent =>
+          //throw new NotImplementedError("getType for " + parent.getClass.getName + " is not implemented yet")
+            "" //TODO
+    }
+
+    override def getSignature: String = getType + " " + getIdentity //TODO
+
+    override def isStatic: Boolean = false //TODO
+}
+
+/* TODO
+class LocalVariableMember(ctx: ApexcodeParser.LocalVariableDeclarationStatementContext) extends Member {
+    override def getIdentity: String = ctx.localVariableDeclaration().variableDeclarators().Identifier().getText
+
+    override def getType: String = ctx.getParent match {
+        case parent: FormalParameterContext => parent.`type`().getText
+        case parent: LocalVariableDeclarationContext => parent.`type`().getText
+        case parent => throw new NotImplementedError("getType for " + parent.getClass.getName + " is not implemented yet")
+    }
+
+    override def getSignature: String = ??? //TODO
+
+    override def isStatic: Boolean = false //TODO
+
+}
+
+*/
