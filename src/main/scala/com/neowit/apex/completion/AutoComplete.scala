@@ -26,10 +26,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
         //List( someClassInstance, method(), goes, her)
-        val fullApexTree = cachedTree
-        cachedTree.extend(extractor.tree)
+        val fullApexTree: ApexTree = cachedTree.clone()
+        fullApexTree.extend(extractor.tree)
         //val fullApexTree = cachedTree ++ extractor.tree
-        val definition = findSymbolType(expressionTokens.head, extractor)
+        val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
             case (Some((parseTree, typeContext)), None) =>
                 //typeContext contains node type, e.g. SomeClass of the first token in expressionTokens
@@ -78,10 +78,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      * @param memberWithTypeToResolve
      * @return
      */
-    private def findTypeMember(memberWithTypeToResolve: Member): Option[Member] = {
+    private def findTypeMember(memberWithTypeToResolve: Member, fullTree: ApexTree): Option[Member] = {
         val typeName = memberWithTypeToResolve.getFullType
         //first check if this is one of parsed classes
-        memberWithTypeToResolve.getApexTree.getClassMemberByType(typeName) match {
+        fullTree.getClassMemberByType(typeName) match {
           case Some(typeMember) => return Some(typeMember)
           case None =>
                 //now check if memberType is the type of inner class in the current Main/Outer class
@@ -163,7 +163,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         //see if we can find the exact match
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
-                findTypeMember(_childMember) match {
+                findTypeMember(_childMember, apexTree) match {
                     case Some(_member) =>
                         return resolveExpression(_member, tokensToGo, apexTree)
                     case None => List()
@@ -312,7 +312,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         }
     }
     */
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): (Option[(ParseTree, ParseTree)], Option[Member]) = {
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): (Option[(ParseTree, ParseTree)], Option[Member]) = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
@@ -323,7 +323,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                     } else {
                         //super
                         //TODO
-                        return findMember(classDeclarationContext.Identifier().getText, extractor.getTree, Some(caretAToken.finalContext)) match {
+                        return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
                             case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
                             case _ => (None, None)
                         }
@@ -334,23 +334,23 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         } else {
             extractor.targetMember match {
               case Some(parentMemberOfCaret) =>
-                  return (None, findSymbolInMemberHierarchy(parentMemberOfCaret, symbol))
+                  return (None, findSymbolInMemberHierarchy(parentMemberOfCaret, symbol, fullCachedTree))
               case None => //current symbol is not defined in the current class
             }
             (None, None)
         }
     }
 
-    def findSymbolInMemberHierarchy(parentMember: Member, identity: String): Option[Member] = {
+    def findSymbolInMemberHierarchy(parentMember: Member, identity: String, fullApexTree: ApexTree): Option[Member] = {
         parentMember.getChild(identity, withHierarchy = true) match {
           case Some(definitionMember) =>
               //definitionMember //member that defines type of token under cursor
               //now find the type of this member
-              findTypeMember(definitionMember)
+              findTypeMember(definitionMember, fullApexTree)
           case None =>
                 parentMember.getParent match {
                   case Some(x) =>
-                      findSymbolInMemberHierarchy(x, identity)
+                      findSymbolInMemberHierarchy(x, identity, fullApexTree)
                   case None => None
                 }
         }

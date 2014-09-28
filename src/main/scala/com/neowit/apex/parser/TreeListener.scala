@@ -1,7 +1,7 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
-import org.antlr.v4.runtime.Token
+import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ErrorNode, TerminalNodeImpl, TerminalNode, ParseTree}
 
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
@@ -10,9 +10,17 @@ import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.util.parsing.json.JSONObject
 
-class ApexTree {
-    private val tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
-    private val classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClassName: mutable.LinkedHashMap[String, ClassMember]) {
+    //private val tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
+    //private val classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+
+    def this() {
+        this(
+            new mutable.LinkedHashMap[String, Member](),//identity -> member, e.g. TopLevelClass -> ClassMember
+            new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+        )
+
+    }
 
     def getMember(identity: String): Option[Member] = {
         val lowerCaseIdentity = identity.toLowerCase
@@ -63,6 +71,14 @@ class ApexTree {
     def extend(anotherTree: ApexTree): Unit = {
         tree ++= anotherTree.tree
         classByClassName ++= anotherTree.classByClassName
+    }
+    //TODO
+    override def clone = {
+        val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
+        val _classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+        _tree.putAll(this.tree)
+        _classByClassName.putAll(this.classByClassName)
+        new ApexTree(_tree, _classByClassName)
     }
 }
 
