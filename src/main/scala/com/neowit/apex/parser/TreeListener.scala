@@ -172,6 +172,11 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     */
 
 
+    override def enterEveryRule(ctx: ParserRuleContext): Unit = {
+        checkTargetMember(ctx.getStart)
+
+    }
+
     override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
         for (varDeclarationCtx <- ctx.localVariableDeclaration().variableDeclarators().variableDeclarator()) {
             val member = new LocalVariableMember(ctx.localVariableDeclaration(), varDeclarationCtx)
@@ -204,14 +209,23 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     var targetMember: Option[Member] = None
     override def visitErrorNode(node: ErrorNode): Unit = {
-        if (line > 0 && node.getSymbol.getLine == line) {
+        checkTargetMember(node.getSymbol)
+    }
+
+    /**
+     * check if current node is part of the token we are trying to auto-complete
+     * @param token
+     */
+    private def checkTargetMember(token: Token) {
+        if (line > 0 && token.getLine == line) {
             //we are in progress of parsing file where completion needs to be done
-            println("error node=" + node.getSymbol.getText)
-            println("error node.Line=" + node.getSymbol.getLine)
+            println("target node=" + token.getText)
+            println("target node.Line=" + token.getLine)
             if (stack.nonEmpty) {
                 targetMember = Some(stack.top)
             }
         }
+
     }
 }
 
