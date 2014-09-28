@@ -264,7 +264,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
         } else {
             extractor.getIdentifiers(caretAToken.symbol) match {
-                case Some(potentialDefinitionNodes) =>
+                case Some(allPotentialDefinitionNodes) =>
+                    val potentialDefinitionNodes = allPotentialDefinitionNodes.filter(n => isReachable(caretAToken.finalContext, n))
                     //val potentialDefinitionNodes = nodes - caretNode
                     if (1 == potentialDefinitionNodes.size) {
                         val parentNode = potentialDefinitionNodes.head.getParent
@@ -277,6 +278,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                             }
                         }
                     }
+
                     /* sort by proximity to caret*/
                     //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
                     //now find one which is closest to the caret and most likely definition
@@ -308,6 +310,32 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         }
     }
 
+
+    /**
+     * check if target is in scope of 'from' context
+     * @param target - what we want to reach
+     * @param from - target must be reachable from the same scope where 'from' is defined
+     * @return
+     */
+    def isReachable(target: ParseTree, from: ParseTree): Boolean = {
+        //get nearest parent with scope (classBody, block, statement)
+        val scopeContexts = Set[Class[_ <: ParseTree]](classOf[ClassBodyContext], classOf[BlockContext], classOf[StatementContext])
+        def isInScope(target: ParseTree, scope: Option[ParserRuleContext]): Boolean = {
+            scope match {
+              case Some(context) =>
+                  //find some way of identifying if ctx equals to target
+                  if (ClassBodyMember.findChildren2(context, ctx => ctx == target).nonEmpty) {
+                      true
+                  } else {
+                      isInScope(target, ClassBodyMember.getParent(context, ctx => scopeContexts.contains(ctx.getClass)))
+                  }
+
+              case None => false
+            }
+
+        }
+        isInScope(target, ClassBodyMember.getParent(from, ctx => scopeContexts.contains(ctx.getClass)))
+    }
 
     /**
      *
