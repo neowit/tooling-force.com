@@ -151,7 +151,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         ctx match {
             case MethodMember(context) =>
-                stack.pop
+                stack.pop()
             case _ =>
         }
     }
@@ -230,7 +230,6 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     /**
      * check if current node is part of the token we are trying to auto-complete
-     * @param token
      */
     private def checkTargetMember(token: Token) {
         if (line > 0 && token.getLine == line) {
@@ -255,7 +254,7 @@ trait Member {
 
     def addChild(member: Member) {
         member.getParent match {
-          case Some(parent) if parent.equals(this) =>
+          case Some(_parent) if _parent.equals(this) => //do nothing
           case _ => member.setParent(this)
         }
         try {

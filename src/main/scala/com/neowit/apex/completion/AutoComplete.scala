@@ -6,7 +6,7 @@ import java.util.regex.Pattern
 import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
-import org.antlr.v4.runtime.tree.{TerminalNode, ParseTree, ParseTreeWalker}
+import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
 class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
@@ -213,14 +213,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
         parser.setBuildParseTree(true)
         parser.setErrorHandler(new CompletionErrorStrategy())
-        //val tree = parser.compilationUnit()
-        //val walker = new ParseTreeWalker()
-        //val extractor = new TreeListener(parser)
-        //walker.walk(extractor, tree)
 
         //parse tree until we reach caret caretAToken
         try {
-            val tree = parser.compilationUnit()
+            parser.compilationUnit()
         } catch {
             case ex: CaretReachedException =>
                 println("found caret?")
@@ -237,81 +233,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
 
     /**
      *
-     * @param caretAToken
-     * @param extractor
+     * @param caretAToken AToken representing symbol which type we need to resolve
+     * @param extractor - TreeListener with information about current file
      * @return
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
-    /*
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener): (Option[(ParseTree, ParseTree)], Option[Member]) = {
-        val symbol = caretAToken.symbol.toLowerCase
-        if ("this" == symbol || "super" == symbol) {
-            //process special cases: this & super
-            ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
-                case Some(classDeclarationContext) =>
-                    if ("this" == symbol) {
-                        return (Some((classDeclarationContext, classDeclarationContext.Identifier())), None)
-                    } else {
-                        //super
-                        //TODO
-                        return findMember(classDeclarationContext.Identifier().getText, extractor.getTree, Some(caretAToken.finalContext)) match {
-                          case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
-                          case _ => (None, None)
-                        }
-                    }
-                case None => (None, None)
-            }
-
-        } else {
-            extractor.getIdentifiers(caretAToken.symbol) match {
-                case Some(allPotentialDefinitionNodes) =>
-                    val potentialDefinitionNodes = allPotentialDefinitionNodes.filter(n => isReachable(caretAToken.finalContext, n))
-                    //val potentialDefinitionNodes = nodes - caretNode
-                    if (1 == potentialDefinitionNodes.size) {
-                        val parentNode = potentialDefinitionNodes.head.getParent
-                        if (null != parentNode) {
-                            if (parentNode.isInstanceOf[ClassDeclarationContext]) {
-                                //looks like this atoken is a class name
-                                //return Some((potentialDefinitionNodes.head.getSymbol, parentNode))
-                                return (getTypeParent(parentNode), None)
-
-                            }
-                        }
-                    }
-
-                    /* sort by proximity to caret*/
-                    //sortWith((x, y) => x.getSymbol.getLine  > y.getSymbol.getLine)
-                    //now find one which is closest to the caret and most likely definition
-                    val distances = collection.mutable.ArrayBuffer[(Int, ParseTree, TerminalNode)]()
-                    for (node <- potentialDefinitionNodes) {
-                        distanceToCommonParent(caretAToken.finalContext, node) match {
-                            case Some((steps, commonParent)) =>
-                                distances += ((steps, commonParent, node))
-                            case None =>
-                        }
-                        //println(node)
-                    }
-
-                    //find one with shortest distance
-                    distances.toList.sortWith((x: (Int, ParseTree, TerminalNode), y: (Int, ParseTree, TerminalNode)) => x._1 < y._1).headOption match {
-                        case Some((steps, commonParent, n)) =>
-                            //println(steps + "=" + n)
-                            //node which we found is most likely a definition of one under caret
-                            return getTypeParent(n) match {
-                                case Some((pt, typeContext)) if null != typeContext => (Some((pt, typeContext)), None)
-                                case _ => (None, None)
-                            }
-
-                        case None =>
-                        //cursor symbol is not defined in the current file
-                    }
-                case None =>
-            }
-            (None, None)
-        }
-    }
-    */
     private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): (Option[(ParseTree, ParseTree)], Option[Member]) = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
@@ -322,7 +249,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                         return (Some((classDeclarationContext, classDeclarationContext.Identifier())), None)
                     } else {
                         //super
-                        //TODO
                         return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
                             case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
                             case _ => (None, None)
@@ -354,99 +280,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                   case None => None
                 }
         }
-    }
-
-
-
-    /**
-     * check if target is in scope of 'from' context
-     * @param target - what we want to reach
-     * @param from - target must be reachable from the same scope where 'from' is defined
-     * @return
-     */
-    def isReachable(target: ParseTree, from: Identifier): Boolean = {
-        //get nearest parent with scope (classBody, block, statement)
-        val scopeContexts = Set[Class[_ <: ParseTree]](classOf[ClassBodyContext], classOf[BlockContext], classOf[StatementContext])
-        /*
-        def isInScope(target: ParseTree, scope: Option[ParserRuleContext]): Boolean = {
-            scope match {
-              case Some(context) =>
-                  //find some way of identifying if ctx equals to target
-                  if (ClassBodyMember.findChildren2(context, ctx => ctx == target).nonEmpty) {
-                      true
-                  } else {
-                      isInScope(target, ClassBodyMember.getParent(context, ctx => scopeContexts.contains(ctx.getClass)))
-                  }
-
-              case None => false
-            }
-
-        }
-        isInScope(target, ClassBodyMember.getParent(from, ctx => scopeContexts.contains(ctx.getClass)))
-        */
-        false
-    }
-
-    /**
-     *
-     * @param n - node which may contain type definition
-     *       1:   e.g. String str;
-     *       2:   str.
-     *          in this case n will be node containing str in line 1:
-     * @return
-     */
-    private def getTypeParent(n: ParseTree): Option[(ParseTree, ParseTree)] = {
-        if (null == n) {
-            None
-        } else {
-            n match {
-                case x: ClassDeclarationContext => Some((x, x.Identifier()))
-                //case x: TypeBoundContext => Some((x, x.`type`()))
-                case x: MethodDeclarationContext => Some((x, x.`type`()))
-                case x: FieldDeclarationContext => Some((x, x.`type`()))
-                case x: InterfaceMethodDeclarationContext => Some((x, x.`type`()))
-                case x: TypeArgumentContext => Some((x, x.`type`()))
-                case x: FormalParameterContext => Some((x, x.`type`()))
-                case x: LastFormalParameterContext => Some((x, x.`type`()))
-                case x: AnnotationTypeElementRestContext => Some((x, x.`type`()))
-                case x: LocalVariableDeclarationContext => Some((x, x.`type`()))
-                case x: EnhancedForControlContext => Some((x, x.`type`()))
-                case x: ExpressionContext => Some((x, x.`type`()))
-                case x: PrimaryContext => Some((x, x.`type`()))
-                case x: CatchClauseContext => Some((x, x.catchType().qualifiedName(0)))
-                case _ => getTypeParent(n.getParent)
-            }
-        }
-
-    }
-
-    private def distanceToCommonParent(caret: ParseTree, node: TerminalNode): Option[(Int, ParseTree)] = {
-        def getParents(parent: ParseTree, parents: List[ParseTree]): List[ParseTree] = {
-            if (null != parent) {
-                getParents(parent.getParent, parent :: parents)
-            } else {
-                parents
-            }
-        }
-        val caretParents = getParents(caret.getParent, List()).reverse //from nearest parent to farthest
-        val nodeParents = getParents(node.getParent, List()).reverse
-        //in theory the nearest parent should be most likely definition
-        //count number of steps to nearest parent
-        var i = 0
-        for (p <- caretParents) {
-            val right = p.asInstanceOf[ParserRuleContext]
-            nodeParents.find(n => {
-                val left = n.asInstanceOf[ParserRuleContext]
-                left.getStart.getStartIndex == right.getStart.getStartIndex
-            }) match {
-                case Some(commonParent) =>
-                    //found common parent
-                    return Some(i, commonParent)
-                case None =>
-            }
-            i += 1
-        }
-        None
     }
 
     private case class AToken(index: Int, symbol: String, expression: String, token: Option[Token], finalContext: ParseTree) {
