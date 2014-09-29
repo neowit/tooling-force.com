@@ -200,8 +200,24 @@ case class ApexType(name: String, superType: Option[String], methods: List[ApexM
     override def getSuperType: Option[String] = superType
 }
 
+/**
+ *
+ * @param s - if static then  = 1
+ * @param n - method name
+ * @param v - method visibility
+ * @param p - list of parameter types
+ * @param h - help doc
+ * @param r - return value type, e.g. "String"
+ * @param d - signature, e.g. "public void addError(Exception exceptionError, Boolean escape)"
+ */
 case class ApexMethod(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModelMember {
-    override def getIdentity: String = n
+    override def getIdentity: String = n + p.mkString(", ")
+
+    /**
+     * for most member types Identity is unique (for Methods and Inner Classes it is not)
+     */
+    override def getIdentityToDisplay: String = n
+
     override def getSignature: String = d
     override def isStatic: Boolean = "1" == s
     override def getDoc: String = h
