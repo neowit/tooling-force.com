@@ -413,6 +413,15 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         queryResult
     }
 
+    def describeSObjects(sobjectApiNames: List[String]): List[com.sforce.soap.partner.DescribeSObjectResult] = {
+        val describeResult = withRetry {
+            val conn = getPartnerConnection
+            val res = conn.describeSObjects(sobjectApiNames.toArray)
+            res.toList
+        }.asInstanceOf[List[com.sforce.soap.partner.DescribeSObjectResult]]
+        describeResult
+    }
+
     /***************** MetadataConnection ********************************************/
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {
