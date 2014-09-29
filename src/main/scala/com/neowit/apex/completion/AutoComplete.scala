@@ -66,6 +66,25 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         List()
     }
 
+    def isArrayDefinition(typeName: String): Boolean = {
+        clearWhiteSpace(typeName).endsWith("[]")
+    }
+    def isListDefinition(typeName: String): Boolean = {
+        clearWhiteSpace(typeName).startsWith("List<")
+    }
+    def isMapDefinition(typeName: String): Boolean = {
+        clearWhiteSpace(typeName).startsWith("Map<")
+    }
+    def isSetDefinition(typeName: String): Boolean = {
+        clearWhiteSpace(typeName).startsWith("Set<")
+    }
+    private def clearWhiteSpace(str: String): String = {
+        if (null == str) {
+            ""
+        } else {
+            str.replaceAllLiterally(" ", "")
+        }
+    }
     /**
      * get member which defines the type of current member
      * e.g. SomeClass var;
@@ -74,7 +93,17 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
      * @return
      */
     private def findTypeMember(memberWithTypeToResolve: Member, fullTree: ApexTree): Option[Member] = {
-        val typeName = memberWithTypeToResolve.getFullType
+        val initialTypeName = memberWithTypeToResolve.getFullType
+        val typeName = if (isArrayDefinition(initialTypeName) || isListDefinition(initialTypeName)) {
+            //this is Array
+            "System.List" //Array in Apex is just one a shortcut for list definition
+        } else if (isMapDefinition(initialTypeName)){
+            "System.Map"
+        } else if (isSetDefinition(initialTypeName)){
+            "System.Set"
+        } else {
+            initialTypeName
+        }
         //first check if this is one of parsed classes
         fullTree.getClassMemberByType(typeName) match {
           case Some(typeMember) => return Some(typeMember)

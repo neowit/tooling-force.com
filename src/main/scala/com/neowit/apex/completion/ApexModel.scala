@@ -199,13 +199,18 @@ case class ApexType(name: String, superType: Option[String], methods: List[ApexM
 
     override def getSuperType: Option[String] = superType
 }
+
 case class ApexMethod(s: String, n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModelMember {
     override def getIdentity: String = n
     override def getSignature: String = d
     override def isStatic: Boolean = "1" == s
     override def getDoc: String = h
 
-    override def getType: String = r
+    override def getType: String = {
+        val initialType = r
+        //remove all garbage - from "Set (of same type)" keep only "Set"
+        initialType.replaceAllLiterally(" (of same type)", "")
+    }
 }
 
 /*
