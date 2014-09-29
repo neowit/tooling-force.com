@@ -105,7 +105,7 @@ class DescribeMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig:
 
     override def getSummary: String = "saves result of describeMetadata call in JSON format"
 
-    override def getName: String = "decribeMetadata"
+    override def getName: String = "describeMetadata"
 
     def loadFromFile: Map[String, DescribeMetadataObject] = {
 
