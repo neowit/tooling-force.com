@@ -86,6 +86,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
     }
 
+
+    override def hashCode(): Int = getHash.hashCode
+
+    override def equals(p1: scala.Any): Boolean = {
+        p1.isInstanceOf[Session] && this.getHash == p1.asInstanceOf[Session].getHash
+    }
+
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
         if (!callingAnotherOrg) {
             sessionProperties.setJsonData("session", Map(
