@@ -101,6 +101,13 @@ trait ApexModelMember extends Member {
     }
 
     def loadMembers(): Unit = {  }
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
+        if (!isLoaded) {
+            loadMembers()
+        }
+        super.getChild(identity, withHierarchy)
+    }
 }
 case class ApexNamespace(name: String) extends ApexModelMember {
 
@@ -126,6 +133,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         myChildren ++ extraMembers
     }
     override def loadMembers(): Unit = {
+        isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
         loadFile(name)
         if ("System" == name) {
             //add Exception to System namespace
@@ -137,7 +145,6 @@ case class ApexNamespace(name: String) extends ApexModelMember {
               case None =>
             }
         }
-        isDoneLoading = true
     }
 
     private def loadFile(namespace: String): Unit = {
@@ -183,12 +190,11 @@ case class ApexType(name: String, superType: Option[String], methods: List[ApexM
     private var isDoneLoading = false
     override def isLoaded:Boolean = isDoneLoading
     override def loadMembers(): Unit = {
+        isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
         for (method <- methods) {
             //method.setParent(this)
             addChild(method)
         }
-
-        isDoneLoading = true
     }
 
     override def getSuperType: Option[String] = superType
@@ -199,6 +205,7 @@ case class ApexMethod(s: String, n: String, v: String, p: List[String], h: Strin
     override def isStatic: Boolean = "1" == s
     override def getDoc: String = h
 
+    override def getType: String = r
 }
 
 /*
