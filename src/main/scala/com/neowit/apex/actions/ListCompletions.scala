@@ -28,7 +28,7 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
                 case Some(sourceScanner) => sourceScanner.getTree
                 case None => new ApexTree
             }
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree)
+            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
             val members = completion.listOptions
             //dump completion options into a file - 1 line per option
             config.responseWriter.println("RESULT=SUCCESS")

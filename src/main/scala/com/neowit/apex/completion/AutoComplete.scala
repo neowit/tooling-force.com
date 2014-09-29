@@ -3,13 +3,14 @@ package com.neowit.apex.completion
 import java.io.{FileInputStream, File}
 import java.util.regex.Pattern
 
+import com.neowit.apex.Session
 import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
-class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
+class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
     def listOptions:List[Member] = {
         val expressionTokens = getCaretStatement
         if (expressionTokens.isEmpty) {
@@ -131,7 +132,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
                 //check if caret is fully qualified type with namespace
                 ApexModel.getTypeMember(typeName) match {
                     case Some(member) => Some(member)
-                    case None => None
+                    case None =>
+                        //if all of the above has been unsuccessful then check if current startType is SObject type
+                        DatabaseModel.getModelBySession(session) match {
+                            case Some(model) => model.getSObjectMember(typeName)
+                            case None => None
+                        }
                 }
         }
 
