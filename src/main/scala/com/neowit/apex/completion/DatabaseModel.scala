@@ -129,4 +129,6 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
 
     override def getIdentity: String = field.getName //Field API Name here
 
+    override def getDoc: String =
+        if (null != field.getInlineHelpText) field.getInlineHelpText else ""
 }
