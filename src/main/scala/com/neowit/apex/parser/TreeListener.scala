@@ -50,6 +50,15 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         memberScopeStack.pop()
 
     }
+    override def enterCatchClause(ctx: CatchClauseContext): Unit = {
+        val member = new CatchClauseMember(ctx)
+        registerMember(member)
+        memberScopeStack.push(member)
+    }
+
+    override def exitCatchClause(ctx: CatchClauseContext): Unit = {
+        memberScopeStack.pop()
+    }
 
     override def enterEnumDeclaration(ctx: EnumDeclarationContext): Unit = {
         val member = new EnumMember(ctx)
@@ -111,18 +120,12 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         }
     }
 
-    override def enterEveryRule(ctx: ParserRuleContext): Unit = {
-        checkTargetMember(ctx.getStart)
-
-    }
-
     override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
         //cycle through all variables declared in the current expression
         //String a, b, c;
         for (varDeclarationCtx <- ctx.localVariableDeclaration().variableDeclarators().variableDeclarator()) {
             val member = new LocalVariableMember(ctx.localVariableDeclaration(), varDeclarationCtx)
             registerMember(member)
-            println(ctx.getText)
         }
 
     }
@@ -139,6 +142,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     }
 
+
     /**
      * @param name - name of identifier (e.g. variable name or method name)
      * @return list of identifiers matching this name
@@ -151,14 +155,19 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         checkTargetMember(node.getSymbol)
     }
 
+    override def enterEveryRule(ctx: ParserRuleContext): Unit = {
+        checkTargetMember(ctx.getStart)
+    }
+
+
     /**
      * check if current node is part of the token we are trying to auto-complete
      */
     private def checkTargetMember(token: Token) {
         if (line > 0 && token.getLine == line) {
             //we are in progress of parsing file where completion needs to be done
-            println("target node=" + token.getText)
-            println("target node.Line=" + token.getLine)
+            //println("target node=" + token.getText)
+            //println("target node.Line=" + token.getLine)
             if (memberScopeStack.nonEmpty) {
                 targetMember = Some(memberScopeStack.top)
             }
@@ -984,4 +993,44 @@ class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVaria
     override def getSignature: String = getType + " " + getIdentity
 
     override def isStatic: Boolean = false //local variables are never static
+}
+
+class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext) extends Member {
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = ctx.Identifier().getText
+
+    /**
+     * each Identifier() returns only part of exception type
+     * e.g. System.DmlException will be returned as
+     * ctx.catchType().qualifiedName(0).Identifier(0) = System
+     * ctx.catchType().qualifiedName(0).Identifier(1) = DmlException
+     *
+     * @return
+     */
+    override def getType: String = ctx.catchType().qualifiedName(0).Identifier().mkString(".")
+
+    override def getSignature: String = getType + " " + getIdentity
+
+    override def isStatic: Boolean = false
+
+    /**
+     * catch clause needs special treatment, its identity should be returned as a child in getChild
+     * because it does not have real children other than exception typ and name/variable
+     * @param identity - something which may match name of exception variable
+     * @param withHierarchy - ignored, because CatchClauseMember does not have real children
+     * @return
+     */
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
+        if (identity.toLowerCase == getIdentity.toLowerCase) {
+            Some(this)
+        } else {
+            None
+        }
+    }
 }

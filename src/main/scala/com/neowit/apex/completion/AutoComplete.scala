@@ -436,7 +436,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree) {
         def nextToken: Token = {
             if (null == caretToken) {
                 var token: Token = source.nextToken
-                println("caretAToken=" + token.toString)
+                //println("caretAToken=" + token.toString)
                 if (token.getStopIndex + 1 < caretOffset) {
                     //before target caretAToken
                     prevToken = token
