@@ -110,14 +110,18 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
           case Some(typeMember) => return Some(typeMember)
           case None =>
                 //now check if memberType is the type of inner class in the current Main/Outer class
-                val innerClassMember = memberWithTypeToResolve.getTopMostClassMember match {
+                val innerMember = memberWithTypeToResolve.getTopMostClassMember match {
                   case Some(outerClassMember) =>
-                      outerClassMember.getInnerClassByType(typeName)
+                      outerClassMember.getInnerClassByType(typeName) match {
+                        case Some(x) => Some(x)
+                        case None => outerClassMember.getEnumByName(typeName)
+                      }
                   case None => None
                 }
-                innerClassMember match {
+
+                innerMember match {
                   case Some(member) =>
-                      //type of memberToResolve is inner class defined by current member
+                      //type of memberToResolve is inner class or Enum defined by current member
                       return Some(member)
                   case None =>
                 }

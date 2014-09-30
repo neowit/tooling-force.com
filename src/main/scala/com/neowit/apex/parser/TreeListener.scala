@@ -62,6 +62,16 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     override def enterEnumDeclaration(ctx: EnumDeclarationContext): Unit = {
         val member = new EnumMember(ctx)
         registerMember(member)
+        memberScopeStack.push(member)
+    }
+
+    override def exitEnumDeclaration(ctx: EnumDeclarationContext): Unit = {
+        memberScopeStack.pop()
+    }
+
+    override def enterEnumConstant(ctx: EnumConstantContext): Unit = {
+        val member = new EnumConstantMember(ctx)
+        registerMember(member)
 
     }
 
@@ -93,7 +103,6 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
             case _ =>
         }
     }
-
 
     override def enterStatement(ctx: StatementContext): Unit = {
         val member = new StatementMember(ctx)

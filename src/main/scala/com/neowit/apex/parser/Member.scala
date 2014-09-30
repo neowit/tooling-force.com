@@ -255,6 +255,7 @@ trait Member extends AnonymousMember {
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
     private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassMember]() //inner-class-name.toLowerCase => InnerClassMember
+    private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //inner-class-name.toLowerCase => InnerClassMember
 
     override def getType: String = getIdentity
 
@@ -296,11 +297,36 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
         member match {
             case m: InnerClassMember =>
                 innerClassByClassName += (m.getType.toLowerCase -> m)
+            case m: EnumMember =>
+                enumByName += (m.getType.toLowerCase -> m)
             case _ =>
         }
     }
     def getInnerClassByType(innerClassTypeName: String): Option[InnerClassMember] = {
         innerClassByClassName.get(innerClassTypeName.toLowerCase)
+    }
+
+    /**
+     * enum Seasons (WINTER, SPRING, SUMMER, FALL)
+     * map enumByName contains keys that look like this: Seasons -> EnumMember
+     *
+     * @param enumTypeName - can be one of two forms:
+     *                     Seasons - resolved directly from enumByName map
+     *                     Seasons.Winter - requires two step resolution:
+     *                      1. get EnumMember by name "Seasons"
+     *                      2. get child of EnumMember by name "Winter"
+     * @return
+     */
+    def getEnumByName(enumTypeName: String): Option[Member] = {
+        if (enumTypeName.indexOf(".") > 0) {
+            val path = enumTypeName.split("\\.")
+            getEnumByName(path(0)) match {
+              case Some(enumMember) => enumMember.getChild(path(1))
+              case None => None
+            }
+        } else {
+            enumByName.get(enumTypeName.toLowerCase)
+        }
     }
 
     /**
@@ -613,6 +639,58 @@ class EnumMember(ctx: EnumDeclarationContext) extends Member {
     override def getType: String = getIdentity
 
     override def isStatic: Boolean = false
+}
+
+/**
+ * enum constant has only one method: name()
+ */
+private class EnumConstantMethodMember(parent: EnumConstantMember) extends Member {
+    setParent(parent)
+
+    override def getIdentity: String = "name"
+    override def getIdentityToDisplay: String = "name()"
+
+    override def getType: String = "String"
+
+    override def getSignature: String = "name()"
+
+    override def isStatic: Boolean = false
+}
+
+class EnumConstantMember(ctx: EnumConstantContext) extends Member {
+    addChild(new EnumConstantMethodMember(this)) //add default name() method of enum constant
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = {
+        /*
+        getParent match {
+            case Some(m) if m.isInstanceOf[EnumMember] => m.asInstanceOf[EnumMember].getIdentity + "." + ctx.Identifier().getText
+            case _ => ""
+        }
+        */
+        ctx.Identifier().getText
+    }
+
+    /**
+     * for most member types Identity is unique (for Methods and Inner Classes it is not)
+     */
+    override def getIdentityToDisplay: String = ctx.Identifier().getText
+
+    override def getType: String = {
+        getParent match {
+            case Some(m) if m.isInstanceOf[EnumMember] => m.asInstanceOf[EnumMember].getType + "." + getIdentity
+            case _ => ""
+        }
+    }
+
+    override def getSignature: String = getType
+
+    override def isStatic: Boolean = true
 }
 
 object PropertyMember {
