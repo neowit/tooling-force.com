@@ -59,7 +59,7 @@ importDeclaration
     ;
 
 typeDeclaration
-    :   classOrInterfaceModifier* apexClassSharingModifier? classDeclaration
+    :   classOrInterfaceModifier* classDeclaration
     |   classOrInterfaceModifier* enumDeclaration
     |   classOrInterfaceModifier* interfaceDeclaration
     |   classOrInterfaceModifier* annotationTypeDeclaration
@@ -86,13 +86,10 @@ classOrInterfaceModifier
         |   'webservice' // class only -- does not apply to interfaces
         |   'override'   // method only
         |   'virtual'    // method only
+		|	APEX_WITH_SHARING // class only
+		|	APEX_WITHOUT_SHARING //class only
         )
     ;
-
-
-apexClassSharingModifier
-    :    APEX_WITH_SHARING | APEX_WITHOUT_SHARING
-	;
 
 variableModifier
     :   'final'
