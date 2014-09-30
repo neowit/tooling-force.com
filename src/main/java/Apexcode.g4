@@ -421,7 +421,6 @@ localVariableDeclaration
 
 statement
     :   block
-    |   ASSERT expression (':' expression)? ';'
     |   'if' parExpression statement ('else' statement)?
     |   'for' '(' forControl ')' statement
     |   'while' parExpression statement
@@ -647,7 +646,6 @@ SoqlLiteral
 // §3.9 Keywords
 
 ABSTRACT      : 'abstract';
-ASSERT        : 'assert';
 BOOLEAN       : 'boolean';
 BREAK         : 'break';
 BYTE          : 'byte';
