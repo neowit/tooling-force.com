@@ -593,7 +593,7 @@ arrayCreatorRest
     ;
 
 mapCreatorRest
-    :   '{' ( Identifier | literal ) '=>' ( literal | expression ) (',' (Identifier | literal) '=>' ( literal | expression ) )* '}'
+    :   '{' ( Identifier | expression ) '=>' ( literal | expression ) (',' (Identifier | expression) '=>' ( literal | expression ) )* '}'
     ;
 
 setCreatorRest
