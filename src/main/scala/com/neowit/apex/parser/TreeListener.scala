@@ -14,7 +14,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
-    val memberScopeStack = mutable.Stack[Member]()
+    val memberScopeStack = mutable.Stack[AnonymousMember]()
     private var targetMember: Option[AnonymousMember] = None
 
     def getTargetMember: Option[AnonymousMember] = targetMember
@@ -95,6 +95,17 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         }
     }
 
+
+    override def enterStatement(ctx: StatementContext): Unit = {
+        val member = new StatementMember(ctx)
+        registerMember(member)
+        memberScopeStack.push(member)
+    }
+
+    override def exitStatement(ctx: StatementContext): Unit = {
+        memberScopeStack.pop()
+    }
+
     private val identifierMap = mutable.Map[String, Set[Identifier]]()
     /**
      * record all identifiers for future use
@@ -120,14 +131,23 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         }
     }
 
-    override def enterLocalVariableDeclarationStatement(ctx: LocalVariableDeclarationStatementContext): Unit = {
+
+    override def enterLocalVariableDeclaration(ctx: LocalVariableDeclarationContext): Unit = {
         //cycle through all variables declared in the current expression
         //String a, b, c;
-        for (varDeclarationCtx <- ctx.localVariableDeclaration().variableDeclarators().variableDeclarator()) {
-            val member = new LocalVariableMember(ctx.localVariableDeclaration(), varDeclarationCtx)
+        for (varDeclaratorCtx <- ctx.variableDeclarators().variableDeclarator()) {
+            val member = new LocalVariableMember(ctx, varDeclaratorCtx)
             registerMember(member)
         }
+    }
 
+    /**
+     * this covers FOR cycle defined as
+     * for (MyClass cls : collection) {...}
+     **/
+    override def enterEnhancedForControl(ctx: EnhancedForControlContext): Unit = {
+        val member = new EnhancedForLocalVariableMember(ctx)
+        registerMember(member)
     }
 
     override def enterFieldDeclaration(ctx: FieldDeclarationContext): Unit = {
@@ -176,7 +196,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     }
 }
 
-class Identifier(node: TerminalNode, parentMember: Option[Member])
+class Identifier(node: TerminalNode, parentMember: Option[AnonymousMember])
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None
@@ -244,7 +264,7 @@ trait AnonymousMember {
     }
     /**
      * using provided typeName check if this type is defined in the current Outer Class
-     * @param typeName
+     * @param typeName, e.g. MyClass or String
      * @return
      */
     def findMemberByTypeLocally(typeName: String): Option[AnonymousMember] = {
@@ -347,9 +367,9 @@ trait AnonymousMember {
             case None => if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
     }
-
-
 }
+
+class StatementMember(ctx: StatementContext) extends AnonymousMember
 
 trait Member extends AnonymousMember {
 
@@ -1004,6 +1024,23 @@ class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVaria
     override def getIdentity: String = ctx.variableDeclaratorId().Identifier().getText
 
     override def getType: String = localVariableDeclarationCtx.`type`().getText
+
+    override def getSignature: String = getType + " " + getIdentity
+
+    override def isStatic: Boolean = false //local variables are never static
+}
+
+class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlContext) extends Member {
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = ctx.variableDeclaratorId().Identifier().getText
+
+    override def getType: String = ctx.`type`().getText
 
     override def getSignature: String = getType + " " + getIdentity
 
