@@ -15,9 +15,9 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
     val memberScopeStack = mutable.Stack[Member]()
-    private var targetMember: Option[Member] = None
+    private var targetMember: Option[AnonymousMember] = None
 
-    def getTargetMember: Option[Member] = targetMember
+    def getTargetMember: Option[AnonymousMember] = targetMember
 
     def dump(): Unit = {
         tree.dump()
@@ -26,7 +26,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
         tree
     }
 
-    def registerMember(member: Member) {
+    def registerMember(member: AnonymousMember) {
         member.setApexTree(tree)
         if (memberScopeStack.nonEmpty) {
             val parentMember = memberScopeStack.top
@@ -178,39 +178,20 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
 class Identifier(node: TerminalNode, parentMember: Option[Member])
 
-trait Member {
-    private var parent: Option[Member] = None
+trait AnonymousMember {
+    private var parent: Option[AnonymousMember] = None
     private var apexTree: Option[ApexTree] = None
-
-    private val children = mutable.HashMap[String, Member]()
-
-    def addChild(member: Member) {
-        member.getParent match {
-          case Some(_parent) if _parent.equals(this) => //do nothing
-          case _ => member.setParent(this)
-        }
-        try {
-            getChild(member.getIdentity.toLowerCase, withHierarchy = false) match {
-                case Some(_existingMember) => //this child already exists, do not overwrite
-                case None =>
-                    children.+=(member.getIdentity.toLowerCase -> member)
-            }
-        } catch {
-            case ex:Throwable =>
-                println("failed to add member of parent: " + this.getIdentity)
-        }
-    }
 
     def isParentChangeAllowed: Boolean = false
 
-    def setParent(member: Member) = {
+    def setParent(member: AnonymousMember) = {
         if (parent.isDefined && !isParentChangeAllowed) {
             throw new IllegalAccessError("can not set parent of Member twice")
         } else {
             parent = Some(member)
         }
     }
-    def getParent: Option[Member] = parent
+    def getParent: Option[AnonymousMember] = parent
 
     def setApexTree(tree: ApexTree) = {
         if (apexTree.isDefined) {
@@ -224,21 +205,86 @@ trait Member {
         if (apexTree.isDefined) {
             apexTree.get
         } else {
-            println("Apex Tree is not defined for member: " + this.getIdentityToDisplay)
+            //println("Apex Tree is not defined for member: " + this.getIdentityToDisplay)
             new ApexTree()
         }
     }
-
     /**
      * find parent which matches specified filter
      * @param filter - condition
      * @return
      */
-    def findParent(filter: (Member) => Boolean): Option[Member] = {
+    def findParent(filter: (AnonymousMember) => Boolean): Option[AnonymousMember] = {
         getParent match {
-          case Some(parentMember) =>
-              if (filter(parentMember)) Some(parentMember) else parentMember.findParent(filter)
-          case None => None
+            case Some(parentMember) =>
+                if (filter(parentMember)) Some(parentMember) else parentMember.findParent(filter)
+            case None => None
+        }
+    }
+
+    def getTopMostClassMember: Option[ClassMember] = {
+        if (this.isInstanceOf[ClassMember] && !this.isInstanceOf[InnerClassMember]) {
+            return Some(this.asInstanceOf[ClassMember])
+        }
+        def getParentByType[T <: AnonymousMember](m: AnonymousMember, classType: Class[T]): Option[AnonymousMember] = {
+            m.getParent match {
+                case Some(member) =>
+                    if (member.getClass == classType) {
+                        Some(member)
+                    } else {
+                        getParentByType(member, classType)
+                    }
+                case None => None
+            }
+        }
+        getParentByType(this, classOf[ClassMember]) match {
+            case Some(member) => Some(member.asInstanceOf[ClassMember])
+            case None => None
+        }
+    }
+    /**
+     * using provided typeName check if this type is defined in the current Outer Class
+     * @param typeName
+     * @return
+     */
+    def findMemberByTypeLocally(typeName: String): Option[AnonymousMember] = {
+        getTopMostClassMember match {
+            case Some(outerClassMember) =>
+                outerClassMember.getInnerClassByType(typeName)
+            case None => None
+        }
+    }
+
+    def getSuperType: Option[String] = None
+
+    def getFullSuperType: Option[String] = None
+
+    private val children = mutable.HashMap[String, Member]()
+
+    def addChild(member: AnonymousMember) {
+        member.getParent match {
+            case Some(_parent) if _parent.equals(this) => //do nothing
+            case _ => member.setParent(this)
+        }
+        //do not add AnonymousMember to the default list of children
+        member match {
+            case m: Member =>
+                try {
+                    getChild(m.getIdentity.toLowerCase, withHierarchy = false) match {
+                        case Some(_existingMember) => //this child already exists, do not overwrite
+                        case None =>
+                            children.+=(m.getIdentity.toLowerCase -> m)
+                    }
+                } catch {
+                    case ex:Throwable =>
+                        this match {
+                            case m: Member =>
+                                println("failed to add member of parent: " + m.getIdentity)
+                            case _ =>
+                                println("failed to add member of parent")
+                        }
+                }
+            case _ => //do nothing
         }
     }
 
@@ -246,18 +292,6 @@ trait Member {
         children.values.toList
     }
 
-    /**
-     * using provided typeName check if this type is defined in the current Outer Class
-     * @param typeName
-     * @return
-     */
-    def findMemberByTypeLocally(typeName: String): Option[Member] = {
-        getTopMostClassMember match {
-          case Some(outerClassMember) =>
-              outerClassMember.getInnerClassByType(typeName)
-          case None => None
-        }
-    }
 
     /**
      * this method is only relevant when current member is a Class or Inner Class
@@ -267,18 +301,18 @@ trait Member {
      */
     def getChildrenWithInheritance(apexTree: ApexTree): List[Member] = {
         getSuperType match {
-          case Some(superType) =>
-              apexTree.getClassMemberByType(superType).orElse(findMemberByTypeLocally(superType)) match {
-                  case Some(superTypeMember) =>
-                      val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
-                      val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
-                      val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
-                          superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
-                      )
-                      superTypeChildrenMinusMyChildren ++ getChildren
-                  case None => getChildren
-              }
-          case None => getChildren
+            case Some(superType) =>
+                apexTree.getClassMemberByType(superType).orElse(findMemberByTypeLocally(superType)) match {
+                    case Some(superTypeMember) =>
+                        val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
+                        val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
+                        val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
+                            superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
+                        )
+                        superTypeChildrenMinusMyChildren ++ getChildren
+                    case None => getChildren
+                }
+            case None => getChildren
         }
     }
 
@@ -289,19 +323,19 @@ trait Member {
                 case Some(superType) =>
                     //first check if superType is an inner class in the current main/outer class
                     val innerSuperClassMember = getParent match {
-                      case Some(parentMember:ClassMember) =>
-                          parentMember.getInnerClassByType(superType)
-                      case _ => None
+                        case Some(parentMember:ClassMember) =>
+                            parentMember.getInnerClassByType(superType)
+                        case _ => None
                     }
                     innerSuperClassMember match {
-                      case Some(member) => member.getChild(identity)
-                      case None =>
-                          //fall back to the main tree
-                          apexTree.getClassMemberByType(superType) match {
-                              case Some(superTypeMember) =>
-                                  superTypeMember.getChild(identity)
-                              case None => None
-                          }
+                        case Some(member) => member.getChild(identity)
+                        case None =>
+                            //fall back to the main tree
+                            apexTree.getClassMemberByType(superType) match {
+                                case Some(superTypeMember) =>
+                                    superTypeMember.getChild(identity)
+                                case None => None
+                            }
                     }
 
                 case None => None
@@ -313,6 +347,11 @@ trait Member {
             case None => if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
     }
+
+
+}
+
+trait Member extends AnonymousMember {
 
     /**
      * @return
@@ -333,10 +372,6 @@ trait Member {
 
     //e.g. MyClass.InnerClass
     def getFullType: String = getType
-
-    def getSuperType: Option[String] = None
-
-    def getFullSuperType: Option[String] = None
 
     def getDoc: String = " " //TODO - implement documentation retrieval
 
@@ -360,7 +395,7 @@ trait Member {
         //val txt = getIdentity
         val txt = getSignature + " => type=" + getType + "; id=" + getIdentity
         val chlds = new StringBuilder()
-        for (x <- children) {
+        for (x <- getChildren) {
             chlds.++= (x.toString())
         }
         if (chlds.nonEmpty )
@@ -382,26 +417,6 @@ trait Member {
     }
     override def hashCode = getIdentity.toLowerCase.hashCode
 
-    def getTopMostClassMember: Option[ClassMember] = {
-        if (this.isInstanceOf[ClassMember] && !this.isInstanceOf[InnerClassMember]) {
-            return Some(this.asInstanceOf[ClassMember])
-        }
-        def getParentByType[T <: Member](m: Member, classType: Class[T]): Option[Member] = {
-            m.getParent match {
-              case Some(member) =>
-                  if (member.getClass == classType) {
-                      Some(member)
-                  } else {
-                      getParentByType(member, classType)
-                  }
-              case None => None
-            }
-        }
-        getParentByType(this, classOf[ClassMember]) match {
-          case Some(member) => Some(member.asInstanceOf[ClassMember])
-          case None => None
-        }
-    }
 }
 
 class ClassMember(ctx: ClassDeclarationContext) extends Member {
@@ -442,10 +457,12 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
     }
     override def getFullSuperType: Option[String] = this.getSuperType
 
-    override def addChild(member: Member): Unit = {
+    override def addChild(member: AnonymousMember): Unit = {
         super.addChild(member)
-        if (member.isInstanceOf[InnerClassMember]) {
-            innerClassByClassName += (member.getType.toLowerCase -> member.asInstanceOf[InnerClassMember])
+        member match {
+            case m: InnerClassMember =>
+                innerClassByClassName += (m.getType.toLowerCase -> m)
+            case _ =>
         }
     }
     def getInnerClassByType(innerClassTypeName: String): Option[InnerClassMember] = {
@@ -485,7 +502,7 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
     }
     override def getFullType: String = {
         getParent match {
-            case Some(parentMember) if !this.getType.startsWith(parentMember.getType + ".") =>
+            case Some(parentMember: Member) if !this.getType.startsWith(parentMember.getType + ".") =>
                 parentMember.getType + "." + this.getType
             case _ => super.getFullType
         }
@@ -501,7 +518,7 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
               } else {
                   //check if this is another class of the current ClassMember class
                   getParent match {
-                    case Some(classMember) =>
+                    case Some(classMember: Member) =>
                         classMember.asInstanceOf[ClassMember].getInnerClassByType(superTypeName) match {
                           case Some(anotherInnerClassMember) =>
                               //current superTypeName belongs to inner class of the same Outer class as current InnerClass
@@ -511,10 +528,8 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
                               // is fully qualified, otherwise it will not compile
                               Some(superTypeName)
                         }
-                    case None => None
+                    case _ => None
                   }
-
-
               }
           case None => None
         }
@@ -706,7 +721,7 @@ object ClassBodyMember {
      * @param member
      * @return
      */
-    def getFullTypeIfTypeIsInnerClass(member: Member, parentMember: Option[Member]): Option[String] = {
+    def getFullTypeIfTypeIsInnerClass(member: Member, parentMember: Option[AnonymousMember]): Option[String] = {
         parentMember match {
           case Some(_parentMember) =>
               _parentMember.getChild(member.getType) match {

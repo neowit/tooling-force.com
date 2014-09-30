@@ -297,7 +297,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         }
     }
 
-    def findSymbolInMemberHierarchy(parentMember: Member, identity: String, fullApexTree: ApexTree): Option[Member] = {
+    def findSymbolInMemberHierarchy(parentMember: AnonymousMember, identity: String, fullApexTree: ApexTree): Option[Member] = {
         parentMember.getChild(identity, withHierarchy = true) match {
           case Some(definitionMember) =>
               //definitionMember //member that defines type of token under cursor
