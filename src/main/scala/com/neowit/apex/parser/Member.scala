@@ -3,11 +3,13 @@ package com.neowit.apex.parser
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
 
-import com.neowit.apex.parser.antlr.{ApexcodeParser}
+import com.neowit.apex.parser.antlr.ApexcodeParser
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
-import scala.util.parsing.json.JSONObject
+
+import spray.json._
+import DefaultJsonProtocol._
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None
@@ -235,11 +237,12 @@ trait Member extends AnonymousMember {
             txt + "\n - "
     }
 
-    def toJson: JSONObject = {
+    def toJson: JsValue = {
         val data = Map("identity" -> getIdentityToDisplay, "realIdentity" -> getIdentity,
             "signature" -> getSignature, "type" -> getType,
             "visibility" -> getVisibility, "doc" -> getDoc)
-        JSONObject(data)
+        //JSONObject(data)
+        data.toJson
     }
 
     override def equals(o: Any): Boolean = {
@@ -569,10 +572,10 @@ object ClassBodyMember {
 abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
 
     //same as Member.toJson but with "isStatic"
-    override def toJson: JSONObject = {
+    override def toJson: JsValue = {
         val isStaticNum = if (ClassBodyMember.isStatic(ctx)) 1 else 0
-        val data = super.toJson.obj + ("isStatic" -> isStaticNum)
-        JSONObject(data)
+        val data = super.toJson.asJsObject.fields + ("isStatic" -> isStaticNum.toJson)
+        data.toJson
     }
 
     override def getVisibility: String = {
