@@ -93,6 +93,7 @@ trait AnonymousMember {
     def getFullSuperType: Option[String] = None
 
     private val children = mutable.HashMap[String, Member]()
+    protected def clearChildren() = children.clear()
 
     def addChild(member: AnonymousMember) {
         member.getParent match {

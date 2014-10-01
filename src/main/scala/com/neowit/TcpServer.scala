@@ -103,7 +103,7 @@ class CommandParser extends Actor {
         //parse command
         //io.Source.fromInputStream(socket.getInputStream).getLines().foreach(str => println("line=" + str))
         val inputLines = io.Source.fromInputStream(socket.getInputStream).getLines().toList
-        if (!inputLines.isEmpty) {
+        if (inputLines.nonEmpty) {
             val processorActor = TcpServer.system.actorOf(Props[CommandProcessor])
             inputLines(0) match {
                 case "ping" => processorActor ! new Ping(socket)

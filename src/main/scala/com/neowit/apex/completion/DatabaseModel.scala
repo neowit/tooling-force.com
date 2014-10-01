@@ -1,13 +1,20 @@
 package com.neowit.apex.completion
 
+import com.neowit.TcpServer
 import com.neowit.apex.Session
 import com.neowit.apex.parser.Member
 
-import com.sforce.soap.metadata.{RetrieveRequest, ListMetadataQuery}
+import com.sforce.soap.metadata.ListMetadataQuery
 
+import akka.actor.Actor
+import akka.actor.Props
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
 object DatabaseModel {
+    def REFRESH_INTERVAL_SECONDS = 30 //content of previously loaded fields will be refreshed over this period of time
+
     private val modelBySession = Map.newBuilder[Session, DatabaseModel]
     def getModelBySession(session: Session): Option[DatabaseModel] = {
         modelBySession.result().get(session) match {
@@ -49,6 +56,21 @@ class DatabaseModel(session: Session) {
     }
 
 }
+
+case class RefreshMessage(dbModelMember: DatabaseModelMember)
+
+class DatabaseModelRefreshActor extends Actor {
+    def receive = {
+        case RefreshMessage(dbModel) => runRefresh(dbModel)
+        case _ => println("DatabaseModelRefreshActor: huh?")
+    }
+
+    def runRefresh(dbModelMember: DatabaseModelMember): Unit = {
+        println("refreshing DB Model")
+        dbModelMember.refresh()
+    }
+}
+
 trait DatabaseModelMember extends Member {
     protected def isLoaded: Boolean
 
@@ -58,6 +80,7 @@ trait DatabaseModelMember extends Member {
     override def isStatic: Boolean = false
 
     def loadMembers(): Unit = {  }
+    def refresh(): Unit = {  }
 
     override def getChildren: List[Member] = {
         if (!isLoaded) {
@@ -72,6 +95,14 @@ trait DatabaseModelMember extends Member {
         }
         super.getChild(identity, withHierarchy)
     }
+
+    def scheduleRefresh(): Unit = {
+        val databaseModelRefreshActor = TcpServer.system.actorOf(Props[DatabaseModelRefreshActor])
+        //val duration = FiniteDuration(DatabaseModel.REFRESH_INTERVAL_SECONDS, scala.concurrent.duration.SECONDS)
+        val duration = FiniteDuration(15, scala.concurrent.duration.SECONDS)
+        TcpServer.system.scheduler.scheduleOnce(duration, databaseModelRefreshActor, new RefreshMessage(this))
+    }
+
 }
 
 /**
@@ -108,10 +139,18 @@ class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseMo
                         addChild(fMember)
                     }
                 }
+                scheduleRefresh()
 
             case Failure(error) => //ignore errors because we are in auto-complete mode
                 println(error)
         }
+
+    }
+
+    override def refresh(): Unit = {
+        isDoneLoading = false
+        clearChildren()
+        loadMembers()
 
     }
 }
@@ -123,8 +162,8 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
         field.getSoapType.name().replaceFirst("_", "") //some fields have type like "_double"
 
     override def getSignature: String = {
-        val lenghtStr = if (field.getLength > 0) " [" + field.getLength + "]" else ""
-        field.getLabel + " (" + field.getType.name().replaceFirst("_", "") + lenghtStr + ")"
+        val lengthStr = if (field.getLength > 0) " [" + field.getLength + "]" else ""
+        field.getLabel + " (" + field.getType.name().replaceFirst("_", "") + lengthStr + ")"
     }
 
     override def getIdentity: String = field.getName //Field API Name here
