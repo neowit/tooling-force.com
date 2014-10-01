@@ -438,9 +438,17 @@ statement
     ;
 
 propertyBlock
-	:	modifier* ('get' | 'set') ';'
-	|	modifier* ('get' block | 'set' block)
+	:	modifier* (getter | setter)
 	;
+
+getter
+ : 'get' (';' | methodBody)
+ ;
+
+setter
+ : 'set' (';' | methodBody)
+ ;
+
 
 catchClause
     :   'catch' '(' variableModifier* catchType Identifier ')' block
@@ -517,6 +525,8 @@ constantExpression
 
 expression
     :   primary
+    |   expression '.' 'get' '(' expressionList? ')'
+    |   expression '.' 'set' '(' expressionList? ')'
     |   expression '.' Identifier
     |   expression '.' 'this'
     |   expression '.' 'new' nonWildcardTypeArguments? innerCreator
