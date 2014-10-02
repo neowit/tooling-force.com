@@ -142,6 +142,7 @@ class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseMo
                 scheduleRefresh()
 
             case Failure(error) => //ignore errors because we are in auto-complete mode
+                isDoneLoading = false
                 println(error)
         }
 
