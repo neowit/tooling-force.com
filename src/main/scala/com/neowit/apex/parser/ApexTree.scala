@@ -43,9 +43,9 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
 
     def getClassMemberByType(classTypeName: String): Option[ClassMember] = {
         val lowerCaseTypeName = classTypeName.toLowerCase
-        if (lowerCaseTypeName.indexOf(".") > 0) {
+        val typeNames = lowerCaseTypeName.split("\\.")
+        if (typeNames.size > 1) {
             //resolve OuterClass.InnerClass in two steps
-            val typeNames = lowerCaseTypeName.split("\\.")
             classByClassName.get(typeNames.head) match {
                 case Some(outerClassMember) =>
                     outerClassMember.getInnerClassByType(typeNames.tail.head)
