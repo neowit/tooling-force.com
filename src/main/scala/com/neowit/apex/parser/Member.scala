@@ -368,6 +368,18 @@ class BuiltInMember(parent: AnonymousMember, identity: String, displayIdentity: 
     override def isStatic: Boolean = isStaticMember
 }
 
+class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: String, retType: String,
+                              params: List[String] = List(),
+                              signature: Option[String] = None, isStaticMember: Boolean = false)
+                                extends BuiltInMember(parent, identity, displayIdentity, retType, signature, isStaticMember) {
+
+    override def getSignature: String = signature match {
+        case Some(s) => s
+        case None => "public " + getType + " " + getIdentityToDisplay + "(" + params.mkString(", ") + ")"
+    }
+}
+
+
 object InnerClassMember {
     private val IDENTITY_PREFIX = "InnerClass:"
 }
@@ -653,8 +665,9 @@ object EnumMember {
         if (ClassBodyMember.isEnum(ctx)) Some(ctx) else None
     }
 }
+
 class EnumMember(ctx: EnumDeclarationContext) extends Member {
-    addChild(new EnumMethodMember(this, "values", "values()", "List<" + getType + ">")) //add default values() method of enum
+    addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
 
     override def getIdentity:String = {
         ctx.Identifier().getText
@@ -669,19 +682,15 @@ class EnumMember(ctx: EnumDeclarationContext) extends Member {
     override def isStatic: Boolean = false
 }
 
-private class EnumMethodMember(parent: EnumMember, identity: String, displayIdentity: String, retType: String)
-                                                extends BuiltInMember(parent, identity, displayIdentity, retType)
-
-
 /**
  * enum constant has only two methods: name(), ordinal()
  */
-private class EnumConstantMethodMember(parent: EnumConstantMember, identity: String, displayIdentity: String, retType: String)
+class BuiltInEnumConstantMethodMember(parent: EnumConstantMember, identity: String, displayIdentity: String, retType: String)
                                                                 extends BuiltInMember(parent, identity, displayIdentity, retType)
 
 class EnumConstantMember(ctx: EnumConstantContext) extends Member {
-    addChild(new EnumConstantMethodMember(this, "name", "name()", "String")) //add default name() method of enum constant
-    addChild(new EnumConstantMethodMember(this, "ordinal", "ordinal()", "Integer")) //add default ordinal() method of enum constant
+    addChild(new BuiltInMethodMember(this, "name", "name", "String")) //add default name() method of enum constant
+    addChild(new BuiltInMethodMember(this, "ordinal", "ordinal", "Integer")) //add default ordinal() method of enum constant
     /**
      * @return
      * for class it is class name
@@ -690,12 +699,6 @@ class EnumConstantMember(ctx: EnumConstantContext) extends Member {
      * etc
      */
     override def getIdentity: String = {
-        /*
-        getParent match {
-            case Some(m) if m.isInstanceOf[EnumMember] => m.asInstanceOf[EnumMember].getIdentity + "." + ctx.Identifier().getText
-            case _ => ""
-        }
-        */
         ctx.Identifier().getText
     }
 

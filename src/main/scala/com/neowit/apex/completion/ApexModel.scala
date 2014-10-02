@@ -1,14 +1,14 @@
 package com.neowit.apex.completion
 
-import com.neowit.apex.parser.Member
+import com.neowit.apex.parser.{BuiltInMethodMember, Member}
 //import scala.collection.JavaConversions._
 import spray.json._
-//import DefaultJsonProtocol._
 
 object ApexModelJsonProtocol extends DefaultJsonProtocol {
     //implicit val namespaceFormat = jsonFormat1(ApexNamespace)
-    implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "methods", "tag", "ctors", "fqn"))
+    implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "enumConstants", "methods", "tag", "ctors", "fqn"))
     implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
+    implicit val apexEnumFormat: JsonFormat[ApexEnumConstantMember] = lazyFormat(jsonFormat(ApexEnumConstantMember, "s", "n", "v", "h", "r"))
     //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
 
@@ -137,7 +137,11 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         loadFile(name)
         if ("System" == name) {
             //add Exception to System namespace
-            loadFile("Exception")
+            loadFile("_Exception")
+            //add enum constant methods to System namespace
+            loadFile("_Enum")
+            //add StatusCode enum to System namespace
+            loadFile("_StatusCode")
             //add methods from System.System
             getChild("System") match {
               case Some(systemMember) =>
@@ -181,7 +185,8 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         }
     }
 }
-case class ApexType(name: String, superType: Option[String], methods: List[ApexMethod], tag: String, ctors: List[ApexMethod], fqn: String) extends ApexModelMember {
+case class ApexType(name: String, superType: Option[String], enumConstants: Option[List[ApexEnumConstantMember]],
+                    methods: Option[List[ApexMethod]], tag: String, ctors: Option[List[ApexMethod]], fqn: String) extends ApexModelMember {
 
     override def getIdentity: String = name
     override def getSignature: String = fqn
@@ -191,9 +196,24 @@ case class ApexType(name: String, superType: Option[String], methods: List[ApexM
     override def isLoaded:Boolean = isDoneLoading
     override def loadMembers(): Unit = {
         isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
-        for (method <- methods) {
-            //method.setParent(this)
-            addChild(method)
+        methods match {
+          case Some(_methods) =>
+              for (method <- _methods) {
+                  //method.setParent(this)
+                  addChild(method)
+              }
+          case None =>
+        }
+        enumConstants match {
+            case Some(_enumConstants) =>
+                for (enumConstant <- _enumConstants) {
+                    //method.setParent(this)
+                    addChild(enumConstant)
+                }
+            case None =>
+        }
+        if ("ENUMDEF" == tag) {
+            addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
         }
     }
 
@@ -229,11 +249,17 @@ case class ApexMethod(s: String, n: String, v: String, p: List[String], h: Strin
     }
 }
 
-/*
-case class ApexParam2(paramType: String) extends ApexModelMember {
-    override def getIdentity: String = paramType
-    override def getSignature: String = paramType
-    override def isStatic: Boolean = false
+/**
+ * description of parameter list @see ApexMethod
+ */
+case class ApexEnumConstantMember(s: Option[String], n: String, v: Option[String], h: String, r: String) extends ApexModelMember {
+    override def getVisibility: String = v.getOrElse("public")
 
+    override def getIdentity: String = n
+
+    override def getSignature: String = ""
+    override def isStatic: Boolean = "1" == s.getOrElse("1")
+    override def getDoc: String = h
+
+    override def getType: String = r
 }
-*/
