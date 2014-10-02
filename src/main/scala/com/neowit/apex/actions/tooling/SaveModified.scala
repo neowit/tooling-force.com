@@ -17,7 +17,6 @@ class SaveError(msg: String) extends Error(msg: String)
 /**
  * Unlike SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
  *
- * @param basicConfig - main config
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
@@ -33,7 +32,7 @@ class SaveError(msg: String) extends Error(msg: String)
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */
-class SaveModified(basicConfig: BasicConfig) extends DeployModified(basicConfig: BasicConfig) {
+class SaveModified extends DeployModified {
     val CONTAINER_PREFIX = "tooling-force.com"
 
     //we can use ToolingApi in following cases

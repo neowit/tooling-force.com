@@ -2,11 +2,10 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apex.completion.{AutoComplete}
+import com.neowit.apex.completion.AutoComplete
 import com.neowit.apex.parser.{ApexTree, Member}
-import com.neowit.utils.BasicConfig
 
-class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig){
+class ListCompletions extends ApexAction {
 
     override def act(): Unit = {
         val config = session.getConfig
@@ -16,12 +15,12 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
                 column <- config.getRequiredProperty("column")
         ) yield {
             val inputFile = new File(filePath)
-            val scanSourceAction = new ScanSource(basicConfig)
+            val scanner = new ScanSource().load[ScanSource](session.basicConfig)
             //exclude current file
             val currentFilePath = config.getRequiredProperty("currentFilePath")
-            val classes = scanSourceAction.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
+            val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
             //scan all project files (except the current one)
-            val scanner = new ScanSource(basicConfig)
+            //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
             scanner.scan(classes)
 
             val cachedTree:ApexTree = SourceScannerCache.getScanResult(config.projectDir)  match {
@@ -52,24 +51,27 @@ class ListCompletions (basicConfig: BasicConfig) extends ApexAction(basicConfig:
         )
         res
     }
-    override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = {
-        paramName match {
-            case "projectPath" => "full path to project folder"
-            case "currentFilePath" => "full path to current code file"
-            case "currentFileContentPath" => "full path to temp file where current code file content is saved. If current file is saved then can be the same as currentFilePath"
-            case "line" => "line of cursor position in the current code file, starts with 1"
-            case "column" => "column of cursor position in the current code file, starts with 1"
-            case "responseFilePath" => "path to file where completion candidates will be saved in JSON format"
-            case _ => ""
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
+
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case "projectPath" => "--projectPath - full path to project folder"
+                case "currentFilePath" => "--currentFilePath - full path to current code file"
+                case "currentFileContentPath" => "--currentFileContentPath - full path to temp file where current code file content is saved. If current file is saved then can be the same as currentFilePath"
+                case "line" => "--line - line of cursor position in the current code file, starts with 1"
+                case "column" => "--column - column of cursor position in the current code file, starts with 1"
+                case "responseFilePath" => "--responseFilePath - path to file where completion candidates will be saved in JSON format"
+                case _ => ""
+            }
         }
+
+        override def getParamNames: List[String] = List("projectPath", "currentFilePath", "currentFileContentPath",
+            "line", "column", "responseFilePath")
+
+        override def getSummary: String = "list potential candidates for code completion"
+
+        override def getName: String = "listCompletions"
     }
-
-    override def getParamNames: List[String] = List("projectPath", "currentFilePath", "currentFileContentPath",
-                                                    "line", "column", "responseFilePath")
-
-    override def getSummary: String = "list potential candidates for code completion"
-
-    override def getName: String = "listCompletions"
 }

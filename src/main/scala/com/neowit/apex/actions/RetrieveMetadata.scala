@@ -9,7 +9,7 @@ import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import scala.collection.mutable
 import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
 import scala.util.Failure
-import scala.Some
+
 import scala.util.Success
 import com.neowit.utils.ResponseWriter.MessageDetail
 import scala.util.parsing.json.JSONArray
@@ -17,7 +17,7 @@ import scala.util.parsing.json.JSONObject
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
-abstract class RetrieveMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
+abstract class RetrieveMetadata extends ApexAction {
 
     def setUpackaged(retrieveRequest: RetrieveRequest) {
         val metaXml = new MetaXml(session.getConfig)
@@ -112,25 +112,29 @@ abstract class RetrieveMetadata(basicConfig: BasicConfig) extends ApexAction(bas
 
 /**
  * 'refresh' action is 'retrieve' for all elements specified in package.xml
- *@param session - SFDC session
  */
-class RefreshMetadata(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
+class RefreshMetadata extends RetrieveMetadata {
 
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "config" => "--config - full path to config.properties file"
+            case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
+            case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
+        }
 
-    override def getParamDescription(paramName: String): String = ""
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath")
 
-    override def getParamNames: List[String] = Nil
+        override def getExample: String = ""
 
-    override def getExample: String = ""
+        override def getSummary: String = "allows to 'retrieve' all elements specified in package.xml"
 
-    override def getSummary: String = "allows to 'retrieve' all elements specified in package.xml"
-
-    override def getName: String = "refresh"
+        override def getName: String = "refresh"
+    }
 
     def act() {
         //first check if we have modified files
         val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
-        val modifiedFileChecker = new ListModified(session.basicConfig)
+        val modifiedFileChecker = new ListModified().load[ListModified](session.basicConfig)
         val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
 
         if (modifiedFiles.isEmpty) {
@@ -177,20 +181,25 @@ class RefreshMetadata(basicConfig: BasicConfig) extends RetrieveMetadata(basicCo
 /**
  * check local modified files against their Remote versions to see if remote is newer
  */
-class ListConflicting(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
+class ListConflicting extends RetrieveMetadata {
 
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getExample: String = ""
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "config" => "--config - full path to config.properties file"
+            case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
+            case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
+        }
 
-    override def getParamDescription(paramName: String): String = ""
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath")
 
-    override def getParamNames: List[String] = Nil
-
-    override def getSummary: String =
-        """ Check if there have been updates of remote (SFDC) versions of local files since last 'refresh' or 'deploy' operation
+        override def getSummary: String =
+            """ Check if there have been updates of remote (SFDC) versions of local files since last 'refresh' or 'deploy' operation
           | """
 
-    override def getName: String = "listConflicts"
+        override def getName: String = "listConflicts"
+    }
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
         val filesWithoutPackageXml = files.filterNot(_.getName == "package.xml").toList
@@ -258,7 +267,7 @@ class ListConflicting(basicConfig: BasicConfig) extends RetrieveMetadata(basicCo
     }
 
     def act {
-        val checker = new ListModified(session.basicConfig)
+        val checker = new ListModified().load[ListModified](session.basicConfig)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
@@ -278,7 +287,6 @@ class ListConflicting(basicConfig: BasicConfig) extends RetrieveMetadata(basicCo
 }
 /**
  * 'bulkRetrieve' action uses type list specified in a file and sends retrieve() call for each type
- *@param session - SFDC session
  * Extra command line params:
  * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
  * --specificTypes=/path/to/file.js with extraction details
@@ -291,64 +299,75 @@ class ListConflicting(basicConfig: BasicConfig) extends RetrieveMetadata(basicCo
  *  classes/A_Class.cls
  *  -------------------------------
  */
-class BulkRetrieve(basicConfig: BasicConfig) extends RetrieveMetadata(basicConfig: BasicConfig) {
+class BulkRetrieve extends RetrieveMetadata {
 
-    override def getExample: String =
-        """Suppose we want to retrieve all members of ApexClass, ApprovalProcess, ApexComponent
-          |and selected members of ApexPage type.
-          |We can create a file (/home/test/types.js) with following content
-          |---------------------------
-          |{"XMLName": "ApexClass", "members": ["*"]}
-          |{"XMLName": "ApprovalProcess", "members": ["*"]}
-          |{"XMLName": "ApexComponent", "members": ["*"]}
-          |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
-          |---------------------------
-          | and add to the command line:
-          |--specificTypes=/home/test/types.js
-        """.stripMargin
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String =
+            """Suppose we want to retrieve all members of ApexClass, ApprovalProcess, ApexComponent
+              |and selected members of ApexPage type.
+              |We can create a file (/home/test/types.js) with following content
+              |---------------------------
+              |{"XMLName": "ApexClass", "members": ["*"]}
+              |{"XMLName": "ApprovalProcess", "members": ["*"]}
+              |{"XMLName": "ApexComponent", "members": ["*"]}
+              |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
+              |---------------------------
+              | and add to the command line:
+              |--specificTypes=/home/test/types.js
+            """.stripMargin
 
-    override def getParamDescription(paramName: String): String = {
-        paramName match {
-            case "specificTypes" =>
-                """---specificTypes=/path/to/file
-                  |full path to file with the list of metadata types to retrieve
-                  |each metadata type must be on its own line in the file
-                """.stripMargin
-            case "updatePackageXMLOnSuccess" =>
-                """--updatePackageXMLOnSuccess=true|false
-                  |if --updatePackageXMLOnSuccess=true then package.xml will be updated when types file contains
-                  |types missing in package.xml
-                """.stripMargin
-            case "typesFileFormat" =>
-                """format of the file with components list, can be either 'json' (default) or 'file-paths'
-                  |if format is set to "file-paths" then types list should look like so:
-                  |-------------------------------
-                  |objects/My_Object__c
-                  |classes/MyClass.cls
-                  |classes/A_Class.cls
-                  |-------------------------------
-                  |
-                  |if format is not set or set to "json" then types list should look like so:
-                  |---------------------------
-                  |{"XMLName": "ApexClass", "members": ["*"]}
-                  |{"XMLName": "ApprovalProcess", "members": ["*"]}
-                  |{"XMLName": "ApexComponent", "members": ["*"]}
-                  |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
-                  |---------------------------
-                """.stripMargin
-            case "targetFolder" => "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
+        override def
 
+        getParamDescription(paramName: String): String = {
+            paramName match {
+                case
+                    "specificTypes" =>
+                    """---specificTypes=/path/to/file
+                      |full path to file with the list of metadata types to retrieve
+                      |each metadata type must be on its own line in the file
+                    """.stripMargin
+                case
+                    "updatePackageXMLOnSuccess" =>
+                    """--updatePackageXMLOnSuccess=true|false
+                      |if --updatePackageXMLOnSuccess=true then package.xml will be updated when types file contains
+                      |types missing in package.xml
+                    """.stripMargin
+                case
+                    "typesFileFormat" =>
+                    """format of the file with components list, can be either 'json' (default) or 'file-paths'
+                      |if format is set to "file-paths" then types list should look like so:
+                      |-------------------------------
+                      |objects/My_Object__c
+                      |classes/MyClass.cls
+                      |classes/A_Class.cls
+                      |-------------------------------
+                      |
+                      |if format is not set or set to "json" then types list should look like so:
+                      |---------------------------
+                      |{"XMLName": "ApexClass", "members": ["*"]}
+                      |{"XMLName": "ApprovalProcess", "members": ["*"]}
+                      |{"XMLName": "ApexComponent", "members": ["*"]}
+                      |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
+                      |---------------------------
+                    """.stripMargin
+                case "targetFolder" =>
+                    "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
+
+            }
         }
+
+        override def getParamNames: List[String] = List(
+
+            "specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder")
+
+        override def getSummary: String =
+            """using type list specified in a given file send retrieve() call for each type
+              |and load retrieve results into a temporary folder
+            """.
+                stripMargin
+
+        override def getName: String =  "bulkRetrieve"
     }
-
-    override def getParamNames: List[String] = List("specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder")
-
-    override def getSummary: String =
-        """using type list specified in a given file send retrieve() call for each type
-          |and load retrieve results into a temporary folder
-        """.stripMargin
-
-    override def getName: String = "bulkRetrieve"
 
     //some types require special treatment and need other object types included in the package in order to return meaningful result
     private val complexTypes = Map("Profile" -> Set("CustomObject"), "PermissionSet" -> Set("CustomObject"))

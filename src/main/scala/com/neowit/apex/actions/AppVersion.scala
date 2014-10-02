@@ -7,7 +7,7 @@ object AppVersion {
     val APP_NAME = "tooling-force.com"
     val VERSION = "0.3.0"
 }
-class AppVersion(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
+class AppVersion extends ApexAction {
     override def act(): Unit = {
         /*
         val p = getClass.getPackage
@@ -19,13 +19,18 @@ class AppVersion(basicConfig: BasicConfig) extends ApexAction(basicConfig: Basic
         logger.debug("version: " + AppVersion.VERSION)
     }
 
-    override def getParamNames: List[String] = List()
 
-    override def getSummary: String = "return version of tooling-force.com"
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getParamNames: List[String] = List()
 
-    override def getName: String = "version"
+        override def getSummary: String = "return version of tooling-force.com"
 
-    override def getExample: String = ""
+        override def getName: String = "version"
 
-    override def getParamDescription(paramName: String): String = ""
+        override def getExample: String = ""
+
+        override def getParamDescription(paramName: String): String = ""
+
+    }
+
 }

@@ -7,9 +7,8 @@ import java.io._
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.Props
-import com.neowit.apex.actions.AsyncAction
-import com.neowit.utils.BasicConfig
-import com.neowit.apex.{Executor}
+import com.neowit.apex.actions.{ActionHelp, AsyncAction}
+import com.neowit.apex.Executor
 
 case class Message(socket: Socket)
 case class Ping(socket: Socket)
@@ -22,30 +21,31 @@ object MyServer extends App{
     server.start()
 }
 
-class ServerStart (basicConfig: BasicConfig) extends AsyncAction(basicConfig: BasicConfig) {
+class ServerStart  extends AsyncAction {
     override def act(): Unit = {
         val port = basicConfig.getProperty("port").getOrElse("8888").toInt
         val timeoutMillis = basicConfig.getProperty("timeoutSec").getOrElse("30").toInt * 1000
         val server = new TcpServer(port, timeoutMillis)
         server.start()
     }
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getParamNames: List[String] = List("port", "timeoutMillis")
 
-    override def getParamNames: List[String] = List("port", "timeoutMillis")
+        override def getSummary: String = "start server on specified local port"
 
-    override def getSummary: String = "start server on specified local port"
+        override def getName: String = "serverStart"
 
-    override def getName: String = "serverStart"
+        override def getExample: String = "tooling-force.com.jar --action=serverStart --port=8888 --timeoutMillis=30000"
 
-    override def getExample: String = "tooling-force.com.jar --action=serverStart --port=8888 --timeoutMillis=30000"
-
-    override def getParamDescription(paramName: String): String = {
-        paramName match {
-            case "port" => "Port number, e.g. 8888"
-            case "timeoutSec" =>
-                """Number of seconds the server will wait for new connections.
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case "port" => "--port - Port number, e.g. 8888"
+                case "timeoutSec" =>
+                    """--timeoutSec - Number of seconds the server will wait for new connections.
                   |Once last command is completed and if no new connections is established within 'timeoutMillis'
                   |the server will shut itself down""".stripMargin
-            case _ => "unsupported parameter"
+            case _ => ""
+        }
         }
     }
 }

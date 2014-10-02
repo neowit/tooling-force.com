@@ -16,7 +16,7 @@ object DescribeMetadata {
      */
     def getMap(session: Session): Map[String, DescribeMetadataObject] = {
         if (describeMetadataObjectMap.isEmpty) {
-            val describer = new DescribeMetadata(session.basicConfig)
+            val describer = new DescribeMetadata().load[DescribeMetadata](session.basicConfig)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {
@@ -89,23 +89,24 @@ object DescribeMetadata {
 
 /**
  * 'decribeMetadata' action saves result of describeMetadata call in JSON format
- *@param basicConfig - config
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
-class DescribeMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
+class DescribeMetadata extends ApexAction {
 
-    override def getExample: String = ""
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "allMetaTypesFilePath" => "--allMetaTypesFilePath - path to file where results shall be saved"
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "allMetaTypesFilePath" => "--allMetaTypesFilePath - path to file where results shall be saved"
+        }
+
+        override def getParamNames: List[String] = List("allMetaTypesFilePath")
+
+        override def getSummary: String = "saves result of describeMetadata call in JSON format"
+
+        override def getName: String = "describeMetadata"
     }
-
-    override def getParamNames: List[String] = List("allMetaTypesFilePath")
-
-    override def getSummary: String = "saves result of describeMetadata call in JSON format"
-
-    override def getName: String = "describeMetadata"
 
     def loadFromFile: Map[String, DescribeMetadataObject] = {
 
@@ -193,23 +194,24 @@ class DescribeMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig:
 
 /**
  * 'listMetadata' action uses type list specified in a file and sends listMetadata() call for specified types
- *@param basicConfig - Basic Config
  * Extra command line params:
  * --specificTypes=/path/to/file with types list
  */
-class ListMetadata(basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig) {
+class ListMetadata extends ApexAction {
 
-    override def getExample: String = ""
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "specificTypes" => "--specificTypes=/path/to/file with Xml types list. Each type must be on its own line"
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "specificTypes" => "--specificTypes=/path/to/file with Xml types list. Each type must be on its own line"
+        }
+
+        override def getParamNames: List[String] = List("specificTypes")
+
+        override def getSummary: String = "retrieve members of metadata types listed in --specificTypes=file and return results in another file"
+
+        override def getName: String = "listMetadata"
     }
-
-    override def getParamNames: List[String] = List("specificTypes")
-
-    override def getSummary: String = "retrieve members of metadata types listed in --specificTypes=file and return results in another file"
-
-    override def getName: String = "listMetadata"
 
     def act(): Unit = {
 

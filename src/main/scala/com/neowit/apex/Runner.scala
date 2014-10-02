@@ -20,13 +20,11 @@
 package com.neowit.apex
 
 import com.neowit.utils._
-import com.neowit.apex.actions.{RetrieveError, ActionFactory}
+import com.neowit.apex.actions.{ActionHelp, ShowHelpException, RetrieveError, ActionFactory}
 import scala.concurrent.{ExecutionContext, Future}
 import ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 
 object Runner extends Logging {
-    //var appConfig = Config.getConfig(new BasicConfig())
     def main(args: Array[String]) {
         val runner = new Executor()
         runner.execute(args)
@@ -47,6 +45,7 @@ class Executor extends Logging {
                 isGoodConfig = true
             } catch {
                 case ex: InvalidCommandLineException => basicConfig.help()
+                case ex: ShowHelpException => help(ex.help)
                 case ex: MissingRequiredConfigParameterException =>
                     basicConfig.getProperty("help") match {
                         case Some(actionName) =>
@@ -108,19 +107,28 @@ class Executor extends Logging {
 
     }
 
-    def help(actionName: String) {
-        val action = ActionFactory.getAction(null, actionName).get
-        System.out.println("\n--action=" + actionName)
-        System.out.println(" " + action.getSummary)
-        if (!action.getParamNames.isEmpty) {
+    def help(actionName: String): Unit = {
+        try {
+            ActionFactory.getAction(basicConfig, actionName, skipLoading = true) match {
+                case Some(x) => help(x.getHelp)
+                case None =>
+            }
+        } catch {
+            case ex: ShowHelpException => help(ex.help)
+        }
+    }
+    def help(actionHelp: ActionHelp) {
+        System.out.println("\n--action=" + actionHelp.getName)
+        System.out.println(" " + actionHelp.getSummary)
+        if (!actionHelp.getParamNames.isEmpty) {
             System.out.println("Additional parameters:")
-            for(paramName <- action.getParamNames) {
-                System.out.println(action.getParamDescription(paramName))
+            for(paramName <- actionHelp.getParamNames) {
+                System.out.println(actionHelp.getParamDescription(paramName))
             }
         }
-        if (!action.getExample.isEmpty) {
+        if (!actionHelp.getExample.isEmpty) {
             System.out.println("Example:")
-            System.out.println(action.getExample)
+            System.out.println(actionHelp.getExample)
         }
     }
 

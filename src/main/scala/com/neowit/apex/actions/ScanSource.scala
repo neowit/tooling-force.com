@@ -17,7 +17,7 @@ object SourceScannerCache {
 
 }
 
-class ScanSource (basicConfig: BasicConfig) extends ApexAction(basicConfig: BasicConfig){
+class ScanSource extends ApexAction {
     val APEX_EXTENSIONS = Set("cls", "trigger")
 
     override def act(): Unit = {
@@ -39,22 +39,22 @@ class ScanSource (basicConfig: BasicConfig) extends ApexAction(basicConfig: Basi
         SourceScannerCache.addScanResult(config.projectDir, scanner)
 
     }
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getExample: String = ""
-
-    override def getParamDescription(paramName: String): String = {
-        paramName match {
-            case "projectPath" => "full path to project folder"
-            case _ => ""
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case "projectPath" => "full path to project folder"
+                case _ => ""
+            }
         }
+
+        override def getParamNames: List[String] = List("projectPath")
+
+        override def getSummary: String = "scan project files to build completion tree"
+
+        override def getName: String = "scanSource"
     }
-
-    override def getParamNames: List[String] = List("projectPath")
-
-    override def getSummary: String = "scan project files to build completion tree"
-
-    override def getName: String = "scanSource"
-
 
     def getClassFiles:List[File] = {
         val config = session.getConfig

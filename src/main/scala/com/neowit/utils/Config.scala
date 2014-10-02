@@ -36,6 +36,7 @@ class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumen
 
 class ConfigValueException(msg:String) extends IllegalArgumentException(msg: String)
 
+
 class BasicConfig extends Logging {
     private var out: OutputStream = System.out
     def setOutputStream(out: OutputStream) { this.out = out}
