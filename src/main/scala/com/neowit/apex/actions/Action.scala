@@ -28,6 +28,7 @@ class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
+        "version" -> "AppVersion",
         "serverStart" -> "com.neowit.ServerStart",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
@@ -54,7 +55,7 @@ object ActionFactory {
           case Some(action) =>
               val fullClassName = if (action.indexOf(".") < 0) "com.neowit.apex.actions." + action else action
               val constructor = Class.forName(fullClassName).getConstructor(classOf[BasicConfig])
-              Some(constructor.newInstance(basicConfig).asInstanceOf[Action])
+                  Some(constructor.newInstance(basicConfig).asInstanceOf[Action])
           case None => throw new UnsupportedActionError("--action=" + name + " is not supported")
         }
     }

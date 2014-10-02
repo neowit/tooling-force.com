@@ -1,5 +1,7 @@
 package com.neowit.utils
 
+import com.neowit.apex.actions.AppVersion
+
 import scala.util.parsing.json.JSONObject
 import java.net.{NetworkInterface, InetAddress, URL}
 import java.io.OutputStreamWriter
@@ -23,8 +25,8 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         val data = Map(
             "action" -> basicConfig.action,
             "macHash" -> macHash,
-            "os" -> System.getProperty("os.name")
-
+            "os" -> System.getProperty("os.name"),
+            "version" -> AppVersion.VERSION
         )
         logger.trace("usage report: " + data)
 
