@@ -20,7 +20,7 @@
 package com.neowit.utils
 
 import java.util.Properties
-import java.io.{FileWriter, File}
+import java.io.{OutputStream, FileWriter, File}
 import scala._
 
 //import com.typesafe.scalalogging.slf4j.Logging
@@ -37,25 +37,17 @@ class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumen
 class ConfigValueException(msg:String) extends IllegalArgumentException(msg: String)
 
 
-object Config extends Logging {
-    private var config: Config = new Config
-    def getConfig = {
-        config
-    }
-    def resetConfig = {
-        //used in unit tests
-        config = new Config
-        config
-    }
-}
+class BasicConfig extends Logging {
+    private var out: OutputStream = System.out
+    def setOutputStream(out: OutputStream) { this.out = out}
+    def getResponseWriter = new ResponseWriter(this.out)
+    lazy val responseWriter= getResponseWriter
 
-class Config extends Logging{
     def isUnix = {
         val os = System.getProperty("os.name").toLowerCase
         os.contains("nux") || os.contains("mac")
     }
 
-    val apiVersion:Double = 29.0
     type OptionMap = Map[String, String]
     private val mainProps = new Properties() with OptionProperties
 
@@ -143,8 +135,8 @@ class Config extends Logging{
      */
     def getProperty(key:String):Option[String] = {
         val cmdLineValue = scala.util.Properties.propOrNone( key ) match {
-          case Some(s) => Some(s)
-          case None => options.get(key)
+            case Some(s) => Some(s)
+            case None => options.get(key)
         }
         val configValue = mainProps.getPropertyOption(key)
         val res = cmdLineValue match {
@@ -163,6 +155,49 @@ class Config extends Logging{
         }
     }
 
+    def help() {
+        System.out.println( """
+ Command line utility for working with force.com Metadata and Tooling API.
+ https://github.com/neowit/tooling-force.com
+
+Command line parameters
+ --help : show this text
+
+ --action=<action-name> - action to perform
+           run --help=<action-name> to display help for specific action
+
+ --config="path to config.properties"
+ [[--config="path to config.properties"]: (optional) more than one "--config" is supported, non blank parameters of later --config take precendence
+ [--<any param from config file>=<value>]: (optional) all config parameters can be specified in both config file and command line.
+                                                      Command line parameters take precedence
+Example:
+ java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties
+
+OR if sfdc login/pass are in a different file
+ java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --config=/path/to/credentials.properties
+
+
+In the following example username user@domain.com specified in the command line will be used,
+regardless of whether it is also specified in config file or not
+ java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --sf.username=user@domain.com
+
+                 """)
+    }
+
+    lazy val action = getRequiredProperty("action").get
+}
+
+class Config(basicConfig: BasicConfig) extends Logging{
+    val apiVersion:Double = 29.0
+
+    //make BasicConfig methods available in Config
+    def load(arglist: List[String]) { basicConfig.load(arglist)}
+    def isUnix = basicConfig.isUnix
+    def getProperty(key:String):Option[String] = basicConfig.getProperty(key)
+    def getRequiredProperty(key: String): Option[String] =  basicConfig.getRequiredProperty(key)
+    lazy val action = basicConfig.action
+    //END BasicConfig methods
+
     lazy val username = getRequiredProperty("sf.username").get
     lazy val password = getRequiredProperty("sf.password").get
     lazy val soapEndpoint = {
@@ -173,7 +208,6 @@ class Config extends Logging{
         }
     }
 
-    lazy val action = getRequiredProperty("action").get
 
     //path to folder where all cached metadata (session Id, las update dates, etc) stored
     lazy val sessionFolder = {
@@ -265,35 +299,6 @@ class Config extends Logging{
         case None => false
     }
 
-    def help() {
-        println( """
- Command line utility for working with force.com Metadata and Tooling API.
- https://github.com/neowit/tooling-force.com
-
-Command line parameters
- --help : show this text
-
- --action=<action-name> - action to perform
-           run --help=<action-name> to display help for specific action
-
- --config="path to config.properties"
- [[--config="path to config.properties"]: (optional) more than one "--config" is supported, non blank parameters of later --config take precendence
- [--<any param from config file>=<value>]: (optional) all config parameters can be specified in both config file and command line.
-                                                      Command line parameters take precedence
-Example:
- java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties
-
-OR if sfdc login/pass are in a different file
- java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --config=/path/to/credentials.properties
-
-
-In the following example username user@domain.com specified in the command line will be used,
-regardless of whether it is also specified in config file or not
- java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --sf.username=user@domain.com
-
-                 """)
-    }
-
     /*
      * generates specified folders nested in the main outputFolder
      */
@@ -317,5 +322,6 @@ regardless of whether it is also specified in config file or not
         }
         f
     }
-    lazy val responseWriter= new ResponseWriter(responseFile)
+    def getResponseWriter = new ResponseWriter(responseFile)
+    lazy val responseWriter= getResponseWriter
 }

@@ -5,9 +5,9 @@ import scala.collection.mutable
 import com.neowit.apex.Session
 import scala.util.{Failure, Success, Try}
 import scala.util.parsing.json.{JSON, JSONObject, JSONArray}
-import com.neowit.utils.ResponseWriter
+import com.neowit.utils.{BasicConfig, ResponseWriter}
 import java.io.{PrintWriter, File}
-import com.neowit.apex.actions.ApexAction
+import com.neowit.apex.actions.{ActionHelp, ApexAction}
 
 object DescribeTooling {
     private var describeToolingObjectMap:Map[String, DescribeGlobalSObjectResult] = Map()
@@ -17,7 +17,7 @@ object DescribeTooling {
      */
     def getMap(session: Session): Map[String, DescribeGlobalSObjectResult] = {
         if (describeToolingObjectMap.isEmpty) {
-            val describer = new DescribeTooling(session)
+            val describer = new DescribeTooling().load[DescribeTooling](session.basicConfig)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {
@@ -32,18 +32,20 @@ object DescribeTooling {
     }
 }
 
-class DescribeTooling(session: Session) extends ApexAction(session: Session) {
-    override def getExample: String = ""
+class DescribeTooling extends ApexAction {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "allToolingTypesFilePath" => "--allToolingTypesFilePath - path to file where results shall be saved"
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "allToolingTypesFilePath" => "--allToolingTypesFilePath - path to file where results shall be saved"
+        }
+
+        override def getParamNames: List[String] = List("allToolingTypesFilePath")
+
+        override def getSummary: String = "saves result of Tooling API describeGlobal() call in JSON format"
+
+        override def getName: String = "DescribeTooling"
     }
-
-    override def getParamNames: List[String] = List("allToolingTypesFilePath")
-
-    override def getSummary: String = "saves result of Tooling API describeGlobal() call in JSON format"
-
-    override def getName: String = "DescribeTooling"
 
     def act() {
         //load from SFDC and dump to local file

@@ -39,7 +39,10 @@ object Connection extends Logging {
         val proxyHost = appConfig.getProperty("http.proxyHost")
         val proxyPort = appConfig.getProperty("http.proxyPort")
 
-        val proxyUsername = appConfig.getProperty("http.proxyUsername")
+        val proxyUsername = appConfig.getProperty("http.proxyUsername") match {
+          case Some(s) => Some(s)
+          case None => appConfig.getProperty("http.proxyUser")
+        }
         if (None != proxyUsername )
             config.setProxyUsername(proxyUsername.get)
 

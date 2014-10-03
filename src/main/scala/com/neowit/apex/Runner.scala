@@ -20,29 +20,39 @@
 package com.neowit.apex
 
 import com.neowit.utils._
-import com.neowit.apex.actions.{RetrieveError, ActionFactory}
+import com.neowit.apex.actions.{ActionHelp, ShowHelpException, RetrieveError, ActionFactory}
+import scala.concurrent.{ExecutionContext, Future}
+import ExecutionContext.Implicits.global
 
 object Runner extends Logging {
-    val appConfig = Config.getConfig
-
     def main(args: Array[String]) {
+        val runner = new Executor()
+        runner.execute(args)
+    }
+}
+
+class Executor extends Logging {
+    val basicConfig = new BasicConfig()
+
+    def execute(args: Array[String]) {
         if (args.isEmpty) {
             help()
         } else {
             var isGoodConfig = false
             try {
-                appConfig.load(args.toList)
+                basicConfig.load(args.toList)
                 run()
                 isGoodConfig = true
             } catch {
-                case ex: InvalidCommandLineException => appConfig.help()
+                case ex: InvalidCommandLineException => basicConfig.help()
+                case ex: ShowHelpException => help(ex.help)
                 case ex: MissingRequiredConfigParameterException =>
-                    appConfig.getProperty("help") match {
+                    basicConfig.getProperty("help") match {
                         case Some(actionName) =>
                             //display help for specific action
                             help(actionName)
                         case _ =>
-                            if (args.indexOf("--help") >=0) {
+                            if (args.indexOf("--help") >= 0) {
                                 help()
                             } else {
                                 logger.error(ex.getMessage)
@@ -51,66 +61,84 @@ object Runner extends Logging {
                     }
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
-                    appConfig.responseWriter.println("RESULT=FAILURE")
-                    for(msg <- messages) {
-                        appConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    for (msg <- messages) {
+                        basicConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    appConfig.responseWriter.println("RESULT=FAILURE")
-                    appConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    basicConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
-                    logger.error(ex.printStackTrace())
-                    appConfig.responseWriter.println("RESULT=FAILURE")
-                    appConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
+                    logger.error(ex.getStackTraceString)
+                    println(ex)
+                    println(ex.getStackTraceString)
+                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    basicConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
-                    appConfig.responseWriter.close()
+                    basicConfig.responseWriter.close()
                 }
             }
         }
     }
-    def run () {
-        val start = System.currentTimeMillis
 
-        val session = Session(appConfig)
+    private def run () {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
-        ActionFactory.getAction(session, session.getConfig.action) match {
+        val start = System.currentTimeMillis
+        //report usage if allowed
+        val usage = new UsageReporter(basicConfig)
+        val usageFuture = Future {
+            usage.report()
+        }
+
+        ActionFactory.getAction(basicConfig, basicConfig.action) match {
             case Some(action) => action.act()
             case None =>
         }
 
+        //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
+        //scala.concurrent.Await.result(usageFuture, Duration.Inf)
         val diff = System.currentTimeMillis - start
         logger.info("# Time taken: " + diff / 1000.0 +  "s")
 
     }
 
-    def help(actionName: String) {
-        val action = ActionFactory.getAction(null, actionName).get
-        println("\n--action=" + actionName)
-        println(" " + action.getSummary)
-        if (!action.getParamNames.isEmpty) {
-            println("Additional parameters:")
-            for(paramName <- action.getParamNames) {
-                println(action.getParamDescription(paramName))
+    def help(actionName: String): Unit = {
+        try {
+            ActionFactory.getAction(basicConfig, actionName, skipLoading = true) match {
+                case Some(x) => help(x.getHelp)
+                case None =>
+            }
+        } catch {
+            case ex: ShowHelpException => help(ex.help)
+        }
+    }
+    def help(actionHelp: ActionHelp) {
+        System.out.println("\n--action=" + actionHelp.getName)
+        System.out.println(" " + actionHelp.getSummary)
+        if (!actionHelp.getParamNames.isEmpty) {
+            System.out.println("Additional parameters:")
+            for(paramName <- actionHelp.getParamNames) {
+                System.out.println(actionHelp.getParamDescription(paramName))
             }
         }
-        if (!action.getExample.isEmpty) {
-            println("Example:")
-            println(action.getExample)
+        if (!actionHelp.getExample.isEmpty) {
+            System.out.println("Example:")
+            System.out.println(actionHelp.getExample)
         }
     }
 
     def help() {
-        appConfig.help()
-        println("Available Actions")
+        basicConfig.help()
+        System.out.println("Available Actions")
         for (actionName <- ActionFactory.getActionNames) {
-            println("    --" + actionName + " see --help=" + actionName)
+            System.out.println("    --" + actionName + " see --help=" + actionName)
         }
     }
 }

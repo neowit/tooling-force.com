@@ -28,9 +28,11 @@ class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
+        "version" -> "AppVersion",
+        "serverStart" -> "com.neowit.ServerStart",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
-        "saveModified" -> "tooling.SaveModified",
+        "saveModified" -> "com.neowit.apex.actions.tooling.SaveModified",
         "deployModified" -> "DeployModified",
         "deployAll" -> "DeployAll",
         "deploySpecificFiles" -> "DeploySpecificFiles",
@@ -39,30 +41,71 @@ object ActionFactory {
         "bulkRetrieve" -> "BulkRetrieve",
         "listMetadata" -> "ListMetadata",
         "executeAnonymous" -> "ExecuteAnonymous",
-        "deleteMetadata" -> "DeployDestructive"
+        "deleteMetadata" -> "DeployDestructive",
+        "scanSource" -> "ScanSource",
+        "listCompletions" -> "ListCompletions"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 
-    def getAction(session:Session, name: String): Option[Action] = {
+    def getAction(basicConfig: BasicConfig, name: String, skipLoading: Boolean = false): Option[Action] = {
 
         //convert all keys to lower case
         val lowerCaseMap = REGISTERED_ACTIONS.map{case (key, value) => key.toLowerCase -> value}
         lowerCaseMap.get(name.toLowerCase) match {
           case Some(action) =>
-              val constructor = Class.forName("com.neowit.apex.actions." + action).getConstructor(classOf[Session])
-              Some(constructor.newInstance(session).asInstanceOf[Action])
+              val fullClassName = if (action.indexOf(".") < 0) "com.neowit.apex.actions." + action else action
+              val constructor = Class.forName(fullClassName).getConstructor()
+              //Some(constructor.newInstance(basicConfig).asInstanceOf[Action])
+              try {
+                  val actionInstance = constructor.newInstance().asInstanceOf[Action]
+                  if (!skipLoading) {
+                      actionInstance.load(basicConfig)
+                  }
+                  Some(actionInstance)
+              } catch {
+                  case ex:MissingRequiredConfigParameterException => throw ex
+                  case ex:ShowHelpException => throw ex
+                  case ex:Throwable => throw ex
+              }
+
           case None => throw new UnsupportedActionError("--action=" + name + " is not supported")
         }
     }
 
 }
-trait Action extends Logging with ActionHelp {
+trait Action extends Logging {
     def act(): Unit
+
+    def load[T <:Action](basicConfig: BasicConfig): T
+
+    def getHelp: ActionHelp
 }
-trait AsyncAction extends Action {
+abstract class AsyncAction extends Action {
+    protected var _basicConfig: Option[BasicConfig] = None
+
+    protected def basicConfig: BasicConfig = _basicConfig match {
+      case Some(config) => config
+      case None => throw new IllegalAccessError("call load(basicConfig) first")
+    }
+
+    override def load[T <:Action](basicConfig: BasicConfig): T = {
+        _basicConfig = Some(basicConfig)
+        this.asInstanceOf[T]
+    }
 }
 
-abstract class ApexAction(session: Session) extends AsyncAction {
+abstract class ApexAction extends AsyncAction {
+
+    protected var _session: Option[Session] = None
+    protected def session: Session = _session match {
+        case Some(s) => s //return existing session
+        case None => throw new ShowHelpException(getHelp)
+    }
+    override def load[T <:Action](basicConfig: BasicConfig): T = {
+        _session = Some(Session(basicConfig))
+        this.asInstanceOf[T]
+    }
+
     //need to def (as opposed to val) to stop from failing when called for help() display without session
     def config:Config = session.getConfig
     def responseWriter: ResponseWriter = config.responseWriter
@@ -77,12 +120,18 @@ abstract class ApexAction(session: Session) extends AsyncAction {
     }
 }
 
+class ShowHelpException(val help: ActionHelp) extends IllegalStateException
+
 trait ActionHelp {
     def getName: String
     def getSummary: String
     def getParamNames: List[String]
     def getParamDescription(paramName: String): String
     def getExample: String
+}
+
+abstract class AbstractActionHelp(parentActionHelp: ActionHelp) extends ActionHelp {
+    def getParentActionHelp: ActionHelp = parentActionHelp
 }
 
 

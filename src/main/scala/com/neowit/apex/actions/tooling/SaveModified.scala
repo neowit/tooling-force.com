@@ -6,7 +6,7 @@ import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
 import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
 import scala.util.parsing.json.JSON
 import com.neowit.utils.ResponseWriter.Message
-import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
+import com.neowit.utils.{BasicConfig, FileUtils, ZuluTime, ResponseWriter}
 import scala.concurrent._
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONObject
@@ -17,7 +17,6 @@ class SaveError(msg: String) extends Error(msg: String)
 /**
  * Unlike SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
  *
- * @param session - SFDC session
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
@@ -33,7 +32,7 @@ class SaveError(msg: String) extends Error(msg: String)
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */
-class SaveModified(session: Session) extends DeployModified(session: Session) {
+class SaveModified extends DeployModified {
     val CONTAINER_PREFIX = "tooling-force.com"
 
     //we can use ToolingApi in following cases

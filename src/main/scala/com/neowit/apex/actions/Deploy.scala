@@ -1,6 +1,6 @@
 package com.neowit.apex.actions
 
-import com.neowit.apex.{MetadataType, MetaXml, Session}
+import com.neowit.apex.{MetadataType, MetaXml}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
@@ -9,7 +9,7 @@ import scala.collection.mutable
 import scala.util.matching.Regex
 import scala.util.parsing.json.{JSONArray, JSONObject}
 
-abstract class Deploy(session: Session) extends ApexAction(session: Session) {
+abstract class Deploy extends ApexAction {
 
     //* ... line 155, column 41 ....
     private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
@@ -83,7 +83,6 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
 
 /**
  * 'deployModified' action grabs all modified files and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
@@ -99,39 +98,42 @@ abstract class Deploy(session: Session) extends ApexAction(session: Session) {
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */
-class DeployModified(session: Session) extends Deploy(session: Session) {
+class DeployModified extends Deploy {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getExample: String = ""
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "ignoreConflicts" => "--ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check"
+            case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
+            case "reportCoverage" =>
+                """--reportCoverage=true|false (defaults to false) - if true then generate code coverage file
+                  |Note: makes sence only when --testsToRun is also specified
+                """.stripMargin
+            case
+                "testsToRun" =>
+                """--testsToRun=* OR "comma separated list of class.method names",
+                  |       e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
+                  |
+                  |       class/method can be specified in two forms
+                  |       - ClassName[.methodName] -  means specific method of specific class
+                  |       - ClassName -  means *all* test methodsToKeep of specific class
+                  |
+                  |       if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
+                  |                               the *current* deployment package
+                """.stripMargin
+        }
 
-    override def getParamDescription(paramName: String): String = paramName match{
-        case "ignoreConflicts" => "--ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check"
-        case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
-        case "reportCoverage" =>
-            """--reportCoverage=true|false (defaults to false) - if true then generate code coverage file
-              |Note: makes sence only when --testsToRun is also specified
-            """.stripMargin
-        case "testsToRun" =>
-            """--testsToRun=* OR "comma separated list of class.method names",
-              |       e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
-              |
-              |       class/method can be specified in two forms
-              |       - ClassName[.methodName] -  means specific method of specific class
-              |       - ClassName -  means *all* test methodsToKeep of specific class
-              |
-              |       if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
-              |                               the *current* deployment package
-            """.stripMargin
+        override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun", "reportCoverage")
+
+        override def getSummary: String = "Deploy modified files and (if requested) run tests"
+
+        override def getName: String = "deployModified"
     }
 
-    override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun", "reportCoverage")
-
-    override def getSummary: String = "Deploy modified files and (if requested) run tests"
-
-    override def getName: String = "deployModified"
-
-    def act() {
+    def
+    act() {
         val hasTestsToRun = None != config.getProperty("testsToRun")
-        val modifiedFiles = new ListModified(session).getModifiedFiles
+        val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
@@ -487,17 +489,17 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
     }
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
-        val checker = new ListConflicting(session)
+        val checker = new ListConflicting().load[ListConflicting](session.basicConfig)
         checker.getFilesNewerOnRemote(files)
     }
 
     protected def hasConflicts(files: List[File]): Boolean = {
-        if (!files.isEmpty) {
+        if (files.nonEmpty) {
             logger.info("Check Conflicts with Remote")
-            val checker = new ListConflicting(session)
+            val checker = new ListConflicting().load[ListConflicting](session.basicConfig)
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
-                    if (!conflictingFiles.isEmpty) {
+                    if (conflictingFiles.nonEmpty) {
                         config.responseWriter.println("RESULT=FAILURE")
 
                         val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
@@ -506,7 +508,7 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
                             foreach{detail => config.responseWriter.println(detail)}
                         config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
                     }
-                    !conflictingFiles.isEmpty
+                    conflictingFiles.nonEmpty
                 case None => false
             }
         } else {
@@ -629,22 +631,27 @@ class DeployModified(session: Session) extends Deploy(session: Session) {
 
 /**
  * 'deployAll' action grabs all project files and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
-class DeployAll(session: Session) extends DeployModified(session: Session) {
+class DeployAll extends DeployModified {
+    private val superActionHelp = super.getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
 
-    override def getName: String = "deployAll"
+        override def getExample: String = ""
 
-    override def getSummary: String = "action grabs all project files and sends deploy() File-Based call"
+        override def getName: String = "deployAll"
+
+        override def getSummary: String = "action grabs all project files and sends deploy() File-Based call"
 
 
-    override def getParamNames: List[String] = "updateSessionDataOnSuccess" :: super.getParamNames
+        override def getParamNames: List[String] = "updateSessionDataOnSuccess" :: getParentActionHelp.getParamNames
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
-        case _ => super.getParamDescription(paramName)
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
+            case _ => getParentActionHelp.getParamDescription(paramName)
+        }
+
     }
 
     override def act() {
@@ -669,14 +676,15 @@ class DeployAll(session: Session) extends DeployModified(session: Session) {
 
 /**
  * 'deploySpecificFiles' action uses file list specified in a file and sends deploy() File-Based call
- *@param session - SFDC session
  * Extra command line params:
  * --specificFiles=/path/to/file with file list
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
-class DeploySpecificFiles(session: Session) extends DeployModified(session: Session) {
-    override def getExample: String =
-        """
+class DeploySpecificFiles extends DeployModified {
+    private val superActionHelp = super.getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
+        override def getExample: String =
+            """
           |Suppose we want to deploy Account.trigger and AccountHandler.cls, content of file passed to --specificFiles
           |may look like so
           |-------------------------------
@@ -687,17 +695,18 @@ class DeploySpecificFiles(session: Session) extends DeployModified(session: Sess
           |then in addition to all normal command line parameters you add
           |... --specificFiles=/tmp/file_list.txt
         """.stripMargin
-    override def getName: String = "deploySpecificFiles"
 
-    override def getSummary: String = "action uses file list specified in a file and sends deploy() File-Based call"
+        override def getName: String = "deploySpecificFiles"
 
+        override def getSummary: String = "action uses file list specified in a file and sends deploy() File-Based call"
 
-    override def getParamNames: List[String] = List("updateSessionDataOnSuccess", "specificFiles") ++ super.getParamNames
+        override def getParamNames: List[String] = List("updateSessionDataOnSuccess", "specificFiles") ++ getParentActionHelp.getParamNames
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
-        case "specificFiles" => "--specificFiles=/path/to/file with file list"
-        case _ => super.getParamDescription(paramName)
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
+            case "specificFiles" => "--specificFiles=/path/to/file with file list"
+            case _ => getParentActionHelp.getParamDescription(paramName)
+        }
     }
     override def act() {
         val files = getFiles
@@ -752,16 +761,18 @@ class DeploySpecificFiles(session: Session) extends DeployModified(session: Sess
 /**
  * list modified files (compared to their stored session data)
  */
-class ListModified(session: Session) extends ApexAction(session: Session) {
-    override def getExample: String = ""
+class ListModified extends ApexAction {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = ""
+        override def getParamDescription(paramName: String): String = ""
 
-    override def getParamNames: List[String] = Nil
+        override def getParamNames: List[String] = Nil
 
-    override def getSummary: String = "list names of files that have changed since last refresh/deploy operation"
+        override def getSummary: String = "list names of files that have changed since last refresh/deploy operation"
 
-    override def getName: String = "listModified"
+        override def getName: String = "listModified"
+    }
     /**
      * list locally modified files using data from session.properties
      */
@@ -812,16 +823,15 @@ class ListModified(session: Session) extends ApexAction(session: Session) {
 /**
  * 'deleteMetadata' action attempts to remove specified metadata components from SFDC
  * using deploy() call with delete manifest file named destructiveChanges.xml
- *@param session - SFDC session
  * Extra command line params:
  * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
  * --specificComponents=/path/to/file with metadata components list, each component on its own line
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful
  */
-class DeployDestructive(session: Session) extends Deploy(session: Session) {
-
-    override def getExample: String =
-        """
+class DeployDestructive extends Deploy {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String =
+            """
           |Suppose we want to delete Account.trigger, AccountHandler.cls and MyCustomObject__c.MyCustomField__c,
           |content of file passed to --specificComponents may look like so
           |-------------------------------
@@ -835,21 +845,27 @@ class DeployDestructive(session: Session) extends Deploy(session: Session) {
           |... --specificComponents=/tmp/list.txt
         """.stripMargin
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
-        case "specificComponents" => "--specificComponents=/path/to/file with component names"
-        case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful"
+        override def getParamDescription(
+
+                               paramName: String): String = paramName match {
+            case "checkOnly" =>
+                "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
+            case
+                "specificComponents" => "--specificComponents=/path/to/file with component names"
+            case
+                "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful"
+        }
+
+        override def getParamNames: List[String] = List("checkOnly", "metadataComponents", "updateSessionDataOnSuccess", "backupDir")
+
+        override def getSummary: String =
+            s"""action attempts to remove specified metadata components from SFDC
+              |Note: removal of individual members (e.g. custom field) is not supported by this command.
+              |With $getName you can delete a Class or Custom Object, but not specific field of custom object.
+            """.stripMargin
+
+        override def getName: String = "deleteMetadata"
     }
-
-    override def getParamNames: List[String] = List("checkOnly", "metadataComponents", "updateSessionDataOnSuccess", "backupDir")
-
-    override def getSummary: String =
-        s"""action attempts to remove specified metadata components from SFDC
-          |Note: removal of individual members (e.g. custom field) is not supported by this command.
-          |With $getName you can delete a Class or Custom Object, but not specific field of custom object.
-        """.stripMargin
-
-    override def getName: String = "deleteMetadata"
 
     override def act(): Unit = {
         val components = getComponentPaths

@@ -21,11 +21,12 @@ package com.neowit.apex
 
 import java.security.MessageDigest
 
-import com.neowit.utils.{FileUtils, Logging, Config}
+import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
 import scala.concurrent._
+import scala.Some
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata
 
@@ -33,7 +34,7 @@ import com.neowit.apex.actions.DescribeMetadata
  * manages local data store related to specific project
  */
 object Session {
-    def apply(appConfig: Config) = new Session(appConfig)
+    def apply(basicConfig: BasicConfig) = new Session(basicConfig)
 }
 
 /**
@@ -41,9 +42,11 @@ object Session {
  * 1. Maintains/stores persistent connection and can resue connection
  * 2. Maintains cache of some important information about project metadata (Pages, Classes, etc)
  *
- * @param config - main application config
+ * @param basicConfig - main application config
  */
-class Session(config: Config) extends Logging {
+class Session(val basicConfig: BasicConfig) extends Logging {
+
+    val config = new Config(basicConfig)
 
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
@@ -81,6 +84,13 @@ class Session(config: Config) extends Logging {
         md5.reset()
         val str = config.username + config.password + config.soapEndpoint
         md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+    }
+
+
+    override def hashCode(): Int = getHash.hashCode
+
+    override def equals(p1: scala.Any): Boolean = {
+        p1.isInstanceOf[Session] && this.getHash == p1.asInstanceOf[Session].getHash
     }
 
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
@@ -401,6 +411,15 @@ class Session(config: Config) extends Logging {
             conn.query(queryString)
         }.asInstanceOf[com.sforce.soap.partner.QueryResult]
         queryResult
+    }
+
+    def describeSObjects(sobjectApiNames: List[String]): List[com.sforce.soap.partner.DescribeSObjectResult] = {
+        val describeResult = withRetry {
+            val conn = getPartnerConnection
+            val res = conn.describeSObjects(sobjectApiNames.toArray)
+            res.toList
+        }.asInstanceOf[List[com.sforce.soap.partner.DescribeSObjectResult]]
+        describeResult
     }
 
     /***************** MetadataConnection ********************************************/

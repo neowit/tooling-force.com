@@ -1,31 +1,31 @@
 package com.neowit.apex.actions
 
-import com.neowit.apex.Session
 import java.io.File
 import com.neowit.utils.FileUtils
 
 /**
  * 'executeAnonymous' action Executes the specified block of Apex anonymously and returns the result
- *@param session - SFDC session
  * Extra command line params:
  * --codeFile=/path/to/file with apex code to execute
  * --logFile=/path/to/file where log shall be stored
  */
-class ExecuteAnonymous(session: Session) extends ApexAction(session: Session) {
+class ExecuteAnonymous extends ApexAction {
 
-    override def getExample: String = ""
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
 
-    override def getParamDescription(paramName: String): String = paramName match {
-        case "codeFile" => "full path to file containing piece of Apex code to run"
-        case "logFile" => "[optional] full path to file where resulting log file will be saved"
-        case "logLevel" => "[optional], if not specified then defaults to None. Accepted values: 'None', 'Debugonly', 'Db', 'Profiling', 'Callout', 'Detail'  "
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "codeFile" => "full path to file containing piece of Apex code to run"
+            case "logFile" => "[optional] full path to file where resulting log file will be saved"
+            case "logLevel" => "[optional], if not specified then defaults to None. Accepted values: 'None', 'Debugonly', 'Db', 'Profiling', 'Callout', 'Detail'  "
+        }
+
+        override def getParamNames: List[String] = List("codeFile", "logFile", "logLevel")
+
+        override def getSummary: String = "Executes the specified block of Apex anonymously"
+
+        override def getName: String = "executeAnonymous"
     }
-
-    override def getParamNames: List[String] = List("codeFile", "logFile", "logLevel")
-
-    override def getSummary: String = "Executes the specified block of Apex anonymously"
-
-    override def getName: String = "executeAnonymous"
 
     def act(): Unit = {
         val codeFile = new File(config.getRequiredProperty("codeFile").get)

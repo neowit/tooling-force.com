@@ -1,0 +1,1100 @@
+{
+  "StatusCode": {
+    "name": "StatusCode",
+    "enumConstants": [
+      {
+        "n": "ALL_OR_NONE_OPERATION_ROLLED_BACK",
+        "h": "The bulk operation was rolled back because one of the records wasn't processed successfully. See AllOrNoneHeader.",
+        "r": "EnumConstant"
+      }    
+	  ,{
+        "n": "ALREADY_IN_PROCESS",
+        "h": "You can't submit a record that is already in an approval process. You must wait for the previous approval process to complete before resubmitting a request with this record.",
+        "r": "EnumConstant"
+      }    
+	  ,{
+        "n": "ASSIGNEE_TYPE_REQUIRED",
+        "h": "You must designate an assignee for the approval request (ProcessInstanceStep or ProcessInstanceWorkitem).",
+        "r": "EnumConstant"
+      },
+	  {
+		"n": "UNKNOWN_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TOO_MANY_APEX_REQUESTS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MISSING_ARGUMENT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ARGUMENT_TYPE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_TYPE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_OPERATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_TYPE_FOR_OPERATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ID_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CROSS_REFERENCE_KEY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_EMPTY_KEY_OWNER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "REQUIRED_FIELD_MISSING",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INSUFFICIENT_ACCESS_OR_READONLY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DELETE_FAILED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNSPECIFIED_EMAIL_ADDRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_TYPE_ON_FIELD_IN_RECORD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CROSS_REFERENCE_TYPE_FOR_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNABLE_TO_LOCK_ROW",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TEXT_DATA_OUTSIDE_SUPPORTED_CHARSET",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "STORAGE_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_OR_NULL_FOR_RESTRICTED_PICKLIST",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CURRENCY_ISO",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENTITY_IS_DELETED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_USERNAME",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "LICENSE_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "FIELD_INTEGRITY_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "COLLISION_DETECTED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "FIELD_CUSTOM_VALIDATION_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "FIELD_FILTER_VALIDATION_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_UPDATE_CONVERTED_LEAD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NUMBER_OUTSIDE_VALID_RANGE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENTITY_FAILED_IFLASTMODIFIED_ON_UPDATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_FIELD_FOR_INSERT_UPDATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INSUFFICIENT_ACCESS_ON_CROSS_REFERENCE_ENTITY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INACTIVE_OWNER_OR_USER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_STATUS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENTITY_IS_LOCKED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CREDIT_CARD_INFO",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "FAILED_ACTIVATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENTITY_IS_ARCHIVED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ASSIGNMENT_RULE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAXIMUM_SIZE_OF_ATTACHMENT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_CASE_SOLUTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "SHARE_NEEDED_FOR_CHILD_OWNER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CHILD_SHARE_FAILS_PARENT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CIRCULAR_DEPENDENCY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAXIMUM_HIERARCHY_LEVELS_REACHED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MALFORMED_ID",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_REPARENT_RECORD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_ENTITY_OR_FIELD_LIMIT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_DEVELOPER_NAME",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANT_DISABLE_CORP_CURRENCY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANT_UNSET_CORP_CURRENCY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_MASTER_LABEL",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_FIELD_INDEX_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_ACTIVE_RULES_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ASSIGNEE_TYPE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_ACTIONS_PER_RULE_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_TASK_DESCRIPTION_EXCEEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAXIMUM_SIZE_OF_DOCUMENT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_EMAIL_ADDRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAXIMUM_CCEMAILS_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_FILTER_ACTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_VALUE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DEPENDENCY_EXISTS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_OPERATOR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAXIMUM_DASHBOARD_COMPONENTS_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ACCESS_LEVEL",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "STANDARD_PRICE_NOT_DEFINED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_LINEITEM_CLONE_STATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_CASCADE_PRODUCT_ACTIVE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TOO_MANY_ENUM_VALUE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_CUSTOM_TAB_MOTIF",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "BAD_CUSTOM_ENTITY_PARENT_DOMAIN",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_DEACTIVATE_DIVISION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_INDEX_EXISTS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TRANSFER_REQUIRES_READ",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DELETE_REQUIRED_ON_CASCADE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PRIVATE_CONTACT_ON_ASSET",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_INET_ADDRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_CUSTOM_ENTITY_DEFINITION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "IMAGE_TOO_LARGE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CURRENCY_CONV_RATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_EXTERNAL_ID",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_RULE_ENTRIES_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_RULES_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TABSET_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_TAB_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_LINK_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_PERSON_ACCOUNT_OPERATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNAVAILABLE_RECORDTYPE_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_TM_RULES_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TERRITORY_REALIGN_IN_PROGRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MANAGER_NOT_DEFINED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNDELETE_FAILED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_MASTER_OR_TRANSLATED_SOLUTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_DISABLE_LAST_ADMIN",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_FREEZE_SELF",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_PASSWORD_LOCKOUT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_MODIFY_MANAGED_OBJECT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_CREATE_ANOTHER_MANAGED_PACKAGE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "EMPTY_SCONTROL_FILE_NAME",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CURRENCY_CORP_RATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_DELETE_MANAGED_OBJECT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_DELETE_LAST_DATED_CONVERSION_RATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_TM_RULE_ITEMS_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NO_APPLICABLE_PROCESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_ENABLE_IP_RESTRICT_REQUESTS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "IP_RANGE_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_CLOB_FIELD_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_APPROVAL_STEPS_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PORTAL_NO_ACCESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PORTAL_USER_ALREADY_EXISTS_FOR_CONTACT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "HTML_FILE_UPLOAD_NOT_ALLOWED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MAX_FORMULAS_PER_RULE_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "WEBLINK_SIZE_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_COMM_NICKNAME",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNVERIFIED_SENDER_ADDRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATE_SENDER_DISPLAY_NAME",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_MESSAGE_ID_REFERENCE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_CONTENT_TYPE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "COMMUNITY_NOT_ACCESSIBLE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "WEBLINK_URL_INVALID",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "EMAIL_NOT_PROCESSED_DUE_TO_PRIOR_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MASS_MAIL_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "SINGLE_EMAIL_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ERROR_IN_MAILER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_RENAME_APEX_REFERENCED_OBJECT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_RENAME_APEX_REFERENCED_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_CHANGE_FIELD_TYPE_OF_APEX_REFERENCED_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_READ_ONLY_USER_DML",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_DATA_URI",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TEMPLATE_NOT_ACTIVE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TEMPLATE_NOT_FOUND",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_EXECUTE_FLOW_TRIGGER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SAVE_AS_ACTIVITY_FLAG",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "RECORD_IN_USE_BY_WORKFLOW",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "BCC_NOT_ALLOWED_IF_BCC_COMPLIANCE_ENABLED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NO_MASS_MAIL_PERMISSION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NO_ATTACHMENT_PERMISSION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DELETE_OPERATION_TOO_LARGE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "STRING_TOO_LONG",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "OPTED_OUT_OF_MASS_MAIL",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MASSMAIL_RETRY_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "WRONG_CONTROLLER_TYPE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "UNSUPPORTED_APEX_TRIGGER_OPERATON",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "SELF_REFERENCE_FROM_TRIGGER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "SELF_REFERENCE_FROM_FLOW",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MERGE_FAILED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_GOOGLE_DOCS_URL",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NO_INACTIVE_DIVISION_MEMBERS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "LIGHT_PORTAL_USER_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "OP_WITH_INVALID_USER_TYPE_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "FILTERED_LOOKUP_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "USER_WITH_APEX_SHARES_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "USER_OWNS_PORTAL_ACCOUNT_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "REQUIRED_FEATURE_MISSING",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "JIGSAW_IMPORT_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_OWNER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SESSION_ID",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NONUNIQUE_SHIPPING_ADDRESS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_FIELD_WHEN_USING_TEMPLATE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NUM_HISTORY_FIELDS_BY_SOBJECT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_PARTNER_NETWORK_STATUS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PACKAGE_LICENSE_REQUIRED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "QUERY_TIMEOUT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "REQUEST_RUNNING_TOO_LONG",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_QUERY_LOCATOR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_BATCH_OPERATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SETUP_OWNER",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MIXED_DML_OPERATION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_METADATA_LIMIT_EXCEEDED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PACKAGING_API_INSTALL_FAILED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "PACKAGING_API_UNINSTALL_FAILED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_PACKAGE_VERSION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_DATA_CATEGORY_GROUP_REFERENCE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_RENAME_REFERENCED_OBJECT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_RENAME_REFERENCED_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_CHANGE_FIELD_TYPE_OF_REFERENCED_FIELD",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENVIRONMENT_HUB_MEMBERSHIP_CONFLICT",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENVIRONMENT_HUB_MEMBERSHIP_USER_NOT_ORG_ADMIN",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENVIRONMENT_HUB_MEMBERSHIP_USER_ALREADY_IN_HUB",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "ENVIRONMENT_HUB_MEMBERSHIP_ERROR_JOINING_HUB",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SIGNUP_COUNTRY",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_OAUTH_URL",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SUBDOMAIN",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "SUBDOMAIN_IN_USE",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "NO_SUCH_USER_EXISTS",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "TOO_MANY_POSSIBLE_USERS_EXIST",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CUSTOM_APEX_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "DUPLICATES_DETECTED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SITE_FILE_IMPORTED_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SITE_FILE_TYPE_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_SITE_DELETE_EXCEPTION",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_DEFINITION_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_RUNTIME_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_MISSING_ENGINE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_INVALID_ENGINE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_UNSUPPORTED_VERSION_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_SERVICE_UNAVAILABLE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_UNKNOWN_RULE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_INVALID_RULE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ENTITY_FOR_MATCH_ENGINE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_ENTITY_FOR_MATCH_OPERATION_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_MISSING_OPTIONS_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_MISSING_RULE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "MATCH_OPERATION_MISSING_OBJECT_TYPE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "REPUTATION_MINIMUM_NUMBER_NOT_REACHED",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "VF_COMPILE_ERROR",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "CANNOT_POST_TO_ARCHIVED_GROUP",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_USERID",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "INVALID_PACKAGE_LICENSE",
+		"h": "",
+		"r": "EnumConstant"
+	  }
+	],
+    "tag": "ENUMDEF",
+    "fqn": "System.StatusCode"
+  }
+}
+

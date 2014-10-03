@@ -19,7 +19,7 @@
 
 package com.neowit.utils
 
-import java.io.{File, PrintWriter}
+import java.io.{FileOutputStream, OutputStream, File, PrintWriter}
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.util.parsing.json.JSONFormat.ValueFormatter
 import com.neowit.utils.ResponseWriter.{MessageType, MessageDetail, Message}
@@ -103,10 +103,12 @@ object ResponseWriter {
             case c => c
         }.mkString
 }
-class ResponseWriter(file: File) extends PrintWriter(file: File) with Logging{
+class ResponseWriter(out: OutputStream, autoFlush: Boolean = true) extends PrintWriter(out, autoFlush) with Logging{
     var needClosing = false
 
-
+    def this(file: File) {
+        this(new FileOutputStream(file), true)
+    }
     override def println(p1: String): Unit = {
         super.println(p1)
         needClosing = true
