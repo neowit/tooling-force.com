@@ -520,10 +520,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 }
 
-class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: RecognitionException)
-    extends RuntimeException(cause) {
-
-}
+class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: RecognitionException )
+    extends RuntimeException(cause)
 
 class CompletionErrorStrategy extends DefaultErrorStrategy {
 
@@ -537,9 +535,13 @@ class CompletionErrorStrategy extends DefaultErrorStrategy {
 
 
     override def recover(recognizer: Parser, e: RecognitionException) {
-        if (e != null && e.getOffendingToken != null &&
-            e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
-            throw new CaretReachedException(recognizer, recognizer.getContext, e)
+        if (e != null && e.getOffendingToken != null) {
+            if (e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
+                throw new CaretReachedException(recognizer, recognizer.getContext, e)
+            } else if (e.getInputStream.index() + 1 <= e.getInputStream.size() &&
+                        e.getInputStream.asInstanceOf[CommonTokenStream].LT(2).getType == CaretToken2.CARET_TOKEN_TYPE) {
+                throw new CaretReachedException(recognizer, recognizer.getContext, e)
+            }
         }
         super.recover(recognizer, e)
     }
