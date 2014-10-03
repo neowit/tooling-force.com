@@ -30,7 +30,7 @@ Also supported a "project like" mode - where relevant metadata about deployments
 
 ## System requirements
 
-[Java](http://java.com/download) JDK/JRE, Version 6.1 or greater
+[Java](http://java.com/download) JDK/JRE, Version 7 or greater
 
 ## Installation
 
@@ -78,4 +78,6 @@ License: LGPL v3 <http://www.gnu.org/licenses/>
 Third-Party Licenses:  
 * [Force.com Web Service Connector (WSC)](https://github.com/forcedotcom/wsc) - see [LICENSE.md](https://github.com/forcedotcom/wsc/blob/master/LICENSE.md)  
 * [Apache Commons-logging](http://commons.apache.org/proper/commons-logging/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
+* [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
+* [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 
