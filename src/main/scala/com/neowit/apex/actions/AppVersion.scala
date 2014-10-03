@@ -5,7 +5,7 @@ import com.neowit.utils.ResponseWriter.Message
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
-    val VERSION = "0.3.0"
+    val VERSION = "0.3.0.0"
 }
 class AppVersion extends ApexAction {
     override def act(): Unit = {
@@ -15,7 +15,7 @@ class AppVersion extends ApexAction {
         val version = p.getImplementationVersion
         */
         config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println(new Message(ResponseWriter.INFO, AppVersion.APP_NAME + " - version: " + AppVersion.VERSION))
+        config.responseWriter.println(new Message(ResponseWriter.INFO, AppVersion.APP_NAME + " - version: " + AppVersion.VERSION + "; SFDC API Version: " + config.apiVersion))
         logger.debug("version: " + AppVersion.VERSION)
     }
 
