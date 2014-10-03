@@ -3,6 +3,7 @@ package com.neowit.apex.completion
 import com.neowit.TcpServer
 import com.neowit.apex.Session
 import com.neowit.apex.parser.Member
+import com.neowit.utils.Logging
 
 import com.sforce.soap.metadata.ListMetadataQuery
 
@@ -59,14 +60,14 @@ class DatabaseModel(session: Session) {
 
 case class RefreshMessage(dbModelMember: DatabaseModelMember)
 
-class DatabaseModelRefreshActor extends Actor {
+class DatabaseModelRefreshActor extends Actor with Logging {
     def receive = {
         case RefreshMessage(dbModel) => runRefresh(dbModel)
         case _ => println("DatabaseModelRefreshActor: huh?")
     }
 
     def runRefresh(dbModelMember: DatabaseModelMember): Unit = {
-        println("refreshing DB Model")
+        logger.trace("refreshing DB Model: " + dbModelMember.getSignature)
         dbModelMember.refresh()
     }
 }
