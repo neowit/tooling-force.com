@@ -194,7 +194,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                         return resolveExpression(_member, tokensToGo, apexTree)
                     case None => List()
                 }
-            case None => //parent does not have a child with this identity, return partial match
+            case None if tokensToGo.isEmpty => //parent does not have a child with this identity, return partial match
                 val partialMatchChildren = filterByPrefix(parentType.getChildrenWithInheritance(apexTree), token.symbol)
                 if (partialMatchChildren.isEmpty) {
                     //token.symbol may be apex type
@@ -202,6 +202,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 } else {
                     partialMatchChildren
                 }
+            case _ => List()
 
         }
     }
