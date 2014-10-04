@@ -491,7 +491,7 @@ object ClassBodyMember {
                     m => VISIBILITIES.contains(
                         m.classOrInterfaceModifier().getChild(0).getText.toLowerCase))
                 modifier match {
-                    case Some(modifierContext) => modifierContext.classOrInterfaceModifier().getChild(classOf[TerminalNodeImpl], 0).getText
+                    case Some(modifierContext) => modifierContext.classOrInterfaceModifier().getChild(classOf[TerminalNodeImpl], 0).getText.toLowerCase
                     case None => "private"
                 }
             case _ => "TODO"

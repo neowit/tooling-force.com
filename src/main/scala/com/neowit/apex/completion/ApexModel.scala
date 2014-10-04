@@ -253,7 +253,7 @@ case class ApexMethod(s: String, n: String, v: String, p: List[String], h: Strin
  * description of parameter list @see ApexMethod
  */
 case class ApexEnumConstantMember(s: Option[String], n: String, v: Option[String], h: String, r: String) extends ApexModelMember {
-    override def getVisibility: String = v.getOrElse("public")
+    override def getVisibility: String = v.getOrElse("public").toLowerCase
 
     override def getIdentity: String = n
 
