@@ -32,15 +32,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //val fullApexTree = cachedTree ++ extractor.tree
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
-            case (Some((parseTree, typeContext)), None) =>
-                //typeContext contains node type, e.g. SomeClass of the first token in expressionTokens
-                val startType = typeContext.getText
-                findMember(startType, fullApexTree, ctx = Some(typeContext)) match {
-                  case Some(member) =>
-                      return resolveExpression(member, expressionTokens.tail, fullApexTree)
-                  case None =>
-                }
-            case (None, Some(_member)) =>
+            case Some(_member) =>
                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                 return members
             case _ => //final attempt - check if current symbol is a namespace or one of System types
@@ -273,31 +265,27 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): (Option[(ParseTree, ParseTree)], Option[Member]) = {
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): Option[Member] = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
             ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
                 case Some(classDeclarationContext) =>
-                    if ("this" == symbol) {
-                        return (Some((classDeclarationContext, classDeclarationContext.Identifier())), None)
-                    } else {
-                        //super
-                        return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
-                            case Some(thisClassMember: ClassMember) => (None, thisClassMember.getSuperClassMember)
-                            case _ => (None, None)
-                        }
+                    return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
+                        case Some(thisClassMember: ClassMember) if "this" == symbol => Some(thisClassMember)
+                        case Some(thisClassMember: ClassMember) if "super" == symbol => thisClassMember.getSuperClassMember
+                        case _ => None
                     }
-                case None => (None, None)
+                case None => None
             }
 
         } else {
             extractor.getTargetMember match {
               case Some(parentMemberOfCaret) =>
-                  return (None, findSymbolInMemberHierarchy(parentMemberOfCaret, symbol, fullCachedTree))
+                  return findSymbolInMemberHierarchy(parentMemberOfCaret, symbol, fullCachedTree)
               case None => //current symbol is not defined in the current class
             }
-            (None, None)
+            None
         }
     }
 
