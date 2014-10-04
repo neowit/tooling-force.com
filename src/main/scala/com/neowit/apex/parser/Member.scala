@@ -785,7 +785,11 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
 
     override def getSignature: String = {
         val modifiers = getModifiers.mkString(" ")
-        modifiers + " " + getType + " " + getIdentity
+        if (modifiers.nonEmpty) {
+            modifiers + " " + getType + " " + getIdentity
+        } else {
+            getType + " " + getIdentity
+        }
     }
 
     private def getModifiers: List[String] = {
