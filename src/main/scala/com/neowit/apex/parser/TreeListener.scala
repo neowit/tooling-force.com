@@ -14,9 +14,9 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
     val memberScopeStack = mutable.Stack[AnonymousMember]()
-    private var targetMember: Option[AnonymousMember] = None
+    private var caretScopeMember: Option[AnonymousMember] = None
 
-    def getTargetMember: Option[AnonymousMember] = targetMember
+    def getCaretScopeMember: Option[AnonymousMember] = caretScopeMember
 
     def dump(): Unit = {
         tree.dump()
@@ -197,7 +197,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
             //println("target node=" + token.getText)
             //println("target node.Line=" + token.getLine)
             if (memberScopeStack.nonEmpty) {
-                targetMember = Some(memberScopeStack.top)
+                caretScopeMember = Some(memberScopeStack.top)
             }
         }
 
