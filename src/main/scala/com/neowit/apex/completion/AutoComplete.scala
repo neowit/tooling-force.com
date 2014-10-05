@@ -10,7 +10,36 @@ import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
+/**
+ * AToken represents a symbol which type we need to resolve
+ * consider expression
+ *
+ * String.isEmpty().<caret>
+ *
+ * @param index - position in expression, e.g. 0 for "String" above
+ * @param symbol - for second token in example above it would be "isEmpty"
+ * @param expression - for second token in example above it would be "isEmpty()"
+ * @param token - parse tree token containing current symbol
+ * @param finalContext - parse tree context calculated by Apex parser for the expression in <caret> position
+ */
+private case class AToken(index: Int, symbol: String, expression: String, token: Option[Token], finalContext: ParseTree) {
+    def isArray: Boolean = expression.endsWith("]")
+    def isMethod: Boolean = expression.endsWith(")")
+    //def getToken:Token = if (caretAToken.isDefined) caretAToken.get else null
+    def equals(otherToken: Token): Boolean = {
+        token match {
+            case Some(_token) =>
+                symbol == otherToken.getText && otherToken.getTokenIndex == _token.getTokenIndex
+            case None =>
+                false
+        }
+    }
+
+
+}
+
 class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
+
     def listOptions:List[Member] = {
         val expressionTokens = getCaretStatement
         if (expressionTokens.isEmpty) {
@@ -317,22 +346,6 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                   case None => None
                 }
         }
-    }
-
-    private case class AToken(index: Int, symbol: String, expression: String, token: Option[Token], finalContext: ParseTree) {
-        def isArray: Boolean = expression.endsWith("]")
-        def isMethod: Boolean = expression.endsWith(")")
-        //def getToken:Token = if (caretAToken.isDefined) caretAToken.get else null
-        def equals(otherToken: Token): Boolean = {
-            token match {
-              case Some(_token) =>
-                  symbol == otherToken.getText && otherToken.getTokenIndex == _token.getTokenIndex
-              case None =>
-                    false
-            }
-        }
-
-
     }
 
     /**
