@@ -116,7 +116,10 @@ trait AnonymousMember {
     private val children = mutable.HashMap[String, Member]()
     protected def clearChildren() = children.clear()
 
-    def addChild(member: AnonymousMember) {
+    def addChild(member: AnonymousMember): Unit = {
+        addChild(member, overwrite = false)
+    }
+    def addChild(member: AnonymousMember, overwrite: Boolean = false) {
         member.getParent match {
             case Some(_parent) if _parent.equals(this) => //do nothing
             case _ => member.setParent(this)
@@ -125,10 +128,14 @@ trait AnonymousMember {
         member match {
             case m: Member =>
                 try {
+                    val canAdd =
                     getChild(m.getIdentity.toLowerCase, withHierarchy = false) match {
-                        case Some(_existingMember) => //this child already exists, do not overwrite
-                        case None =>
-                            children.+=(m.getIdentity.toLowerCase -> m)
+                        case Some(_existingMember) =>
+                            overwrite//this child already exists, do not overwrite
+                        case None => true
+                    }
+                    if (canAdd) {
+                        children.+=(m.getIdentity.toLowerCase -> m)
                     }
                 } catch {
                     case ex:Throwable =>

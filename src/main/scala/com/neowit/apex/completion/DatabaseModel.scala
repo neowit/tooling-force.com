@@ -137,7 +137,7 @@ class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseMo
                     val describeSobjectResult = describeSObjectResults.head
                     for (field <- describeSobjectResult.getFields) {
                         val fMember = new SObjectFieldMember(field)
-                        addChild(fMember)
+                        addChild(fMember, overwrite = true)
                     }
                 }
                 scheduleRefresh()
@@ -151,7 +151,7 @@ class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseMo
 
     override def refresh(): Unit = {
         isDoneLoading = false
-        clearChildren()
+        //clearChildren()
         loadMembers()
 
     }
