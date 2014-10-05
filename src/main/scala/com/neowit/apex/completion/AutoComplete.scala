@@ -26,16 +26,16 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         walker.walk(extractor, tree)
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
-        //List( someClassInstance, method(), goes, her)
+        //List( someClassInstance, method(), goes, .)
         val fullApexTree: ApexTree = cachedTree.clone()
         fullApexTree.extend(extractor.tree)
-        //val fullApexTree = cachedTree ++ extractor.tree
+
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
             case Some(_member) =>
                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                 return members
-            case _ => //final attempt - check if current symbol is a namespace or one of System types
+            case _ =>
                 //check if this is something like MyClass.MySubclass
                 val startType = expressionTokens.head.symbol
                 fullApexTree.getClassMemberByType(startType) match {
@@ -44,14 +44,17 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                         return members
 
                     case None =>
+                        //final attempt - check if current symbol is a namespace or one of System types
                         ApexModel.getNamespace(startType) match {
                             case Some(_member) => //caret is a namespace
                                 val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
                                 return members
                             case None => //check if caret is part of System
                                 ApexModel.getSystemTypeMember(startType) match {
-                                  case Some(_member) => return resolveExpression(_member, expressionTokens.tail, fullApexTree)
-                                  case None =>
+                                  case Some(_member) =>
+                                      val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+                                      return members
+                                  case None => List()
                                 }
                         }
                 }
@@ -190,8 +193,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
                 findTypeMember(_childMember, apexTree) match {
-                    case Some(_member) =>
-                        return resolveExpression(_member, tokensToGo, apexTree)
+                    case Some(_typeMember) =>
+                        return resolveExpression(_typeMember, tokensToGo, apexTree)
                     case None => List()
                 }
             case None if tokensToGo.isEmpty => //parent does not have a child with this identity, return partial match
