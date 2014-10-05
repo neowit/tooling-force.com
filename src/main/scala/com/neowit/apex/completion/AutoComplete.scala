@@ -205,10 +205,21 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 } else {
                     partialMatchChildren
                 }
-            case _ => List()
-
+            case _ => //check if parentType has child which has displayable identity == token.symbol
+                //this is usually when token.symbol is a method name (method Id includes its params, so have to use getIdentityToDisplay)
+                parentType.getChildren.find(_.getIdentityToDisplay.toLowerCase == token.symbol.toLowerCase) match {
+                case Some(_childMember) =>
+                    findTypeMember(_childMember, apexTree) match {
+                      case Some(_typeMember) =>
+                          return resolveExpression(_typeMember, tokensToGo, apexTree)
+                      case None =>
+                    }
+                case None =>
         }
     }
+        List()
+    }
+
 
     private def filterByPrefix(members: List[Member], prefix: String): List[Member] = {
         members.filter(_.getIdentity.toLowerCase.startsWith(prefix.toLowerCase))
