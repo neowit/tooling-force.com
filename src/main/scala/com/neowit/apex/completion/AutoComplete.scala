@@ -7,6 +7,7 @@ import com.neowit.apex.Session
 import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
+import org.antlr.v4.runtime.misc.IntervalSet
 import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
@@ -417,9 +418,22 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         } else {
             extractor.getCaretScopeMember match {
-              case Some(parentScopeMemberOfCaret) =>
-                  return findSymbolInMemberHierarchy(parentScopeMemberOfCaret, symbol, fullCachedTree)
-              case None => //current symbol is not defined in the current class
+                case Some(parentScopeMemberOfCaret) =>
+                    return findSymbolInMemberHierarchy(parentScopeMemberOfCaret, symbol, fullCachedTree) match {
+                      case Some(definitionWithType) => Some(definitionWithType)
+                      case None if parentScopeMemberOfCaret.isInstanceOf[CreatorMember] =>
+                          val creatorMember = parentScopeMemberOfCaret.asInstanceOf[CreatorMember]
+                          //this is probably SObject creator, e.g. new Account (<caret>)
+                          DatabaseModel.getModelBySession(session) match {
+                              case Some(model) => model.getSObjectMember(creatorMember.createdName) match {
+                                case Some(databaseModelMember) =>
+                                    Some(new DefinitionWithType(databaseModelMember, databaseModelMember))
+                                case None => None
+                              }
+                              case None => None
+                          }
+                    }
+                case None => //current symbol is not defined in the current class
             }
             None
         }
@@ -459,14 +473,15 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //e.g.: MyClass.MyInnerClass.
         //ex: cls.
         //ex: cls[1].
-        val cause = ex.cause
+        //val cause = ex.cause
         val ctx = ex.finalContext
         //val parser = ex.recognizer
 
         val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
         val startTokenIndex = startToken.getTokenIndex //@333 = 333
         //val startTokenText = startToken.getText //e.g. 'str'
-        val tokenStream = cause.getInputStream.asInstanceOf[CommonTokenStream]
+        //val tokenStream = cause.getInputStream.asInstanceOf[CommonTokenStream]
+        val tokenStream = ex.getInputStream
 
         var index = startTokenIndex
         var currentToken = startToken
@@ -479,11 +494,15 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             val newIndex = currentToken.getText match {
                 case "(" =>
                     val i = consumeUntil(tokenStream, index + 1, ")")
-                    expression = symbol + "()"
+                    if (i > (index + 1)) {
+                        expression = symbol + "()"
+                    }
                     i
                 case "[" =>
                     val i = consumeUntil(tokenStream, index + 1, "]")
-                    expression = symbol + "[]"
+                    if (i > (index + 1)) {
+                        expression = symbol + "[]"
+                    }
                     i
                 case "." => //end of expression
                     expressionTokens.+=(new AToken(index - 1, symbol, expression, token, ctx))
@@ -499,12 +518,16 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 //expressionTokens.+=(tokenStream.get(newIndex))
                 index = newIndex
             }
-            index += 1
-            currentToken = tokenStream.get(index)
-            if (symbol.isEmpty && "\\w".r.findFirstIn(currentToken.getText).isDefined) {
-                symbol = currentToken.getText
-                expression = symbol
-                token = Some(currentToken)
+            if (tokenStream.get(index).getType != CaretToken2.CARET_TOKEN_TYPE) {
+                index += 1
+                currentToken = tokenStream.get(index)
+                if (symbol.isEmpty && "\\w".r.findFirstIn(currentToken.getText).isDefined) {
+                    symbol = currentToken.getText
+                    expression = symbol
+                    token = Some(currentToken)
+                }
+            } else {
+                currentToken = tokenStream.get(index)
             }
         }
         expressionTokens.+=(new AToken(index - 1, symbol, expression, token, ctx))
@@ -631,8 +654,15 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 }
 
-class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: RecognitionException )
-    extends RuntimeException(cause)
+class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: Option[RecognitionException] = None )
+    extends RuntimeException {
+    def getInputStream: CommonTokenStream = cause match {
+        case Some(exception) => exception.getInputStream.asInstanceOf[CommonTokenStream]
+        case None =>
+            recognizer.getInputStream.asInstanceOf[CommonTokenStream]
+    }
+}
+
 
 class CompletionErrorStrategy extends DefaultErrorStrategy {
 
@@ -648,15 +678,45 @@ class CompletionErrorStrategy extends DefaultErrorStrategy {
     override def recover(recognizer: Parser, e: RecognitionException) {
         if (e != null && e.getOffendingToken != null) {
             if (e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
-                throw new CaretReachedException(recognizer, recognizer.getContext, e)
+                throw new CaretReachedException(recognizer, recognizer.getContext, Some(e))
             } else if (e.getInputStream.index() + 1 <= e.getInputStream.size() &&
                         e.getInputStream.asInstanceOf[CommonTokenStream].LT(2).getType == CaretToken2.CARET_TOKEN_TYPE) {
-                throw new CaretReachedException(recognizer, recognizer.getContext, e)
+                throw new CaretReachedException(recognizer, recognizer.getContext, Some(e))
             }
         }
         super.recover(recognizer, e)
     }
+    override def consumeUntil(recognizer: Parser, set: IntervalSet): Unit = {
+        super.consumeUntil(recognizer, set)
+    }
 
+    override def recoverInline(recognizer: Parser): Token = {
+        if (recognizer.getInputStream.LA(1) == CaretToken2.CARET_TOKEN_TYPE) {
+            throw new CaretReachedException(recognizer, recognizer.getContext)
+        }
+        super.recoverInline(recognizer)
+    }
+
+    override def singleTokenInsertion(recognizer: Parser): Boolean = {
+        if (recognizer.getInputStream.LA(1) == CaretToken2.CARET_TOKEN_TYPE) {
+            return false
+        }
+        super.singleTokenInsertion(recognizer)
+    }
+
+    override def singleTokenDeletion(recognizer: Parser): Token = {
+        if (recognizer.getInputStream.LA(1) == CaretToken2.CARET_TOKEN_TYPE) {
+            return null
+        }
+        super.singleTokenDeletion(recognizer)
+    }
+
+    override def sync(recognizer: Parser): Unit = {
+        if (recognizer.getInputStream.LA(1) == CaretToken2.CARET_TOKEN_TYPE) {
+            return
+        }
+        super.sync(recognizer)
+    }
 }
 
 

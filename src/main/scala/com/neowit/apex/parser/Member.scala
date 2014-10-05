@@ -1049,3 +1049,7 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext) extends Member {
         }
     }
 }
+
+class CreatorMember(ctx: ApexcodeParser.CreatorContext) extends AnonymousMember {
+    def createdName: String = ctx.createdName().getText
+}

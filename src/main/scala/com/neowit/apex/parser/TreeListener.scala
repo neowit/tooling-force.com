@@ -171,6 +171,16 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     }
 
 
+    override def enterCreator(ctx: CreatorContext): Unit = {
+        val member = new CreatorMember(ctx)
+        registerMember(member)
+        memberScopeStack.push(member)
+    }
+
+    override def exitCreator(ctx: CreatorContext): Unit = {
+        memberScopeStack.pop()
+    }
+
     /**
      * @param name - name of identifier (e.g. variable name or method name)
      * @return list of identifiers matching this name
