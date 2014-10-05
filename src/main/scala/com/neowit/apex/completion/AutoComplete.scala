@@ -11,6 +11,17 @@ import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
 /**
+ * public void method() {
+ *     String str;
+ *     str.<caret>
+ * }
+ *
+ * @param definitionMember - in the above example: definitionMember will be LocalVariableMember - "str"
+ * @param typeMember - in the above example: typeMember will be ApexModel.ApexType member  - "String"
+ */
+private class DefinitionWithType(val definitionMember: Member, val typeMember: Member)
+
+/**
  * AToken represents a symbol which type we need to resolve
  * consider expression
  *
@@ -61,27 +72,28 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
-            case Some(_member) =>
-                val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+            case Some(definitionWithType) =>
+                val members = resolveExpression(definitionWithType.typeMember, expressionTokens.tail, fullApexTree,
+                                                Some(definitionWithType.definitionMember), extractor.getCaretScopeMember)
                 return members
             case _ =>
                 //check if this is something like MyClass.MySubclass
                 val startType = expressionTokens.head.symbol
                 fullApexTree.getClassMemberByType(startType) match {
                     case Some(_member) => //e.g. someClassInstance
-                        val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+                        val members = resolveExpression(_member, expressionTokens.tail, fullApexTree, None, extractor.getCaretScopeMember)
                         return members
 
                     case None =>
                         //final attempt - check if current symbol is a namespace or one of System types
                         ApexModel.getNamespace(startType) match {
                             case Some(_member) => //caret is a namespace
-                                val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+                                val members = resolveExpression(_member, expressionTokens.tail, fullApexTree,  None, extractor.getCaretScopeMember)
                                 return members
                             case None => //check if caret is part of System
                                 ApexModel.getSystemTypeMember(startType) match {
                                   case Some(_member) =>
-                                      val members = resolveExpression(_member, expressionTokens.tail, fullApexTree)
+                                      val members = resolveExpression(_member, expressionTokens.tail, fullApexTree,  None, extractor.getCaretScopeMember)
                                       return members
                                   case None => List()
                                 }
@@ -114,7 +126,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      * get member which defines the type of current member
      * e.g. SomeClass var;
      * if this member is 'var' then we will return member of SomeClass
-     * @param memberWithTypeToResolve
+     * @param memberWithTypeToResolve member which type needs to be resolved
      * @return
      */
     private def findTypeMember(memberWithTypeToResolve: Member, fullTree: ApexTree): Option[Member] = {
@@ -208,13 +220,14 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 
     //TODO add support for collections str[1] or mylist.get()
-    private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree ): List[Member] = {
+    private def resolveExpression(parentType: Member, expressionTokens: List[AToken], apexTree: ApexTree,
+                                  definitionMember: Option[Member] = None, caretScopeOpt: Option[AnonymousMember] = None ): List[Member] = {
         if (Nil == expressionTokens) {
-            return parentType.getChildrenWithInheritance(apexTree)
+            return removeInvisibleMembers(parentType.getChildrenWithInheritance(apexTree), definitionMember, caretScopeOpt)
         }
         val token: AToken = expressionTokens.head
         if (token.symbol.isEmpty) {
-            return parentType.getChildrenWithInheritance(apexTree)
+            return removeInvisibleMembers(parentType.getChildrenWithInheritance(apexTree), definitionMember, caretScopeOpt)
         }
         val tokensToGo = expressionTokens.tail
 
@@ -223,7 +236,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             case Some(_childMember) =>
                 findTypeMember(_childMember, apexTree) match {
                     case Some(_typeMember) =>
-                        return resolveExpression(_typeMember, tokensToGo, apexTree)
+                        return resolveExpression(_typeMember, tokensToGo, apexTree, Some(_childMember), caretScopeOpt)
                     case None => List()
                 }
             case None if tokensToGo.isEmpty => //parent does not have a child with this identity, return partial match
@@ -240,15 +253,91 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 case Some(_childMember) =>
                     findTypeMember(_childMember, apexTree) match {
                       case Some(_typeMember) =>
-                          return resolveExpression(_typeMember, tokensToGo, apexTree)
+                          return resolveExpression(_typeMember, tokensToGo, apexTree, Some(_childMember), caretScopeOpt)
                       case None =>
                     }
                 case None =>
+            }
         }
-    }
         List()
     }
 
+    /**
+     * using context of current caret definition leave only those members which match context (static/private, etc)
+     * @param members - full list of completion candidates
+     * @param definitionMember - member which defines starting caret expression
+     * @return
+     */
+    private def removeInvisibleMembers(members: List[Member], definitionMember: Option[Member], caretScopeOpt: Option[AnonymousMember]): List[Member] = {
+        val members1 = definitionMember match {
+            case Some(m:EnumMember) => members //do not filter anything for Enum
+            case Some(m:EnumConstantMember) => members //do not filter anything for Enum
+            case _ => definitionMember match {
+                case Some(_defMember) if !_defMember.isStatic => //remove all static members
+                    members.filter(instanceOnlyFilter)
+                case Some(_defMember) if _defMember.isStatic => //remove all instance members
+                    members.filter(staticOnlyFilter)
+                case _ => //if there is no definition then current context is most likely static
+                         //remove all instance members
+                    members.filter(staticOnlyFilter)
+            }
+        }
+        //remove members not visible from current context
+
+        definitionMember match {
+        /* TODO implement scope resolution for cases like SomeClass.SomeInnerClass.<caret>
+          case Some(member) if member.isInstanceOf[ClassMember]=>
+              //current expression is of type class itself, i.e. something like MyClass.MyInnerClass
+              //if current file is the same as the one where otherMember is defined then we can show private/protected members
+              //otherwise no reason to show them
+              caretScopeOpt match {
+                  case Some(scopeMember) =>
+                      scopeMember.getTopMostClassMember match {
+                          case Some(classOfCaretMember) =>
+                              val visibleMembers = members1.filter(otherMember => {
+                                  val otherMemberVisibility = otherMember.getVisibility.toLowerCase
+                                  val otherMemberIsNotPrivate = !Set("private", "protected").contains(otherMemberVisibility)
+                                  otherMember.getTopMostClassMember match {
+                                      case Some(otherMemberClass) =>
+                                          otherMemberClass == classOfCaretMember || otherMemberIsNotPrivate
+                                      case None => otherMemberIsNotPrivate
+                                  }
+                              })
+                              visibleMembers
+                          case None => members1
+                  }
+                  case None => members1
+              }
+          */
+          case Some(member) => //remove members not visible from current context
+              member.getClassMember match {
+                case Some(classOfCaretMember) => members1.filter(otherMember => visibilityFilter(member, classOfCaretMember, otherMember))
+                case None => members1
+              }
+          case None => members1
+        }
+    }
+
+    private def staticOnlyFilter(m: Member): Boolean = {
+        m.isStatic || m.isInstanceOf[ClassMember]
+    }
+    private def instanceOnlyFilter(m: Member): Boolean = {
+        !staticOnlyFilter(m)
+    }
+
+    private def visibilityFilter(caretMember: Member, classMember: ClassMember, m: Member): Boolean = {
+        m.getClassMember match {
+            case Some(otherClassMember) =>
+                m.getVisibility match {
+                    case "private" =>
+                        classMember == otherClassMember
+                    case "protected" => //check that other member is same or super class of caretMember
+                        classMember == otherClassMember || classMember.isInheritFrom(otherClassMember)
+                    case _ => true
+                }
+            case None => true
+        }
+    }
 
     private def filterByPrefix(members: List[Member], prefix: String): List[Member] = {
         members.filter(_.getIdentity.toLowerCase.startsWith(prefix.toLowerCase))
@@ -292,7 +381,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 println("found caret?")
                 //println(ex.getToken.getText)
                 //listOptions(ex)
-                return resolveExpression(ex)
+                return breakExpressionToATokens(ex)
             case e:Throwable =>
                 println(e.getMessage)
         }
@@ -309,15 +398,18 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): Option[Member] = {
+    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): Option[DefinitionWithType] = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
             ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
                 case Some(classDeclarationContext) =>
                     return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
-                        case Some(thisClassMember: ClassMember) if "this" == symbol => Some(thisClassMember)
-                        case Some(thisClassMember: ClassMember) if "super" == symbol => thisClassMember.getSuperClassMember
+                        case Some(thisClassMember: ClassMember) if "this" == symbol => Some(new DefinitionWithType(thisClassMember, thisClassMember))
+                        case Some(thisClassMember: ClassMember) if "super" == symbol => thisClassMember.getSuperClassMember match {
+                          case Some(typeMember) => Some(new DefinitionWithType(thisClassMember, typeMember))
+                          case None => None
+                        }
                         case _ => None
                     }
                 case None => None
@@ -333,12 +425,15 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         }
     }
 
-    def findSymbolInMemberHierarchy(parentMember: AnonymousMember, identity: String, fullApexTree: ApexTree): Option[Member] = {
+    private def findSymbolInMemberHierarchy(parentMember: AnonymousMember, identity: String, fullApexTree: ApexTree): Option[DefinitionWithType] = {
         parentMember.getChild(identity, withHierarchy = true) match {
           case Some(definitionMember) =>
               //definitionMember //member that defines type of token under cursor
               //now find the type of this member
-              findTypeMember(definitionMember, fullApexTree)
+              findTypeMember(definitionMember, fullApexTree) match {
+                case Some(typeMember) => Some(new DefinitionWithType(definitionMember, typeMember))
+                case None => None
+              }
           case None =>
                 parentMember.getParent match {
                   case Some(x) =>
@@ -358,7 +453,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      * "completion[some.num(other[nn])].goes.her|)" => List(completion[], goes, her)
      * "completion(some.num[other]).goes.her|)" => List( completion(), goes, her)
      */
-    private def resolveExpression(ex: CaretReachedException): List[AToken] = {
+    private def breakExpressionToATokens(ex: CaretReachedException): List[AToken] = {
         val expressionTokens = List.newBuilder[AToken]
         //at this point ex contains all information we need to build full statement on which ctrl+space was pressed
         //e.g.: MyClass.MyInnerClass.

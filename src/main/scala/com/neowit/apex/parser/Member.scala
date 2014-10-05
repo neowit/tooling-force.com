@@ -55,6 +55,27 @@ trait AnonymousMember {
         }
     }
 
+    /**
+     * @return class in which current member is defined
+     */
+    def getClassMember: Option[ClassMember] = {
+        def getMyClass[T <: AnonymousMember](m: Option[AnonymousMember]): Option[AnonymousMember] = {
+            m match {
+                case Some(member) =>
+                    if (member.isInstanceOf[ClassMember]) {
+                        Some(member)
+                    } else {
+                        getMyClass(member.getParent)
+                    }
+                case None => None
+            }
+        }
+        getMyClass(Some(this)) match {
+            case Some(member) => Some(member.asInstanceOf[ClassMember])
+            case None => None
+        }
+    }
+
     def getTopMostClassMember: Option[ClassMember] = {
         if (this.isInstanceOf[ClassMember] && !this.isInstanceOf[InnerClassMember]) {
             return Some(this.asInstanceOf[ClassMember])
@@ -125,7 +146,6 @@ trait AnonymousMember {
     def getChildren: List[Member] = {
         children.values.toList
     }
-
 
     /**
      * this method is only relevant when current member is a Class or Inner Class
@@ -334,11 +354,27 @@ class ClassMember(ctx: ClassDeclarationContext) extends Member {
      * if this class extends another class then find Member of that other class
      * @return
      */
-    def getSuperClassMember: Option[Member] = {
+    def getSuperClassMember: Option[ClassMember] = {
         this.getFullSuperType match {
             case Some(fullSuperType) => getApexTree.getClassMemberByType(fullSuperType)
             case None => None
         }
+    }
+
+    /**
+     * check if given otherClassMember is a super class of current member
+     * @param otherClassMember - class member to test against
+     */
+    def isInheritFrom (otherClassMember: ClassMember): Boolean = {
+        if (otherClassMember == this) {
+            true
+        } else {
+            this.getSuperClassMember match {
+              case Some(superClassMember) => superClassMember.isInheritFrom(otherClassMember)
+              case None => false
+            }
+        }
+
     }
 }
 
@@ -803,6 +839,11 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
     val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
 
     override def isStatic: Boolean = _isStatic
+
+    override def getVisibility: String = getModifiers.find(v => ClassBodyMember.VISIBILITIES.contains(v.toLowerCase)) match {
+      case Some(visibility) => visibility.toLowerCase
+      case None => "private"
+    }
 }
 
 object MethodMember {
