@@ -74,8 +74,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
             case Some(definitionWithType) =>
-                val members = resolveExpression(definitionWithType.typeMember, expressionTokens.tail, fullApexTree,
-                                                Some(definitionWithType.definitionMember), extractor.getCaretScopeMember)
+                val members = if (expressionTokens.size > 1) {
+                    resolveExpression(definitionWithType.typeMember, expressionTokens.tail, fullApexTree,
+                        Some(definitionWithType.definitionMember), extractor.getCaretScopeMember)
+                } else {
+                    resolveExpression(definitionWithType.typeMember, expressionTokens, fullApexTree,
+                        Some(definitionWithType.definitionMember), extractor.getCaretScopeMember)
+                }
                 return members
             case _ =>
                 //check if this is something like MyClass.MySubclass
@@ -244,9 +249,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 val partialMatchChildren = filterByPrefix(parentType.getChildrenWithInheritance(apexTree), token.symbol)
                 if (partialMatchChildren.isEmpty) {
                     //token.symbol may be apex type
-                    getApexTypeMembers(token.symbol)
+                    return getApexTypeMembers(token.symbol)
                 } else {
-                    partialMatchChildren
+                    return partialMatchChildren
                 }
             case _ => //check if parentType has child which has displayable identity == token.symbol
                 //this is usually when token.symbol is a method name (method Id includes its params, so have to use getIdentityToDisplay)
@@ -422,8 +427,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                     return findSymbolInMemberHierarchy(parentScopeMemberOfCaret, symbol, fullCachedTree) match {
                       case Some(definitionWithType) => Some(definitionWithType)
                       case None if parentScopeMemberOfCaret.isInstanceOf[CreatorMember] =>
-                          val creatorMember = parentScopeMemberOfCaret.asInstanceOf[CreatorMember]
                           //this is probably SObject creator, e.g. new Account (<caret>)
+                          val creatorMember = parentScopeMemberOfCaret.asInstanceOf[CreatorMember]
                           DatabaseModel.getModelBySession(session) match {
                               case Some(model) => model.getSObjectMember(creatorMember.createdName) match {
                                 case Some(databaseModelMember) =>
@@ -432,6 +437,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                               }
                               case None => None
                           }
+                      case _ => None
                     }
                 case None => //current symbol is not defined in the current class
             }
@@ -485,7 +491,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         var index = startTokenIndex
         var currentToken = startToken
-        var symbol = startToken.getText
+        var symbol = if (CompletionUtils.isWordToken(startToken)) startToken.getText else ""
         var expression = symbol
         var token:Option[Token] = Some(currentToken)
 
