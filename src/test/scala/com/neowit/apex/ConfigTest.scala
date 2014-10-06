@@ -57,11 +57,6 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             case ex: Throwable => assert(FAIL, "Expected InvalidCommandLineException for empty command line." + ex)
         }
     }
-    test("No --config Param") {
-        intercept[IllegalArgumentException] {
-            appConfig.load(List("--sf.username=aaa@bb.cc"))
-        }
-    }
     test("Missing ConfigFile") {
         try {
             appConfig.load(List("--config=/some/path"))
