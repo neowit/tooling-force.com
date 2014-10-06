@@ -9,6 +9,7 @@ import com.sforce.soap.metadata.ListMetadataQuery
 
 import akka.actor.Actor
 import akka.actor.Props
+import com.sforce.soap.partner.FieldType
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
@@ -111,7 +112,7 @@ trait DatabaseModelMember extends Member {
  * @param sObjectApiName - full API name of Standard or Custom Object
  * @param session - valid SFDC session config
  */
-class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseModelMember {
+class SObjectMember(val sObjectApiName: String, val session: Session) extends DatabaseModelMember {
     private var isDoneLoading = false
     override protected def isLoaded: Boolean = isDoneLoading
 
@@ -138,6 +139,10 @@ class SObjectMember(sObjectApiName: String, session: Session) extends DatabaseMo
                     for (field <- describeSobjectResult.getFields) {
                         val fMember = new SObjectFieldMember(field)
                         addChild(fMember, overwrite = true)
+                        if (fMember.isReference) {
+                            //add artificial child
+                            addChild(new SObjectRelationshipFieldMember(field), overwrite = true)
+                        }
                     }
                 }
                 scheduleRefresh()
@@ -163,6 +168,7 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
     override def getType: String =
         field.getSoapType.name().replaceFirst("_", "") //some fields have type like "_double"
 
+
     override def getSignature: String = {
         val lengthStr = if (field.getLength > 0) " [" + field.getLength + "]" else ""
         field.getLabel + " (" + field.getType.name().replaceFirst("_", "") + lengthStr + ")"
@@ -172,4 +178,43 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
 
     override def getDoc: String =
         if (null != field.getInlineHelpText) field.getInlineHelpText else ""
+
+
+    def isReference:Boolean = field.getType == FieldType.reference
+
+}
+
+class SObjectRelationshipFieldMember(field: com.sforce.soap.partner.Field) extends SObjectFieldMember(field) {
+
+    override def getIdentity: String = {
+        if (null != field.getRelationshipName)
+            field.getRelationshipName
+        else {
+            //polymorphic fields do not have value in field.getRelationshipName
+            field.getName.replaceAll("(?i)id$", "") //(?i) is to make regex case insensitive
+        }
+    } //Field API Name here
+
+    override def getSignature: String = {
+        field.getLabel + " (reference to: " + field.getReferenceTo.mkString(",") + ")"
+    }
+
+    override def getChildren: List[Member] = {
+        if (field.getType == FieldType.reference) {
+            //load related object members
+            getParent match {
+                case Some(sobjectMember: SObjectMember) =>
+                    DatabaseModel.getModelBySession(sobjectMember.session) match {
+                        case Some(dbModel) => dbModel.getSObjectMember(field.getReferenceTo.head) match {
+                            case Some(relatedSobjectMember) =>
+                                return relatedSobjectMember.getChildren
+                            case None =>
+                        }
+                        case None =>
+                    }
+                case _ =>
+            }
+        }
+        List()
+    }
 }

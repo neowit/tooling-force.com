@@ -256,6 +256,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             case _ => //check if parentType has child which has displayable identity == token.symbol
                 //this is usually when token.symbol is a method name (method Id includes its params, so have to use getIdentityToDisplay)
                 parentType.getChildren.find(_.getIdentityToDisplay.toLowerCase == token.symbol.toLowerCase) match {
+                case Some(sobjectFieldMember: SObjectFieldMember) =>
+                    return resolveExpression(sobjectFieldMember, tokensToGo, apexTree, Some(sobjectFieldMember), caretScopeOpt)
                 case Some(_childMember) =>
                     findTypeMember(_childMember, apexTree) match {
                       case Some(_typeMember) =>
@@ -432,7 +434,19 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                           DatabaseModel.getModelBySession(session) match {
                               case Some(model) => model.getSObjectMember(creatorMember.createdName) match {
                                 case Some(databaseModelMember) =>
-                                    Some(new DefinitionWithType(databaseModelMember, databaseModelMember))
+                                    val sobjectDefWthType = Some(new DefinitionWithType(databaseModelMember, databaseModelMember))
+                                    if (symbol.isEmpty) {
+                                        sobjectDefWthType
+                                    } else {
+                                        //symbol is clarified by field name
+                                        databaseModelMember.getChild(symbol) match {
+                                          case Some(_typeMember) =>
+                                              //return field member
+                                              Some(new DefinitionWithType(_typeMember, _typeMember))
+                                          case None => //fall back to SObject
+                                              sobjectDefWthType
+                                        }
+                                    }
                                 case None => None
                               }
                               case None => None

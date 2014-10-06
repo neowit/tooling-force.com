@@ -128,12 +128,13 @@ trait AnonymousMember {
         member match {
             case m: Member =>
                 try {
-                    val canAdd =
-                    getChild(m.getIdentity.toLowerCase, withHierarchy = false) match {
+                    val canAdd = overwrite || (getChild(m.getIdentity.toLowerCase, withHierarchy = false) match {
                         case Some(_existingMember) =>
-                            overwrite//this child already exists, do not overwrite
+                            //this child already exists, do not overwrite
+                            false
                         case None => true
-                    }
+                    })
+
                     if (canAdd) {
                         children.+=(m.getIdentity.toLowerCase -> m)
                     }
@@ -142,6 +143,7 @@ trait AnonymousMember {
                         this match {
                             case m: Member =>
                                 println("failed to add member of parent: " + m.getIdentity)
+                                println(ex.getStackTraceString)
                             case _ =>
                                 println("failed to add member of parent")
                         }
