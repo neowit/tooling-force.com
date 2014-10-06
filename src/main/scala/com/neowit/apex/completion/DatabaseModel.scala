@@ -199,21 +199,35 @@ class SObjectRelationshipFieldMember(field: com.sforce.soap.partner.Field) exten
         field.getLabel + " (reference to: " + field.getReferenceTo.mkString(",") + ")"
     }
 
-    override def getChildren: List[Member] = {
-        if (field.getType == FieldType.reference) {
-            //load related object members
-            getParent match {
-                case Some(sobjectMember: SObjectMember) =>
-                    DatabaseModel.getModelBySession(sobjectMember.session) match {
-                        case Some(dbModel) => dbModel.getSObjectMember(field.getReferenceTo.head) match {
-                            case Some(relatedSobjectMember) =>
-                                return relatedSobjectMember.getChildren
-                            case None =>
-                        }
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
+        getParent match {
+            case Some(sobjectMember: SObjectMember) =>
+                DatabaseModel.getModelBySession(sobjectMember.session) match {
+                    case Some(dbModel) => dbModel.getSObjectMember(field.getReferenceTo.head) match {
+                        case Some(relatedSobjectMember) =>
+                            return relatedSobjectMember.getChild(identity, withHierarchy)
                         case None =>
                     }
-                case _ =>
-            }
+                    case None =>
+                }
+            case _ =>
+        }
+        None
+    }
+
+    override def getChildren: List[Member] = {
+        //load related object members
+        getParent match {
+            case Some(sobjectMember: SObjectMember) =>
+                DatabaseModel.getModelBySession(sobjectMember.session) match {
+                    case Some(dbModel) => dbModel.getSObjectMember(field.getReferenceTo.head) match {
+                        case Some(relatedSobjectMember) =>
+                            return relatedSobjectMember.getChildren
+                        case None =>
+                    }
+                    case None =>
+                }
+            case _ =>
         }
         List()
     }

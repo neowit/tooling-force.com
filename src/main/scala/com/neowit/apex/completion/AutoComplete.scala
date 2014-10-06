@@ -136,6 +136,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      * @return
      */
     private def findTypeMember(memberWithTypeToResolve: Member, fullTree: ApexTree): Option[Member] = {
+        if (memberWithTypeToResolve.isInstanceOf[SObjectRelationshipFieldMember]) {
+            //for relationship fields there is no need to resolve further, actual field is the type member
+            return Some(memberWithTypeToResolve)
+        }
         val initialTypeName = memberWithTypeToResolve.getFullType
         val typeName = if (isArrayDefinition(initialTypeName) || isListDefinition(initialTypeName)) {
             //this is Array
