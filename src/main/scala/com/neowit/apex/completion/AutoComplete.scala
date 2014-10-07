@@ -175,12 +175,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         //search in main tree and current file failed, let's see if memberType is one of apex types
         //check if this is one of standard Apex types
-        ApexModel.getNamespace(typeName) match {
-            case Some(namespaceMember) =>
-                Some(namespaceMember)
-            case None =>
-                //check if caret is fully qualified type with namespace
-                ApexModel.getTypeMember(typeName) match {
+        getApexModelMember(typeName) match {
                     case Some(member) => Some(member)
                     case None =>
                         //if all of the above has been unsuccessful then check if current startType is SObject type
@@ -189,8 +184,19 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                             case None => None
                         }
                 }
+
         }
 
+    //check if this is one of standard Apex types
+    private def getApexModelMember(symbol: String): Option[Member] = {
+        //check if caret is fully qualified type with namespace
+        ApexModel.getNamespace(symbol) match {
+            case Some(namespaceMember) =>
+                Some(namespaceMember)
+            case None =>
+                //check if caret is fully qualified type with namespace
+                ApexModel.getTypeMember(symbol)
+        }
     }
     private def findMember(typeName: String, apexTree: ApexTree, ctx: Option[ParseTree] = None ): Option[Member] = {
         //check if this is a top level type
