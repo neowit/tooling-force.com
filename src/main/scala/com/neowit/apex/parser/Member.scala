@@ -768,6 +768,13 @@ object PropertyMember {
     def unapply(ctx: ParseTree): Option[ParseTree] = {
         if (ClassBodyMember.isProperty(ctx)) Some(ctx) else None
     }
+    def getModifiers(ctx: ParseTree): List[String] = {
+        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+            case Some(classBodyDeclarationCtx) =>
+                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
+            case None => List()
+        }
+    }
 }
 
 class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
@@ -793,16 +800,17 @@ class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
     }
 
     private def getModifiers: List[String] = {
-        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
-            case Some(classBodyDeclarationCtx) =>
-                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
-            case None => List()
-        }
+        PropertyMember.getModifiers(ctx)
     }
 
     val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
 
     override def isStatic: Boolean = _isStatic
+
+    override def getVisibility: String = getModifiers.find(v => ClassBodyMember.VISIBILITIES.contains(v.toLowerCase)) match {
+        case Some(visibility) => visibility.toLowerCase
+        case None => "private"
+    }
 }
 
 object FieldMember {
@@ -838,11 +846,7 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
     }
 
     private def getModifiers: List[String] = {
-        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
-            case Some(classBodyDeclarationCtx) =>
-                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
-            case None => List()
-        }
+        PropertyMember.getModifiers(ctx)
     }
 
     val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
