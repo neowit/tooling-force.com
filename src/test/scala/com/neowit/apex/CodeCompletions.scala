@@ -45,7 +45,11 @@ class CodeCompletions extends FunSuite {
             var i = 0
             while (i < lines.size) {
                 val line = lines(i)
-                if (line.contains(lineMarker) && !line.contains("\"lineMarker\"")) {
+                val indexOfMarker = line.indexOf(lineMarker)
+                //exclude lines where
+                //- actual marker is defined as "lineMarker": "something"
+                //- where method with same name as marker resides, "(" after marker position
+                if (indexOfMarker > 0 && !line.contains("\"lineMarker\"") && line.indexOf("(", indexOfMarker) < 0) {
                     return i + 1
                 }
 
@@ -122,7 +126,7 @@ class CodeCompletions extends FunSuite {
         //println(lines.mkString("\n"))
         //"check that all expected items  found")
         val diff = itemsList.toSet.--(foundItemsSet)
-        assertResult(itemsList.size, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))(foundItemsSet.size)
+        assert(itemsList.size >= foundItemsSet.size, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
 
     }
     //find exact item identity in the list of all exected identities
@@ -130,11 +134,13 @@ class CodeCompletions extends FunSuite {
         if (identities.contains(item.identity)) item.identity else ""
     }
     private def matchSignatureContains(signatureSubstrings: List[String])(item: CompletionItem): String = {
-        signatureSubstrings.find(sig => item.signature.contains(sig)) match {
-          case Some(foundSignature) => item.signature
-          case None => ""
+        for(signatureSubstring <- signatureSubstrings) {
+            if (item.signature.contains(signatureSubstring))
+                return signatureSubstring
         }
+        ""
     }
+
     private def collectFoundItems(responseLines: Array[String], matchFunc: CompletionItem => String): Set[String] = {
 
         var i=1
@@ -160,9 +166,13 @@ class CodeCompletions extends FunSuite {
         "\"" + filePath + "\""
     }
 
-    test("SObject Creator completions") {
+    test("SObject Creator completions, i.e. completions inside expressions like: new Account(...<caret> )") {
         val testApexClassFilePath = projectPath + "/src/classes/SObjectCompletions.cls"
         testCompletionsInFile(testApexClassFilePath)
+    }
 
+    test("Standard Apex Library completions, i.e. completions inside expressions like: String.<caret>") {
+        val testApexClassFilePath = projectPath + "/src/classes/ApexLibraryCompletions.cls"
+        testCompletionsInFile(testApexClassFilePath)
     }
 }
