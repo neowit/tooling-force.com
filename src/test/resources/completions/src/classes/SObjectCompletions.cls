@@ -77,4 +77,68 @@ public with sharing class SObjectCompletions {
 	public void testSObjectNewBetweenStartsWith() {
 		Account a  = new Account(Name = '', Account  , Active = true);//test_NewBetweenStartsWith
 	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testSObjecCreatorInsideList",
+		"column": 34,
+		"itemsCountMin": 40,
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		}
+	 * #END
+	 */
+	public void testSObjecCreatorInsideList() {
+		List<Account> manyAccounts = new List<Account>{
+					new Account (Name = 'Some', ) /*testSObjecCreatorInsideList*/
+				};
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testSObjecCreatorInsideMap",
+		"column": 44,
+		"itemsCountMin": 40,
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		}
+	 * #END
+	 */
+	public void testSObjecCreatorInsideList() {
+		Map<String, Account> manyAccounts = new Map<String, Account>{
+					'Acc1' => new Account (Name = 'Some', ) /*testSObjecCreatorInsideMap*/
+				};
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testLocalVariableInsideCreator",
+		"column": 38,
+		"itemsCountMin": 40,
+		"signatureContains": ["abbreviate(Integer maxWidth)", "abbreviate(Integer maxWidth, Integer offset)", "capitalize", "center", "charAt", "compareTo", "equals"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf"]
+		}
+	 * #END
+	 */
+	private void testLocalVariableInsideCreator() {
+		String a1='a', b1='b';
+		Account a  = new Account(Name = b1. , Active = true);//testLocalVariableInsideCreator
+	}
+    
+	/**
+	 * #START
+		{
+		"lineMarker": "testStaticStringInsideCreator",
+		"column": 42,
+		"itemsCountMin": 17,
+		"signatureMustNotContain": ["abbreviate(Integer maxWidth)", "abbreviate(Integer maxWidth, Integer offset)", "capitalize", "center", "charAt", "compareTo", "equals"],
+		"signatureContains" : ["escapeSingleQuotes", "format", "valueOf", "join", "isEmpty"]
+		}
+	 * #END
+	 */
+	@isTest public void testStaticStringInsideCreator () {
+		Account a  = new Account(Name = String. );//testStaticStringInsideCreator
+		
+	}
 }
