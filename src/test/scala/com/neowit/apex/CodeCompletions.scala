@@ -25,7 +25,17 @@ class CodeCompletions extends FunSuite {
 
     )
 
-    case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, items: List[String]) {
+    def withResponseFile(testCode: (File) => Any) {
+        val responseFile = File.createTempFile("completions", ".json")
+        try {
+            testCode(responseFile) // "loan" the fixture to the test
+        } finally {
+            // clean up the fixture
+            responseFile.delete()
+        }
+    }
+    case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]],
+                           signatureContains: Option[List[String]]) {
         /**
          * find lineMarker in the specified file
          * @return line number where marker is found
@@ -48,47 +58,47 @@ class CodeCompletions extends FunSuite {
     case class CompletionItem(realIdentity: String, signature: String, doc: String, identity: String, `type`: String, visibility: String)
 
     object ApexModelJsonProtocol extends DefaultJsonProtocol {
-        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "items"))
+        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "signatureContains"))
         implicit val testCompletionItemFormat: JsonFormat[CompletionItem] = lazyFormat(jsonFormat(CompletionItem, "realIdentity", "signature", "doc", "identity", "type", "visibility"))
     }
 
-    test("SObject Creator completions") {
 
-        val testApexClassFilePath = projectPath + "/src/classes/SObjectCompletions.cls"
-        val responseFile = File.createTempFile("completions", ".json")
-        val extraParams = Array(
-            s"--currentFilePath=${escapeFilePath(testApexClassFilePath)}",
-            s"--responseFilePath=${escapeFilePath(responseFile)}",
-            s"--currentFileContentPath=${escapeFilePath(testApexClassFilePath)}"
-        )
+    /**
+     * main method which does actual validations
+     * @param apexClassPath - full path to the file where test apex code and completion scenarios reside
+     */
+    private def testCompletionsInFile(apexClassPath: String): Unit = {
 
-        val lines = scala.io.Source.fromFile(testApexClassFilePath).getLines().toArray[String]
-        var i = 0
-        while (i < lines.size) {
-            val line = lines(i)
-            var jsonTestDescription: String = ""
-            if (line.contains("#START")) {
-                i = i + 1
-                while (!lines(i).contains("#END")) {
-                    val jsonLine = lines(i)
-                    jsonTestDescription += jsonLine
+        withResponseFile { (responseFile) =>
+            val extraParams = Array(
+                s"--currentFilePath=${escapeFilePath(apexClassPath)}",
+                s"--responseFilePath=${escapeFilePath(responseFile)}",
+                s"--currentFileContentPath=${escapeFilePath(apexClassPath)}"
+            )
+            val lines = scala.io.Source.fromFile(apexClassPath).getLines().toArray[String]
+            var i = 0
+            while (i < lines.size) {
+                val line = lines(i)
+                var jsonTestDescription: String = ""
+                if (line.contains("#START")) {
                     i = i + 1
+                    while (!lines(i).contains("#END")) {
+                        val jsonLine = lines(i)
+                        jsonTestDescription += jsonLine
+                        i = i + 1
+                    }
+                    //reached end of current test description, now run the test
+                    runSingleCompletionTest(jsonTestDescription, commandLine ++ extraParams, apexClassPath, responseFile)
                 }
-                //reached end of current test description, now run the test
-                runTest(jsonTestDescription, commandLine ++ extraParams, testApexClassFilePath, responseFile)
+                i += 1
+
             }
-            i += 1
-
         }
-        responseFile.delete() //clean up
-
     }
 
-    def runTest(jsonConfigStr: String, commandLineParams: Array[String], apexClassPath: String, responseFile: File): Unit = {
+    def runSingleCompletionTest(jsonConfigStr: String, commandLineParams: Array[String], apexClassPath: String, responseFile: File): Unit = {
         val jsonAst = JsonParser(jsonConfigStr)
         val config = jsonAst.convertTo[TestConfig](ApexModelJsonProtocol.testConfigFormat)
-        val identitiesList = config.items
-        val identitiesSet = identitiesList.toSet
         val lineNumber = config.getLineNumber(apexClassPath)
         assert(lineNumber > 0, "could not file line number by marker: " + config.lineMarker)
 
@@ -98,25 +108,50 @@ class CodeCompletions extends FunSuite {
         val lines = scala.io.Source.fromFile(responseFile).getLines().toArray[String]
 
         assertResult("RESULT=SUCCESS")(lines(0))
+
+        val (matchFunc, itemsList) = config.identities match {
+            case Some(_identities) => (matchIdentity(_identities)_, _identities)
+            case None => config.signatureContains match {
+              case Some(signatures) => (matchSignatureContains(signatures)_, signatures)
+              case None => throw new IllegalStateException("unexpected config: " + config)
+            }
+            case _ => throw new IllegalStateException("unexpected config: " + config)
+        }
+
+        val foundItemsSet = collectFoundItems(lines, matchFunc)
+        //println(lines.mkString("\n"))
+        //"check that all expected items  found")
+        val diff = itemsList.toSet.--(foundItemsSet)
+        assertResult(itemsList.size, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))(foundItemsSet.size)
+
+    }
+    //find exact item identity in the list of all exected identities
+    private def matchIdentity(identities: List[String])(item: CompletionItem): String = {
+        if (identities.contains(item.identity)) item.identity else ""
+    }
+    private def matchSignatureContains(signatureSubstrings: List[String])(item: CompletionItem): String = {
+        signatureSubstrings.find(sig => item.signature.contains(sig)) match {
+          case Some(foundSignature) => item.signature
+          case None => ""
+        }
+    }
+    private def collectFoundItems(responseLines: Array[String], matchFunc: CompletionItem => String): Set[String] = {
+
         var i=1
         val foundItems = Set.newBuilder[String]
-        while (i < lines.size) {
-            val lineJson = lines(i)
+        while (i < responseLines.size) {
+            val lineJson = responseLines(i)
             val jsonAst = JsonParser(lineJson)
             val completionItem = jsonAst.convertTo[CompletionItem](ApexModelJsonProtocol.testCompletionItemFormat)
 
-            if (identitiesSet.contains(completionItem.identity)) {
-                foundItems += completionItem.identity
+            val matchedString = matchFunc(completionItem)
+            if (matchedString.nonEmpty) {
+                foundItems += matchedString
             }
 
             i += 1
         }
-        //println(lines.mkString("\n"))
-        //"check that all expected items  found")
-        val foundItemsSet = foundItems.result()
-        val diff = identitiesSet.--(foundItemsSet)
-        assertResult(identitiesSet.size, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))(foundItemsSet.size)
-
+        foundItems.result()
     }
     private def escapeFilePath(file: File): String = {
         escapeFilePath(file.getAbsolutePath)
@@ -125,4 +160,9 @@ class CodeCompletions extends FunSuite {
         "\"" + filePath + "\""
     }
 
+    test("SObject Creator completions") {
+        val testApexClassFilePath = projectPath + "/src/classes/SObjectCompletions.cls"
+        testCompletionsInFile(testApexClassFilePath)
+
+    }
 }

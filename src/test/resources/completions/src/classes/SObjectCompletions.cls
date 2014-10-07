@@ -14,7 +14,7 @@ public with sharing class SObjectCompletions {
 		"lineMarker": "test_My_Object__r",
 		"column": 63,
 		"itemsCountMin": 17,
-		"items": ["CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Email__c", "Name", "Owner", "OwnerId"]
+		"identities": ["CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Email__c", "Name", "Owner", "OwnerId"]
 		}
 	 * #END
 	 */
@@ -28,7 +28,7 @@ public with sharing class SObjectCompletions {
 		"lineMarker": "test_NewEmpty",
 		"column": 28,
 		"itemsCountMin": 40,
-		"items": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
 		}
 	 * #END
 	 */
@@ -42,7 +42,7 @@ public with sharing class SObjectCompletions {
 		"lineMarker": "test_NewEnd",
 		"column": 39,
 		"itemsCountMin": 40,
-		"items": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
 		}
 	 * #END
 	 */
@@ -56,7 +56,7 @@ public with sharing class SObjectCompletions {
 		"lineMarker": "test_NewBetween",
 		"column": 39,
 		"itemsCountMin": 40,
-		"items": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
 		}
 	 * #END
 	 */
@@ -70,7 +70,7 @@ public with sharing class SObjectCompletions {
 		"lineMarker": "test_NewBetweenStartsWith",
 		"column": 46,
 		"itemsCountMin": 2,
-		"items": ["AccountNumber", "AccountSource"]
+		"identities": ["AccountNumber", "AccountSource"]
 		}
 	 * #END
 	 */
