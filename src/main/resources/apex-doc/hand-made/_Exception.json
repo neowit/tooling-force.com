@@ -9,7 +9,7 @@
         "p": [],
         "h": "Returns the cause of the exception as an exception object.",
         "r": "Exception",
-        "d": "public String getExpression()"
+        "d": "public String getCause()"
       },
       {
         "s": "0",

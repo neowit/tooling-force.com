@@ -137,11 +137,13 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         loadFile(name)
         if ("System" == name) {
             //add Exception to System namespace
-            loadFile("_Exception")
+            loadFile("hand-made/_Exception")
             //add enum constant methods to System namespace
-            loadFile("_Enum")
+            loadFile("hand-made/_Enum")
             //add StatusCode enum to System namespace
-            loadFile("_StatusCode")
+            loadFile("hand-made/_StatusCode")
+            //add Trigger to System namespace
+            loadFile("hand-made/_Trigger")
             //add methods from System.System
             getChild("System") match {
               case Some(systemMember) =>

@@ -1,0 +1,118 @@
+{
+  "Trigger": {
+    "name": "Trigger",
+    "methods": [
+      {
+        "s": "1",
+        "n": "new",
+        "v": "public",
+        "p": [],
+        "h": "Returns a list of the new versions of the sObject records. Note that this sObject list is only available in insert and update triggers, and the records can only be modified in before triggers.",
+        "r": "List<SObject>",
+        "d": "public static List<SObject> new"
+      },
+      {
+        "s": "1",
+        "n": "old",
+        "v": "public",
+        "p": [],
+        "h": "Returns a list of the old versions of the sObject records. Note that this sObject list is only available in update and delete triggers.",
+        "r": "List<SObject>",
+        "d": "public static List<SObject> old"
+      },
+      {
+        "s": "1",
+        "n": "newMap",
+        "v": "public",
+        "p": [],
+        "h": "A map of IDs to the new versions of the sObject records. Note that this map is only available in before update, after insert, and after update triggers.",
+        "r": "Map<Id, SObject>",
+        "d": "public static Map<Id, SObject> newMap"
+      },
+      {
+        "s": "1",
+        "n": "oldMap",
+        "v": "public",
+        "p": [],
+        "h": "A map of IDs to the old versions of the sObject records. Note that this map is only available in update and delete triggers.",
+        "r": "Map<Id, SObject>",
+        "d": "public static Map<Id, SObject> oldMap"
+      },
+      {
+        "s": "1",
+        "n": "size",
+        "v": "public",
+        "p": [],
+        "h": "The total number of records in a trigger invocation, both old and new.",
+        "r": "Integer",
+        "d": "public static Integer size()"
+      },
+      {
+        "s": "1",
+        "n": "isExecuting",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if the current context for the Apex code is a trigger, not a Visualforce page, a Web service, or an executeanonymous() API call.",
+        "r": "Boolean",
+        "d": "public static Boolean isExecuting"
+      },
+      {
+        "s": "1",
+        "n": "isInsert",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired due to an insert operation, from the Salesforce user interface, Apex, or the API.",
+        "r": "Boolean",
+        "d": "public static Boolean isInsert"
+      },
+      {
+        "s": "1",
+        "n": "isUpdate",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired due to an update operation, from the Salesforce user interface, Apex, or the API.",
+        "r": "Boolean",
+        "d": "public static Boolean isUpdate"
+      },
+      {
+        "s": "1",
+        "n": "isDelete",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired due to a delete operation, from the Salesforce user interface, Apex, or the API.",
+        "r": "Boolean",
+        "d": "public static Boolean isDelete"
+      },
+      {
+        "s": "1",
+        "n": "isBefore",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired before any record was saved.",
+        "r": "Boolean",
+        "d": "public static Boolean isBefore"
+      },
+      {
+        "s": "1",
+        "n": "isAfter",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired after all records were saved.",
+        "r": "Boolean",
+        "d": "public static Boolean isAfter"
+      },
+      {
+        "s": "1",
+        "n": "isUndelete",
+        "v": "public",
+        "p": [],
+        "h": "Returns true if this trigger was fired after a record is recovered from the Recycle Bin (that is, after an undelete operation from the Salesforce user interface, Apex, or the API.)",
+        "r": "Boolean",
+        "d": "public static Boolean isUndelete"
+      }
+    ],
+    "tag": "CLASSDEF",
+    "ctors": [],
+    "fqn": "System.Trigger"
+  }
+}
