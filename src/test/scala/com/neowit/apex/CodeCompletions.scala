@@ -6,6 +6,9 @@ import java.util.Properties
 import org.scalatest.FunSuite
 
 import spray.json._
+
+import scala.util.{Failure, Try, Success}
+
 //import DefaultJsonProtocol._
 
 class CodeCompletions extends FunSuite {
@@ -121,7 +124,7 @@ class CodeCompletions extends FunSuite {
             case _ => throw new IllegalStateException("unexpected config: " + config)
         }
 
-        val completionResult = collectFoundItems(lines, matchFunc)
+        val completionResult = collectFoundItems(config.lineMarker, lines, matchFunc)
         //println(lines.mkString("\n"))
         //"check that all expected items  found")
         val diff = expectedItemsList.toSet.--(completionResult.matchingItemsSet)
@@ -133,7 +136,7 @@ class CodeCompletions extends FunSuite {
         //check signatureMustNotContain
         config.signatureMustNotContain match {
           case Some(signatures) =>
-              val completionResult = collectFoundItems(lines, matchSignatureMustNotContain(signatures))
+              val completionResult = collectFoundItems(config.lineMarker, lines, matchSignatureMustNotContain(signatures))
               assert(completionResult.matchingItemsSet.isEmpty, "Scenario: " + config.lineMarker + "; did not expect to find following signatures: " + completionResult.matchingItemsSet)
           case None =>
         }
@@ -157,13 +160,17 @@ class CodeCompletions extends FunSuite {
 
     case class CompletionResult(itemsTotal: Int, matchingItemsSet: Set[String])
 
-    private def collectFoundItems(responseLines: Array[String], matchFunc: CompletionItem => String): CompletionResult = {
+    private def collectFoundItems(testName: String, responseLines: Array[String], matchFunc: CompletionItem => String): CompletionResult = {
 
         var i=1
         val foundItems = Set.newBuilder[String]
         while (i < responseLines.size) {
             val lineJson = responseLines(i)
-            val jsonAst = JsonParser(lineJson)
+
+            val jsonAst = Try(JsonParser(lineJson)) match {
+                case Success(_ast) => _ast
+                case Failure(ex) => throw new IllegalStateException("Failed to parse JSON response in test: " + testName, ex)
+            }
             val completionItem = jsonAst.convertTo[CompletionItem](ApexModelJsonProtocol.testCompletionItemFormat)
 
             val matchedString = matchFunc(completionItem)
