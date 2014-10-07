@@ -337,7 +337,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 
     private def staticOnlyFilter(m: Member): Boolean = {
-        m.isStatic || m.isInstanceOf[ClassMember]
+        m.isStatic || m.isInstanceOf[ClassMember] || m.isInstanceOf[EnumMember]
     }
     private def instanceOnlyFilter(m: Member): Boolean = {
         !staticOnlyFilter(m)
