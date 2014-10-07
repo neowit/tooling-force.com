@@ -3,11 +3,10 @@ package com.neowit.apex
 import java.io.File
 import java.util.Properties
 
-import com.neowit.utils.{BasicConfig, Config}
 import org.scalatest.FunSuite
 
 import spray.json._
-import DefaultJsonProtocol._
+//import DefaultJsonProtocol._
 
 class CodeCompletions extends FunSuite {
 
@@ -35,7 +34,7 @@ class CodeCompletions extends FunSuite {
         }
     }
     case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]],
-                           signatureContains: Option[List[String]]) {
+                           signatureContains: Option[List[String]], signatureMustNotContain: Option[List[String]]) {
         /**
          * find lineMarker in the specified file
          * @return line number where marker is found
@@ -62,7 +61,7 @@ class CodeCompletions extends FunSuite {
     case class CompletionItem(realIdentity: String, signature: String, doc: String, identity: String, `type`: String, visibility: String)
 
     object ApexModelJsonProtocol extends DefaultJsonProtocol {
-        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "signatureContains"))
+        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "signatureContains", "signatureMustNotContain"))
         implicit val testCompletionItemFormat: JsonFormat[CompletionItem] = lazyFormat(jsonFormat(CompletionItem, "realIdentity", "signature", "doc", "identity", "type", "visibility"))
     }
 
@@ -113,7 +112,7 @@ class CodeCompletions extends FunSuite {
 
         assertResult("RESULT=SUCCESS")(lines(0))
 
-        val (matchFunc, itemsList) = config.identities match {
+        val (matchFunc, expectedItemsList) = config.identities match {
             case Some(_identities) => (matchIdentity(_identities)_, _identities)
             case None => config.signatureContains match {
               case Some(signatures) => (matchSignatureContains(signatures)_, signatures)
@@ -122,11 +121,22 @@ class CodeCompletions extends FunSuite {
             case _ => throw new IllegalStateException("unexpected config: " + config)
         }
 
-        val foundItemsSet = collectFoundItems(lines, matchFunc)
+        val completionResult = collectFoundItems(lines, matchFunc)
         //println(lines.mkString("\n"))
         //"check that all expected items  found")
-        val diff = itemsList.toSet.--(foundItemsSet)
-        assert(itemsList.size >= foundItemsSet.size, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
+        val diff = expectedItemsList.toSet.--(completionResult.matchingItemsSet)
+        assert(diff.size == 0, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
+
+        //check that minimum expected number of items found
+        assert(config.itemsCountMin <= completionResult.itemsTotal, "Scenario: " + config.lineMarker + s"; \nExpected ${config.itemsCountMin } items, actual ${completionResult.itemsTotal} " )
+
+        //check signatureMustNotContain
+        config.signatureMustNotContain match {
+          case Some(signatures) =>
+              val completionResult = collectFoundItems(lines, matchSignatureMustNotContain(signatures))
+              assert(completionResult.matchingItemsSet.isEmpty, "Scenario: " + config.lineMarker + "; did not expect to find following signatures: " + completionResult.matchingItemsSet)
+          case None =>
+        }
 
     }
     //find exact item identity in the list of all exected identities
@@ -141,7 +151,13 @@ class CodeCompletions extends FunSuite {
         ""
     }
 
-    private def collectFoundItems(responseLines: Array[String], matchFunc: CompletionItem => String): Set[String] = {
+    private def matchSignatureMustNotContain(signatureSubstrings: List[String])(item: CompletionItem): String = {
+        if (matchSignatureContains(signatureSubstrings)(item).nonEmpty) item.signature else ""
+    }
+
+    case class CompletionResult(itemsTotal: Int, matchingItemsSet: Set[String])
+
+    private def collectFoundItems(responseLines: Array[String], matchFunc: CompletionItem => String): CompletionResult = {
 
         var i=1
         val foundItems = Set.newBuilder[String]
@@ -157,7 +173,7 @@ class CodeCompletions extends FunSuite {
 
             i += 1
         }
-        foundItems.result()
+        new CompletionResult(i-1, foundItems.result())
     }
     private def escapeFilePath(file: File): String = {
         escapeFilePath(file.getAbsolutePath)
