@@ -1060,5 +1060,20 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext) extends Member {
 }
 
 class CreatorMember(ctx: ApexcodeParser.CreatorContext) extends AnonymousMember {
-    def createdName: String = ctx.createdName().getText
+    private var _createdName: Option[String] = None
+    def createdName: String = {
+        _createdName match {
+          case Some(name) => name
+          case None => //calculate
+              val typeArgs = ClassBodyMember.findChildren(ctx, classOf[TypeArgumentContext])
+              if (typeArgs.isEmpty) {
+                  //simple case: Account acc = new Account( <caret>)
+                  _createdName = Some(ctx.createdName().getText)
+              }  else {
+                  //inside collection creator like: new Map<String, Account> { 'acc' => new Account( <caret>)}
+                  _createdName = Some(typeArgs.last.`type`().getText)
+              }
+              _createdName.get
+        }
+    }
 }
