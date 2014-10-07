@@ -176,16 +176,16 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //search in main tree and current file failed, let's see if memberType is one of apex types
         //check if this is one of standard Apex types
         getApexModelMember(typeName) match {
-                    case Some(member) => Some(member)
-                    case None =>
-                        //if all of the above has been unsuccessful then check if current startType is SObject type
-                        DatabaseModel.getModelBySession(session) match {
-                            case Some(model) => model.getSObjectMember(typeName)
-                            case None => None
-                        }
+            case Some(member) => Some(member)
+            case None =>
+                //if all of the above has been unsuccessful then check if current startType is SObject type
+                DatabaseModel.getModelBySession(session) match {
+                    case Some(model) => model.getSObjectMember(typeName)
+                    case None => None
                 }
-
         }
+
+    }
 
     //check if this is one of standard Apex types
     private def getApexModelMember(symbol: String): Option[Member] = {
@@ -438,8 +438,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 case Some(parentScopeMemberOfCaret) =>
                     return findSymbolInMemberHierarchy(parentScopeMemberOfCaret, symbol, fullCachedTree) match {
                       case Some(definitionWithType) => Some(definitionWithType)
-                      case None if parentScopeMemberOfCaret.isInstanceOf[CreatorMember] =>
-                          //this is probably SObject creator, e.g. new Account (<caret>)
+                      case None if parentScopeMemberOfCaret.isInstanceOf[CreatorMember] && !isToTheRightOfEqualsSign(caretAToken, extractor) =>
+                          //this is probably SObject creator, e.g. new Account (<caret>, Name = 'some')
                           val creatorMember = parentScopeMemberOfCaret.asInstanceOf[CreatorMember]
                           DatabaseModel.getModelBySession(session) match {
                               case Some(model) => model.getSObjectMember(creatorMember.createdName) match {
@@ -467,6 +467,24 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             }
             None
         }
+    }
+
+    //check if this item is on the right side of '=', in which case it can not be a field of SObject
+    private def isToTheRightOfEqualsSign(caretAToken: AToken, extractor: TreeListener): Boolean = {
+        var i = caretAToken.index
+        val inputStream = extractor.parser.getInputStream
+
+        while (i > 0) {
+            if (!isWordTokenOrDot(inputStream.get(i))) {
+                if (i > 0 && "=" == inputStream.get(i).getText) {
+                    return true
+                } else {
+                    return false
+                }
+            }
+            i -= 1
+        }
+        false
     }
 
     private def findSymbolInMemberHierarchy(parentMember: AnonymousMember, identity: String, fullApexTree: ApexTree): Option[DefinitionWithType] = {
@@ -507,7 +525,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val ctx = ex.finalContext
         //val parser = ex.recognizer
 
-        val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+        //val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+        val startToken = findStartToken(ex) //e.g. 'str'
         val startTokenIndex = startToken.getTokenIndex //@333 = 333
         //val startTokenText = startToken.getText //e.g. 'str'
         //val tokenStream = cause.getInputStream.asInstanceOf[CommonTokenStream]
@@ -567,6 +586,44 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         //println(cause.getCtx.getText)
         expressionTokens.result()
+    }
+
+    /**
+     * sometimes ex.finalContext is too broad, and we may need to narrow down list of tokens
+     * to generate expression which is being completed
+     * @param ex - CaretReachedException
+     * @return
+     */
+    private def findStartToken(ex: CaretReachedException): Token = {
+        val ctx = ex.finalContext
+        val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+        val startTokenIndex = startToken.getTokenIndex //@333 = 333
+        //get to caret token and then back to the most likely start of the expression
+
+        val tokenStream = ex.getInputStream
+        var index = startTokenIndex
+        val streamSize = tokenStream.size()
+        var currentToken = tokenStream.get(index)
+        while (currentToken.getType != CaretToken2.CARET_TOKEN_TYPE && streamSize > index) {
+            index += 1
+            currentToken = tokenStream.get(index)
+        }
+        if (index > streamSize) {
+            //failed to get to Caret_Token, use original start
+            startToken
+        } else {
+            //now move back until start of an expression is found
+            var newStart = -1
+            while (index > startTokenIndex && newStart < 0) {
+                index -= 1
+                currentToken = tokenStream.get(index)
+                if (!isWordTokenOrDot(currentToken)) {
+                    newStart = index + 1
+                    currentToken = tokenStream.get(newStart)
+                }
+            }
+            currentToken
+        }
     }
     private def consumeUntil(tokenStream: CommonTokenStream, startTokenIndex: Integer, str: String): Int = {
         var index = startTokenIndex
@@ -681,6 +738,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
     protected def isWordToken(token: Token): Boolean = {
         CompletionUtils.isWordToken(token)
+    }
+    protected def isWordTokenOrDot(token: Token): Boolean = {
+        CompletionUtils.isWordToken(token) || "." == token.getText
     }
 }
 
