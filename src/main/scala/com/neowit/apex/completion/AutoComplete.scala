@@ -444,9 +444,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                           DatabaseModel.getModelBySession(session) match {
                               case Some(model) => model.getSObjectMember(creatorMember.createdName) match {
                                 case Some(databaseModelMember) =>
-                                    val sobjectDefWthType = Some(new DefinitionWithType(databaseModelMember, databaseModelMember))
+                                    val sobjectDefWithType = Some(new DefinitionWithType(databaseModelMember, databaseModelMember))
                                     if (symbol.isEmpty) {
-                                        sobjectDefWthType
+                                        sobjectDefWithType
                                     } else {
                                         //symbol is clarified by field name
                                         databaseModelMember.getChild(symbol) match {
@@ -454,7 +454,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                                               //return field member
                                               Some(new DefinitionWithType(_typeMember, _typeMember))
                                           case None => //fall back to SObject
-                                              sobjectDefWthType
+                                              sobjectDefWithType
                                         }
                                     }
                                 case None => None
