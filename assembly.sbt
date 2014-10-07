@@ -4,7 +4,8 @@ assemblySettings
 
 mainClass in assembly := Some("com.neowit.apex.Runner")
 
-test in assembly := {}
+//uncomment line below to disable tests during build
+//test in assembly := {}
 
 mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
   {
