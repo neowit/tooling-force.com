@@ -47,7 +47,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         in.close()
     }
     def report() {
-        if (0 != basicConfig.getProperty("reportUsage").getOrElse(1)) {
+        if ("0" != basicConfig.getProperty("reportUsage").getOrElse("1")) {
             try {
                 reportUsage()
             } catch {

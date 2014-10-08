@@ -24,6 +24,7 @@ class CodeCompletions extends FunSuite {
         s"--config=${escapeFilePath(loginCredentialsPath)}"
         ,"--action=listCompletions"
         ,s"--projectPath=${escapeFilePath(projectPath)}"
+        ,s"--reportUsage=0"
 
     )
 

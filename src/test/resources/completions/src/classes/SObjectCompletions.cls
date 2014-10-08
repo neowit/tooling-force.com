@@ -25,6 +25,53 @@ public with sharing class SObjectCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testSObjectNewWithMultiLevelRelationship",
+		"column": 74,
+		"itemsCountMin": 40,
+		"signatureContains": ["abbreviate(Integer maxWidth)", "abbreviate(Integer maxWidth, Integer offset)", "capitalize", "center", "charAt", "compareTo", "equals"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf"]
+		}
+	 * #END
+	 */
+	public void testSObjectNewWithMultiLevelRelationship() {
+		Account a  = new Account(AccountNumber = '10', CreatedBy.Contact.Email.);// testSObjectNewWithMultiLevelRelationship
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testDirectSObjecFieldReference",
+		"column": 19,
+		"itemsCountMin": 4,
+		"signatureContains": ["format", "intValue", "longValue", "round"],
+		"signatureMustNotContain" : ["valueOf"]
+		}
+	 * #END
+	 */
+	public void testDirectSObjecFieldReference() {
+		Account a = new Account();
+		a.AnnualRevenue.;// testDirectSObjecFieldReference
+	}
+	
+	/**
+	 * #START
+		{
+		"lineMarker": "testSObjecReferenceWithMultiLevelRelationship",
+		"column": 29,
+		"itemsCountMin": 40,
+		"signatureContains": ["abbreviate(Integer maxWidth)", "abbreviate(Integer maxWidth, Integer offset)", "capitalize", "center", "charAt", "compareTo", "equals"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf"]
+		}
+	 * #END
+	 */
+	public void testSObjecReferenceWithMultiLevelRelationship() {
+		Account a = new Account();
+		a.CreatedBy.Contact.Email.;// testSObjecReferenceWithMultiLevelRelationship
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "test_NewEmpty",
 		"column": 28,
 		"itemsCountMin": 40,
