@@ -200,4 +200,9 @@ class CodeCompletions extends FunSuite {
         val testApexClassFilePath = projectPath + "/src/classes/ApexLibraryCompletions.cls"
         testCompletionsInFile(testApexClassFilePath)
     }
+
+    test("Apex code completions, i.e. completions involving user defined Apex classes") {
+        val testApexClassFilePath = projectPath + "/src/classes/ApexClassCompletions.cls"
+        testCompletionsInFile(testApexClassFilePath)
+    }
 }
