@@ -149,50 +149,161 @@ public with sharing class ApexClassCompletions {
 		}
 	}
 
+	/**
+	 * #START
+		{
+		"lineMarker": "completeList",
+		"column": 7,
+		"itemsCountMin": 17,
+		"signatureContains": ["addAll(List fromList)", "addAll(Set fromSet)", "add(", "clear", "clone", "get", "sort"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate"]
+		}
+	 * #END
+	 */
 	public void completeList() {
 		final List<String> lst = new List<String>();
-		lst.;
+		lst.;//completeList
 	}
 
-	public void completeSet() {
-		final Set<String> sset = new Set<String>();
-		sset.;
-	}
 
-	public void completeMap() {
-		final Map<String, Integer> mmap = new Map<String, Integer>();
-		mmap.;
-
-	}
-
+	/**
+	 * #START
+		{
+		"lineMarker": "completeArray",
+		"column": 11,
+		"itemsCountMin": 17,
+		"signatureContains": ["addAll", "add(", "clear", "clone", "get", "sort"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate"]
+		}
+	 * #END
+	 */
 	public void completeArray() {
 		ApexClassCompletionsester[] testers;
-		testers.;
+		testers.; //completeArray
 	}
 
-	public void completeSystemString() {
-		String str= 'abcd';
-		str.;
+	/**
+	 * #START
+		{
+		"lineMarker": "completeSet",
+		"column": 8,
+		"itemsCountMin": 17,
+		"signatureContains": ["addAll(List<Object> fromList)", "addAll(Set<Object> fromSet)", "add(", "clear", "Set<Object> clone", "removeAll"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate", "get", "sort"]
+		}
+	 * #END
+	 */
+	public void completeSet() {
+		final Set<String> sset = new Set<String>();
+		sset.;//completeSet
 	}
 
+	/**
+	 * #START
+		{
+		"lineMarker": "completeMap",
+		"column": 8,
+		"itemsCountMin": 16,
+		"signatureContains": ["get", "put(", "values", "clear", "clone", "putAll", "deepClone"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate", "sort", "add"]
+		}
+	 * #END
+	 */
+	public void completeMap() {
+		final Map<String, Integer> mmap = new Map<String, Integer>();
+		mmap.;//completeMap
+
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeSystemDate",
+		"column": 8,
+		"itemsCountMin": 7,
+		"signatureMustNotContain": ["addDays", "addMonths", "addYears", "format"],
+		"signatureContains" : ["newInstance", "valueOf"]
+		}
+	 * #END
+	 */
 	public void completeSystemDate() {
+		Date.;//completeSystemDate
+	}
+	
+	/**
+	 * #START
+		{
+		"lineMarker": "completeSystemDateInstance",
+		"column": 5,
+		"itemsCountMin": 10,
+		"signatureContains": ["addDays", "addMonths", "addYears", "format"],
+		"signatureMustNotContain" : ["newInstance", "getTime", "valueOf"]
+		}
+	 * #END
+	 */
+	public void completeSystemDateInstance() {
 		Date d;
-		d.;
+		d.;//completeSystemDateInstance
 	}
 
-	public void completeSystemDateTime() {
+	/**
+	 * #START
+		{
+		"lineMarker": "completeSystemDateTimeInstance",
+		"column": 5,
+		"itemsCountMin": 10,
+		"signatureContains": ["addDays", "addMonths", "addYears", "format", "getTime"],
+		"signatureMustNotContain" : ["newInstance", "valueOf"]
+		}
+	 * #END
+	 */
+	public void completeSystemDateTimeInstance() {
 		Datetime d;
-		d.;
+		d.;//completeSystemDateTimeInstance
 	}
 
+	/**
+	 * #START
+		{
+		"lineMarker": "completeException",
+		"column": 6,
+		"itemsCountMin": 7,
+		"signatureContains": ["getCause", "getLineNumber", "getMessage"],
+		"signatureMustNotContain" : ["getDmlMessage"]
+		}
+	 * #END
+	 */
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeDmlException",
+		"column": 6,
+		"itemsCountMin": 14,
+		"signatureContains": ["getCause", "getLineNumber", "getMessage", "getDmlMessage"]
+		}
+	 * #END
+	 */
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeCalloutException",
+		"column": 6,
+		"itemsCountMin": 7,
+		"signatureContains": ["getCause", "getLineNumber", "getMessage"],
+		"signatureMustNotContain" : ["getDmlMessage"]
+		}
+	 * #END
+	 */
 	public void completeException() {
 		try {
 		} catch (Exception e) {
-			e.;
+			e.; //completeException
 		} catch (System.DmlException e) {
-			e.;
+			e.; //completeDmlException
 		} catch (System.CalloutException e) {
-			e.;
+			e.; //completeCalloutException
 		}
 		
 	}

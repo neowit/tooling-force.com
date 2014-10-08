@@ -51,7 +51,9 @@ class CodeCompletions extends FunSuite {
                 //exclude lines where
                 //- actual marker is defined as "lineMarker": "something"
                 //- where method with same name as marker resides, "(" after marker position
-                if (indexOfMarker > 0 && !line.contains("\"lineMarker\"") && line.indexOf("(", indexOfMarker) < 0) {
+                //- where current test method is also listed in the expected results "signatureContains" : ["methodName"]
+                if (indexOfMarker > 0 && !line.contains("\"lineMarker\"") && line.indexOf("(", indexOfMarker) < 0
+                    && line.indexOf("\"", indexOfMarker) < 0 ) {
                     return i + 1
                 }
 
@@ -128,7 +130,7 @@ class CodeCompletions extends FunSuite {
         //println(lines.mkString("\n"))
         //"check that all expected items  found")
         val diff = expectedItemsList.toSet.--(completionResult.matchingItemsSet)
-        assert(diff.size == 0, "Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
+        assert(diff.size == 0, "Found less items than expected, Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
 
         //check that minimum expected number of items found
         assert(config.itemsCountMin <= completionResult.itemsTotal, "Scenario: " + config.lineMarker + s"; \nExpected ${config.itemsCountMin } items, actual ${completionResult.itemsTotal} " )
