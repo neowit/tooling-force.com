@@ -290,6 +290,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val members1 = definitionMember match {
             case Some(m:EnumMember) => members //do not filter anything for Enum
             case Some(m:EnumConstantMember) => members //do not filter anything for Enum
+            case Some(m:FieldMember) => members.filter(instanceOnlyFilter)
+            case Some(m:PropertyMember) => members.filter(instanceOnlyFilter)
             case _ => definitionMember match {
                 case Some(_defMember) if !_defMember.isStatic => //remove all static members
                     members.filter(instanceOnlyFilter)

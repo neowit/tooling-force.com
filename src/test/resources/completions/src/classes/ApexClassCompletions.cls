@@ -8,8 +8,12 @@
  */
 
 public with sharing class ApexClassCompletions {
+	//static field
 	private static Integer STATIC_INT = 0;
 	public enum Season {WINTER, SPRING, SUMMER, FALL}
+	
+	//static property
+	public static Integer propStatic { public get; set; }
 
 	public String propShort { public get; set; }
 	
@@ -21,7 +25,36 @@ public with sharing class ApexClassCompletions {
 
     void test1() {}
     //void test24() {}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testStaticField",
+		"column": 14,
+		"itemsCountMin": 1,
+		"signatureContains": ["format"],
+		"signatureMustNotContain" : ["valueOf"]
+		}
+	 * #END
+	 */
+	public void testStaticField () {
+		STATIC_INT.; //testStaticField
+	}
     
+	/**
+	 * #START
+		{
+		"lineMarker": "testStaticProperty",
+		"column": 14,
+		"itemsCountMin": 1,
+		"signatureContains": ["format"],
+		"signatureMustNotContain" : ["valueOf"]
+		}
+	 * #END
+	 */
+	public void testStaticProperty () {
+		propStatic.; //testStaticProperty
+	}
 	/**
 	 * #START
 		{
