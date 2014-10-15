@@ -17,10 +17,15 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
     private def reportUsage() {
         val localAddress = InetAddress.getLocalHost
         val ni = NetworkInterface.getByInetAddress( localAddress )
-        val mac = ni.getHardwareAddress.map("%02X" format _).mkString("-")
+        val hardwareAddress = ni.getHardwareAddress
         //get hash of mac address
-        val md5 = MessageDigest.getInstance("MD5")
-        val macHash = md5.digest(mac.getBytes).mkString
+        val macHash = if (null != hardwareAddress) {
+            val mac = hardwareAddress.map("%02X" format _).mkString("-")
+            val md5 = MessageDigest.getInstance("MD5")
+            md5.digest(mac.getBytes).mkString
+        } else {
+            "unknown"
+        }
 
         val data = Map(
             "action" -> basicConfig.action,
