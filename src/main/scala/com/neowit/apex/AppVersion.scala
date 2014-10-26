@@ -1,6 +1,7 @@
-package com.neowit.apex.actions
+package com.neowit.apex
 
-import com.neowit.utils.{ResponseWriter, BasicConfig}
+import com.neowit.apex.actions.{ActionHelp, ApexAction}
+import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.Message
 
 object AppVersion {

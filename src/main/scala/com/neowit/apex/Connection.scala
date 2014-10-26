@@ -22,7 +22,7 @@ package com.neowit.apex
 import com.neowit.utils.{Config, Logging}
 
 object Connection extends Logging {
-    val CLIENT_NAME = "tooling-force.com/0.1"
+    val CLIENT_NAME = AppVersion.APP_NAME + "/" + AppVersion.VERSION
 
     private def getConnectionConfig (appConfig: Config) = {
         val config = new com.sforce.ws.ConnectorConfig()
