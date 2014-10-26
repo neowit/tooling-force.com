@@ -1,11 +1,11 @@
 package com.neowit.utils
 
-import com.neowit.apex.actions.AppVersion
+import com.neowit.apex.AppVersion
 
 import scala.util.parsing.json.JSONObject
-import java.net.{NetworkInterface, InetAddress, URL}
 import java.io.OutputStreamWriter
 import java.security.MessageDigest
+import java.net._
 
 /**
  * this class sends anonymised usage statistics
@@ -35,9 +35,11 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         )
         logger.trace("usage report: " + data)
 
-        setProxy() //set proxy if defined
         val url = new URL("https://usage-developer-edition.eu0.force.com/services/apexrest/usage")
-        val conn = url.openConnection
+        val conn = getProxy  match {
+          case Some(proxy) => url.openConnection(proxy)
+          case None => url.openConnection
+        }
         //conn.setConnectTimeout(0)
         conn.setRequestProperty("Content-Type", "application/json")
         //conn.setConnectTimeout(HttpRequestTimeout)
@@ -61,24 +63,30 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         }
     }
 
-    private def setProxy() {
+    private def getProxy: Option[Proxy] = {
         val proxyHost = basicConfig.getProperty("http.proxyHost")
         val proxyPort = basicConfig.getProperty("http.proxyPort")
-
-        if (None != proxyHost && None != proxyPort) {
-            System.setProperty("https.proxyHost", proxyHost.get)
-            System.setProperty("https.proxyPort", proxyPort.get)
+        val proxy = if (None != proxyHost && None != proxyPort) {
+            Some(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost.get, proxyPort.get.toInt)))
+        } else {
+            None
         }
+
         val proxyUsername = basicConfig.getProperty("http.proxyUsername") match {
             case Some(s) => Some(s)
             case None => basicConfig.getProperty("http.proxyUser")
         }
-        if (None != proxyUsername )
-            System.setProperty("https.proxyUser", proxyUsername.get)
+        val proxyPassword = basicConfig.getProperty("http.proxyPassword").getOrElse("")
 
-        val proxyPassword = basicConfig.getProperty("http.proxyPassword")
-        if (None != proxyPassword )
-            System.setProperty("https.proxyPassword", proxyPassword.get)
+        if (proxyUsername.isDefined) {
+            val authenticator = new Authenticator() {
+                override def getPasswordAuthentication: PasswordAuthentication = {
+                    new PasswordAuthentication(proxyUsername.get, proxyPassword.toCharArray)
+                }
+            }
+            Authenticator.setDefault(authenticator)
+        }
+        proxy
     }
 
 }
