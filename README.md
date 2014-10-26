@@ -45,6 +45,11 @@ This will display main help and list of supported commands/actions. In order to 
     java -jar tooling-force.com-0.1.jar --help=<action-name>
 
 
+### Proxy
+When connection requires proxy it can be passed as java -D params or as tooling-force.com.jar command line params, e.g. 
+ 
+	java -jar tooling-force.com-0.1.jar --action=refresh ... --http.proxyHost=localhost --http.proxyPort=8888 --http.proxyUser=some --http.proxyPassword=pass
+
 ## Building tooling-force.com
 
  - make sure you have [sbt](http://www.scala-sbt.org/) installed.
