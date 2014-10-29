@@ -4,12 +4,9 @@ import com.neowit.apex.{MetadataType, Session}
 import java.io.File
 import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
 import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
-import scala.util.parsing.json.JSON
 import com.neowit.utils.ResponseWriter.Message
-import com.neowit.utils.{BasicConfig, FileUtils, ZuluTime, ResponseWriter}
+import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
 import scala.concurrent._
-import scala.util.parsing.json.JSONArray
-import scala.util.parsing.json.JSONObject
 import com.neowit.utils.ResponseWriter.MessageDetail
 import com.sforce.ws.bind.XmlObject
 
@@ -148,7 +145,7 @@ class SaveModified extends DeployModified {
                     for (res <- requestResults) {
                         if (res.isSuccess) {
                             val requestId = res.getId
-                            val soql = "SELECT Id, State, CompilerErrors, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
+                            val soql = "SELECT Id, State, DeployDetails, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
                             val asyncQueryResult = session.queryTooling(soql)
                             if (asyncQueryResult.getSize > 0) {
                                 var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
@@ -248,7 +245,7 @@ class SaveModified extends DeployModified {
             }
         }
         val ids = fileById.keys
-        if (!ids.isEmpty) {
+        if (ids.nonEmpty) {
             val queryResult = session.query("select Id, Name, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
                 + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
             val records = queryResult.getRecords
@@ -309,47 +306,30 @@ class SaveModified extends DeployModified {
                 logger.debug("Request failed")
                 responseWriter.println("RESULT=FAILURE")
                 config.responseWriter.startSection("ERROR LIST")
-                if ("[]" != request.getCompilerErrors && !request.getCompilerErrors.isEmpty) {
-                    JSON.parseRaw(request.getCompilerErrors) match {
-                        case Some(x) if x.isInstanceOf[JSONArray] =>
-                            logger.debug(x)
-                            //display errors both as messages and as ERROR: lines
-                            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-                            responseWriter.println(componentFailureMessage)
+                val deployDetails = request.getDeployDetails
+                if (deployDetails.getComponentFailures.nonEmpty ) {
+                    val deployMessages = deployDetails.getComponentFailures
+                    logger.debug(deployMessages)
+                    //display errors both as messages and as ERROR: lines
+                    val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
+                    responseWriter.println(componentFailureMessage)
 
-                            for (err <- x.asInstanceOf[JSONArray].list) {
-                                val errObj = err.asInstanceOf[JSONObject].obj
-                                logger.debug(errObj)
-                                val xmlType = getErrorObjectValue(errObj, "extent").get.asInstanceOf[String]
-                                val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
-                                //val directory = describeMetadataResult.getDirectoryName
-                                val extension = describeMetadataResult.getSuffix
-                                val fName = getErrorObjectValue(errObj, "name").get.asInstanceOf[String]
-                                val line = getErrorObjectValue(errObj, "line") match {
-                                    case Some(l) => l.asInstanceOf[BigDecimal].toInt
-                                    case None => -1
-                                }
-                                val column = getErrorObjectValue(errObj, "col") match {
-                                    case Some(c) => c.asInstanceOf[BigDecimal].toInt
-                                    case None => -1
-                                }
-                                val problem = getErrorObjectValue(errObj, "problem").get.asInstanceOf[String]
-                                //val id = errObj("id")
+                    for (deployMessage <- deployMessages) {
+                        val line = deployMessage.getLineNumber
+                        val column = deployMessage.getColumnNumber
+                        val problem = deployMessage.getProblem
+                        val fName = deployMessage.getFileName //getFileName ?
+                        val xmlType = deployMessage.getComponentType
+                        val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
+                        val extension = describeMetadataResult.getSuffix
+                        val filePath =  if (!extension.isEmpty) session.getRelativeFilePath(fName, extension) match {
+                            case Some(_filePath) => _filePath
+                            case _ => ""
+                        }
 
-                                val filePath =  if (!extension.isEmpty) session.getRelativeFilePath(fName, extension) match {
-                                    case Some(_filePath) => _filePath
-                                    case _ => ""
-                                }
-                                val problemType = "CompileError"
-                                responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
-                            }
-                        case Some(x) if x.isInstanceOf[JSONObject] =>
-                            logger.debug(x)
-                            val err = x.asInstanceOf[JSONObject]
-                            logger.debug(err)
-
-                        case None =>
+                        val problemType = "CompileError"
+                        responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                        responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
                 } else {
                     //general error
@@ -368,21 +348,6 @@ class SaveModified extends DeployModified {
             case state =>
                 logger.error("Request Failed with status: " + state)
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
-        }
-    }
-
-    /**
-     * in Summer'14 SFDC broke ContainerAsyncRequest.getCompilerErrors
-     * for every field in getCompilerErrors() JSON - SFDC Orgs starting Summer'14 return JSON arrays instead of normal
-     * values, even though we are calling SFDC with API v29.0, so have to check value type (Any or JSONArray) first
-     * @param errObj - single element (JSONObject) of ContainerAsyncRequest.getCompilerErrors JSONArray
-     * @param fName - field name in errObj
-     */
-    def getErrorObjectValue(errObj: Map[String, Any], fName: String): Option[Any] = {
-        errObj.get(fName)  match {
-          case Some(x) if x.isInstanceOf[JSONArray] => Some(x.asInstanceOf[JSONArray].list(0))
-          case Some(x) => Some(x)
-          case None => None
         }
     }
 }

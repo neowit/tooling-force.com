@@ -26,7 +26,6 @@ import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
 import scala.concurrent._
-import scala.Some
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata
 
@@ -426,7 +425,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {
             val conn = getMetadataConnection
-            val asyncResult = wait(conn, conn.retrieve(retrieveRequest))
+            val asyncResult = waitRetrieve(conn, conn.retrieve(retrieveRequest))
             val _retrieveResult = conn.checkRetrieveStatus(asyncResult.getId)
             _retrieveResult
         }.asInstanceOf[RetrieveResult]
@@ -439,7 +438,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         val deployResult = withRetry {
             val conn = getMetadataConnection
             //val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions))
-            val asyncResult = wait(conn, conn.deploy(zipFile, deployOptions), isDeploy = true)
+            val asyncResult = waitDeploy(conn, conn.deploy(zipFile, deployOptions))
             val _deployResult = conn.checkDeployStatus(asyncResult.getId, true)
             log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
             _deployResult
@@ -484,6 +483,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         fileProperties
     }
 
+    /*
     def delete(metadata: Array[com.sforce.soap.metadata.Metadata] ):AsyncResult = {
         val deleteResult = withRetry {
             val conn = getMetadataConnection
@@ -491,6 +491,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }.asInstanceOf[AsyncResult]
         deleteResult
     }
+    */
 
 
     /***************** ApexConnection ********************************************/
@@ -560,14 +561,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     private val ONE_SECOND = 1000
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
 
-    private def wait(connection: MetadataConnection, asyncResult: AsyncResult, isDeploy: Boolean = false): AsyncResult = {
+    private def waitRetrieve(connection: MetadataConnection, asyncResult: AsyncResult): RetrieveResult = {
         val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
         var attempts = 0
-        var _asyncResult = asyncResult
         var lastReportTime = System.currentTimeMillis()
-        val oldMessages = scala.collection.mutable.Set[String]()
 
-        while (!_asyncResult.isDone) {
+        var retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId)
+        while (!retrieveResult.isDone) {
             val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
             blocking {
                 Thread.sleep(waitTimeMilliSecs)
@@ -580,26 +580,63 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                 logger.trace("waiting result, poll #" + attempts)
             }
             attempts += 1
-            if (!asyncResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
+            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId)
+            if (!retrieveResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
                 throw new Exception("Request timed out.  If this is a large set " +
                     "of metadata components, check that the time allowed " +
                     "by --maxPollRequests is sufficient and --pollWaitMillis is not too short.")
             }
 
-            if (isDeploy) {
-                // Fetch in-progress details once for every 3 polls
-                val fetchDetails = isDeploy && attempts % 3 == 0
-                if (fetchDetails) {
-                    oldMessages ++= displayDeployProgress(connection, _asyncResult.getId, oldMessages.toSet)
-                }
+            logger.debug("Status is: " + retrieveResult.getStatus.toString)
+        }
+        if (!retrieveResult.isSuccess) {
+            throw new Exception(retrieveResult.getStatus + " msg:" + retrieveResult.getMessages.mkString("\n"))
+        }
+        retrieveResult
+    }
+
+    private def waitDeploy(connection: MetadataConnection, asyncResult: AsyncResult): DeployResult = {
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
+        var attempts = 0
+
+        var lastReportTime = System.currentTimeMillis()
+        val oldMessages = scala.collection.mutable.Set[String]()
+
+        var deployResult =  connection.checkDeployStatus(asyncResult.getId, false)
+        while (!deployResult.isDone) {
+            val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
+            blocking {
+                Thread.sleep(waitTimeMilliSecs)
             }
-            _asyncResult = connection.checkStatus(Array(_asyncResult.getId))(0)
-            logger.debug("Status is: " + _asyncResult.getState)
+            //report only once every 3 seconds
+            if (reportAttempt) {
+                logger.info("waiting result, poll #" + attempts)
+                lastReportTime = System.currentTimeMillis()
+            } else {
+                logger.trace("waiting result, poll #" + attempts)
+            }
+            attempts += 1
+            val fetchDetails = attempts % 3 == 0
+            deployResult =  connection.checkDeployStatus(asyncResult.getId, fetchDetails)
+            // Fetch in-progress details once for every 3 polls
+            if (fetchDetails) {
+                oldMessages ++= displayDeployProgress(connection, asyncResult.getId, oldMessages.toSet)
+            }
+
+            if (!deployResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
+                throw new Exception("Request timed out.  If this is a large set " +
+                    "of metadata components, check that the time allowed " +
+                    "by --maxPollRequests is sufficient and --pollWaitMillis is not too short.")
+            }
+
+
+            logger.debug("Status is: " + deployResult.getStatus.toString)
         }
-        if (AsyncRequestState.Completed != _asyncResult.getState) {
-            throw new Exception(_asyncResult.getStatusCode + " msg:" + _asyncResult.getMessage)
+
+        if (!deployResult.isSuccess && null != deployResult.getErrorStatusCode ) {
+            throw new Exception(deployResult.getErrorStatusCode + " msg:" + deployResult.getErrorMessage)
         }
-        _asyncResult
+        deployResult
     }
 
 
