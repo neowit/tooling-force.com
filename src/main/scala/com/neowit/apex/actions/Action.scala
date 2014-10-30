@@ -28,7 +28,7 @@ class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
-        "version" -> "AppVersion",
+        "version" -> "com.neowit.apex.AppVersion",
         "serverStart" -> "com.neowit.ServerStart",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
