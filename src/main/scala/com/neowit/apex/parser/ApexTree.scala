@@ -5,12 +5,12 @@ package com.neowit.apex.parser
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 
-class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClassName: mutable.LinkedHashMap[String, ClassMember]) {
+class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClassName: mutable.LinkedHashMap[String, ClassLikeMember]) {
 
     def this() {
         this(
-            new mutable.LinkedHashMap[String, Member](),//identity -> member, e.g. TopLevelClass -> ClassMember
-            new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+            new mutable.LinkedHashMap[String, Member](),//identity -> member, e.g. TopLevelClass -> Member
+            new mutable.LinkedHashMap[String, ClassLikeMember]() //class-name.toLowerCase => ClassLikeMember
         )
 
     }
@@ -34,21 +34,24 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
             tree.get(lowerCaseIdentity)
         }
     }
-    def addMember(member: Member): Unit = {
+    def addMember(member: Member) {
         tree += ((member.getIdentity.toLowerCase, member))
-        if (member.isInstanceOf[ClassMember]) {
-            classByClassName += (member.getType.toLowerCase -> member.asInstanceOf[ClassMember])
+        if (member.isInstanceOf[ClassMember] || member.isInstanceOf[InterfaceMember]) {
+            classByClassName += (member.getType.toLowerCase -> member.asInstanceOf[ClassLikeMember])
         }
     }
 
-    def getClassMemberByType(classTypeName: String): Option[ClassMember] = {
+    def getClassMemberByType(classTypeName: String): Option[ClassLikeMember] = {
         val lowerCaseTypeName = classTypeName.toLowerCase
         val typeNames = lowerCaseTypeName.split("\\.")
         if (typeNames.size > 1) {
             //resolve OuterClass.InnerClass in two steps
             classByClassName.get(typeNames.head) match {
                 case Some(outerClassMember) =>
-                    outerClassMember.getInnerClassByType(typeNames.tail.head)
+                    outerClassMember.getInnerClassByType(typeNames.tail.head)  match {
+                      case Some(x: InnerClassLikeMember) => Some(x)
+                      case _ => None
+                    }
                 case None => None
             }
         } else {
@@ -67,8 +70,8 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
     }
 
     override def clone = {
-        val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> ClassMember
-        val _classByClassName = new mutable.LinkedHashMap[String, ClassMember]() //class-name.toLowerCase => ClassMember
+        val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> Member
+        val _classByClassName = new mutable.LinkedHashMap[String, ClassLikeMember]() //class-name.toLowerCase => ClassMember
         _tree.putAll(this.tree)
         _classByClassName.putAll(this.classByClassName)
         new ApexTree(_tree, _classByClassName)

@@ -21,6 +21,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
     def dump(): Unit = {
         tree.dump()
     }
+
     def getTree: ApexTree = {
         tree
     }
@@ -46,6 +47,20 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     }
     override def exitClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext) {
+        memberScopeStack.pop()
+
+    }
+    override def enterInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext): Unit ={
+        val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx) else new InterfaceMember(ctx)
+        registerMember(member)
+        if (!ClassBodyMember.isInnerInterface(ctx)) {
+            //only top level interfaces shall be registered in the root of main tree
+            tree.addMember(member)
+        }
+        memberScopeStack.push(member)
+
+    }
+    override def exitInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext) {
         memberScopeStack.pop()
 
     }
@@ -83,14 +98,14 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     override def enterClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         val member = ctx match {
-            case MethodMember(context) => new MethodMember(ctx, parser)
+            case ClassMethodMember(context) => new ClassMethodMember(ctx, parser)
             case _ => null;//new ClassBodyMember(ctx)
         }
         if (null != member) {
             registerMember(member)
         }
         member match {
-            case m: MethodMember =>
+            case m: ClassMethodMember =>
                 memberScopeStack.push(m)
             case _ =>
         }
@@ -98,12 +113,34 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
 
     override def exitClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         ctx match {
-            case MethodMember(context) =>
+            case ClassMethodMember(context) =>
                 memberScopeStack.pop()
             case _ =>
         }
     }
 
+    override def enterInterfaceBodyDeclaration(ctx: InterfaceBodyDeclarationContext): Unit = {
+        val member = ctx match {
+            case InterfaceMethodMember(context) => new InterfaceMethodMember(ctx, parser)
+            case _ => null;//new ClassBodyMember(ctx)
+        }
+        if (null != member) {
+            registerMember(member)
+        }
+        member match {
+            case m: InterfaceMethodMember =>
+                memberScopeStack.push(m)
+            case _ =>
+        }
+    }
+
+    override def exitInterfaceBodyDeclaration(ctx: InterfaceBodyDeclarationContext): Unit = {
+        ctx match {
+            case InterfaceMethodMember(context) =>
+                memberScopeStack.pop()
+            case _ =>
+        }
+    }
     override def enterStatement(ctx: StatementContext): Unit = {
         val member = new StatementMember(ctx)
         registerMember(member)

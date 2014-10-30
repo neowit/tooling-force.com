@@ -1,6 +1,7 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
+import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
 
 import com.neowit.apex.parser.antlr.ApexcodeParser
@@ -58,11 +59,11 @@ trait AnonymousMember {
     /**
      * @return class in which current member is defined
      */
-    def getClassMember: Option[ClassMember] = {
+    def getClassMember: Option[ClassLikeMember] = {
         def getMyClass[T <: AnonymousMember](m: Option[AnonymousMember]): Option[AnonymousMember] = {
             m match {
                 case Some(member) =>
-                    if (member.isInstanceOf[ClassMember]) {
+                    if (member.isInstanceOf[ClassLikeMember]) {
                         Some(member)
                     } else {
                         getMyClass(member.getParent)
@@ -71,28 +72,28 @@ trait AnonymousMember {
             }
         }
         getMyClass(Some(this)) match {
-            case Some(member) => Some(member.asInstanceOf[ClassMember])
+            case Some(member) => Some(member.asInstanceOf[ClassLikeMember])
             case None => None
         }
     }
 
-    def getTopMostClassMember: Option[ClassMember] = {
-        if (this.isInstanceOf[ClassMember] && !this.isInstanceOf[InnerClassMember]) {
-            return Some(this.asInstanceOf[ClassMember])
+    def getTopMostClassMember: Option[ClassLikeMember] = {
+        if (this.isInstanceOf[ClassLikeMember] && !this.isInstanceOf[InnerClassLikeMember]) {
+            return Some(this.asInstanceOf[ClassLikeMember])
         }
-        def getParentByType[T <: AnonymousMember](m: AnonymousMember, classType: Class[T]): Option[AnonymousMember] = {
+        def getParentByType[T <: AnonymousMember](m: AnonymousMember, filter: AnonymousMember => Boolean): Option[AnonymousMember] = {
             m.getParent match {
                 case Some(member) =>
-                    if (member.getClass == classType) {
+                    if (filter(member)) {
                         Some(member)
                     } else {
-                        getParentByType(member, classType)
+                        getParentByType(member, filter)
                     }
                 case None => None
             }
         }
-        getParentByType(this, classOf[ClassMember]) match {
-            case Some(member) => Some(member.asInstanceOf[ClassMember])
+        getParentByType(this, (m) => m.getClass == classOf[ClassMember] || m.getClass == classOf[InterfaceMember]) match {
+            case Some(member) => Some(member.asInstanceOf[ClassLikeMember])
             case None => None
         }
     }
@@ -186,7 +187,7 @@ trait AnonymousMember {
                 case Some(superType) =>
                     //first check if superType is an inner class in the current main/outer class
                     val innerSuperClassMember = getParent match {
-                        case Some(parentMember:ClassMember) =>
+                        case Some(parentMember:ClassLikeMember) =>
                             parentMember.getInnerClassByType(superType)
                         case _ => None
                     }
@@ -283,110 +284,6 @@ trait Member extends AnonymousMember {
 
 }
 
-class ClassMember(ctx: ClassDeclarationContext) extends Member {
-    private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassMember]() //inner-class-name.toLowerCase => InnerClassMember
-    private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //inner-class-name.toLowerCase => InnerClassMember
-
-    override def getType: String = getIdentity
-
-    def getIdentity:String = {
-        //ctx.getToken(ApexcodeParser.Identifier, 0).getText
-        ctx.Identifier().getText
-    }
-
-
-    override def isStatic: Boolean = false
-
-    def getSignature: String = {
-        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
-    }
-
-    override def getVisibility: String = {
-        //go up the tree (if needed) to get to ClassBodyDeclarationContext and from there find visibility
-        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
-            case Some(member) => ClassBodyMember.getVisibility(member)
-            case None => "private"
-        }
-    }
-
-    override def getSuperType: Option[String] = {
-        //if one of ctx children is "extends" then the next one will be TypeContext with the name of super class
-        val extendIndex = ClassBodyMember.findChildIndex(ctx, _ctx => "extends" == _ctx.getText.toLowerCase)
-        if (extendIndex > 0 && ctx.getChildCount > extendIndex) {
-            val superTypeContext = ctx.getChild(extendIndex + 1) //TypeContext goes after TerminalNode "extend"
-            if (null != superTypeContext) {
-                return Some(superTypeContext.getText)
-            }
-        }
-        None
-    }
-    override def getFullSuperType: Option[String] = this.getSuperType
-
-    override def addChild(member: AnonymousMember): Unit = {
-        super.addChild(member)
-        member match {
-            case m: InnerClassMember =>
-                innerClassByClassName += (m.getType.toLowerCase -> m)
-            case m: EnumMember =>
-                enumByName += (m.getType.toLowerCase -> m)
-            case _ =>
-        }
-    }
-    def getInnerClassByType(innerClassTypeName: String): Option[InnerClassMember] = {
-        innerClassByClassName.get(innerClassTypeName.toLowerCase)
-    }
-
-    /**
-     * enum Seasons (WINTER, SPRING, SUMMER, FALL)
-     * map enumByName contains keys that look like this: Seasons -> EnumMember
-     *
-     * @param enumTypeName - can be one of two forms:
-     *                     Seasons - resolved directly from enumByName map
-     *                     Seasons.Winter - requires two step resolution:
-     *                      1. get EnumMember by name "Seasons"
-     *                      2. get child of EnumMember by name "Winter"
-     * @return
-     */
-    def getEnumByName(enumTypeName: String): Option[Member] = {
-        if (enumTypeName.indexOf(".") > 0) {
-            val path = enumTypeName.split("\\.")
-            getEnumByName(path(0)) match {
-              case Some(enumMember) => enumMember.getChild(path(1))
-              case None => None
-            }
-        } else {
-            enumByName.get(enumTypeName.toLowerCase)
-        }
-    }
-
-    /**
-     * if this class extends another class then find Member of that other class
-     * @return
-     */
-    def getSuperClassMember: Option[ClassMember] = {
-        this.getFullSuperType match {
-            case Some(fullSuperType) => getApexTree.getClassMemberByType(fullSuperType)
-            case None => None
-        }
-    }
-
-    /**
-     * check if given otherClassMember is a super class of current member
-     * @param otherClassMember - class member to test against
-     */
-    def isInheritFrom (otherClassMember: ClassMember): Boolean = {
-        if (otherClassMember == this) {
-            true
-        } else {
-            this.getSuperClassMember match {
-              case Some(superClassMember) => superClassMember.isInheritFrom(otherClassMember)
-              case None => false
-            }
-        }
-
-    }
-}
-
 /**
  * some types (e.g. enum) have default members, defined on the system level, in addition to user defined members
  * @param parent - member to which this built-in member belongs
@@ -406,17 +303,17 @@ class BuiltInMember(parent: AnonymousMember, identity: String, displayIdentity: 
     override def getType: String = retType
 
     override def getSignature: String = signature match {
-      case Some(s) => s
-      case None => "public " + getType + " " + getIdentityToDisplay
+        case Some(s) => s
+        case None => "public " + getType + " " + getIdentityToDisplay
     }
 
     override def isStatic: Boolean = isStaticMember
 }
 
 class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: String, retType: String,
-                              params: List[String] = List(),
-                              signature: Option[String] = None, isStaticMember: Boolean = false)
-                                extends BuiltInMember(parent, identity, displayIdentity, retType, signature, isStaticMember) {
+                          params: List[String] = List(),
+                          signature: Option[String] = None, isStaticMember: Boolean = false)
+    extends BuiltInMember(parent, identity, displayIdentity, retType, signature, isStaticMember) {
 
     override def getSignature: String = signature match {
         case Some(s) => s
@@ -424,21 +321,141 @@ class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: Str
     }
 }
 
+/**
+ * parent for Class & Interface members
+ * @param ctx - ParserRuleContext must be either ClassDeclarationContext or InterfaceDeclarationContext
+ */
+abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
+    private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
+    private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
 
-object InnerClassMember {
-    private val IDENTITY_PREFIX = "InnerClass:"
-}
-class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
+    override def getType: String = getIdentity
+    override def isStatic: Boolean = false
 
-    override def getType: String = {
-        val strType = ctx.Identifier().getText
-        if (strType.indexOf("\\.") > 0) {
-            //this is full type Outer.Inner - return only last bit - Inner
-            strType.split("\\.").tail.head
-        } else {
-            strType
+    def getSignature: String = {
+        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
+    }
+
+    //TODO add proper support for "implements"
+    override def getSuperType: Option[String] = {
+        //if one of ctx children is "extends" then the next one will be TypeContext with the name of super class
+        val extendIndex = ClassBodyMember.findChildIndex(ctx, _ctx => "extends" == _ctx.getText.toLowerCase )
+        val index = if (extendIndex > 0 && ctx.getChildCount > extendIndex) extendIndex else {
+            ClassBodyMember.findChildIndex(ctx, _ctx => "implements" == _ctx.getText.toLowerCase )
+        }
+
+        if (index > 0 && ctx.getChildCount > index) {
+            val superTypeContext = ctx.getChild(index + 1) //TypeContext goes after TerminalNode "extend"
+            if (null != superTypeContext) {
+                return Some(superTypeContext.getText)
+            }
+        }
+        None
+    }
+    override def getFullSuperType: Option[String] = this.getSuperType
+
+    override def addChild(member: AnonymousMember): Unit = {
+        super.addChild(member)
+        member match {
+            case m: InnerClassLikeMember =>
+                innerClassByClassName += (m.getType.toLowerCase -> m)
+            case m: EnumMember =>
+                enumByName += (m.getType.toLowerCase -> m)
+            case _ =>
         }
     }
+    def getInnerClassByType(innerClassTypeName: String): Option[Member] = {
+        innerClassByClassName.get(innerClassTypeName.toLowerCase) match {
+            case Some(m: InnerClassLikeMember) => Some(m)
+            case _ => None
+        }
+    }
+
+    /**
+     * enum Seasons (WINTER, SPRING, SUMMER, FALL)
+     * map enumByName contains keys that look like this: Seasons -> EnumMember
+     *
+     * @param enumTypeName - can be one of two forms:
+     *                     Seasons - resolved directly from enumByName map
+     *                     Seasons.Winter - requires two step resolution:
+     *                      1. get EnumMember by name "Seasons"
+     *                      2. get child of EnumMember by name "Winter"
+     * @return
+     */
+    def getEnumByName(enumTypeName: String): Option[Member] = {
+        if (enumTypeName.indexOf(".") > 0) {
+            val path = enumTypeName.split("\\.")
+            getEnumByName(path(0)) match {
+                case Some(enumMember) => enumMember.getChild(path(1))
+                case None => None
+            }
+        } else {
+            enumByName.get(enumTypeName.toLowerCase)
+        }
+    }
+
+    /**
+     * if this class extends another class then find Member of that other class
+     * @return
+     */
+    def getSuperClassMember: Option[ClassLikeMember] = {
+        this.getFullSuperType match {
+            case Some(fullSuperType) => getApexTree.getClassMemberByType(fullSuperType)
+            case None => None
+        }
+    }
+
+    /**
+     * check if given otherClassMember is a super class of current member
+     * @param otherClassMember - class member to test against
+     */
+    def isInheritFrom (otherClassMember: ClassLikeMember): Boolean = {
+        if (otherClassMember == this) {
+            true
+        } else {
+            this.getSuperClassMember match {
+                case Some(superClassMember) => superClassMember.isInheritFrom(otherClassMember)
+                case None => false
+            }
+        }
+
+    }
+}
+
+class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
+
+    def getIdentity:String = {
+        //ctx.getToken(ApexcodeParser.Identifier, 0).getText
+        ctx.Identifier().getText
+    }
+
+    override def getVisibility: String = {
+        //go up the tree (if needed) to get to ClassBodyDeclarationContext and from there find visibility
+        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+            case Some(member) => ClassBodyMember.getVisibility(member)
+            case None => "private"
+        }
+    }
+}
+
+
+
+class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(ctx) {
+    def getIdentity:String = {
+        //ctx.getToken(ApexcodeParser.Identifier, 0).getText
+        ctx.Identifier().getText
+    }
+    override def getType: String = getIdentity
+
+    override def getSignature: String = {
+        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
+    }
+
+    override def isStatic: Boolean = false
+}
+
+abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMember(ctx) {
+    protected def getIdentityPrefix: String
 
     override def getSignature: String = {
         val clsBodyDeclaration = ctx.getParent.getParent
@@ -463,7 +480,7 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
                     //check if this is another class of the current ClassMember class
                     getParent match {
                         case Some(classMember: Member) =>
-                            classMember.asInstanceOf[ClassMember].getInnerClassByType(superTypeName) match {
+                            classMember.asInstanceOf[ClassLikeMember].getInnerClassByType(superTypeName) match {
                                 case Some(anotherInnerClassMember) =>
                                     //current superTypeName belongs to inner class of the same Outer class as current InnerClass
                                     Some(classMember.getType + "." + superTypeName)
@@ -478,15 +495,48 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends ClassMember(ctx) {
             case None => None
         }
     }
+}
 
+class InnerClassMember(ctx: ClassDeclarationContext) extends InnerClassLikeMember(ctx) {
 
+    protected def getIdentityPrefix: String = "InnerClass:"
 
+    override def getType: String = {
+        val strType = ctx.Identifier().getText
+        if (strType.indexOf("\\.") > 0) {
+            //this is full type Outer.Inner - return only last bit - Inner
+            strType.split("\\.").tail.head
+        } else {
+            strType
+        }
+    }
     override def getIdentity: String = this.getParent match {
-        case Some(parentMember) => InnerClassMember.IDENTITY_PREFIX +  super.getIdentity
-        case None => "" //this case is only relevant when we are adding child to parent first time, as Inner Class requires parent to resolve adentity
+        case Some(parentMember) => getIdentityPrefix +  ctx.Identifier().getText
+        case None => "" //this case is only relevant when we are adding child to parent first time, as Inner Class requires parent to resolve identity
     }
 
-    override def getIdentityToDisplay: String = super.getIdentity
+    override def getIdentityToDisplay: String = ctx.Identifier().getText
+}
+
+class InnerInterfaceMember(ctx: InterfaceDeclarationContext) extends InnerClassLikeMember(ctx) {
+
+    protected def getIdentityPrefix: String = "InnerInterface:"
+
+    override def getType: String = {
+        val strType = ctx.Identifier().getText
+        if (strType.indexOf("\\.") > 0) {
+            //this is full type Outer.Inner - return only last bit - Inner
+            strType.split("\\.").tail.head
+        } else {
+            strType
+        }
+    }
+    override def getIdentity: String = this.getParent match {
+        case Some(parentMember) => getIdentityPrefix +  ctx.Identifier().getText
+        case None => "" //this case is only relevant when we are adding child to parent first time, as Inner Class requires parent to resolve identity
+    }
+
+    override def getIdentityToDisplay: String = ctx.Identifier().getText
 }
 
 object ClassBodyMember {
@@ -497,11 +547,24 @@ object ClassBodyMember {
             case _ => false
         }
     }
-    //def isMethod(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
-    def isMethod(ctx: ParseTree): Boolean = {
+
+    def isInnerInterface(ctx: ParseTree): Boolean = {
+        ctx.getParent match {
+            case pp:ApexcodeParser.MemberDeclarationContext => true
+            case _ => false
+        }
+    }
+    //def isMethodOfClass(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
+    def isMethodOfClass(ctx: ParseTree): Boolean = {
         val memberDeclarations = getChildren(ctx, _.isInstanceOf[MemberDeclarationContext])
         memberDeclarations.nonEmpty && getChildren(memberDeclarations.head, _.isInstanceOf[MethodDeclarationContext]).nonEmpty
     }
+
+    def isMethodOfInterface(ctx: ParseTree): Boolean = {
+        val memberDeclarations = getChildren(ctx, _.isInstanceOf[InterfaceMemberDeclarationContext])
+        memberDeclarations.nonEmpty && getChildren(memberDeclarations.head, _.isInstanceOf[InterfaceMethodDeclarationContext]).nonEmpty
+    }
+
     def isEnum(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.EnumDeclarationContext]).nonEmpty
     def isField(ctx: ParseTree): Boolean = {
         getChild[ApexcodeParser.MemberDeclarationContext](ctx, classOf[ApexcodeParser.MemberDeclarationContext]) match {
@@ -545,9 +608,6 @@ object ClassBodyMember {
 
     /**
      * find children (recursively) satisfying given context type
-     * @param ctxType
-     * @tparam T
-     * @return
      */
     def findChildren[T <: ParseTree](ctx: ParseTree, ctxType: Class[T],
                                      filter: ParseTree => Boolean = { _ => true}): List[T] = {
@@ -662,14 +722,13 @@ object ClassBodyMember {
      * will be resolved as
      *  public OuterClass.InnerClass var;
      *
-     * @param member
      * @return
      */
     def getFullTypeIfTypeIsInnerClass(member: Member, parentMember: Option[AnonymousMember]): Option[String] = {
         parentMember match {
             case Some(_parentMember) =>
                 _parentMember.getChild(member.getType) match {
-                    case Some(_member) if _member.isInstanceOf[InnerClassMember] =>
+                    case Some(_member) if _member.isInstanceOf[InnerClassLikeMember] =>
                         println("_member.getFullType=" + _member.getFullType)
                         Some(_member.getFullType)
                     case _ => None
@@ -681,27 +740,6 @@ object ClassBodyMember {
 
 abstract class ClassBodyMember(ctx: ClassBodyDeclarationContext) extends Member {
 
-    //same as Member.toJson but with "isStatic"
-    override def toJson: JsValue = {
-        val isStaticNum = if (ClassBodyMember.isStatic(ctx)) 1 else 0
-        val data = super.toJson.asJsObject.fields + ("isStatic" -> isStaticNum.toJson)
-        data.toJson
-    }
-
-    override def getVisibility: String = {
-        ClassBodyMember.getVisibility(ctx)
-    }
-    override def isStatic: Boolean = ClassBodyMember.isStatic(ctx)
-
-    override def getFullType: String = {
-        ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent) match {
-            case Some(fullType) => fullType
-            case None => ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent.flatMap(_.getParent)) match {
-                case Some(fullType) => fullType
-                case None => this.getType
-            }
-        }
-    }
 
 }
 
@@ -859,22 +897,31 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
     }
 }
 
-object MethodMember {
-    def unapply(ctx: ParseTree): Option[ParseTree] = {
-        if (ClassBodyMember.isMethod(ctx)) Some(ctx) else None
-    }
-}
-class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) extends ClassBodyMember(ctx) {
 
-    def getMethodName:String = {
-        //... <Type> methodName (formalParameters)
-        val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
-        if (methodDeclarationContext.nonEmpty) {
-            methodDeclarationContext.head.Identifier().getText
-        } else {
-            ""
+abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends Member {
+
+    //same as Member.toJson but with "isStatic"
+    override def toJson: JsValue = {
+        val isStaticNum = if (ClassBodyMember.isStatic(ctx)) 1 else 0
+        val data = super.toJson.asJsObject.fields + ("isStatic" -> isStaticNum.toJson)
+        data.toJson
+    }
+
+    override def getVisibility: String = {
+        ClassBodyMember.getVisibility(ctx)
+    }
+    override def isStatic: Boolean = ClassBodyMember.isStatic(ctx)
+
+    override def getFullType: String = {
+        ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent) match {
+            case Some(fullType) => fullType
+            case None => ClassBodyMember.getFullTypeIfTypeIsInnerClass(this, getParent.flatMap(_.getParent)) match {
+                case Some(fullType) => fullType
+                case None => this.getType
+            }
         }
     }
+    def getMethodName:String
 
     override def equals(o: Any): Boolean = {
         if (super.equals(o)) {
@@ -908,8 +955,10 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
         getMethodName
     }
 
+    def getMethodMemberClass:  Class[_ <: ParserRuleContext]
+
     override def getSignature:String = {
-        ClassBodyMember.findChild(ctx, classOf[MethodDeclarationContext]) match {
+        ClassBodyMember.findChild(ctx, getMethodMemberClass) match {
             case Some(methodDeclaration) =>
                 val start = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                     .filter(null!= _.getChild(classOf[TerminalNodeImpl], 0))
@@ -926,34 +975,53 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
         }
     }
 
-    def getArgs:List[MethodParameter] = {
-        val paramsContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
-        if (paramsContext.nonEmpty) {
-            paramsContext.head.formalParameters().formalParameterList() match {
-                case paramsListCtx: ApexcodeParser.FormalParameterListContext =>
-                    val params = mutable.ListBuffer[MethodParameter]()
+    def getArgs:List[MethodParameter]
 
-                    var i = 0
+    protected def getFormalParams(formalParams: ApexcodeParser.FormalParametersContext):List[MethodParameter] = {
+        formalParams.formalParameterList() match {
+            case paramsListCtx: ApexcodeParser.FormalParameterListContext =>
+                val params = mutable.ListBuffer[MethodParameter]()
 
-                    while (i < paramsListCtx.getChildCount) {
-                        //paramsListCtx.getChildCount = number of parameters
-                        paramsListCtx.getChild(i) match {
-                            case formalParamCtx: ApexcodeParser.FormalParameterContext =>
-                                val param: MethodParameter = new MethodParameter(paramsListCtx.getChild(i).asInstanceOf[ApexcodeParser.FormalParameterContext])
-                                //println("param=" + param.getSignature)
-                                params += param
-                            case _ =>
-                        }
-                        i = i + 1
+                var i = 0
 
+                while (i < paramsListCtx.getChildCount) {
+                    //paramsListCtx.getChildCount = number of parameters
+                    paramsListCtx.getChild(i) match {
+                        case formalParamCtx: ApexcodeParser.FormalParameterContext =>
+                            val param: MethodParameter = new MethodParameter(paramsListCtx.getChild(i).asInstanceOf[ApexcodeParser.FormalParameterContext])
+                            //println("param=" + param.getSignature)
+                            params += param
+                        case _ =>
                     }
-                    params.toList
-                case _ => List()
-            }
-        } else {
-            List()
+                    i = i + 1
+
+                }
+                params.toList
+            case _ => List()
         }
     }
+
+}
+
+object ClassMethodMember {
+    def unapply(ctx: ParseTree): Option[ParseTree] = {
+        if (ClassBodyMember.isMethodOfClass(ctx)) Some(ctx) else None
+    }
+}
+class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends MethodMember(ctx.asInstanceOf[ClassBodyDeclarationContext], parser) {
+
+    def getMethodMemberClass: Class[_ <: ParserRuleContext] = classOf[MethodDeclarationContext]
+
+    override def getMethodName:String = {
+        //... <Type> methodName (formalParameters)
+        val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        if (methodDeclarationContext.nonEmpty) {
+            methodDeclarationContext.head.Identifier().getText
+        } else {
+            ""
+        }
+    }
+
     override def getType: String = {
         val declarationContexts = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
         if (declarationContexts.nonEmpty) {
@@ -962,6 +1030,54 @@ class MethodMember(ctx: ClassBodyDeclarationContext, parser: ApexcodeParser) ext
                 return parser.getTokenStream.getText(declarationContext.`type`())
         }
         "void"
+    }
+
+    override def getArgs:List[MethodParameter] = {
+        val paramsContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        if (paramsContext.nonEmpty) {
+            getFormalParams(paramsContext.head.formalParameters())
+        } else {
+            List()
+        }
+    }
+}
+
+object InterfaceMethodMember {
+    def unapply(ctx: ParseTree): Option[ParseTree] = {
+        if (ClassBodyMember.isMethodOfInterface(ctx)) Some(ctx) else None
+    }
+}
+
+class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends MethodMember(ctx.asInstanceOf[InterfaceBodyDeclarationContext], parser) {
+
+    def getMethodMemberClass: Class[_ <: ParserRuleContext] = classOf[InterfaceMethodDeclarationContext]
+
+    override def getMethodName:String = {
+        //... <Type> methodName (formalParameters)
+        val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        if (methodDeclarationContext.nonEmpty) {
+            methodDeclarationContext.head.Identifier().getText
+        } else {
+            ""
+        }
+    }
+
+    override def getType: String = {
+        val declarationContexts = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        if (declarationContexts.nonEmpty) {
+            val declarationContext = declarationContexts.head
+            if (null != declarationContext.`type`())
+                return parser.getTokenStream.getText(declarationContext.`type`())
+        }
+        "void"
+    }
+    override def getArgs:List[MethodParameter] = {
+        val paramsContext = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        if (paramsContext.nonEmpty) {
+            getFormalParams(paramsContext.head.formalParameters())
+        } else {
+            List()
+        }
     }
 }
 

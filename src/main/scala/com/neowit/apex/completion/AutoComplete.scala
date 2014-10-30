@@ -339,13 +339,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 
     private def staticOnlyFilter(m: Member): Boolean = {
-        m.isStatic || m.isInstanceOf[ClassMember] || m.isInstanceOf[EnumMember]
+        m.isStatic || m.isInstanceOf[ClassLikeMember] || m.isInstanceOf[EnumMember]
     }
     private def instanceOnlyFilter(m: Member): Boolean = {
         !staticOnlyFilter(m)
     }
 
-    private def visibilityFilter(caretMember: Member, classMember: ClassMember, m: Member): Boolean = {
+    private def visibilityFilter(caretMember: Member, classMember: ClassLikeMember, m: Member): Boolean = {
         m.getClassMember match {
             case Some(otherClassMember) =>
                 m.getVisibility match {
