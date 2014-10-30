@@ -61,7 +61,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "testStaticClassRef",
 		"column": 24,
 		"itemsCountMin": 6,
-		"signatureContains": ["STATIC_INT", "futureTest", "Season", "InnerClass1", "InnerClass2", "InnerClass3"]
+		"signatureContains": ["STATIC_INT", "futureTest", "Season", "InnerClass1", "InnerClass2", "InnerClass3", "MyInnerInterface"]
 		}
 	 * #END
 	 */
@@ -101,6 +101,22 @@ public with sharing class ApexClassCompletions {
 	static void testOtherClassInstanceRef() {
 		final OtherClass1 cls;
 		cls.; //testOtherClassInstanceRef
+
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testOtherInterfaceInstanceRef",
+		"column": 7,
+		"itemsCountMin": 2,
+		"signatureContains": ["interfaceMethod1", "interfaceMethod2"]
+		}
+	 * #END
+	 */
+	static void testOtherInterfaceInstanceRef() {
+		final MyInterface cls;
+		cls.; //testOtherInterfaceInstanceRef
 
 	}
 
@@ -179,6 +195,21 @@ public with sharing class ApexClassCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "completeInnerInterface",
+		"column": 7,
+		"itemsCountMin": 2,
+		"signatureContains": ["innerInterfaceMethod1_String", "innerInterfaceMethod2_Int"]
+		}
+	 * #END
+	 */
+	public void completeInnerInterface() {
+		ApexClassCompletions.MyInnerInterface itf;
+		System.debug('agX ');
+		itf.; //completeInnerInterface
+	}
+	/**
+	 * #START
+		{
 		"lineMarker": "completeInnerWithInheritance",
 		"column": 7,
 		"itemsCountMin": 4,
@@ -196,6 +227,11 @@ public with sharing class ApexClassCompletions {
 	public void afterComplete1() {
 		System.debug('agX some text');
 	
+	}
+	
+	public interface MyInnerInterface {
+		String innerInterfaceMethod1_String(final Boolean param1, String param2);
+		Integer innerInterfaceMethod2_Int();
 	}
 
 	public virtual class InnerClass1 {
