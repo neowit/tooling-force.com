@@ -469,8 +469,8 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {
             val conn = getMetadataConnection
-            val asyncResult = waitRetrieve(conn, conn.retrieve(retrieveRequest))
-            val _retrieveResult = conn.checkRetrieveStatus(asyncResult.getId)
+            val _retrieveResult = waitRetrieve(conn, conn.retrieve(retrieveRequest))
+            //val _retrieveResult = conn.checkRetrieveStatus(asyncResult.getId)
             _retrieveResult
         }.asInstanceOf[RetrieveResult]
 
