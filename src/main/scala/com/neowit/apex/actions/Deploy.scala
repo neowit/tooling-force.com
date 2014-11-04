@@ -130,8 +130,7 @@ class DeployModified extends Deploy {
         override def getName: String = "deployModified"
     }
 
-    def
-    act() {
+    def act() {
         val hasTestsToRun = None != config.getProperty("testsToRun")
         val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList

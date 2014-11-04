@@ -21,7 +21,6 @@ package com.neowit.utils
 
 import java.util.Properties
 import java.io.{OutputStream, FileWriter, File}
-import scala._
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -104,7 +103,7 @@ class BasicConfig extends Logging {
         options = opts
         //logger.debug(options)
         //merge config files
-        if (!configFilePaths.isEmpty) {
+        if (configFilePaths.nonEmpty) {
             //require(!configFilePaths.isEmpty, "missing --config parameter")
             for (confPath <- configFilePaths) {
                 val conf = new Properties()
