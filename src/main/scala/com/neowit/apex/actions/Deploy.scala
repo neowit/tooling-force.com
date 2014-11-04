@@ -150,7 +150,10 @@ class DeployModified extends Deploy {
         }
     }
 
-    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
+    /**
+     * @return - true if deployment is successful
+     */
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
 
         /**
          * @return (line, column, relativeFilePath)
@@ -175,6 +178,7 @@ class DeployModified extends Deploy {
             (line, column, filePath)
 
         }
+         var success = false //assume failure by default
 
         //for every modified file add its -meta.xml if exists
         val metaXmlFiles = for (file <- files;
@@ -204,13 +208,13 @@ class DeployModified extends Deploy {
         */
         val checkOnly = config.isCheckOnly
         val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
-        val isRunningTests = !testMethodsByClassName.isEmpty
+        val isRunningTests = testMethodsByClassName.nonEmpty
 
         //make sure that test class is part of deployment if user set specific methods to run
         if (checkOnly && isRunningTests ) {
             for (className <- testMethodsByClassName.keySet) {
                 testMethodsByClassName.get(className) match {
-                    case Some(x) if !x.isEmpty =>
+                    case Some(x) if x.nonEmpty =>
                         session.findFile(className, "ApexClass") match {
                             case Some(f) =>
                                 allFilesToDeploySet += f
@@ -244,7 +248,7 @@ class DeployModified extends Deploy {
 
                 //display errors both as messages and as ERROR: lines
                 val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
-                if (!deployDetails.getComponentFailures.isEmpty) {
+                if (deployDetails.getComponentFailures.nonEmpty) {
                     responseWriter.println(componentFailureMessage)
                 }
                 for ( failureMessage <- deployDetails.getComponentFailures) {
@@ -266,7 +270,7 @@ class DeployModified extends Deploy {
 
 
                 val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
-                if (null != runTestResult && !runTestResult.getFailures.isEmpty) {
+                if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
                     responseWriter.println(testFailureMessage)
                 }
                 if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
@@ -373,12 +377,15 @@ class DeployModified extends Deploy {
                 files.foreach(f => config.responseWriter.println(f.getName))
                 config.responseWriter.endSection("DEPLOYED FILES")
             }
+            success = true
         }
         if (!log.isEmpty) {
             val logFile = config.getLogFile
             FileUtils.writeFile(log, logFile)
             responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
+
+        success
     }
 
     /**
@@ -398,7 +405,7 @@ class DeployModified extends Deploy {
         }
         //only display coverage details of files included in deployment package
         val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
-        val hasCoverageData = !runTestResult.getCodeCoverage.isEmpty
+        val hasCoverageData = runTestResult.getCodeCoverage.nonEmpty
         var coverageFile: Option[File] = None
         val coverageWriter = config.getProperty("reportCoverage").getOrElse("false") match {
             case "true" if hasCoverageData =>
@@ -408,7 +415,7 @@ class DeployModified extends Deploy {
             case _ => None
         }
 
-        if (!runTestResult.getCodeCoverage.isEmpty) {
+        if (runTestResult.getCodeCoverage.nonEmpty) {
             responseWriter.println(coverageDetails)
         }
 
@@ -457,7 +464,7 @@ class DeployModified extends Deploy {
         }
 
         val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
-        if (!runTestResult.getCodeCoverageWarnings.isEmpty) {
+        if (runTestResult.getCodeCoverageWarnings.nonEmpty) {
             responseWriter.println(coverageMessage)
         }
         for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
@@ -563,7 +570,7 @@ class DeployModified extends Deploy {
      */
     private def disableNotNeededTests(classFile: File, testMethodsByClassName: Map[String, Set[String]]): File = {
         testMethodsByClassName.get(FileUtils.removeExtension(classFile)) match {
-            case Some(methodsSet) if !methodsSet.isEmpty =>
+            case Some(methodsSet) if methodsSet.nonEmpty =>
                 if (!config.isCheckOnly) {
                     throw new ActionError("Single method test is experimental and only supported in --checkOnly=true mode.")
                 }
@@ -803,7 +810,7 @@ class ListModified extends ApexAction {
         config.responseWriter.endSection("MODIFIED FILE LIST")
 
     }
-
+    
     def reportDeletedFiles(deletedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
         val msg = new Message(messageType, "Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
         config.responseWriter.println(msg)
@@ -865,9 +872,7 @@ class DeployDestructive extends Deploy {
           |... --specificComponents=/tmp/list.txt
         """.stripMargin
 
-        override def getParamDescription(
-
-                               paramName: String): String = paramName match {
+        override def getParamDescription( paramName: String): String = paramName match {
             case "checkOnly" =>
                 "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
             case
@@ -876,7 +881,7 @@ class DeployDestructive extends Deploy {
                 "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful"
         }
 
-        override def getParamNames: List[String] = List("checkOnly", "metadataComponents", "updateSessionDataOnSuccess", "backupDir")
+        override def getParamNames: List[String] = List("checkOnly", "specificComponents", "updateSessionDataOnSuccess")
 
         override def getSummary: String =
             s"""action attempts to remove specified metadata components from SFDC
@@ -887,7 +892,9 @@ class DeployDestructive extends Deploy {
         override def getName: String = "deleteMetadata"
     }
 
-    override def act(): Unit = {
+    def getSpecificComponentsFilePath: String = config.getRequiredProperty("specificComponents").get
+
+    override def act() {
         val components = getComponentPaths
         if (components.isEmpty) {
             config.responseWriter.println("RESULT=FAILURE")
@@ -914,7 +921,7 @@ class DeployDestructive extends Deploy {
 
                     //display errors both as messages and as ERROR: lines
                     val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
-                    if (!deployDetails.getComponentFailures.isEmpty) {
+                    if (deployDetails.getComponentFailures.nonEmpty) {
                         responseWriter.println(componentFailureMessage)
                     }
 
@@ -981,7 +988,8 @@ class DeployDestructive extends Deploy {
     def getComponentPaths: List[String] = {
 
         //load file list from specified file
-        val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
+        val componentsPath = getSpecificComponentsFilePath
+        val componentListFile = new File(componentsPath)
         val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
         components
     }
@@ -1009,7 +1017,7 @@ class DeployDestructive extends Deploy {
                   }
 
                   val objNames = namesByDir.getOrElse(dirName, Nil) match {
-                      case _objNames if !_objNames.isEmpty && List("*") != _objNames=>
+                      case _objNames if _objNames.nonEmpty && List("*") != _objNames=>
                           _objNames.map(_.drop(dirName.size + 1)).map(
                               name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
                           ).toArray
@@ -1031,4 +1039,109 @@ class DeployDestructive extends Deploy {
         _package.setVersion(config.apiVersion.toString)
         _package
     }
+}
+
+/**
+ * 'deployModifiedDestructive' action grabs all modified files and sends two File-Based calls
+ * 1. deploy() - to deploy all modified files (which still exist locally)
+ * 2. deleteMetadata() - to delete all files listed in session but no longer exist locally
+ *
+ * Extra command line params:
+ * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
+ * --checkOnly=true|false (defaults to false) - if true then do a dry-run without modifying SFDC
+ * --testsToRun=* OR "comma separated list of class.method names",
+ *      e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
+ *
+ *      class/method can be specified in two forms
+ *      - ClassName[.methodName] -  means specific method of specific class
+ *      - ClassName -  means *all* test methodsToKeep of specific class
+ *
+ *      if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
+ *                              the *current* deployment package
+ * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
+ *
+ */
+class DeployModifiedDestructive extends DeployModified {
+
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String =
+            """
+            """.stripMargin
+
+        override def getParamDescription( paramName: String): String = paramName match {
+            case "checkOnly" =>
+                "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
+            case
+                "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if delete is successful"
+        }
+
+        override def getParamNames: List[String] = List("checkOnly", "updateSessionDataOnSuccess")
+
+        override def getSummary: String =
+            s"""action is a combination of deployModified & deleteMetadata
+              |First it tries to deploy existing modified files.
+              |If deploy part is successful then it checks what files are present in the session properties but not present locally as files
+              |Such file names are passed to deleteMetadata command
+              |
+              |Note: removal of individual members (e.g. custom field) is not supported by this command.
+              |With $getName you can delete a Class or Custom Object, but not specific field of custom object.
+            """.stripMargin
+
+        override def getName: String = "deployModifiedDestructive"
+    }
+
+    override def act() {
+        val hasTestsToRun = None != config.getProperty("testsToRun")
+        val listModified = new ListModified().load[ListModified](session.basicConfig)
+        val modifiedFiles = listModified.getModifiedFiles
+        val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
+        if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
+            if (session.getDeletedLocalFilePaths.isEmpty) {
+                config.responseWriter.println("RESULT=SUCCESS")
+                config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+                config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+            } else {
+                //process files that need to be deleted
+                deleteFiles()
+            }
+        } else {
+            //first check if SFDC has newer version of files we are about to deploy
+            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+            //val hasConflicts = hasConflicts(deletedFiles)
+
+            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles) || hasTestsToRun
+
+            if (canDeploy && deploy(modifiedFiles, isUpdateSessionDataOnSuccess)) {
+                //process files that need to be deleted
+                deleteFiles()
+            }
+        }
+    }
+    private def deleteFiles(): Unit = {
+        val deletedLocalFilePaths = session.getDeletedLocalFilePaths.map(_.substring("src/".length))
+        if (deletedLocalFilePaths.nonEmpty) {
+            //get temp file name
+            val componentsToDeleteFile = FileUtils.createTempFile("COMPONENTS_TO_DELETE", ".txt")
+
+            val writer = new PrintWriter(componentsToDeleteFile)
+            deletedLocalFilePaths.foreach(writer.println(_))
+            writer.close()
+
+            //override DeployDestructive and add list of files to delete and tell it to update session if not in test mode
+            val deployDestructiveAction = new DeployDestructive {
+                override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
+                override def isUpdateSessionDataOnSuccess: Boolean = {
+                    val updateSessionDataOnSuccess = !config.isCheckOnly && !session.callingAnotherOrg
+                    updateSessionDataOnSuccess
+                }
+            }
+            deployDestructiveAction.load[DeployDestructive](session.basicConfig)
+
+            deployDestructiveAction.act()
+            //get rid of temp file
+            componentsToDeleteFile.delete()
+        }
+
+    }
+
 }

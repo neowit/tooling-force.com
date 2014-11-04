@@ -121,7 +121,7 @@ class SaveModified extends DeployModified {
     }
 
     private val ONE_SECOND = 1000
-    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean) {
+    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
         logger.debug("Entered deploy()")
         if (!canUseTooling(files)) {
             //can not use tooling, fall back to metadata version - DeployModified
@@ -179,6 +179,7 @@ class SaveModified extends DeployModified {
 
             }
             session.storeSessionData()
+            true
         }
 
     }
