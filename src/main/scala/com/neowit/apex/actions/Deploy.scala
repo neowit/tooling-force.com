@@ -805,16 +805,37 @@ class ListModified extends ApexAction {
 
     }
 
+    def reportDeletedFiles(deletedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
+        val msg = new Message(messageType, "Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
+        config.responseWriter.println(msg)
+        for(f <- deletedFiles) {
+            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+        }
+        responseWriter.println("HAS_DELETED_FILES=true")
+        config.responseWriter.startSection("DELETED FILE LIST")
+        for(f <- deletedFiles) {
+            config.responseWriter.println("DELETED_FILE=" + session.getRelativePath(f))
+        }
+        config.responseWriter.endSection("DELETED FILE LIST")
+
+    }
+
     def act() {
         val modifiedFiles = getModifiedFiles
+        val deletedFiles = session.getDeletedLocalFilePaths.map(new File(config.projectDir, _))
 
         config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-        if (!modifiedFiles.isEmpty) {
+        config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
+        if (modifiedFiles.nonEmpty) {
             reportModifiedFiles(modifiedFiles)
         } else {
             config.responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
+        }
 
+        if (deletedFiles.nonEmpty) {
+            reportDeletedFiles(deletedFiles)
+        } else {
+            //config.responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
         }
     }
 

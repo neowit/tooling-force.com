@@ -26,6 +26,7 @@ import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 
 import scala.concurrent._
+import collection.JavaConverters._
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata
 
@@ -116,6 +117,38 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     /**
+     * using keys stored in session return all those that point to files
+     * such keys always start with prefix: "unpackaged/"
+     * @return list of files in the following format
+     *         src/classes/Class1.cls
+     *         src/classes/OtherClass.cls
+     *         src/pages/MyPage.page
+     *
+     */
+    def getRelativeFilePathsInSession: List[String] = {
+        val names = sessionProperties.propertyNames()
+        //val nameIterator = new scala.collection.JavaConversions.JEnumerationWrapper(names)
+        val prefix = "unpackaged/"
+        val fileNameKeys = names.asScala.toList.filter(_.toString.startsWith(prefix))
+        fileNameKeys.map(key => getRelativeFilePathByKey(key.toString))
+    }
+
+    /**
+     * @return list of relative file paths (e.g. src/classes/MyClass.cls) that exist in session but do not exist locally as a file
+     */
+    def getDeletedLocalFilePaths:List[String] = {
+        val config = getConfig
+        val existingFiles  = FileUtils.listFiles(config.srcDir).filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexFile(this, file)
+        ).map(getRelativePath(_)).toSet
+
+        val relativePathsInSession = this.getRelativeFilePathsInSession
+        val deletedFilePaths = relativePathsInSession.filterNot(existingFiles.contains(_))
+        deletedFilePaths
+    }
+
+    /**
      * return relative path inside project folder
      * this path is used as key in session
      * @param file - resource under project folder
@@ -136,6 +169,17 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             relPath.substring(0, relPath.length - "-meta.xml".length)
         else
             relPath
+    }
+
+    /**
+     * @param key - e.g. unpackaged/classes/MyClass.cls
+     * @return - e.g. src/classes/MyClass.cls
+     */
+    def getRelativeFilePathByKey(key: String): String = {
+        if (key.startsWith("unpackaged/"))
+            key.replaceFirst("unpackaged/", "src/")
+        else
+            key
     }
 
     /**
