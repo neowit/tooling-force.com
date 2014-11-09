@@ -31,12 +31,13 @@ class SourceScanner (files: List[File]) extends Logging {
 
                 val tokens = new CommonTokenStream(getLexer(file))
                 val parser = new ApexcodeParser(tokens)
-                //parser.setErrorHandler(new BailErrorStrategy())
-                //parser.setErrorHandler(new CompletionErrorStrategy())
-                val tree = parser.compilationUnit()
-                val extractor = new TreeListener(parser)
-                walker.walk(extractor, tree)
-                completeTree.extend(extractor.getTree)
+                ApexParserUtils.removeConsoleErrorListener(parser)
+                 //parser.setErrorHandler(new BailErrorStrategy())
+                 //parser.setErrorHandler(new CompletionErrorStrategy())
+                 val tree = parser.compilationUnit()
+                 val extractor = new TreeListener(parser)
+                 walker.walk(extractor, tree)
+                 completeTree.extend(extractor.getTree)
                 fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
             }
         }

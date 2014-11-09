@@ -61,6 +61,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val lexer = getLexer(file)
         val tokens = new CommonTokenStream(lexer)
         val parser = new ApexcodeParser(tokens)
+        ApexParserUtils.removeConsoleErrorListener(parser)
         val tree = parser.compilationUnit()
         val walker = new ParseTreeWalker()
         val extractor = new TreeListener(parser, line, column)
@@ -101,7 +102,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                                   case Some(_member) =>
                                       val members = resolveExpression(_member, expressionTokens.tail, fullApexTree,  None, extractor.getCaretScopeMember)
                                       return members
-                                  case None => List()
+                                  case None => return List()
                                 }
                         }
                 }
@@ -389,7 +390,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
         //val tokens: CommonTokenStream = new CommonTokenStream(getLexer(file))
         val parser = new ApexcodeParser(tokens)
-
+        ApexParserUtils.removeConsoleErrorListener(parser)
         parser.setBuildParseTree(true)
         parser.setErrorHandler(new CompletionErrorStrategy())
 
@@ -398,7 +399,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             parser.compilationUnit()
         } catch {
             case ex: CaretReachedException =>
-                println("found caret?")
+                //println("found caret?")
                 //println(ex.getToken.getText)
                 //listOptions(ex)
                 return breakExpressionToATokens(ex)
