@@ -239,7 +239,7 @@ class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1
      * check if current node is part of the token we are trying to auto-complete
      */
     private def checkTargetMember(token: Token) {
-        if (line > 0 && token.getLine == line) {
+        if (line > 0 && token.getLine == line && token.getCharPositionInLine < column) {
             //we are in progress of parsing file where completion needs to be done
             //println("target node=" + token.getText)
             //println("target node.Line=" + token.getLine)

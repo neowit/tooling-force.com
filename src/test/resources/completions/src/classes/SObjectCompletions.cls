@@ -100,6 +100,23 @@ public with sharing class SObjectCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testSobjectNewComplex",
+		"column": 32,
+		"itemsCountMin": 40,
+		"identities": ["AccountNumber", "Active__c", "CreatedBy", "CreatedById", "CreatedDate", "IsDeleted", "Name", "Owner", "OwnerId", "My_Object__r", "My_Object__c"]
+		}
+	 * #END
+	 */
+	void testSobjectCreatorComplex() {
+		final List<Account> accs = new List<Account>{
+			new Account( Name = 'Test1', ), //testSobjectNewComplex
+			new Account( Name = 'Test2')
+		};
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "test_NewBetween",
 		"column": 39,
 		"itemsCountMin": 40,
