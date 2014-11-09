@@ -4,7 +4,7 @@ name := "tooling-force.com"
 
 version := "0.1-SNAPSHOT"
 
-scalaVersion := "2.10.2"
+scalaVersion := "2.10.4"
 
 scalacOptions ++= Seq(
   "-deprecation", 
