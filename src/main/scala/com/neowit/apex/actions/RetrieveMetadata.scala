@@ -1,19 +1,15 @@
 package com.neowit.apex.actions
 
-import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
-import com.neowit.apex.{MetadataType, MetaXml, Session}
-import java.io.{FileOutputStream, File}
-import com.neowit.utils._
-import scala.util.{Failure, Success, Try}
-import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
-import scala.collection.mutable
-import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
-import scala.util.Failure
+import java.io.{File, FileOutputStream}
 
-import scala.util.Success
-import com.neowit.utils.ResponseWriter.MessageDetail
-import scala.util.parsing.json.JSONArray
-import scala.util.parsing.json.JSONObject
+import com.neowit.apex.{MetaXml, MetadataType}
+import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
+import com.neowit.utils._
+import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
+
+import scala.collection.mutable
+import scala.util.{Failure, Success, Try}
+import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
@@ -42,10 +38,10 @@ abstract class RetrieveMetadata extends ApexAction {
 
         val retrieveResult = session.retrieve(retrieveRequest)
         retrieveResult.getMessages match {
-            case messages if null != messages && !messages.isEmpty=>
+            case messages if null != messages && messages.nonEmpty=>
                 //check if all errors we have are about missing files
                 val messagesOtherThanMissingFiles = messages.filterNot(isMissingFileError(_))
-                if (reportMissing || !messagesOtherThanMissingFiles.isEmpty) {
+                if (reportMissing || messagesOtherThanMissingFiles.nonEmpty) {
                     throw new RetrieveError(retrieveResult)
                 }
             case _ =>
@@ -111,7 +107,7 @@ abstract class RetrieveMetadata extends ApexAction {
 }
 
 /**
- * 'refresh' action is 'retrieve' for all elements specified in package.xml
+ * 'refresh' action is 'retrieve' for all elements specified in package.xml into project folder
  */
 class RefreshMetadata extends RetrieveMetadata {
 
@@ -148,7 +144,7 @@ class RefreshMetadata extends RetrieveMetadata {
                     err match {
                         case e: RetrieveError =>
                             err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                                case messages if null != messages && !messages.isEmpty=>
+                                case messages if null != messages && messages.nonEmpty=>
                                     responseWriter.println("RESULT=FAILURE")
                                     for(msg <- messages) {
                                         responseWriter.println(msg.getFileName + ": " + msg.getProblem)
@@ -175,7 +171,7 @@ class RefreshMetadata extends RetrieveMetadata {
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-        config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml").size)
+        config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))
     }
 }
 /**
@@ -242,8 +238,16 @@ class ListConflicting extends RetrieveMetadata {
 
     /**
      * using list of conflict data returned by getFilesNewerOnRemote() generate MessageDetail for given Message
-     * @param conflictingFiles
-     * @param msg
+     * @param conflictingFiles - list of info maps about each file
+     *   each entry in the lust looks like so:
+     *   Map(
+     *        "file" -> fileMap(props.getFileName),
+     *        "LastModifiedByName" -> props.getLastModifiedByName,
+     *        "LastModifiedById" -> props.getLastModifiedById,
+     *        "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(props.getLastModifiedDate),
+     *        "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
+     *    )
+     * @param msg - parent message
      * @return
      */
     def generateConflictMessageDetails(conflictingFiles: List[Map[String, Any]], msg: Message):List[MessageDetail] = {
@@ -266,13 +270,13 @@ class ListConflicting extends RetrieveMetadata {
         )
     }
 
-    def act {
+    def act() {
         val checker = new ListModified().load[ListModified](session.basicConfig)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
                 config.responseWriter.println("RESULT=SUCCESS")
-                if (!fileProps.isEmpty) {
+                if (fileProps.nonEmpty) {
                     val msg = new Message(ResponseWriter.INFO, "Outdated file(s) detected.")
                     config.responseWriter.println(msg)
                     generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
@@ -373,7 +377,7 @@ class BulkRetrieve extends RetrieveMetadata {
     private val complexTypes = Map("Profile" -> Set("CustomObject"), "PermissionSet" -> Set("CustomObject"))
     /**
      * retrieve single type and its members
-     * @param metadataTypeName
+     * @param metadataTypeName, e.g. ApexClass
      */
     def retrieveOne(metadataTypeName: String, membersByXmlName: Map[String, List[String]]): RetrieveResult = {
         logger.info("retrieve: " + metadataTypeName)
@@ -404,7 +408,7 @@ class BulkRetrieve extends RetrieveMetadata {
 
         val retrieveResult = session.retrieve(retrieveRequest)
         retrieveResult.getMessages match {
-            case messages if null != messages && !messages.isEmpty=>
+            case messages if null != messages && messages.nonEmpty=>
                 //check if there are errors
                 throw new RetrieveError(retrieveResult)
             case _ =>
@@ -472,7 +476,7 @@ class BulkRetrieve extends RetrieveMetadata {
                           extension = "." + extension
                       }
                       namesByDir.getOrElse(dirName, Nil) match {
-                          case _fileNames if !_fileNames.isEmpty && Nil != _fileNames =>
+                          case _fileNames if _fileNames.nonEmpty && Nil != _fileNames =>
 
                               val objNames = _fileNames.map(_.drop(dirName.size + 1)).map(
                                   name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
@@ -494,13 +498,13 @@ class BulkRetrieve extends RetrieveMetadata {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
                         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
-                        val fileCount = filePropsMap.values.filter(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml")).size
+                        val fileCount = filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml"))
                         fileCountByType += typeName -> fileCount
                     case Failure(err) =>
                         err match {
                             case e: RetrieveError =>
                                 err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                                    case messages if null != messages && !messages.isEmpty=>
+                                    case messages if null != messages && messages.nonEmpty=>
                                         for(msg <- messages) {
                                             errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
                                         }
