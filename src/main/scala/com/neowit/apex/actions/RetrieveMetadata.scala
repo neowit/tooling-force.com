@@ -60,10 +60,19 @@ abstract class RetrieveMetadata extends ApexAction {
     }
 
     /**
+     * remove all file keys from session which do not correspond existing files
+     */
+    private def cleanSessionKeys(): Unit = {
+        val keysToDelete = session.getDeletedLocalFilePaths.map(session.getKeyByRelativeFilePath(_))
+        keysToDelete.map(session.removeData(_))
+    }
+
+    /**
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File): Map[String, FileProperties] = {
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File,
+                           updateSessionData: Boolean = true): Map[String, FileProperties] = {
 
         //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
         //extract in temp area first
@@ -94,9 +103,16 @@ abstract class RetrieveMetadata extends ApexAction {
                     }
 
                 val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
-                session.setData(key, valueMap)
+                if (updateSessionData) {
+                    session.setData(key, valueMap)
+                }
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
+            }
+
+            //finally make sure that session does not contain keys for files which no longer exist
+            if (updateSessionData) {
+                cleanSessionKeys()
             }
         } finally {
             session.storeSessionData()
@@ -358,7 +374,7 @@ class BulkRetrieve extends RetrieveMetadata {
                       |if format is set to "packageXml" then --specificTypes parameter must contain path to package.xml
                     """.stripMargin
                 case "targetFolder" =>
-                    "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
+                    "/path/to/dir (optional), if specified then retrieved files will be saved in this folder and session.properties will not be updated"
 
             }
         }
@@ -430,10 +446,10 @@ class BulkRetrieve extends RetrieveMetadata {
     }
 
     def act(): Unit = {
-        val tempFolder = config.getProperty("targetFolder")  match {
-          case Some(x) => new File(x)
+        val (tempFolder, updateSession) = config.getProperty("targetFolder")  match {
+          case Some(x) => (new File(x), false)
           case None =>
-              FileUtils.createTempDir(config)
+              (FileUtils.createTempDir(config), true)
         }
 
         //load file list from specified file
@@ -504,7 +520,7 @@ class BulkRetrieve extends RetrieveMetadata {
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
-                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
+                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder, updateSessionData = updateSession)
                         val fileCount = filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml"))
                         fileCountByType += typeName -> fileCount
                     case Failure(err) =>
