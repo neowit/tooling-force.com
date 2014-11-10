@@ -25,12 +25,33 @@ import java.io.File
 
 class InvalidProjectStructure(msg: String)  extends Error(msg: String)
 
-class MetaXml(config: Config) {
-    //parse package
-    def getPackage: com.sforce.soap.metadata.Package = {
+object MetaXml {
+
+    /**
+     * @return Map which looks like so:
+     *         "ApexClass" -> List("MyClass.cls", "OtherClass.cls", ...)
+     *         "ApexPage" -> List("MyPage.page", "OtherPage.page", ...)
+     */
+    def getMembersByType(packageXmlFile: File): Map[String, List[String]] = {
+        val _package = MetaXml.getPackage(packageXmlFile)
+
+        val membersByType = Map.newBuilder[String, List[String]]
+        for( packageMember <- _package.getTypes) {
+            val typeName = packageMember.getName
+            val members = packageMember.getMembers.toList
+            membersByType += typeName -> members
+        }
+
+        membersByType.result()
+    }
+
+    /**
+     * assemble com.sforce.soap.metadata.Package  from package.xml file
+     * @return
+     */
+    def getPackage(packageXmlFile: File): com.sforce.soap.metadata.Package = {
         val _package = new com.sforce.soap.metadata.Package()
-        val packageFile = getPackageXml
-        val packageXml = xml.XML.loadFile(packageFile)
+        val packageXml = xml.XML.loadFile(packageXmlFile)
 
         val apiVersion =(packageXml \ "version").text
         _package.setVersion(apiVersion)
@@ -53,6 +74,15 @@ class MetaXml(config: Config) {
             }
 
         _package.setTypes(members.toArray)
+        _package
+    }
+}
+
+class MetaXml(config: Config) {
+    //parse package
+    def getPackage: com.sforce.soap.metadata.Package = {
+        val packageFile = getPackageXml
+        val _package = MetaXml.getPackage(packageFile)
         _package
     }
 

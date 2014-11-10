@@ -295,13 +295,14 @@ class ListConflicting extends RetrieveMetadata {
  * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
  * --specificTypes=/path/to/file.js with extraction details
  * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
- * --typesFileFormat=json|file-paths, default is 'json'
+ * --typesFileFormat=json|file-paths|package.xml, default is 'json'
  *  if format is set to "file-paths" then types list should look like so:
  *  -------------------------------
  *  objects/Account.object
  *  classes/MyClass.cls
  *  classes/A_Class.cls
  *  -------------------------------
+ *  if format is set to "packageXml" then --specificTypes parameter must contain path to package.xml
  */
 class BulkRetrieve extends RetrieveMetadata {
 
@@ -328,7 +329,7 @@ class BulkRetrieve extends RetrieveMetadata {
                     "specificTypes" =>
                     """---specificTypes=/path/to/file
                       |full path to file with the list of metadata types to retrieve
-                      |each metadata type must be on its own line in the file
+                      |each metadata type must be on its own line in the file (unless --typesFileFormat=packageXml)
                     """.stripMargin
                 case
                     "updatePackageXMLOnSuccess" =>
@@ -353,6 +354,8 @@ class BulkRetrieve extends RetrieveMetadata {
                       |{"XMLName": "ApexComponent", "members": ["*"]}
                       |{"XMLName": "ApexPage", "members": ["AccountEdit", "ContactEdit"]}
                       |---------------------------
+                      |
+                      |if format is set to "packageXml" then --specificTypes parameter must contain path to package.xml
                     """.stripMargin
                 case "targetFolder" =>
                     "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
@@ -361,7 +364,6 @@ class BulkRetrieve extends RetrieveMetadata {
         }
 
         override def getParamNames: List[String] = List(
-
             "specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder")
 
         override def getSummary: String =
@@ -436,14 +438,19 @@ class BulkRetrieve extends RetrieveMetadata {
 
         //load file list from specified file
         val typesFile = new File(config.getRequiredProperty("specificTypes").get)
-        val isJSONFormat = config.getProperty("typesFileFormat").getOrElse("json") == "json"
+        val isPackageXmlFormat = config.getProperty("typesFileFormat").getOrElse("json") == "packageXml"
+        val isJSONFormat = !isPackageXmlFormat && config.getProperty("typesFileFormat").getOrElse("json") == "json"
 
         var fileCountByType = Map[String, Int]()
         var errors = List[ResponseWriter.Message]()
-        var membersByXmlName = new mutable.HashMap[String, List[String]]()
+        val membersByXmlName = Map.newBuilder[String, List[String]]
 
 
-        if (isJSONFormat) {
+        if (isPackageXmlFormat) {
+            //get members list directly from provided package.xml
+            membersByXmlName ++= MetaXml.getMembersByType(typesFile)
+
+        } else if (isJSONFormat) {
             for (line <- scala.io.Source.fromFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
                 JSON.parseRaw(line)  match {
                     case Some(json) =>
@@ -492,7 +499,7 @@ class BulkRetrieve extends RetrieveMetadata {
         }
 
         if (errors.isEmpty) {
-            val membersByXmlNameMap = membersByXmlName.toMap
+            val membersByXmlNameMap = membersByXmlName.result()
 
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
