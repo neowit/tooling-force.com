@@ -313,6 +313,7 @@ class ListConflicting extends RetrieveMetadata {
  * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
  * --typesFileFormat=json|file-paths|package.xml, default is 'json'
  *  if format is set to "file-paths" then types list should look like so:
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  *  -------------------------------
  *  objects/Account.object
  *  classes/MyClass.cls
@@ -376,11 +377,12 @@ class BulkRetrieve extends RetrieveMetadata {
                 case "targetFolder" =>
                     "/path/to/dir (optional), if specified then retrieved files will be saved in this folder and session.properties will not be updated"
 
+                case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
             }
         }
 
         override def getParamNames: List[String] = List(
-            "specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder")
+            "specificTypes", "updatePackageXMLOnSuccess", "typesFileFormat", "targetFolder", "updateSessionDataOnSuccess")
 
         override def getSummary: String =
             """using type list specified in a given file send retrieve() call for each type
@@ -446,11 +448,12 @@ class BulkRetrieve extends RetrieveMetadata {
     }
 
     def act(): Unit = {
-        val (tempFolder, updateSession) = config.getProperty("targetFolder")  match {
-          case Some(x) => (new File(x), false)
+        val tempFolder = config.getProperty("targetFolder")  match {
+          case Some(x) => new File(x)
           case None =>
-              (FileUtils.createTempDir(config), true)
+              FileUtils.createTempDir(config)
         }
+        val updateSessionDataOnSuccess = config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
 
         //load file list from specified file
         val typesFile = new File(config.getRequiredProperty("specificTypes").get)
@@ -520,7 +523,7 @@ class BulkRetrieve extends RetrieveMetadata {
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
-                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder, updateSessionData = updateSession)
+                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder, updateSessionData = updateSessionDataOnSuccess)
                         val fileCount = filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml"))
                         fileCountByType += typeName -> fileCount
                     case Failure(err) =>
