@@ -305,6 +305,30 @@ class ListConflicting extends RetrieveMetadata {
 
     }
 }
+
+/**
+ * result returned by BulkRetrieve.doRetrieve(...) call
+ * @param errors - list of errors in ResponseWriter.Message format
+ * @param fileCountByType - map that looks like so: "ApexClass" -> 10, "ApexPage" -> 1
+ * @param filePropsMapByXmlType - map that looks like so: "ApexClass" -> Map[String, FileProperties], "ApexPage" -> Map[String, FileProperties]
+ *                              Map[String, FileProperties] is resolved like so: unpackaged/classes/MyClass.cls -> FileProperties
+ */
+class BulkRetrieveResult(val errors: List[ResponseWriter.Message], val fileCountByType: Map[String, Int],
+                         val filePropsMapByXmlType: Map[String, Map[String, FileProperties]]) {
+
+    private val filePropsByRelativePath = filePropsMapByXmlType.values.flatten.toMap
+    /**
+     *
+     * @param relativeFilePath - e.g. src/classes/MyClass.cls
+     * @return - FileProperties for file MyClass
+     */
+    def getFileProps(relativeFilePath: String): Option[FileProperties] = {
+
+        val fPath = if (relativeFilePath.startsWith("src")) relativeFilePath.replaceFirst("src", "unpackaged") else relativeFilePath
+        filePropsByRelativePath.get(fPath)
+    }
+}
+
 /**
  * 'bulkRetrieve' action uses type list specified in a file and sends retrieve() call for each type
  * Extra command line params:
@@ -375,7 +399,7 @@ class BulkRetrieve extends RetrieveMetadata {
                       |if format is set to "packageXml" then --specificTypes parameter must contain path to package.xml
                     """.stripMargin
                 case "targetFolder" =>
-                    "/path/to/dir (optional), if specified then retrieved files will be saved in this folder and session.properties will not be updated"
+                    "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
 
                 case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
             }
@@ -447,20 +471,43 @@ class BulkRetrieve extends RetrieveMetadata {
         components.map(FileUtils.normalizePath(_))
     }
 
+    protected def isUpdateSessionDataOnSuccess: Boolean = config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+    protected def getTypesFileFormat: String = config.getProperty("typesFileFormat").getOrElse("json")
+    protected def getSpecificTypesFile: File = new File(config.getRequiredProperty("specificTypes").get)
+
     def act(): Unit = {
         val tempFolder = config.getProperty("targetFolder")  match {
-          case Some(x) => new File(x)
-          case None =>
-              FileUtils.createTempDir(config)
+            case Some(x) => new File(x)
+            case None =>
+                FileUtils.createTempDir(config)
         }
-        val updateSessionDataOnSuccess = config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+
+        val bulkRetrieveResult = doRetrieve(tempFolder)
+        val errors = bulkRetrieveResult.errors
+        val fileCountByType = bulkRetrieveResult.fileCountByType
+
+        if (errors.isEmpty) {
+            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
+            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))
+        } else {
+            config.responseWriter.println("RESULT=FAILURE")
+            errors.foreach(responseWriter.println(_))
+        }
+
+    }
+
+
+    def doRetrieve(tempFolder: File): BulkRetrieveResult = {
+
 
         //load file list from specified file
-        val typesFile = new File(config.getRequiredProperty("specificTypes").get)
-        val isPackageXmlFormat = config.getProperty("typesFileFormat").getOrElse("json") == "packageXml"
+        val typesFile = getSpecificTypesFile
+        val isPackageXmlFormat = getTypesFileFormat == "packageXml"
         val isJSONFormat = !isPackageXmlFormat && config.getProperty("typesFileFormat").getOrElse("json") == "json"
 
-        var fileCountByType = Map[String, Int]()
+        val fileCountByType = Map.newBuilder[String, Int]
+        val filePropsMapByXmlType = Map.newBuilder[String, Map[String, FileProperties]]
         var errors = List[ResponseWriter.Message]()
         val membersByXmlName = Map.newBuilder[String, List[String]]
 
@@ -493,26 +540,26 @@ class BulkRetrieve extends RetrieveMetadata {
             val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != '/'))
             for (dirName <- namesByDir.keySet) {
                 metadataByDirName.get(dirName) match {
-                  case Some(describeObject) =>
+                    case Some(describeObject) =>
 
-                      var extension = describeObject.getSuffix
-                      if (null == extension) {
-                          extension = ""
-                      } else {
-                          extension = "." + extension
-                      }
-                      namesByDir.getOrElse(dirName, Nil) match {
-                          case _fileNames if _fileNames.nonEmpty && Nil != _fileNames =>
+                        var extension = describeObject.getSuffix
+                        if (null == extension) {
+                            extension = ""
+                        } else {
+                            extension = "." + extension
+                        }
+                        namesByDir.getOrElse(dirName, Nil) match {
+                            case _fileNames if _fileNames.nonEmpty && Nil != _fileNames =>
 
-                              val objNames = _fileNames.map(_.drop(dirName.size + 1)).map(
-                                  name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
-                              )
-                              membersByXmlName += describeObject.getXmlName -> objNames
+                                val objNames = _fileNames.map(_.drop(dirName.size + 1)).map(
+                                    name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
+                                )
+                                membersByXmlName += describeObject.getXmlName -> objNames
 
-                          case _ =>
-                              throw new ActionError("Did not recognise values in directory: " + dirName)
-                      }
-                  case None =>
+                            case _ =>
+                                throw new ActionError("Did not recognise values in directory: " + dirName)
+                        }
+                    case None =>
                 }
             }
         }
@@ -520,12 +567,14 @@ class BulkRetrieve extends RetrieveMetadata {
         if (errors.isEmpty) {
             val membersByXmlNameMap = membersByXmlName.result()
 
+
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
                     case Success(retrieveResult) =>
-                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder, updateSessionData = updateSessionDataOnSuccess)
+                        val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder, updateSessionData = isUpdateSessionDataOnSuccess)
                         val fileCount = filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && !props.getFullName.endsWith("package.xml"))
                         fileCountByType += typeName -> fileCount
+                        filePropsMapByXmlType += typeName -> filePropsMap
                     case Failure(err) =>
                         err match {
                             case e: RetrieveError =>
@@ -542,14 +591,195 @@ class BulkRetrieve extends RetrieveMetadata {
 
             }
         }
+        new BulkRetrieveResult(errors, fileCountByType.result(), filePropsMapByXmlType.result())
+    }
+}
+
+class DiffWithRemoteResults()
+/**
+ * 'diffWithRemote' action - using package.xml extract files from SFDC and list
+ * - files with different size
+ * - files missing locally
+ * - files missing on remote (but present locally)
+ * Extra command line params:
+ * --projectPath=/full/path/to/project/folder - the one which contains /src subfolder in it
+ * --responseFilePath=full path to file where result of the operation will be documented.
+ * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
+ */
+class DiffWithRemote extends RetrieveMetadata {
+
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String =
+            """
+              |In order to get list of differences between local project and remote SFDC Org 'diffWithRemote' can be called like so
+              |... --action=diffWithRemote --projectPath=/home/users/tester/MyApexProject  --responseFilePath=/path/to/response.txt
+            """.stripMargin
+
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case "config" => "--config - full path to config.properties file"
+                case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
+                case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
+                case "targetFolder" =>
+                    "--targetFolder=/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
+                case _ => ""
+            }
+        }
+
+        override def getParamNames: List[String] = List("projectPath", "targetFolder")
+
+        override def getSummary: String = "return differences between local and remote file sets using metadata types specified in local package.xml"
+
+        override def getName: String = "diffWithRemote"
+    }
+
+    def act(): Unit = {
+        val tempFolder = config.getProperty("targetFolder") match {
+            case Some(x) => new File(x)
+            case None => FileUtils.createTempDir(config)
+        }
+        val bulkRetrieve = new BulkRetrieve {
+            override protected def isUpdateSessionDataOnSuccess: Boolean = false
+
+            override protected def getTypesFileFormat: String = "packageXml"
+
+            override protected def getSpecificTypesFile: File = {
+                val metaXml = new MetaXml(session.getConfig)
+                val packageXmlFile = metaXml.getPackageXml
+                packageXmlFile
+            }
+        }
+        bulkRetrieve.load[BulkRetrieve](session.basicConfig)
+
+        val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
+        processRetrieveResult(tempFolder, bulkRetrieveResult)
+    }
+
+    private def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Unit = {
+        val errors = bulkRetrieveResult.errors
+
         if (errors.isEmpty) {
-            config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))
+            //by default retrieve result is unpacked in .../unpackaged/... folder
+            val remoteProjectDir = new File(tempFolder, "unpackaged")
+            //rename destination folder to be .../src/... instead of .../unpackaged/...
+            val destinationSrcFolder = new File(tempFolder, "src")
+            if (destinationSrcFolder.exists()) {
+                FileUtils.delete(destinationSrcFolder)
+            }
+            if (remoteProjectDir.renameTo(new File(tempFolder, "src"))) {
+                responseWriter.println("RESULT=SUCCESS")
+                generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
+
+            } else {
+                //failed to rename unpackaged/ into src/
+                responseWriter.println("RESULT=FAILURE")
+                responseWriter.println(new Message(ResponseWriter.ERROR,
+                    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
+            }
         } else {
             config.responseWriter.println("RESULT=FAILURE")
             errors.foreach(responseWriter.println(_))
         }
+    }
 
+    /**
+     *
+     * @param bulkRetrieveResult - result of
+     * @param remoteSrcFolderPath - src/ folder where results of retrieve command dump were moved
+     *                            by default retrieve dumps stuff in .../unpackaged/ rathe than .../src/
+     */
+    def generateDiffReport(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String): Unit = {
+        //display message only if it has details
+        def displayMessageAndDetails(msg: Message, details: List[MessageDetail]): Unit = {
+            if (details.nonEmpty) {
+                responseWriter.println(msg)
+                details.foreach(responseWriter.println(_))
+            }
+        }
+
+        //local files
+        val existingFileByRelativePath  = FileUtils.listFiles(config.srcDir).filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexFile(session, file) && "package.xml" != file.getName
+        ).map(file => (session.getRelativePath(file), file) ).toMap
+
+        //remote files
+        val remoteSrcFolder = new File(remoteSrcFolderPath)
+        val remoteFiles = FileUtils.listFiles(remoteSrcFolder).filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexFile(session, file) && "package.xml" != file.getName
+        )
+
+        val remoteFilesByRelativePaths = remoteFiles.map(file => (
+                FileUtils.normalizePath(file.getAbsolutePath).replaceAllLiterally(remoteSrcFolder.getParentFile.getAbsolutePath + "/", ""), file
+            )).toMap
+
+        //list files where remote version has different size compared to local version
+        //Modified Files
+        val msg1 = new Message(ResponseWriter.WARN, "Different file sizes")
+        val sizeDiffDetailsBuilder = List.newBuilder[MessageDetail]
+
+        for(relPath <- existingFileByRelativePath.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
+            bulkRetrieveResult.getFileProps(relPath) match {
+              case Some(props) =>
+                  //val key = props.getFileName
+                  val sizeLocal = existingFileByRelativePath.get(relPath).map(_.length())
+                  val sizeRemote = remoteFilesByRelativePaths.get(relPath).map(_.length())
+                  if (sizeLocal != sizeRemote) {
+                      val text = existingFileByRelativePath(relPath).getName +
+                          " => Modified By: " + props.getLastModifiedByName +
+                          "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
+                          s"; Local size: $sizeLocal; remote size: $sizeRemote"
+                      sizeDiffDetailsBuilder += new MessageDetail(msg1, Map("filePath" -> relPath, "text" -> text))
+                      //responseWriter.println(new MessageDetail(msg1, Map("filePath" -> relPath, "text" -> text)))
+                  }
+              case None =>
+            }
+        }
+        val sizeDiffDetails = sizeDiffDetailsBuilder.result()
+
+
+        //list files that exist on locally but do not exist on remote
+        val msg2 = new Message(ResponseWriter.WARN, "Files exist locally but not on remote (based on current package.xml)")
+        val missingRemoteDetailsBuilder = List.newBuilder[MessageDetail]
+
+        for(relPath <- existingFileByRelativePath.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
+            if (!remoteFilesByRelativePaths.contains(relPath)) {
+                val text = existingFileByRelativePath(relPath).getName +
+                    " => exists locally but missing on remote"
+                val echoText = existingFileByRelativePath(relPath).getName
+                missingRemoteDetailsBuilder += new MessageDetail(msg2, Map("filePath" -> relPath, "text" -> text, "echoText" -> echoText))
+            }
+        }
+        val missingRemoteDetails = missingRemoteDetailsBuilder.result()
+
+        //list files that exist on remote but fo not exist locally
+        val msg3 = new Message(ResponseWriter.WARN, "Files exist on remote but not on locally (based on current package.xml)")
+        val missingLocalDetailsBuilder = List.newBuilder[MessageDetail]
+
+        for(relPath <- remoteFilesByRelativePaths.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
+            if (!existingFileByRelativePath.contains(relPath)) {
+                bulkRetrieveResult.getFileProps(relPath) match {
+                    case Some(props) =>
+                        val text = remoteFilesByRelativePaths(relPath).getName +
+                            " => Modified By: " + props.getLastModifiedByName +
+                            "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate)
+                            missingLocalDetailsBuilder += new MessageDetail(msg3, Map("filePath" -> relPath, "text" -> text))
+                    case None =>
+                }
+            }
+        }
+        val missingLocalDetails = missingLocalDetailsBuilder.result()
+
+        if (sizeDiffDetails.nonEmpty || missingRemoteDetails.nonEmpty || missingLocalDetails.nonEmpty) {
+            responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
+            responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
+            displayMessageAndDetails(msg1, sizeDiffDetails)
+            displayMessageAndDetails(msg2, missingRemoteDetails)
+            displayMessageAndDetails(msg3, missingLocalDetails)
+        } else {
+            responseWriter.println(new Message(ResponseWriter.INFO, "No differences between local version and remote Org detected"))
+
+        }
     }
 }

@@ -39,6 +39,7 @@ object ActionFactory {
         "listConflicts" -> "ListConflicting",
         "describeMetadata" -> "DescribeMetadata",
         "bulkRetrieve" -> "BulkRetrieve",
+        "diffWithRemote" -> "DiffWithRemote",
         "listMetadata" -> "ListMetadata",
         "executeAnonymous" -> "ExecuteAnonymous",
         "deleteMetadata" -> "DeployDestructive",
