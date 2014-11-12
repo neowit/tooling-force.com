@@ -681,6 +681,58 @@ class DeployAll extends DeployModified {
 }
 
 /**
+ * 'deployAllDestructive' action deploys all project files and removes all files listed in local package.xml
+ * and existing on Remote but no longer available locally
+ * Extra command line params:
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
+ */
+class DeployAllDestructive extends DeployAll {
+    private val superActionHelp = super.getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
+
+        override def getExample: String = ""
+
+        override def getName: String = "deployAllDestructive"
+
+        override def getSummary: String = "action deploys all project files and removes all files listed in local package.xml and existing on Remote but no longer available locally"
+
+        override def getParamNames: List[String] = "updateSessionDataOnSuccess" :: getParentActionHelp.getParamNames
+
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
+            case _ => getParentActionHelp.getParamDescription(paramName)
+        }
+
+    }
+
+    /**
+     *   # DeployAllDestructive
+     *   - get diff report using DiffWithRemote
+     *   - create blank stubs for all files marked as “missing locally” in Diff Report
+     *   ——— we can reuse files downloaded by DiffWithRemote
+     *   - create temp project folder with all files reported by DeployAll + blanks
+     *   - execute DeployAll against this temp folder
+     *   - if previous step is successful then execute DeployDestructive using list of blank files
+     */
+    override def act() {
+        val allLocalFiles = getAllFiles
+
+        val diffWithRemote = new DiffWithRemote
+        diffWithRemote.load[DiffWithRemote](session.basicConfig)
+
+        diffWithRemote.getDiffReport match {
+            case Some(diffReport) =>
+
+            case None =>
+                responseWriter.println("RESULT=FAILURE")
+                responseWriter.println(new Message(ResponseWriter.ERROR, "Failed to load remote version of current project"))
+        }
+        //deploy(allFiles, isUpdateSessionDataOnSuccess)
+    }
+
+}
+
+/**
  * 'deploySpecificFiles' action uses file list specified in a file and sends deploy() File-Based call
  * Extra command line params:
  * --specificFiles=/path/to/file with file list

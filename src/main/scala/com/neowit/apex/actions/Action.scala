@@ -44,6 +44,7 @@ object ActionFactory {
         "executeAnonymous" -> "ExecuteAnonymous",
         "deleteMetadata" -> "DeployDestructive",
         "deployModifiedDestructive" -> "DeployModifiedDestructive",
+        "deployAllDestructive" -> "DeployAllDestructive",
         "scanSource" -> "ScanSource",
         "listCompletions" -> "ListCompletions"
     )
