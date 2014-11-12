@@ -595,7 +595,41 @@ class BulkRetrieve extends RetrieveMetadata {
     }
 }
 
-class DiffWithRemoteResults()
+
+/**
+ * this is a helper class which serves as a container of information collected by DiffWithRemote command
+ * @param remoteSrcFolderPath - path to src/ folder where remote version of current project is saved/dumped by BulkRetrieve
+ */
+class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remoteSrcFolderPath: String) {
+    private var _hasSomethingToReport = false
+    private val localFilesMissingOnRemoteBuilder = Map.newBuilder[String, File]
+    private val remoteFilesMissingLocallyBuilder = Map.newBuilder[String, File]
+    private val conflictingFileMapBuilder = Map.newBuilder[String, ConflictingFile]
+
+    def addLocalFileMissingOnRemote(relativePath: String, file: File): Unit = {
+        localFilesMissingOnRemoteBuilder += relativePath -> file
+        _hasSomethingToReport = true
+    }
+    def addRemoteFileMissingLocally(relativePath: String, file: File, prop: FileProperties): Unit = {
+        remoteFilesMissingLocallyBuilder += relativePath -> file
+        _hasSomethingToReport = true
+    }
+
+    class ConflictingFile(val fileLocal: File, val fileRemote: File, val remoteProp: FileProperties)
+
+    def addConflictingFiles(relativePath: String, fileLocal: File, fileRemote: File, remoteProp: FileProperties): Unit = {
+        conflictingFileMapBuilder += relativePath -> new ConflictingFile(fileLocal, fileRemote, remoteProp)
+        _hasSomethingToReport = true
+    }
+
+    def hasSomethingToReport = _hasSomethingToReport
+
+    def getLocalFilesMissingOnRemote = localFilesMissingOnRemoteBuilder.result()
+
+    def getRemoteFilesMissingLocally = remoteFilesMissingLocallyBuilder.result()
+
+    def getConflictingFiles = conflictingFileMapBuilder.result()
+}
 /**
  * 'diffWithRemote' action - using package.xml extract files from SFDC and list
  * - files with different size
@@ -634,6 +668,16 @@ class DiffWithRemote extends RetrieveMetadata {
     }
 
     def act(): Unit = {
+        getDiffReport match {
+          case Some(diffReport) =>
+              responseWriter.println("RESULT=SUCCESS")
+              writeReportToResponseFile(diffReport)
+          case None =>
+        }
+
+    }
+
+    def getDiffReport: Option[DiffWithRemoteReport] = {
         val tempFolder = config.getProperty("targetFolder") match {
             case Some(x) => new File(x)
             case None => FileUtils.createTempDir(config)
@@ -655,7 +699,7 @@ class DiffWithRemote extends RetrieveMetadata {
         processRetrieveResult(tempFolder, bulkRetrieveResult)
     }
 
-    private def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Unit = {
+    private def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Option[DiffWithRemoteReport] = {
         val errors = bulkRetrieveResult.errors
 
         if (errors.isEmpty) {
@@ -667,18 +711,20 @@ class DiffWithRemote extends RetrieveMetadata {
                 FileUtils.delete(destinationSrcFolder)
             }
             if (remoteProjectDir.renameTo(new File(tempFolder, "src"))) {
-                responseWriter.println("RESULT=SUCCESS")
-                generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
+                val report = generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
+                Some(report)
 
             } else {
                 //failed to rename unpackaged/ into src/
                 responseWriter.println("RESULT=FAILURE")
                 responseWriter.println(new Message(ResponseWriter.ERROR,
                     s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
+                None
             }
         } else {
             config.responseWriter.println("RESULT=FAILURE")
             errors.foreach(responseWriter.println(_))
+            None
         }
     }
 
@@ -688,14 +734,8 @@ class DiffWithRemote extends RetrieveMetadata {
      * @param remoteSrcFolderPath - src/ folder where results of retrieve command dump were moved
      *                            by default retrieve dumps stuff in .../unpackaged/ rathe than .../src/
      */
-    def generateDiffReport(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String): Unit = {
-        //display message only if it has details
-        def displayMessageAndDetails(msg: Message, details: List[MessageDetail]): Unit = {
-            if (details.nonEmpty) {
-                responseWriter.println(msg)
-                details.foreach(responseWriter.println(_))
-            }
-        }
+    def generateDiffReport(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String): DiffWithRemoteReport = {
+        val report = new DiffWithRemoteReport(bulkRetrieveResult, remoteSrcFolderPath)
 
         //local files
         val existingFileByRelativePath  = FileUtils.listFiles(config.srcDir).filter(
@@ -716,70 +756,122 @@ class DiffWithRemote extends RetrieveMetadata {
 
         //list files where remote version has different size compared to local version
         //Modified Files
-        val msg1 = new Message(ResponseWriter.WARN, "Different file sizes")
-        val sizeDiffDetailsBuilder = List.newBuilder[MessageDetail]
-
         for(relPath <- existingFileByRelativePath.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
             bulkRetrieveResult.getFileProps(relPath) match {
               case Some(props) =>
                   //val key = props.getFileName
-                  val sizeLocal = existingFileByRelativePath.get(relPath).map(_.length())
-                  val sizeRemote = remoteFilesByRelativePaths.get(relPath).map(_.length())
-                  if (sizeLocal != sizeRemote) {
-                      val text = existingFileByRelativePath(relPath).getName +
-                          " => Modified By: " + props.getLastModifiedByName +
-                          "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
-                          s"; Local size: $sizeLocal; remote size: $sizeRemote"
-                      sizeDiffDetailsBuilder += new MessageDetail(msg1, Map("filePath" -> relPath, "text" -> text))
-                      //responseWriter.println(new MessageDetail(msg1, Map("filePath" -> relPath, "text" -> text)))
+                  val localFile = existingFileByRelativePath.get(relPath)
+                  val remoteFile = remoteFilesByRelativePaths.get(relPath)
+                  if (localFile.isDefined && remoteFile.isDefined) {
+                      val sizeLocal = localFile.map(_.length())
+                      val sizeRemote = remoteFile.map(_.length())
+                      if (sizeLocal != sizeRemote) {
+                          report.addConflictingFiles(relPath, localFile.get, remoteFile.get, props)
+                      }
                   }
               case None =>
             }
         }
-        val sizeDiffDetails = sizeDiffDetailsBuilder.result()
 
 
         //list files that exist on locally but do not exist on remote
-        val msg2 = new Message(ResponseWriter.WARN, "Files exist locally but not on remote (based on current package.xml)")
-        val missingRemoteDetailsBuilder = List.newBuilder[MessageDetail]
-
-        for(relPath <- existingFileByRelativePath.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
+        for(relPath <- existingFileByRelativePath.keys) {
             if (!remoteFilesByRelativePaths.contains(relPath)) {
-                val text = existingFileByRelativePath(relPath).getName +
-                    " => exists locally but missing on remote"
-                val echoText = existingFileByRelativePath(relPath).getName
-                missingRemoteDetailsBuilder += new MessageDetail(msg2, Map("filePath" -> relPath, "text" -> text, "echoText" -> echoText))
+                report.addLocalFileMissingOnRemote(relPath, existingFileByRelativePath(relPath))
             }
         }
-        val missingRemoteDetails = missingRemoteDetailsBuilder.result()
 
-        //list files that exist on remote but fo not exist locally
-        val msg3 = new Message(ResponseWriter.WARN, "Files exist on remote but not on locally (based on current package.xml)")
-        val missingLocalDetailsBuilder = List.newBuilder[MessageDetail]
-
+        //list files that exist on remote but do not exist locally
         for(relPath <- remoteFilesByRelativePaths.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
             if (!existingFileByRelativePath.contains(relPath)) {
                 bulkRetrieveResult.getFileProps(relPath) match {
                     case Some(props) =>
-                        val text = remoteFilesByRelativePaths(relPath).getName +
-                            " => Modified By: " + props.getLastModifiedByName +
-                            "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate)
-                            missingLocalDetailsBuilder += new MessageDetail(msg3, Map("filePath" -> relPath, "text" -> text))
+                        report.addRemoteFileMissingLocally(relPath, remoteFilesByRelativePaths(relPath), props)
                     case None =>
                 }
             }
         }
-        val missingLocalDetails = missingLocalDetailsBuilder.result()
 
-        if (sizeDiffDetails.nonEmpty || missingRemoteDetails.nonEmpty || missingLocalDetails.nonEmpty) {
-            responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
-            responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
-            displayMessageAndDetails(msg1, sizeDiffDetails)
-            displayMessageAndDetails(msg2, missingRemoteDetails)
-            displayMessageAndDetails(msg3, missingLocalDetails)
+        report
+    }
+
+    private def writeReportToResponseFile(report: DiffWithRemoteReport): Unit = {
+        val bulkRetrieveResult: BulkRetrieveResult = report.bulkRetrieveResult
+        val remoteSrcFolderPath: String = report.remoteSrcFolderPath
+
+        responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
+        responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
+
+        val conflictingFilesMap = report.getConflictingFiles
+        val localFilesMissingOnRemoteMap = report.getLocalFilesMissingOnRemote
+        val remoteFilesMissingLocallyMap = report.getRemoteFilesMissingLocally
+
+        if (report.hasSomethingToReport) {
+
+            if (conflictingFilesMap.nonEmpty) {
+                //list files where remote version has different size compared to local version
+                //Modified Files
+                val msg = new Message(ResponseWriter.WARN, "Different file sizes")
+                responseWriter.println(msg)
+
+                for (relativePath <- conflictingFilesMap.keys.toList.sortWith((left, right) => left.compareTo(right) < 0)) {
+                    conflictingFilesMap.get(relativePath) match {
+                        case Some(conflictingFile) =>
+                            val props = conflictingFile.remoteProp
+                            val sizeLocal = conflictingFile.fileLocal.length()
+                            val sizeRemote = conflictingFile.fileRemote.length()
+                            val text = conflictingFile.fileLocal.getName +
+                                " => Modified By: " + props.getLastModifiedByName +
+                                "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
+                                s"; Local size: $sizeLocal; remote size: $sizeRemote"
+                            responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                        case None =>
+                    }
+                }
+            }
+
+            if (localFilesMissingOnRemoteMap.nonEmpty) {
+                //list files that exist on locally but do not exist on remote
+                val msg = new Message(ResponseWriter.WARN, "Files exist locally but not on remote (based on current package.xml)")
+                responseWriter.println(msg)
+
+                for(relativePath <- localFilesMissingOnRemoteMap.keys) {
+                    localFilesMissingOnRemoteMap.get(relativePath) match {
+                      case Some(localFile) =>
+                          val text = localFile.getName +
+                              " => exists locally but missing on remote"
+                          val echoText = localFile.getName
+                          responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
+                      case None =>
+                    }
+                }
+            }
+
+            if (remoteFilesMissingLocallyMap.nonEmpty) {
+                //list files that exist on remote but do not exist locally
+                val msg = new Message(ResponseWriter.WARN, "Files exist on remote but not on locally (based on current package.xml)")
+                responseWriter.println(msg)
+                for(relativePath <- remoteFilesMissingLocallyMap.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
+                    remoteFilesMissingLocallyMap.get(relativePath) match {
+                      case Some(remoteFile) =>
+                          bulkRetrieveResult.getFileProps(relativePath) match {
+                              case Some(props) =>
+                                  val sizeRemote = remoteFile.length()
+                                  val text = remoteFile.getName +
+                                      " => Modified By: " + props.getLastModifiedByName +
+                                      "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
+                                      s"; remote size: $sizeRemote"
+                                  responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                              case None =>
+                          }
+                      case None =>
+                    }
+                }
+            }
         } else {
             responseWriter.println(new Message(ResponseWriter.INFO, "No differences between local version and remote Org detected"))
-
         }
+
+
     }
 }
