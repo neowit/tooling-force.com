@@ -20,8 +20,11 @@
 package com.neowit.apex
 
 import com.sforce.soap.metadata.PackageTypeMembers
-import com.neowit.utils.Config
+import com.neowit.utils.{FileUtils, Config}
 import java.io.File
+
+import scala.util.Try
+import scala.xml.Node
 
 class InvalidProjectStructure(msg: String)  extends Error(msg: String)
 
@@ -75,6 +78,62 @@ object MetaXml {
 
         _package.setTypes(members.toArray)
         _package
+    }
+
+    /**
+     * using provided apex file generate appropriate <filename>-meta.xml
+     * @param apexFile - apex file, e.g. MyClass.cls
+     *                 result will be file: MyClass.cls-meta.xml
+     * @param extraTags - map: tagName -> text to use if any of the default values need to be overridden
+     * @return - generated meta file
+     */
+    def generateMetaXml(apiVersion: Double, apexFile: File, extraTags: Map[String, String] = Map()): Try[File] = {
+
+        Try ({
+            val (xmlType, extraContent) = FileUtils.getExtension(apexFile) match {
+                case "cls" => ("ApexClass", "")
+                case "trigger" => ("ApexTrigger", "")
+                case "page" => ("ApexPage", s"<label>${FileUtils.removeExtension(apexFile)}</label>")
+                case "component" => ("ApexComponent", s"<label>${FileUtils.removeExtension(apexFile)}</ApexComponent>")
+                case x => throw new UnsupportedApexTypeException(x)
+            }
+            val metaXml =
+                s"""
+                  |<?xml version="1.0" encoding="UTF-8"?>
+                  |<$xmlType xmlns="http://soap.sforce.com/2006/04/metadata">
+                  |<apiVersion>$apiVersion</apiVersion>
+                  |<status>${extraTags.getOrElse("status", "Active")}</status>
+                  |$extraContent
+                  |</$xmlType>
+                """.stripMargin
+
+            val metaXmlFile = new File(apexFile.getParentFile, apexFile.getName + "-meta.xml")
+            FileUtils.writeFile(metaXml, metaXmlFile)
+            metaXmlFile
+        })
+
+    }
+
+    /**
+     * change status "active" to "inactive" in provided -meta.xml file in order to disable specific
+     * trigger and prepare for removal
+     * @param metaXmlFile - -meta.xml file
+     * @return Option(metaXmlFile) if success or None if could not disable
+     */
+    def disableTrigger(metaXmlFile: File): Unit = {
+        def updateStatus( node : Node, newStatus: String ) : Node = {
+            def updateElements( seq : Seq[Node]) : Seq[Node] =
+                for( subNode <- seq ) yield updateStatus( subNode, newStatus )
+
+            node match {
+                case <ApexTrigger>{ ch @ _* }</ApexTrigger> => <ApexTrigger>{ updateElements( ch ) }</ApexTrigger>
+                case <status>{ contents }</status> => <status>{newStatus}</status>
+                case other @ _ => other
+            }
+        }
+        val metaXml = xml.XML.loadFile(metaXmlFile)
+        updateStatus(metaXml, "Inactive")
+        scala.xml.XML.save(metaXmlFile.getAbsolutePath, metaXml, enc = "UTF-8" )
     }
 }
 
