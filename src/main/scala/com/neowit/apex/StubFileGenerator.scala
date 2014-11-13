@@ -21,7 +21,7 @@ object StubFileGenerator {
      * @param withMetaXml - do we need to generate -meta.xml file as well?
      * @return tuple: dummy-file, Option(its -meta.xml)
      */
-    def generateStub(apiVersion: Double, parentFolder: File, file: File, withMetaXml:Boolean = true ): (File, Option[File]) = {
+    def generateStub(apiVersion: String, parentFolder: File, file: File, withMetaXml:Boolean = true ): (File, Option[File]) = {
         val extension = FileUtils.getExtension(file)
         val fileName = file.getName.substring(0, file.getName.length - extension.length - 1)
         extension match {
@@ -47,7 +47,7 @@ object StubFileGenerator {
      * @param withMetaXml - if true then -meta.xml will be generated
      * @return tuple: class-file, Option(metaXmlFile)
      */
-    def generateClass(apiVersion: Double, parentFolder: File, className: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
+    def generateClass(apiVersion: String, parentFolder: File, className: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
         val text =
             s"""
               |/**
@@ -67,7 +67,7 @@ object StubFileGenerator {
      * @param withMetaXml - if true then -meta.xml will be generated
      * @return tuple: page-file, Option(metaXmlFile)
      */
-    def generatePage(apiVersion: Double, parentFolder: File, pageName: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
+    def generatePage(apiVersion: String, parentFolder: File, pageName: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
         val text =
             s"""
               |<apex:page>
@@ -88,7 +88,7 @@ object StubFileGenerator {
      * @param withMetaXml - if true then -meta.xml will be generated
      * @return tuple: page-file, Option(metaXmlFile)
      */
-    def generateComponent(apiVersion: Double, parentFolder: File, componentName: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
+    def generateComponent(apiVersion: String, parentFolder: File, componentName: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
         val text =
             s"""
               |<apex:component>
@@ -103,7 +103,7 @@ object StubFileGenerator {
     }
 
 
-    private def writeWithMetaXml(apiVersion: Double, parentFolder: File, fileName: String, fileBodyText: String): (File, Option[File]) = {
+    private def writeWithMetaXml(apiVersion: String, parentFolder: File, fileName: String, fileBodyText: String): (File, Option[File]) = {
         val file = new File(parentFolder, fileName)
         FileUtils.writeFile(fileBodyText, file)
         MetaXml.generateMetaXml(apiVersion, file) match {

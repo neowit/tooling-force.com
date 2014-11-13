@@ -87,7 +87,7 @@ object MetaXml {
      * @param extraTags - map: tagName -> text to use if any of the default values need to be overridden
      * @return - generated meta file
      */
-    def generateMetaXml(apiVersion: Double, apexFile: File, extraTags: Map[String, String] = Map()): Try[File] = {
+    def generateMetaXml(apiVersion: String, apexFile: File, extraTags: Map[String, String] = Map()): Try[File] = {
 
         Try ({
             val (xmlType, extraContent) = FileUtils.getExtension(apexFile) match {
@@ -98,12 +98,11 @@ object MetaXml {
                 case x => throw new UnsupportedApexTypeException(x)
             }
             val metaXml =
-                s"""
-                  |<?xml version="1.0" encoding="UTF-8"?>
+                s"""<?xml version="1.0" encoding="UTF-8"?>
                   |<$xmlType xmlns="http://soap.sforce.com/2006/04/metadata">
-                  |<apiVersion>$apiVersion</apiVersion>
-                  |<status>${extraTags.getOrElse("status", "Active")}</status>
-                  |$extraContent
+                  |    <apiVersion>$apiVersion</apiVersion>
+                  |    <status>${extraTags.getOrElse("status", "Active")}</status>
+                  |    $extraContent
                   |</$xmlType>
                 """.stripMargin
 
