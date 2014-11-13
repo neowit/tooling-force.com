@@ -266,6 +266,7 @@ class DeployModified extends Deploy {
             val relativePath = successMessage.getFileName
             val key = session.getKeyByRelativeFilePath(relativePath)
             val f = new File(config.projectDir, relativePath)
+            if (f.exists()) {
             val xmlType = describeByDir.get(f.getParentFile.getName) match {
                 case Some(describeMetadataObject) => describeMetadataObject.getXmlName
                 case None => "" //package.xml and -meta.xml do not have xmlType
@@ -287,6 +288,7 @@ class DeployModified extends Deploy {
             val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
             val oldData = session.getData(key)
             session.setData(key, oldData ++ newData)
+        }
         }
 
     }
