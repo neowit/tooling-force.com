@@ -155,30 +155,7 @@ class DeployModified extends Deploy {
      */
     def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
 
-        /**
-         * @return (line, column, relativeFilePath)
-         */
-        def getMessageData(problem: String, typeName: String, fileName: String,
-                             metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
-            val suffix = typeName match {
-                case "Class" => "cls"
-                case "Trigger" => "trigger"
-                case _ => ""
-            }
-            val (line, column) = parseLineColumn(problem) match {
-                case Some((_line, _column)) => (_line, _column)
-                case None => (-1, -1)
-            }
-            val filePath =  if (!suffix.isEmpty) session.getRelativeFilePath(fileName, suffix) match {
-                case Some(_filePath) => _filePath
-                case _ => ""
-            }
-            else ""
-
-            (line, column, filePath)
-
-        }
-         var success = false //assume failure by default
+        var success = false //assume failure by default
 
         //for every modified file add its -meta.xml if exists
         val metaXmlFiles = for (file <- files;
@@ -233,8 +210,6 @@ class DeployModified extends Deploy {
         deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
 
         deployOptions.setCheckOnly(checkOnly)
-        //deployOptions.setPerformRetrieve(true)
-
 
         logger.info("Deploying...")
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _),
@@ -243,88 +218,8 @@ class DeployModified extends Deploy {
         val deployDetails = deployResult.getDetails
         if (!deployResult.isSuccess) {
             config.responseWriter.println("RESULT=FAILURE")
-            if (null != deployDetails) {
-                config.responseWriter.startSection("ERROR LIST")
-
-                //display errors both as messages and as ERROR: lines
-                val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
-                if (deployDetails.getComponentFailures.nonEmpty) {
-                    responseWriter.println(componentFailureMessage)
-                }
-                for ( failureMessage <- deployDetails.getComponentFailures) {
-                    val line = failureMessage.getLineNumber
-                    val column = failureMessage.getColumnNumber
-                    val filePath = failureMessage.getFileName
-                    val problem = failureMessage.getProblem
-                    val problemType = failureMessage.getProblemType match {
-                        case DeployProblemType.Warning => ResponseWriter.WARN
-                        case DeployProblemType.Error => ResponseWriter.ERROR
-                        case _ => ResponseWriter.ERROR
-                    }
-                    responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
-                }
-                //process test successes and failures
-                val runTestResult = deployDetails.getRunTestResult
-                val metadataByXmlName = DescribeMetadata.getMap(session)
-
-
-                val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
-                if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
-                    responseWriter.println(testFailureMessage)
-                }
-                if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
-                    responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
-                }
-                for ( failureMessage <- runTestResult.getFailures) {
-
-                    val problem = failureMessage.getMessage
-                    //val className = failureMessage.getName
-                    //now parse stack trace
-                    val stackTrace = failureMessage.getStackTrace
-                    if (null != stackTrace) {
-                        //each line is separated by '\n'
-                        var showProblem = true
-                        for (traceLine <- stackTrace.split("\n")) {
-                            //Class.Test1.prepareData: line 13, column 1
-                            parseStackTraceLine(traceLine) match {
-                              case Some((typeName, fileName, methodName, line, column)) =>
-                                  val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
-                                  val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
-                                  val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
-                                  responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
-                                  if (showProblem) {
-                                      responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                                  }
-                              case None => //failed to parse anything meaningful, fall back to simple message
-                                  responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
-                                  if (showProblem) {
-                                      responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
-                                  }
-                            }
-                            showProblem = false
-                        }
-                    } else { //no stack trace, try to parse cine/column/filePath from error message
-                        val typeName = failureMessage.getType
-                        val fileName = failureMessage.getName
-                        val (line, column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
-                        responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                        responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                    }
-
-                    //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                }
-                config.responseWriter.endSection("ERROR LIST")
-
-                val coverageReportFile = processCodeCoverage(runTestResult)
-                coverageReportFile match {
-                    case Some(coverageFile) =>
-                        responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-                    case _ =>
-                }
-            }
-
-
+            //dump details of failures into a response file
+            writeDeploymentFailureReport(deployDetails, isRunningTests)
         } else { //deployResult.isSuccess = true
 
             val runTestResult = deployDetails.getRunTestResult
@@ -338,36 +233,7 @@ class DeployModified extends Deploy {
             }
             //update session data for successful files
             if (updateSessionDataOnSuccess) {
-                val calculateMD5 = config.useMD5Hash
-                val calculateCRC32 = !calculateMD5  //by default use only CRC32
-
-                val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
-                for ( successMessage <- deployDetails.getComponentSuccesses) {
-                    val relativePath = successMessage.getFileName
-                    val key = session.getKeyByRelativeFilePath(relativePath)
-                    val f = new File(config.projectDir, relativePath)
-                    val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                      case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                      case None => "" //package.xml and -meta.xml do not have xmlType
-                    }
-                    val localMills = f.lastModified()
-
-                    val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
-                    val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
-
-                    val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-                    val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash:Long) = if (fMeta.canRead) {
-                        (   fMeta.lastModified(),
-                            if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
-                            if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
-                    } else {
-                        (-1L, "", -1L)
-                    }
-
-                    val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-                    val oldData = session.getData(key)
-                    session.setData(key, oldData ++ newData)
-                }
+                updateSessionDataForSuccessfulFiles(deployResult)
             }
             session.storeSessionData()
             config.responseWriter.println("RESULT=SUCCESS")
@@ -386,6 +252,151 @@ class DeployModified extends Deploy {
         }
 
         success
+    }
+
+    //update session data for successful files
+    private def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult): Unit = {
+        val deployDetails = deployResult.getDetails
+
+        val calculateMD5 = config.useMD5Hash
+        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
+        val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
+        for ( successMessage <- deployDetails.getComponentSuccesses) {
+            val relativePath = successMessage.getFileName
+            val key = session.getKeyByRelativeFilePath(relativePath)
+            val f = new File(config.projectDir, relativePath)
+            val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                case None => "" //package.xml and -meta.xml do not have xmlType
+            }
+            val localMills = f.lastModified()
+
+            val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
+            val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
+
+            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
+                (fMeta.lastModified(),
+                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
+            } else {
+                (-1L, "", -1L)
+            }
+
+            val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+            val oldData = session.getData(key)
+            session.setData(key, oldData ++ newData)
+        }
+
+    }
+
+    private def writeDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Unit = {
+        /**
+         * @return (line, column, relativeFilePath)
+         */
+        def getMessageData(problem: String, typeName: String, fileName: String,
+                           metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
+            val suffix = typeName match {
+                case "Class" => "cls"
+                case "Trigger" => "trigger"
+                case _ => ""
+            }
+            val (line, column) = parseLineColumn(problem) match {
+                case Some((_line, _column)) => (_line, _column)
+                case None => (-1, -1)
+            }
+            val filePath =  if (!suffix.isEmpty) session.getRelativeFilePath(fileName, suffix) match {
+                case Some(_filePath) => _filePath
+                case _ => ""
+            }
+            else ""
+
+            (line, column, filePath)
+
+        }
+
+        if (null != deployDetails) {
+            config.responseWriter.startSection("ERROR LIST")
+
+            //display errors both as messages and as ERROR: lines
+            val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
+            if (deployDetails.getComponentFailures.nonEmpty) {
+                responseWriter.println(componentFailureMessage)
+            }
+            for ( failureMessage <- deployDetails.getComponentFailures) {
+                val line = failureMessage.getLineNumber
+                val column = failureMessage.getColumnNumber
+                val filePath = failureMessage.getFileName
+                val problem = failureMessage.getProblem
+                val problemType = failureMessage.getProblemType match {
+                    case DeployProblemType.Warning => ResponseWriter.WARN
+                    case DeployProblemType.Error => ResponseWriter.ERROR
+                    case _ => ResponseWriter.ERROR
+                }
+                responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+            }
+            //process test successes and failures
+            val runTestResult = deployDetails.getRunTestResult
+            val metadataByXmlName = DescribeMetadata.getMap(session)
+
+
+            val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
+            if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
+                responseWriter.println(testFailureMessage)
+            }
+            if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
+                responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            }
+            for ( failureMessage <- runTestResult.getFailures) {
+
+                val problem = failureMessage.getMessage
+                //val className = failureMessage.getName
+                //now parse stack trace
+                val stackTrace = failureMessage.getStackTrace
+                if (null != stackTrace) {
+                    //each line is separated by '\n'
+                    var showProblem = true
+                    for (traceLine <- stackTrace.split("\n")) {
+                        //Class.Test1.prepareData: line 13, column 1
+                        parseStackTraceLine(traceLine) match {
+                            case Some((typeName, fileName, methodName, line, column)) =>
+                                val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
+                                val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
+                                val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
+                                responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
+                                if (showProblem) {
+                                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                                }
+                            case None => //failed to parse anything meaningful, fall back to simple message
+                                responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
+                                if (showProblem) {
+                                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
+                                }
+                        }
+                        showProblem = false
+                    }
+                } else { //no stack trace, try to parse cine/column/filePath from error message
+                val typeName = failureMessage.getType
+                    val fileName = failureMessage.getName
+                    val (line, column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
+                    responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                }
+
+                //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+            }
+            config.responseWriter.endSection("ERROR LIST")
+
+            val coverageReportFile = processCodeCoverage(runTestResult)
+            coverageReportFile match {
+                case Some(coverageFile) =>
+                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                case _ =>
+            }
+        }
+
     }
 
     /**
@@ -566,7 +577,7 @@ class DeployModified extends Deploy {
     }
 
     /**
-     * if testsToRun contains names of specific methodsToKeep then we need to disable all other test methodsToKeep in deployment package
+     * if testsToRun contains names of specific methodsToKeep then we need to disable all other test methods in deployment package
      */
     private def disableNotNeededTests(classFile: File, testMethodsByClassName: Map[String, Set[String]]): File = {
         testMethodsByClassName.get(FileUtils.removeExtension(classFile)) match {
@@ -721,11 +732,12 @@ class DeployAllDestructive extends DeployAll {
         diffWithRemote.load[DiffWithRemote](session.basicConfig)
 
         diffWithRemote.getDiffReport match {
-            case Some(diffReport) =>
-
             case None =>
                 responseWriter.println("RESULT=FAILURE")
                 responseWriter.println(new Message(ResponseWriter.ERROR, "Failed to load remote version of current project"))
+
+            case Some(diffReport) =>
+
         }
         //deploy(allFiles, isUpdateSessionDataOnSuccess)
     }
