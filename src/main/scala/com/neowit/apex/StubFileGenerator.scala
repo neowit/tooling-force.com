@@ -14,6 +14,33 @@ class UnsupportedApexTypeException(msg: String) extends UnsupportedOperationExce
 object StubFileGenerator {
 
     /**
+     * using given Apex file generate a dummy version of that file
+     * @param apiVersion - SFDC API version to use for dummy
+     * @param parentFolder - where to save the file
+     * @param file - actual file to make a dummy copy from
+     * @param withMetaXml - do we need to generate -meta.xml file as well?
+     * @return tuple: dummy-file, Option(its -meta.xml)
+     */
+    def generateStub(apiVersion: Double, parentFolder: File, file: File, withMetaXml:Boolean = true ): (File, Option[File]) = {
+        val extension = FileUtils.getExtension(file)
+        val fileName = file.getName.substring(0, file.getName.length - extension.length - 1)
+        extension match {
+            case "cls" => generateClass(apiVersion, parentFolder, fileName, withMetaXml = true)
+            case "trigger" =>
+                val metaXml = new File(file.getAbsolutePath + "-meta.xml")
+                if (metaXml.exists()) {
+                    MetaXml.disableTrigger(metaXml)
+                    (file, Some(metaXml))
+                } else {
+                    (file, None)
+                }
+            case "page" => generatePage(apiVersion, parentFolder, fileName, withMetaXml = true)
+            case "component" => generateComponent(apiVersion, parentFolder, fileName, withMetaXml = true)
+            case x => throw new UnsupportedApexTypeException(x)
+        }
+
+    }
+    /**
      * @param apiVersion - e.g. 32.0
      * @param parentFolder - e.g. .../classes/
      * @param className - name without extension: e.g. MyClass
