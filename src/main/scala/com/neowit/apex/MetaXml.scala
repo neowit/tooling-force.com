@@ -88,24 +88,59 @@ object MetaXml {
      * @return - generated meta file
      */
     def generateMetaXml(apiVersion: String, apexFile: File, extraTags: Map[String, String] = Map()): Try[File] = {
-
-        Try ({
-            val (xmlType, extraContent) = FileUtils.getExtension(apexFile) match {
-                case "cls" => ("ApexClass", "")
-                case "trigger" => ("ApexTrigger", "")
-                case "page" => ("ApexPage", s"<label>${FileUtils.removeExtension(apexFile)}</label>")
-                case "component" => ("ApexComponent", s"<label>${FileUtils.removeExtension(apexFile)}</ApexComponent>")
-                case x => throw new UnsupportedApexTypeException(x)
-            }
+        def getClassMetaXmlContent: String = {
             val metaXml =
                 s"""<?xml version="1.0" encoding="UTF-8"?>
-                  |<$xmlType xmlns="http://soap.sforce.com/2006/04/metadata">
+                  |<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
                   |    <apiVersion>$apiVersion</apiVersion>
                   |    <status>${extraTags.getOrElse("status", "Active")}</status>
-                  |    $extraContent
-                  |</$xmlType>
+                  |</ApexClass>
                 """.stripMargin
+            metaXml
+        }
 
+        def getPageMetaXmlContent: String = {
+            val metaXml =
+                s"""<?xml version="1.0" encoding="UTF-8"?>
+                  |<ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">
+                  |    <apiVersion>$apiVersion</apiVersion>
+                  |    <label>${FileUtils.removeExtension(apexFile)}</label>
+                  |</ApexPage>
+                """.stripMargin
+            metaXml
+        }
+
+        def getTriggerMetaXmlContent: String = {
+            val metaXml =
+                s"""<?xml version="1.0" encoding="UTF-8"?>
+                  |<ApexTrigger xmlns="http://soap.sforce.com/2006/04/metadata">
+                  |    <apiVersion>$apiVersion</apiVersion>
+                  |    <status>${extraTags.getOrElse("status", "Active")}</status>
+                  |</ApexTrigger>
+                """.stripMargin
+            metaXml
+        }
+
+        def getComponentMetaXmlContent: String = {
+            val metaXml =
+                s"""<?xml version="1.0" encoding="UTF-8"?>
+                  |<component xmlns="http://soap.sforce.com/2006/04/metadata">
+                  |    <apiVersion>$apiVersion</apiVersion>
+                  |    <label>${FileUtils.removeExtension(apexFile)}</label>
+                  |    <description>${extraTags.getOrElse("description", "this is a component without description")}</description>
+                  |</component>
+                """.stripMargin
+            metaXml
+        }
+
+        Try ({
+            val metaXml = FileUtils.getExtension(apexFile) match {
+                case "cls" => getClassMetaXmlContent
+                case "trigger" => getTriggerMetaXmlContent
+                case "page" => getPageMetaXmlContent
+                case "component" => getComponentMetaXmlContent
+                case x => throw new UnsupportedApexTypeException(x)
+            }
             val metaXmlFile = new File(apexFile.getParentFile, apexFile.getName + "-meta.xml")
             FileUtils.writeFile(metaXml, metaXmlFile)
             metaXmlFile
