@@ -47,7 +47,7 @@ object DescribeMetadata {
 
     /**
      *
-     * @param suffix - file extension, e.g. '.cls'
+     * @param suffix - file extension, e.g. 'cls'
      * @return
      */
     def getXmlNameBySuffix(session: Session, suffix: String): Option[String] = {
@@ -84,6 +84,43 @@ object DescribeMetadata {
             case Some(describeObject) => Some((describeObject.getDirectoryName, describeObject.getSuffix))
             case None => None
         }
+    }
+
+    /**
+     * using file name get apex folder (relatively src/) where this file belongs
+     * @param file - e.g. MyClass.cls
+     * @return - for MyClass.cls result will be "classes"
+     *         if provided file does not have valid apex file extension then result is None
+     */
+    def getApexFolderNameByFile(session: Session, file: File): Option[String] = {
+        if (isValidApexFile(session, file)) {
+            if ("package.xml" == file.getName) {
+                return Some("") //package.xml belongs to src/ folder
+            }
+
+            val extension = if (file.getName.endsWith("-meta.xml")) {
+                val nameWithoutMetaXml = file.getName.substring(0, file.getName.length - "-meta.xml".length)
+                val extStart = nameWithoutMetaXml.lastIndexOf(".")
+                if (extStart > 0) {
+                    nameWithoutMetaXml.drop(extStart + 1)
+                } else {
+                    ""
+                }
+            }   else FileUtils.getExtension(file)
+
+            if (extension.nonEmpty) {
+                getXmlNameBySuffix(session, extension) match {
+                  case Some(xmlName) =>
+                      getMap(session).get(xmlName) match {
+                          case Some(describeObject) => return Some(describeObject.getDirectoryName)
+                          case None => None
+                      }
+                  case None => return None
+                }
+
+            }
+        }
+        None
     }
 }
 
