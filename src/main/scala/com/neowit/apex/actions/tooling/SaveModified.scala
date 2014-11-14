@@ -121,6 +121,10 @@ class SaveModified extends DeployModified {
     }
 
     private val ONE_SECOND = 1000
+
+    /**
+     * @return - true if deployment is successful
+     */
     override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
         logger.debug("Entered deploy()")
         if (!canUseTooling(files)) {
