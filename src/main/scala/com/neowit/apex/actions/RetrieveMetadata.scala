@@ -677,8 +677,14 @@ class DiffWithRemote extends RetrieveMetadata {
 
     }
 
+    /**
+     * path to folder where remote version of current project will be saved
+     * @return - Option(/path/to/folder)
+     */
+    def getTargetFolder: Option[String] = config.getProperty("targetFolder")
+
     def getDiffReport: Option[DiffWithRemoteReport] = {
-        val tempFolder = config.getProperty("targetFolder") match {
+        val tempFolder = getTargetFolder match {
             case Some(x) => new File(x)
             case None => FileUtils.createTempDir(config)
         }

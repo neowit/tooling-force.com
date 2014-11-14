@@ -733,7 +733,13 @@ class DeployAllDestructive extends DeployAll {
      */
     override def act() {
 
-        val diffWithRemote = new DiffWithRemote
+        val diffWithRemote = new DiffWithRemote {
+            /**
+             * path to folder where remote version of current project will be saved
+             * @return - Option(/path/to/folder)
+             */
+            override def getTargetFolder: Option[String] = Some(FileUtils.createTempDir("remote_files").getAbsolutePath)
+        }
         diffWithRemote.load[DiffWithRemote](session.basicConfig)
 
         diffWithRemote.getDiffReport match {
@@ -766,8 +772,10 @@ class DeployAllDestructive extends DeployAll {
                 val (srcDir, filesToDeploy) = moveAllFilesUnderOneSrc(allFiles)
                 val isDeploySuccessful = deploy(filesToDeploy, isUpdateSessionDataOnSuccess, Some(srcDir))
                 if (isDeploySuccessful) {
+                    //save response file
                     //execute DeployDestructive using list of blank files
                     deleteFiles(dummyFileByRelativePath.keys)
+                    responseWriter.println(new Message(ResponseWriter.INFO, "REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
                 }
 
         }
@@ -796,6 +804,8 @@ class DeployAllDestructive extends DeployAll {
             pathsToDelete.foreach(writer.println(_))
             writer.close()
 
+            //make sure that Delete operation appends to response file, rather than overwrites it
+            config.setAppendResponseToExistingFile(true)
             //override DeployDestructive and add list of files to delete and tell it to update session if not in test mode
             val deployDestructiveAction = new DeployDestructive {
                 override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
