@@ -321,16 +321,6 @@ class Config(basicConfig: BasicConfig) extends Logging{
         }
         f
     }
-    def getResponseWriter = new ResponseWriter(responseFile, getAppendResponseToExistingFile)
-    lazy val responseWriter= getResponseWriter
 
-    private var _appendResponseToExistingFile = false
-
-    def getAppendResponseToExistingFile:Boolean = false
-    /**
-     * set to true if responseWriter needs to append response to existing file instead of overwriting it
-     */
-    def setAppendResponseToExistingFile(append: Boolean): Unit = {
-        _appendResponseToExistingFile = append
-    }
+    lazy val responseWriter= new ResponseWriter(responseFile)
 }
