@@ -103,11 +103,15 @@ object ResponseWriter {
             case c => c
         }.mkString
 }
-class ResponseWriter(out: OutputStream, autoFlush: Boolean = true) extends PrintWriter(out, autoFlush) with Logging{
+
+class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends PrintWriter(out, autoFlush) with Logging{
     var needClosing = false
 
     def this(file: File) {
-        this(new FileOutputStream(file), true)
+        this(new FileOutputStream(file), autoFlush = true, append = false)
+    }
+    def this(file: File, append: Boolean) {
+        this(new FileOutputStream(file), autoFlush = true, append)
     }
     override def println(p1: String): Unit = {
         super.println(p1)
