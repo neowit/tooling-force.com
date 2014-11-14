@@ -135,9 +135,9 @@ class DeployModified extends Deploy {
         val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
-            config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-            config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+            responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
         } else {
             //first check if SFDC has newer version of files we are about to deploy
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
@@ -221,7 +221,7 @@ class DeployModified extends Deploy {
 
         val deployDetails = deployResult.getDetails
         if (!deployResult.isSuccess) {
-            config.responseWriter.println("RESULT=FAILURE")
+            responseWriter.println("RESULT=FAILURE")
             //dump details of failures into a response file
             writeDeploymentFailureReport(deployDetails, isRunningTests)
         } else { //deployResult.isSuccess = true
@@ -240,12 +240,12 @@ class DeployModified extends Deploy {
                 updateSessionDataForSuccessfulFiles(deployResult)
             }
             session.storeSessionData()
-            config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("FILE_COUNT=" + files.size)
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("FILE_COUNT=" + files.size)
             if (!checkOnly) {
-                config.responseWriter.startSection("DEPLOYED FILES")
-                files.foreach(f => config.responseWriter.println(f.getName))
-                config.responseWriter.endSection("DEPLOYED FILES")
+                responseWriter.startSection("DEPLOYED FILES")
+                files.foreach(f => responseWriter.println(f.getName))
+                responseWriter.endSection("DEPLOYED FILES")
             }
             success = true
         }
@@ -323,7 +323,7 @@ class DeployModified extends Deploy {
         }
 
         if (null != deployDetails) {
-            config.responseWriter.startSection("ERROR LIST")
+            responseWriter.startSection("ERROR LIST")
 
             //display errors both as messages and as ERROR: lines
             val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
@@ -391,9 +391,9 @@ class DeployModified extends Deploy {
                     responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
                 }
 
-                //config.responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
             }
-            config.responseWriter.endSection("ERROR LIST")
+            responseWriter.endSection("ERROR LIST")
 
             val coverageReportFile = processCodeCoverage(runTestResult)
             coverageReportFile match {
@@ -523,13 +523,13 @@ class DeployModified extends Deploy {
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
-                        config.responseWriter.println("RESULT=FAILURE")
+                        responseWriter.println("RESULT=FAILURE")
 
                         val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
-                        config.responseWriter.println(msg)
+                        responseWriter.println(msg)
                         checker.generateConflictMessageDetails(conflictingFiles, msg).
-                            foreach{detail => config.responseWriter.println(detail)}
-                        config.responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
+                            foreach{detail => responseWriter.println(detail)}
+                        responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
                     }
                     conflictingFiles.nonEmpty
                 case None => false
@@ -804,8 +804,7 @@ class DeployAllDestructive extends DeployAll {
             pathsToDelete.foreach(writer.println(_))
             writer.close()
 
-            //make sure that Delete operation appends to response file, rather than overwrites it
-            config.setAppendResponseToExistingFile(true)
+
             //override DeployDestructive and add list of files to delete and tell it to update session if not in test mode
             val deployDestructiveAction = new DeployDestructive {
                 override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
@@ -816,9 +815,13 @@ class DeployAllDestructive extends DeployAll {
             }
             deployDestructiveAction.load[DeployDestructive](session.basicConfig)
 
+            //make sure that Delete operation appends to response file, rather than overwrites it
+            deployDestructiveAction.setResponseWriter(this.responseWriter)
+
             deployDestructiveAction.act()
             //get rid of temp file
             componentsToDeleteFile.delete()
+
         }
 
     }
@@ -900,7 +903,7 @@ class DeploySpecificFiles extends DeployModified {
     override def act() {
         val files = getFiles
         if (files.isEmpty) {
-            config.responseWriter.println("RESULT=FAILURE")
+            responseWriter.println("RESULT=FAILURE")
             val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
             responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
         } else {
@@ -981,31 +984,31 @@ class ListModified extends ApexAction {
 
     def reportModifiedFiles(modifiedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
         val msg = new Message(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
-        config.responseWriter.println(msg)
+        responseWriter.println(msg)
         for(f <- modifiedFiles) {
-            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
         }
         responseWriter.println("HAS_MODIFIED_FILES=true")
-        config.responseWriter.startSection("MODIFIED FILE LIST")
+        responseWriter.startSection("MODIFIED FILE LIST")
         for(f <- modifiedFiles) {
-            config.responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
+            responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
         }
-        config.responseWriter.endSection("MODIFIED FILE LIST")
+        responseWriter.endSection("MODIFIED FILE LIST")
 
     }
     
     def reportDeletedFiles(deletedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
         val msg = new Message(messageType, "Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
-        config.responseWriter.println(msg)
+        responseWriter.println(msg)
         for(f <- deletedFiles) {
-            config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
         }
         responseWriter.println("HAS_DELETED_FILES=true")
-        config.responseWriter.startSection("DELETED FILE LIST")
+        responseWriter.startSection("DELETED FILE LIST")
         for(f <- deletedFiles) {
-            config.responseWriter.println("DELETED_FILE=" + session.getRelativePath(f))
+            responseWriter.println("DELETED_FILE=" + session.getRelativePath(f))
         }
-        config.responseWriter.endSection("DELETED FILE LIST")
+        responseWriter.endSection("DELETED FILE LIST")
 
     }
 
@@ -1013,18 +1016,18 @@ class ListModified extends ApexAction {
         val modifiedFiles = getModifiedFiles
         val deletedFiles = session.getDeletedLocalFilePaths.map(new File(config.projectDir, _))
 
-        config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
+        responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
         if (modifiedFiles.nonEmpty) {
             reportModifiedFiles(modifiedFiles)
         } else {
-            config.responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
+            responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
         }
 
         if (deletedFiles.nonEmpty) {
             reportDeletedFiles(deletedFiles)
         } else {
-            //config.responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
+            //responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
         }
     }
 
@@ -1080,7 +1083,7 @@ class DeployDestructive extends Deploy {
     override def act() {
         val components = getComponentPaths
         if (components.isEmpty) {
-            config.responseWriter.println("RESULT=FAILURE")
+            responseWriter.println("RESULT=FAILURE")
             val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
             responseWriter.println(new Message(ResponseWriter.ERROR, "no valid components in " + componentListFile))
         } else {
@@ -1098,9 +1101,9 @@ class DeployDestructive extends Deploy {
 
             val deployDetails = deployResult.getDetails
             if (!deployResult.isSuccess) {
-                config.responseWriter.println("RESULT=FAILURE")
+                responseWriter.println("RESULT=FAILURE")
                 if (null != deployDetails) {
-                    config.responseWriter.startSection("ERROR LIST")
+                    responseWriter.startSection("ERROR LIST")
 
                     //display errors both as messages and as ERROR: lines
                     val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
@@ -1132,10 +1135,10 @@ class DeployDestructive extends Deploy {
                         responseWriter.println("ERROR", Map("type" -> problemType, "text" -> failureMessage.getProblem, "filePath" -> filePath))
                         responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "text" -> problemWithFilePath, "filePath" -> filePath)))
                     }
-                    config.responseWriter.endSection("ERROR LIST")
+                    responseWriter.endSection("ERROR LIST")
                 }
             } else {
-                config.responseWriter.println("RESULT=SUCCESS")
+                responseWriter.println("RESULT=SUCCESS")
                 if (isUpdateSessionDataOnSuccess) {
                     responseWriter.debug("Updating session data")
                     for (componentPath <- components) {
@@ -1280,9 +1283,9 @@ class DeployModifiedDestructive extends DeployModified {
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
             if (session.getDeletedLocalFilePaths.isEmpty) {
-                config.responseWriter.println("RESULT=SUCCESS")
-                config.responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                config.responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+                responseWriter.println("RESULT=SUCCESS")
+                responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+                responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
             } else {
                 //process files that need to be deleted
                 deleteFiles()
