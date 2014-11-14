@@ -125,6 +125,13 @@ class BasicConfig extends Logging {
     }
 
     /**
+     * can be used to add additional property in the middle of processing a command
+     */
+    def setProperty(key: String, value: String): Unit = {
+        options += key -> value
+    }
+
+    /**
      * order of obtaining parameter value is as follows
      * 1. check java -Dkey=... command line parameter
      * 2. check application command line parameter: java .... tooling-force.com.jar --key=...
