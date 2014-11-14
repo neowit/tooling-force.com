@@ -828,7 +828,6 @@ class DiffWithRemote extends RetrieveMetadata {
                             val sizeRemote = conflictingFile.fileRemote.length()
                             val text = conflictingFile.fileLocal.getName +
                                 " => Modified By: " + props.getLastModifiedByName +
-                                "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                 s"; Local size: $sizeLocal; remote size: $sizeRemote"
                             responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
                         case None =>
@@ -855,7 +854,7 @@ class DiffWithRemote extends RetrieveMetadata {
 
             if (remoteFilesMissingLocallyMap.nonEmpty) {
                 //list files that exist on remote but do not exist locally
-                val msg = new Message(ResponseWriter.WARN, "Files exist on remote but not on locally (based on current package.xml)")
+                val msg = new Message(ResponseWriter.WARN, "Files exist on remote but not locally (based on current package.xml)")
                 responseWriter.println(msg)
                 for(relativePath <- remoteFilesMissingLocallyMap.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
                     remoteFilesMissingLocallyMap.get(relativePath) match {
