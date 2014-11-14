@@ -1,6 +1,6 @@
 package com.neowit.apex.actions
 
-import com.neowit.apex.{MetadataType, MetaXml}
+import com.neowit.apex.{StubFileGenerator, MetadataType, MetaXml}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
@@ -154,6 +154,9 @@ class DeployModified extends Deploy {
      * @return - true if deployment is successful
      */
     def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+        deploy(files, updateSessionDataOnSuccess, None)
+    }
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, alternativeSrcDir: Option[File] = None): Boolean = {
 
         var success = false //assume failure by default
 
@@ -212,7 +215,8 @@ class DeployModified extends Deploy {
         deployOptions.setCheckOnly(checkOnly)
 
         logger.info("Deploying...")
-        val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(session.getConfig.srcDir, excludeFileFromZip(allFilesToDeploySet, _),
+        val srcDir = alternativeSrcDir.getOrElse(session.getConfig.srcDir)
+        val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(srcDir, excludeFileFromZip(allFilesToDeploySet, _),
             disableNotNeededTests(_, testMethodsByClassName)), deployOptions)
 
         val deployDetails = deployResult.getDetails
@@ -267,28 +271,28 @@ class DeployModified extends Deploy {
             val key = session.getKeyByRelativeFilePath(relativePath)
             val f = new File(config.projectDir, relativePath)
             if (f.exists()) {
-            val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                case None => "" //package.xml and -meta.xml do not have xmlType
+                val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                    case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                    case None => "" //package.xml and -meta.xml do not have xmlType
+                }
+                val localMills = f.lastModified()
+
+                val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
+                val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
+
+                val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+                val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
+                    (fMeta.lastModified(),
+                        if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                        if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
+                } else {
+                    (-1L, "", -1L)
+                }
+
+                val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+                val oldData = session.getData(key)
+                session.setData(key, oldData ++ newData)
             }
-            val localMills = f.lastModified()
-
-            val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
-            val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
-
-            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
-                (fMeta.lastModified(),
-                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
-                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
-            } else {
-                (-1L, "", -1L)
-            }
-
-            val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-            val oldData = session.getData(key)
-            session.setData(key, oldData ++ newData)
-        }
         }
 
     }
@@ -728,7 +732,6 @@ class DeployAllDestructive extends DeployAll {
      *   - if previous step is successful then execute DeployDestructive using list of blank files
      */
     override def act() {
-        val allLocalFiles = getAllFiles
 
         val diffWithRemote = new DiffWithRemote
         diffWithRemote.load[DiffWithRemote](session.basicConfig)
@@ -739,9 +742,113 @@ class DeployAllDestructive extends DeployAll {
                 responseWriter.println(new Message(ResponseWriter.ERROR, "Failed to load remote version of current project"))
 
             case Some(diffReport) =>
+                val dummyFilesBuilder = Map.newBuilder[String, File]
+                val dummyMetaFilesBuilder = List.newBuilder[File]
+                val dummyFilesDir = FileUtils.createTempDir("dummyFiles")
+                val meta = new MetaXml(session.getConfig)
+                for (file <- diffReport.getRemoteFilesMissingLocally.values) {
+                    val relativePath = DescribeMetadata.getApexFolderNameByFile(session, file).getOrElse("") + "/" + file.getName
+                    StubFileGenerator.generateStub(meta.getPackage.getVersion, dummyFilesDir, file, withMetaXml = true) match {
+                        case (dummy, Some(metaXml)) =>
+                            dummyFilesBuilder += relativePath -> dummy
+                            dummyMetaFilesBuilder += metaXml
+                        case (dummy, None) =>
+                            dummyFilesBuilder += relativePath -> dummy
+                    }
+                }
+                val allLocalFiles = getAllFiles
+                val dummyFileByRelativePath = dummyFilesBuilder.result()
+                val allFiles = allLocalFiles ++ dummyFileByRelativePath.values ++ dummyMetaFilesBuilder.result()
+                //at this point we have two types of files
+                //1 - files under the current project folder
+                //2 - dummy/blank files somewhere in temp directory
+
+                val (srcDir, filesToDeploy) = moveAllFilesUnderOneSrc(allFiles)
+                val isDeploySuccessful = deploy(filesToDeploy, isUpdateSessionDataOnSuccess, Some(srcDir))
+                if (isDeploySuccessful) {
+                    //execute DeployDestructive using list of blank files
+                    deleteFiles(dummyFileByRelativePath.keys)
+                }
 
         }
-        //deploy(allFiles, isUpdateSessionDataOnSuccess)
+    }
+
+    /**
+     *
+     * @param relativePathsToDelete
+     *   list of relative file paths that need to be deleted from Remote
+     *   note - these files do not have to belong to local project
+     *   the only important thing is file name and extension
+     *   e.g.
+     *   classes/MyClass.cls
+     *   Objects/MyObject.object
+     *   classes/MyClass.cls-meta.xml
+     *
+     */
+    private def deleteFiles(relativePathsToDelete: Iterable[String]): Unit = {
+        if (relativePathsToDelete.nonEmpty) {
+            //get temp file name
+            val componentsToDeleteFile = FileUtils.createTempFile("COMPONENTS_TO_DELETE", ".txt")
+            val pathsToDelete = relativePathsToDelete
+                .filterNot(path => path.endsWith("-meta.xml") || path.endsWith("package.xml") )
+
+            val writer = new PrintWriter(componentsToDeleteFile)
+            pathsToDelete.foreach(writer.println(_))
+            writer.close()
+
+            //override DeployDestructive and add list of files to delete and tell it to update session if not in test mode
+            val deployDestructiveAction = new DeployDestructive {
+                override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
+                override def isUpdateSessionDataOnSuccess: Boolean = {
+                    val updateSessionDataOnSuccess = !config.isCheckOnly && !session.callingAnotherOrg
+                    updateSessionDataOnSuccess
+                }
+            }
+            deployDestructiveAction.load[DeployDestructive](session.basicConfig)
+
+            deployDestructiveAction.act()
+            //get rid of temp file
+            componentsToDeleteFile.delete()
+        }
+
+    }
+    /**
+     * using list of apex files which belong to different projects - merge them all under one temp project
+     * @param filesInDifferentFolders files from several projects
+     * @return - list of files under one (temp) project
+     */
+    private def moveAllFilesUnderOneSrc(filesInDifferentFolders: List[File]): (File, List[File]) = {
+        val tempDir = FileUtils.createTempDir("real_and_dummies")
+        val srcDir = new File(tempDir, "src")
+        srcDir.mkdir()
+
+        val createdDirs = collection.mutable.Map[String, File]()
+        val filesUnderOneProject = List.newBuilder[File]
+
+        for (file <- filesInDifferentFolders) {
+            DescribeMetadata.getApexFolderNameByFile(session, file) match {
+              case Some(dirName) if dirName.nonEmpty =>
+                  val dir = createdDirs.get(dirName) match {
+                    case Some(existingDir) => existingDir
+                    case None =>
+                        val dir = new File(srcDir, dirName)
+                        dir.mkdir()
+                        createdDirs += dirName -> dir
+                        dir
+                  }
+                  val movedFile = new File(dir, file.getName)
+                  FileUtils.copy(file, movedFile)
+                  filesUnderOneProject += movedFile
+              case Some(dirName) if dirName.isEmpty =>
+                  //file belongs to src/ folder
+                  val movedFile = new File(srcDir, file.getName)
+                  FileUtils.copy(file, movedFile)
+                  filesUnderOneProject += movedFile
+              case _ =>
+            }
+
+        }
+        (srcDir, filesUnderOneProject.result())
     }
 
 }
