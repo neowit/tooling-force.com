@@ -19,7 +19,7 @@
 
 package com.neowit.utils
 
-import java.io.{FileWriter, File, FileInputStream, FileOutputStream}
+import java.io._
 import java.util.zip.CRC32
 import java.security.MessageDigest
 import java.util.regex.Matcher
@@ -33,6 +33,51 @@ object FileUtils {
      */
     def normalizePath(filePath: String) = filePath.replaceAll(FileUtils.regexSafeSeparator, "/")
 
+    /**
+     * using provided folder try to find src/ or unpackaged/ child folder
+     * if such a folder found then it is returned as SRC folder
+     * @param folder - any folder which may contain a child with name src/ or unpackaged/
+     * @return - Some[File] if found src/ or unpackaged/ child
+     */
+    def findSrcFolder(folder: File): Option[File] = {
+        if (folder.isDirectory) {
+            val files = folder.listFiles(new FilenameFilter {
+                override def accept(dir: File, name: String): Boolean = "unpackaged" == name || "src" == name
+            })
+            if (files.isEmpty)
+                None
+            else
+                Some(files.head)
+        } else {
+            None
+        }
+    }
+
+    /**
+     *
+     * @param file - path like
+     *             /tmp/.../unpackaged/classes/MyClass.cls
+     * @param parentNames - List("src", "unpackaged")
+     * @return
+     *         for example above
+     *         /tmp/.../unpackaged
+     */
+    def getParentByName(file: File, parentNames: Set[String]): Option[File] = {
+
+        if (file.isDirectory) {
+            if (parentNames.contains(file.getName)) {
+                Some(file)
+            } else {
+                 if (null != file.getParentFile) {
+                     getParentByName(file.getParentFile, parentNames)
+                 } else {
+                     None //reached the top folder, but required names still not found
+                 }
+            }
+        } else {
+            getParentByName(file.getParentFile, parentNames)
+        }
+    }
     def createTempDir(appConfig: Config): File = {
         val name = appConfig.action
         val outputFolder =
