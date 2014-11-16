@@ -1014,7 +1014,7 @@ class ListModified extends ApexAction {
 
     def act() {
         val modifiedFiles = getModifiedFiles
-        val deletedFiles = session.getDeletedLocalFilePaths.map(new File(config.projectDir, _))
+        val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(config.projectDir, _))
 
         responseWriter.println("RESULT=SUCCESS")
         responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
@@ -1282,7 +1282,7 @@ class DeployModifiedDestructive extends DeployModified {
         val modifiedFiles = listModified.getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
-            if (session.getDeletedLocalFilePaths.isEmpty) {
+            if (session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).isEmpty) {
                 responseWriter.println("RESULT=SUCCESS")
                 responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                 responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
@@ -1304,7 +1304,7 @@ class DeployModifiedDestructive extends DeployModified {
         }
     }
     private def deleteFiles(): Unit = {
-        val deletedLocalFilePaths = session.getDeletedLocalFilePaths.map(_.substring("src/".length))
+        val deletedLocalFilePaths = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(_.substring("src/".length))
         if (deletedLocalFilePaths.nonEmpty) {
             //get temp file name
             val componentsToDeleteFile = FileUtils.createTempFile("COMPONENTS_TO_DELETE", ".txt")

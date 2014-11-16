@@ -134,14 +134,21 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     /**
+     * @param extraSrcFoldersToLookIn - set of extra folders where to search for project files
+     *                                this parameter is useful when result will be merged from several folders
+     *                                e.g. refresh result is a combination of project files + files brought by retrieve() and stored in temp folder
      * @return list of relative file paths (e.g. src/classes/MyClass.cls) that exist in session but do not exist locally as a file
      */
-    def getDeletedLocalFilePaths:List[String] = {
+    def getDeletedLocalFilePaths(extraSrcFoldersToLookIn: List[File]):List[String] = {
         val config = getConfig
-        val existingFiles  = FileUtils.listFiles(config.srcDir).filter(
+        val allFiles = (config.srcDir :: extraSrcFoldersToLookIn).map(FileUtils.listFiles(_)).flatten
+        val existingFiles  = allFiles.filter(
             //remove all non apex files
             file => DescribeMetadata.isValidApexFile(this, file)
-        ).map(getRelativePath(_)).toSet
+        ).map(getRelativePath(_))
+            //normalise all paths to start with src/ rather than unpackaged/
+            .map(name => if (name.startsWith("unpackaged/")) name.replaceFirst("unpackaged/", "src/") else name)
+            .toSet
 
         val relativePathsInSession = this.getRelativeFilePathsInSession
         val deletedFilePaths = relativePathsInSession.filterNot(existingFiles.contains(_))
@@ -214,9 +221,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
      * @return - string, looks like: unpackaged/pages/Hello.page
      */
     def getRelativePath(file: File): String = {
-        val projectPath = config.projectDir.getAbsolutePath + File.separator
-        val res = file.getAbsolutePath.substring(projectPath.length)
-        normalizePath(res)
+        //find parent src/ or unpackaged/
+        FileUtils.getParentByName(file, Set("src", "unpackaged")) match {
+          case Some(srcFolder) if null != srcFolder.getParentFile =>
+              val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
+              val res = file.getAbsolutePath.substring(projectPath.length)
+              normalizePath(res)
+          case None => file.getAbsolutePath
+        }
     }
     /**
      * @param fileName, e.g. "MyClass"

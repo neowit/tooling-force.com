@@ -62,8 +62,8 @@ abstract class RetrieveMetadata extends ApexAction {
     /**
      * remove all file keys from session which do not correspond existing files
      */
-    private def cleanSessionKeys(): Unit = {
-        val keysToDelete = session.getDeletedLocalFilePaths.map(session.getKeyByRelativeFilePath(_))
+    private def cleanSessionKeys(extraSrcFoldersToLookIn: List[File]): Unit = {
+        val keysToDelete = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn).map(session.getKeyByRelativeFilePath(_))
         keysToDelete.map(session.removeData(_))
     }
 
@@ -112,7 +112,13 @@ abstract class RetrieveMetadata extends ApexAction {
 
             //finally make sure that session does not contain keys for files which no longer exist
             if (updateSessionData) {
-                cleanSessionKeys()
+
+                FileUtils.findSrcFolder(tempFolder) match {
+                    case Some(srcFolder) =>
+                        cleanSessionKeys(List(srcFolder))
+                    case None =>
+                        cleanSessionKeys(Nil)
+                }
             }
         } finally {
             session.storeSessionData()
