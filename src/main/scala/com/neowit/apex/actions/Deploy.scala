@@ -749,17 +749,21 @@ class DeployAllDestructive extends DeployAll {
 
             case Some(diffReport) =>
                 val dummyFilesBuilder = Map.newBuilder[String, File]
+                val keysToDeleteWithoutDummy = List.newBuilder[String]
                 val dummyMetaFilesBuilder = List.newBuilder[File]
                 val dummyFilesDir = FileUtils.createTempDir("dummyFiles")
                 val meta = new MetaXml(session.getConfig)
                 for (file <- diffReport.getRemoteFilesMissingLocally.values) {
                     val relativePath = DescribeMetadata.getApexFolderNameByFile(session, file).getOrElse("") + "/" + file.getName
                     StubFileGenerator.generateStub(meta.getPackage.getVersion, dummyFilesDir, file, withMetaXml = true) match {
-                        case (dummy, Some(metaXml)) =>
+                        case Some((dummy, Some(metaXml))) =>
                             dummyFilesBuilder += relativePath -> dummy
                             dummyMetaFilesBuilder += metaXml
-                        case (dummy, None) =>
+                        case Some((dummy, None)) =>
                             dummyFilesBuilder += relativePath -> dummy
+                        case None =>
+                            //stub for this file type is not needed
+                            keysToDeleteWithoutDummy += relativePath
                     }
                 }
                 val allLocalFiles = getAllFiles
@@ -774,7 +778,7 @@ class DeployAllDestructive extends DeployAll {
                 if (isDeploySuccessful) {
                     //save response file
                     //execute DeployDestructive using list of blank files
-                    deleteFiles(dummyFileByRelativePath.keys)
+                    deleteFiles(dummyFileByRelativePath.keys ++ keysToDeleteWithoutDummy.result())
                     responseWriter.println(new Message(ResponseWriter.INFO, "REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
                 }
 
