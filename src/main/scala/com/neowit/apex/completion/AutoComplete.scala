@@ -293,6 +293,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             case Some(m:EnumConstantMember) => members //do not filter anything for Enum
             case Some(m:FieldMember) => members.filter(instanceOnlyFilter)
             case Some(m:PropertyMember) => members.filter(instanceOnlyFilter)
+            case Some(m:MethodMember) => members.filter(instanceOnlyFilter)
+            case Some(m:ApexMethod) => members.filter(instanceOnlyFilter)
             case _ => definitionMember match {
                 case Some(_defMember) if !_defMember.isStatic => //remove all static members
                     members.filter(instanceOnlyFilter)

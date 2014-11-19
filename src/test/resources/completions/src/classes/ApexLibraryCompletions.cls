@@ -265,6 +265,21 @@ public with sharing class ApexClassCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "completeSystemNow",
+		"column": 16,
+		"itemsCountMin": 10,
+		"signatureContains": ["addDays", "addMonths", "addYears", "format", "getTime"],
+		"signatureMustNotContain" : ["newInstance", "valueOf"]
+		}
+	 * #END
+	 */
+	public void completeSystemNow() {
+		System.now().; //completeSystemNow
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "completeException",
 		"column": 6,
 		"itemsCountMin": 7,
