@@ -617,12 +617,17 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         } else {
             //now move back until start of an expression is found
             var newStart = -1
+            var expectLeftParenthesis = false
             while (index > startTokenIndex && newStart < 0) {
                 index -= 1
                 currentToken = tokenStream.get(index)
-                if (!isWordTokenOrDot(currentToken)) {
+                if (isRightParenthesis(currentToken)){
+                    expectLeftParenthesis = true
+                } else if (!isWordTokenOrDot(currentToken) && !expectLeftParenthesis ) {
                     newStart = index + 1
                     currentToken = tokenStream.get(newStart)
+                } else if (isLeftParenthesis(currentToken)) {
+                    expectLeftParenthesis = false
                 }
             }
             currentToken
@@ -744,6 +749,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
     protected def isWordTokenOrDot(token: Token): Boolean = {
         CompletionUtils.isWordToken(token) || "." == token.getText
+    }
+
+    protected def isRightParenthesis(token: Token): Boolean = {
+        ")" == token.getText
+    }
+    protected def isLeftParenthesis(token: Token): Boolean = {
+        ")" == token.getText
     }
 }
 
