@@ -141,6 +141,11 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             //for relationship fields there is no need to resolve further, actual field is the type member
             return Some(memberWithTypeToResolve)
         }
+        if (memberWithTypeToResolve.isInstanceOf[ApexEnumConstantMember]) {
+            //for apex model enums members there is no need to resolve further, actual field is the type member
+            return Some(memberWithTypeToResolve)
+
+        }
         val initialTypeName = memberWithTypeToResolve.getFullType
         val typeName = if (isArrayDefinition(initialTypeName) || isListDefinition(initialTypeName)) {
             //this is Array
@@ -291,6 +296,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val members1 = definitionMember match {
             case Some(m:EnumMember) => members //do not filter anything for Enum
             case Some(m:EnumConstantMember) => members //do not filter anything for Enum
+            case Some(m:ApexEnumMember) => members //do not filter anything for Enum
+            case Some(m:ApexEnumConstantMember) => members //do not filter anything for Enum
             case Some(m:FieldMember) => members.filter(instanceOnlyFilter)
             case Some(m:PropertyMember) => members.filter(instanceOnlyFilter)
             case Some(m:MethodMember) => members.filter(instanceOnlyFilter)

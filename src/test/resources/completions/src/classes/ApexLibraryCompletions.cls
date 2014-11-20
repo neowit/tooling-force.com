@@ -323,5 +323,32 @@ public with sharing class ApexClassCompletions {
 		
 	}
 	
+	/**
+	 * #START
+		{
+		"lineMarker": "completeStaticApexTypeReference",
+		"column": 13,
+		"itemsCountMin": 8,
+		"signatureContains": ["Action", "IdeaStandardController", "Message", "StandardController", "currentPage", "addMessage"]
+		}
+	 * #END
+	 */
+	public void completeStaticApexTypeReference() {
+		ApexPages.; //completeStaticApexTypeReference
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeApexModelEnum",
+		"column": 22,
+		"itemsCountMin": 6,
+		"signatureContains": ["CONFIRM", "ERROR", "FATAL", "WARNING", "INFO", "values"]
+		}
+	 * #END
+	 */
+	public void completeApexModelEnum() {
+		ApexPages.Severity.; //completeApexModelEnum
+	}
 }
 

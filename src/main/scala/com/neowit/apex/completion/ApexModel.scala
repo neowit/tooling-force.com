@@ -6,9 +6,10 @@ import spray.json._
 
 object ApexModelJsonProtocol extends DefaultJsonProtocol {
     //implicit val namespaceFormat = jsonFormat1(ApexNamespace)
-    implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "enumConstants", "methods", "tag", "ctors", "fqn"))
+    implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "enums", "methods", "tag", "ctors", "fqn"))
     implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
-    implicit val apexEnumFormat: JsonFormat[ApexEnumConstantMember] = lazyFormat(jsonFormat(ApexEnumConstantMember, "s", "n", "v", "h", "r"))
+    implicit val apexEnumFormat: JsonFormat[ApexEnumMember] = lazyFormat(jsonFormat(ApexEnumMember, "name", "enumConstants", "tag", "fqn"))
+    implicit val apexEnumConstantFormat: JsonFormat[ApexEnumConstantMember] = lazyFormat(jsonFormat(ApexEnumConstantMember, "s", "n", "v", "h", "r"))
     //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
 
@@ -127,7 +128,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         val myChildren = super.getChildren
         //check if System namespace has class with the name of current namespace
         val extraMembers = if ("System" != name) {
-            ApexModel.getSystemTypeMembers(name, true)
+            ApexModel.getSystemTypeMembers(name, isStatic = true)
         } else List()
 
         myChildren ++ extraMembers
@@ -170,14 +171,23 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         for (typeName <- types.keys) {
             val typeJson = types(typeName)
             //println("typeName=" + typeName)
-            val apexTypeMember = typeJson.convertTo[ApexType]
+            val apexModelMember =
+                if (typeJson.asJsObject.getFields("tag").head.toString().contains("ENUMDEF"))
+                    typeJson.convertTo[ApexEnumMember]
+                else //assume CLASSDEF
+                    typeJson.convertTo[ApexType]
 
-            apexTypeMember.setParent(this)
-            addChild(apexTypeMember, overwriteChildren)
+            apexModelMember.setParent(this)
+            addChild(apexModelMember, overwriteChildren)
 
             //if current Apex Type has a super type then extend it accordingly
-            if (apexTypeMember.superType.isDefined) {
-                typesWithSuperTypes += apexTypeMember
+
+            apexModelMember match {
+                case apexTypeMember: ApexType =>
+                    if (apexTypeMember.getSuperType.isDefined) {
+                        typesWithSuperTypes += apexTypeMember
+                    }
+                case _ =>
             }
         }
         //now when we loaded everything - process types that have super types
@@ -195,7 +205,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         }
     }
 }
-case class ApexType(name: String, superType: Option[String], enumConstants: Option[List[ApexEnumConstantMember]],
+case class ApexType(name: String, superType: Option[String], enums: Option[List[ApexEnumMember]],
                     methods: Option[List[ApexMethod]], tag: String, ctors: Option[List[ApexMethod]], fqn: String) extends ApexModelMember {
 
     override def getIdentity: String = name
@@ -214,16 +224,13 @@ case class ApexType(name: String, superType: Option[String], enumConstants: Opti
               }
           case None =>
         }
-        enumConstants match {
-            case Some(_enumConstants) =>
-                for (enumConstant <- _enumConstants) {
+        enums match {
+            case Some(_enums) =>
+                for (enumName <- _enums) {
                     //method.setParent(this)
-                    addChild(enumConstant)
+                    addChild(enumName)
                 }
             case None =>
-        }
-        if ("ENUMDEF" == tag) {
-            addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
         }
     }
 
@@ -267,9 +274,33 @@ case class ApexEnumConstantMember(s: Option[String], n: String, v: Option[String
 
     override def getIdentity: String = n
 
-    override def getSignature: String = ""
+    override def getSignature: String = getIdentity
     override def isStatic: Boolean = "1" == s.getOrElse("1")
     override def getDoc: String = h
 
     override def getType: String = r
+
+    addChild(new BuiltInMethodMember(this, "name", "name", "String")) //add default name() method of enum constant
+    addChild(new BuiltInMethodMember(this, "ordinal", "ordinal", "Integer")) //add default ordinal() method of enum constant
+}
+
+case class ApexEnumMember(name: String, enumConstants: List[ApexEnumConstantMember],
+                          tag: String, fqn: String) extends ApexModelMember {
+    override def getVisibility: String = "public"
+
+    override def getIdentity: String = name
+
+    override def getSignature: String = fqn
+    override def isStatic: Boolean = true
+
+    private var isDoneLoading = false
+    override def isLoaded:Boolean = isDoneLoading
+    override def loadMembers(): Unit = {
+        isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
+        for (enumConstant <- enumConstants) {
+            //method.setParent(this)
+            addChild(enumConstant)
+        }
+        addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
+    }
 }
