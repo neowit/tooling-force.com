@@ -150,11 +150,16 @@ class CodeCompletions extends FunSuite {
         if (identities.contains(item.identity)) item.identity else ""
     }
     private def matchSignatureContains(signatureSubstrings: List[String])(item: CompletionItem): String = {
+        var longestMatch = ""
         for(signatureSubstring <- signatureSubstrings) {
-            if (item.signature.contains(signatureSubstring))
-                return signatureSubstring
+            if (item.signature.contains(signatureSubstring)) {
+                if (signatureSubstring.length > longestMatch.length) {
+                    longestMatch = signatureSubstring
+                    signatureSubstring
+                }
+            }
         }
-        ""
+        longestMatch
     }
 
     private def matchSignatureMustNotContain(signatureSubstrings: List[String])(item: CompletionItem): String = {
