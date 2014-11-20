@@ -137,24 +137,32 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         loadFile(name)
         if ("System" == name) {
             //add Exception to System namespace
-            loadFile("hand-made/_Exception")
+            loadFile("hand-made/System_Exception")
             //add enum constant methods to System namespace
-            loadFile("hand-made/_Enum")
+            loadFile("hand-made/System_Enum")
             //add StatusCode enum to System namespace
-            loadFile("hand-made/_StatusCode")
+            loadFile("hand-made/System_StatusCode")
             //add Trigger to System namespace
-            loadFile("hand-made/_Trigger")
+            loadFile("hand-made/System_Trigger")
             //add methods from System.System
             getChild("System") match {
               case Some(systemMember) =>
                   systemMember.getChildren.foreach(this.addChild)
               case None =>
             }
+            //override erroneous System namespace definitions
+            loadFile("hand-made/System_ApexPages", overwriteChildren = true)
+        } else if ("ApexPages" == name) {
+            //add ApexPages.Severity
+            loadFile("hand-made/ApexPages_Severity")
         }
     }
 
-    private def loadFile(namespace: String): Unit = {
-        val is = getClass.getClassLoader.getResource("apex-doc/" + namespace + ".json")
+    private def loadFile(filePath: String, overwriteChildren: Boolean = false): Unit = {
+        val is = getClass.getClassLoader.getResource("apex-doc/" + filePath + ".json")
+        if (null == is) {
+            return
+        }
         val doc = scala.io.Source.fromInputStream(is.openStream()).getLines().mkString
         val jsonAst = JsonParser(doc)
         val types = jsonAst.asJsObject.fields //Map[typeName -> type description JSON]
@@ -165,7 +173,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
             val apexTypeMember = typeJson.convertTo[ApexType]
 
             apexTypeMember.setParent(this)
-            addChild(apexTypeMember)
+            addChild(apexTypeMember, overwriteChildren)
 
             //if current Apex Type has a super type then extend it accordingly
             if (apexTypeMember.superType.isDefined) {

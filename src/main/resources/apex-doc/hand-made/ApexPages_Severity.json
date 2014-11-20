@@ -1,0 +1,34 @@
+{
+	"Severity": {
+    "name": "Severity",
+    "enumConstants": [
+      {
+        "n": "CONFIRM",
+        "h": "",
+        "r": "EnumConstant"
+      }    
+	  ,{
+        "n": "ERROR",
+        "h": "",
+        "r": "EnumConstant"
+      }    
+	  ,{
+        "n": "FATAL",
+        "h": "",
+        "r": "EnumConstant"
+      },
+	  {
+		"n": "INFO",
+		"h": "",
+		"r": "EnumConstant"
+	  },
+	  {
+		"n": "WARNING",
+		"h": "",
+		"r": "EnumConstant"
+	  }
+	],
+    "tag": "ENUMDEF",
+    "fqn": "ApexPages.Severity"
+  }
+}
