@@ -2,6 +2,7 @@ package com.neowit.apex.completion
 
 import com.neowit.TcpServer
 import com.neowit.apex.Session
+import com.neowit.apex.actions.DescribeMetadata
 import com.neowit.apex.parser.Member
 import com.neowit.utils.Logging
 
@@ -39,24 +40,15 @@ class DatabaseModel(session: Session) {
 
     def load(): Map[String, DatabaseModelMember] = {
         val _memberBySobjectType = Map.newBuilder[String, DatabaseModelMember]
-        val apiVersion = session.getConfig.apiVersion
-        val query = new ListMetadataQuery()
-        query.setType("CustomObject")
-        Try(session.listMetadata(Array(query), apiVersion)) match {
-            case Success(fileProperties) =>
-                for (fileProp <- fileProperties) {
-                    //val typeName = fileProp.getType //SObject
-                    val sObjectApiName = fileProp.getFullName //Actual SObject API Name
-                    val sObjectMember = new SObjectMember(sObjectApiName, session)
-                    _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
+        val describeGlobalResult = session.describeGlobal
 
-                    //resourcesByXmlTypeName = addToMap(resourcesByXmlTypeName, typeName, resourceName)
-                }
-            case Failure(error) => throw error
+        for (describeGlobalSObjectResult <- describeGlobalResult.getSobjects) {
+            val sObjectApiName = describeGlobalSObjectResult.getName
+            val sObjectMember = new SObjectMember(sObjectApiName, session)
+            _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
         }
         _memberBySobjectType.result()
     }
-
 }
 
 case class RefreshMessage(dbModelMember: DatabaseModelMember)

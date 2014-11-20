@@ -477,6 +477,15 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         describeResult
     }
 
+    def describeGlobal: com.sforce.soap.partner.DescribeGlobalResult = {
+        val describeResult = withRetry {
+            val conn = getPartnerConnection
+            val res = conn.describeGlobal()
+            res
+        }.asInstanceOf[com.sforce.soap.partner.DescribeGlobalResult]
+        describeResult
+    }
+
     /***************** MetadataConnection ********************************************/
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {

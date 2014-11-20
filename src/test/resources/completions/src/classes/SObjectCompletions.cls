@@ -205,4 +205,21 @@ public with sharing class SObjectCompletions {
 		Account a  = new Account(Name = String. );//testStaticStringInsideCreator
 		
 	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testObjectsNotReturnedinListMetadata",
+		"column": 7,
+		"itemsCountMin": 15,
+		"identities": ["EndTime", "NextFireTime", "CronExpression"]
+		}
+	 * #END
+	 */
+	@isTest public void testObjectsNotReturnedinListMetadata () {
+		CronTrigger job;
+		job.;//testObjectsNotReturnedinListMetadata
+
+		
+	}
 }
