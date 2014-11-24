@@ -133,7 +133,7 @@ abstract class ApexAction extends AsyncAction {
     }
 }
 
-class ShowHelpException(val help: ActionHelp) extends IllegalStateException
+class ShowHelpException(val help: ActionHelp, val message: String = "") extends IllegalStateException
 
 trait ActionHelp {
     def getName: String

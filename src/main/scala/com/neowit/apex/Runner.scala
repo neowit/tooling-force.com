@@ -45,7 +45,12 @@ class Executor extends Logging {
                 isGoodConfig = true
             } catch {
                 case ex: InvalidCommandLineException => basicConfig.help()
-                case ex: ShowHelpException => help(ex.help)
+                case ex: ShowHelpException =>
+                    if (ex.message.nonEmpty) {
+                        basicConfig.responseWriter.println(ex.message)
+                        logger.error(ex.message)
+                    }
+                    help(ex.help)
                 case ex: MissingRequiredConfigParameterException =>
                     basicConfig.getProperty("help") match {
                         case Some(actionName) =>
