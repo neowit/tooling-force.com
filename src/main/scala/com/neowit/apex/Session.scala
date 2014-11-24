@@ -468,6 +468,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         queryResult
     }
 
+    def queryMore(queryLocator: String):com.sforce.soap.partner.QueryResult = {
+        val queryResult = withRetry {
+            val conn = getPartnerConnection
+            conn.queryMore(queryLocator)
+        }.asInstanceOf[com.sforce.soap.partner.QueryResult]
+        queryResult
+    }
+
     def describeSObjects(sobjectApiNames: List[String]): List[com.sforce.soap.partner.DescribeSObjectResult] = {
         val describeResult = withRetry {
             val conn = getPartnerConnection
