@@ -205,8 +205,8 @@ object FileUtils {
         crc.getValue
     }
 
-    def writeFile(text: String, file: File) = {
-        val writer = new FileWriter(file)
+    def writeFile(text: String, file: File, append: Boolean = false) = {
+        val writer = new FileWriter(file, append)
         try{
             writer.write(text)
         } finally{

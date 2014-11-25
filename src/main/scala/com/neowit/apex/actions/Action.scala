@@ -46,7 +46,8 @@ object ActionFactory {
         "deployModifiedDestructive" -> "DeployModifiedDestructive",
         "deployAllDestructive" -> "DeployAllDestructive",
         "scanSource" -> "ScanSource",
-        "listCompletions" -> "ListCompletions"
+        "listCompletions" -> "ListCompletions",
+        "SoqlQuery" -> "SoqlQuery"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 
