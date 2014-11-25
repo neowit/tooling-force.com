@@ -143,6 +143,21 @@ class SoqlQuery extends ApexAction {
 
     }
 
+    /**
+     * just a container to store results of headers preparation cycle
+     * @param orderedNames - field names in the order they shall appear
+     * @param namesToExclude - field names which are not simple values (e.g. nested child query)
+     * @param lengthByName - max width of each column, by field name
+     * @param wideHeaders - column headers expanded to the relevant max width
+     */
+    case class Headers (orderedNames: List[String], namesToExclude: Set[String], lengthByName: Map[String, Int], wideHeaders: List[String])
+
+    /**
+     * this is a very slow method - it scans the whole result set to determine max length of column values
+     * in order to align columns
+     * @param records - array of SObject-s
+     * @return
+     */
     private def getHeaders(records: Array[com.sforce.soap.partner.sobject.SObject]): Headers = {
         val headers = List.newBuilder[String]
         var maxValueLengthByHeader = new collection.mutable.HashMap[String, Int]
@@ -207,8 +222,8 @@ class SoqlQuery extends ApexAction {
                     }
                     records += values.result().toJson
                 }
-                records.result().toJson
-            } else {
+                    records.result().toJson
+                } else {
                 //normal field
                 if (null != node.getValue) node.getValue.toString.toJson else "".toJson
             }
@@ -270,5 +285,4 @@ class SoqlQuery extends ApexAction {
 
     }
 
-    case class Headers (orderedNames: List[String], namesToExclude: Set[String], lengthByName: Map[String, Int], wideHeaders: List[String])
 }
