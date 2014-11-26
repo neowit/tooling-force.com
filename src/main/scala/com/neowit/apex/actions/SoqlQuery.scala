@@ -53,6 +53,7 @@ class SoqlQuery extends ApexAction {
     def writeResults(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
         config.getProperty("outputFormat") .getOrElse("pipe") match {
             case "json" => writeAsJsonLines(records, outputFile)
+            case "plain" => writeAsStrings(records, outputFile)
             case "pipe" => writeAsPipeSeparatedLines(records, outputFile)
             case x => throw new ShowHelpException(getHelp, "Invalid outputFormat: " + x)
         }
@@ -73,6 +74,22 @@ class SoqlQuery extends ApexAction {
             }
         }
         fields
+    }
+
+    private def writeAsStrings(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
+
+        var i = 0
+        while (i < records.length) {
+            val record = new ResultRecord(records(i))
+            for (fValue <- record.getFieldValues) {
+                println(fValue.toString)
+            }
+            i += 1
+            println("--------------")
+            //println(result.result().toJson)
+            //FileUtils.writeFile(result.result().toJson.toString() + "\n", outputFile, append = true)
+            //logger.debug("\n" + result.result().toJson.toString())
+        }
     }
 
     private def writeAsJsonLines(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
@@ -204,9 +221,78 @@ class SoqlQuery extends ApexAction {
 
     }
 
-    case class FieldValue(node: XmlObject) {
+    case class ResultRecord(record: XmlObject) {
+        assert(null != record.getXmlType && "sObject" == record.getXmlType.getLocalPart)
 
-        def getName = node.getName.getLocalPart
+        def getFieldValues: List[FieldValue] = {
+
+            val result = List.newBuilder[FieldValue]
+            val fields = skipTypeAndId(record.getChildren)
+            while (fields.hasNext) {
+                val field = fields.next()
+                //val name = field.getName.getLocalPart
+                val value = getFieldValue(field)
+                result += value
+            }
+            result.result()
+        }
+        override def toString: String = {
+            "\t" + record.getChild("type").getValue + " => " + getFieldValues.map(_.toString).mkString(" | ")
+        }
+    }
+
+    case class FieldValue(node: XmlObject, parentNode: Option[FieldValue]) {
+
+        def getName: String = {
+            parentNode match {
+              case Some(parent) =>
+                  parent.getName + "." + node.getName.getLocalPart
+              case None =>
+                  node.getName.getLocalPart
+            }
+        }
+
+        override def toString: String = {
+            val value = getValue match {
+              case Some(values: List[Any]) =>
+                  values.map(value => value.toString).mkString("\n")
+              case Some(_value) => getName + "=" + _value.toString
+              case None => ""
+            }
+            value
+        }
+
+        def getValue:Option[Any] = {
+            if (node.hasChildren) {
+                val records = node.getChildren("records")
+                val values = List.newBuilder[ResultRecord]
+                if (records.hasNext) {
+                    //embedded query - e.g. select ... (select Name, CreatedDate from Contacts), (select Id, Subject from Cases) from Account
+                    //node may contain a number of "records" children, each of which may contain several field/values
+                    while (records.hasNext) {
+                        val recordXml = records.next()
+                        val record = new ResultRecord(recordXml)
+                        values += record
+                    }
+                    Some(values.result())
+                } else {
+                    //relationship field - e.g. Owner.Name
+                    //node may contain several field/values (in addition to type and Id values)
+                    val children = skipTypeAndId(node.getChildren)
+                    val values = List.newBuilder[FieldValue]
+                    while (children.hasNext) {
+                        val child = children.next()
+                        val value = getFieldValue(child, Some(this))
+                        values += value
+                    }
+                    Some(values.result()) //Option[List[FieldValue]]
+                }
+            } else {
+                //normal field - Option[FieldValue]
+                if (null != node.getValue) Some(node.getValue) else None
+            }
+
+        }
 
         def toJson: JsValue = {
 
@@ -280,8 +366,8 @@ class SoqlQuery extends ApexAction {
         }
     }
 
-    private def getFieldValue(field: XmlObject): FieldValue = {
-        new FieldValue(field)
+    private def getFieldValue(field: XmlObject, parent: Option[FieldValue] = None): FieldValue = {
+        new FieldValue(field, parent)
 
     }
 
