@@ -38,7 +38,7 @@ class SoqlQuery extends ApexAction {
                 case "queryFilePath" => "--queryFilePath - full path to file containing SOQL query to run"
                 case "responseFilePath" => "--responseFilePath - path to file where operation result will be reported"
                 case "outputFilePath" => "--outputFilePath - path to file where query result will be dumped in specified format"
-                case "outputFormat" => "--outputFormat [optional] - how query results will be formatted. Accepted values: 'json', 'pipe'(default)"
+                case "outputFormat" => "--outputFormat [optional] - how query results will be formatted. Accepted values: 'json', 'pipe'(default), 'plain'(each field name/value on its own line)"
                 case _ => ""
             }
         }
@@ -53,7 +53,7 @@ class SoqlQuery extends ApexAction {
     def writeResults(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
         config.getProperty("outputFormat") .getOrElse("pipe") match {
             case "json" => writeAsJsonLines(records, outputFile)
-            case "plain" => writeAsStrings(records, outputFile)
+            case "plain" => writeAsPlainStrings(records, outputFile)
             case "pipe" => writeAsPipeSeparatedLines(records, outputFile)
             case x => throw new ShowHelpException(getHelp, "Invalid outputFormat: " + x)
         }
@@ -76,19 +76,19 @@ class SoqlQuery extends ApexAction {
         fields
     }
 
-    private def writeAsStrings(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
+    private def writeAsPlainStrings(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
 
         var i = 0
         while (i < records.length) {
             val record = new ResultRecord(records(i))
             for (fValue <- record.getFieldValues) {
-                println(fValue.toString)
+                val strValue = fValue.toString
+                FileUtils.writeFile(strValue + "\n", outputFile, append = true)
+                logger.debug("\n" + strValue)
             }
             i += 1
-            println("--------------")
-            //println(result.result().toJson)
-            //FileUtils.writeFile(result.result().toJson.toString() + "\n", outputFile, append = true)
-            //logger.debug("\n" + result.result().toJson.toString())
+            FileUtils.writeFile("--------------" + "\n", outputFile, append = true)
+            logger.debug("\n" + "--------------")
         }
     }
 
@@ -116,6 +116,10 @@ class SoqlQuery extends ApexAction {
         }
     }
 
+    /**
+     * this method tries to format output like a text table, with pipe '|' used as a column separator
+     * Note: in the current version headers for inner queries are are not provided to save space on the screen
+     */
     private def writeAsPipeSeparatedLines(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
         var i = 0
         val allRecords = List.newBuilder[String]
@@ -130,32 +134,41 @@ class SoqlQuery extends ApexAction {
             val fields = skipTypeAndId(record.getChildren)
             while (fields.hasNext) {
                 val field = fields.next()
-                val name = field.getName.getLocalPart
                 val value = getFieldValue(field)
-                val columnWidth = headers.lengthByName.getOrElse(name, -1)
-                val strValue = value.toPipeDelimited(columnWidth)
-                if (strValue.nonEmpty) {
-                    if (!headers.namesToExclude.contains(name)) {
-                        if (needHeader) {
-                            allRecords += headers.wideHeaders.mkString(" | ")
-                            needHeader = false
-                        }
-                        result += strValue.padTo(columnWidth, " ").mkString("")
+                for (columnHeader <- value.getHeaderNames) {
+                    val path = columnHeader.split("\\.")
+                    //at this point we have either
+                    //Name - i.e. field which does not need further resolving (i.e. value can be obtained directly using columnHeader)
+                    //or Account.Name or Account.Owner.Name, where current value is 'Account'
+                    //  and we need to resolve children 'Name' & 'Owner.name', hence path.tail and not columnHeader
+                    val pathToResolve = if (path.length <2) columnHeader else path.tail.mkString(".")
+                    val childXml = value.getChild(pathToResolve)
+                    val childValue = if (null != childXml) getFieldValue(childXml, Some(value)) else value
+                    val columnWidth = headers.lengthByName.getOrElse(columnHeader, -1)
+                    val strValue = childValue.toPipeDelimited(columnWidth)
+                    if (strValue.nonEmpty) {
+                        if (!headers.namesToExclude.contains(columnHeader)) {
+                            if (needHeader) {
+                                allRecords += headers.wideHeaders.mkString(" | ")
+                                needHeader = false
+                            }
+                            result += strValue.padTo(columnWidth, " ").mkString("")
 
-                    } else {
-                        result += strValue
-                        needHeader = true
+                        } else {
+                            result += strValue
+                            needHeader = true
+                        }
                     }
+
                 }
 
             }
             i += 1
-            //println("--------------")
+
             val thisRecord = result.result().mkString(" | ")
             allRecords += thisRecord
         }
-        //println(allRecords.result().mkString("\n" + "-".padTo(totalLineLength, "-").mkString("")  + " \n"))
-        FileUtils.writeFile(allRecords.result().mkString("\n" + "-".padTo(totalLineLength, "-").mkString("")  + " \n"), outputFile)
+        FileUtils.writeFile(allRecords.result().mkString("\n" + "-".padTo(totalLineLength, "-").mkString("")  + " \n"), outputFile, append = true)
         logger.debug("\n" + allRecords.result().mkString("\n" + "-".padTo(totalLineLength, "-").mkString("")  + " \n"))
 
     }
@@ -178,32 +191,33 @@ class SoqlQuery extends ApexAction {
     private def getHeaders(records: Array[com.sforce.soap.partner.sobject.SObject]): Headers = {
         val headers = List.newBuilder[String]
         var maxValueLengthByHeader = new collection.mutable.HashMap[String, Int]
+
         //record name of fields that have "records" in them instead of plain value
         val fieldsWithNestedValueBuilder = Set.newBuilder[String]
         var i = 0
         while (i < records.length) {
-            val record = records(i)
-            val fields = skipTypeAndId(record.getChildren)
-            while(fields.hasNext) {
-                val fieldNode = fields.next()
-                val name = fieldNode.getName.getLocalPart
-                if (!fieldNode.hasChildren) {
-                    val value = getFieldValue(fieldNode).toPipeDelimited(-1)
-                    val valueLength = value.length
-                    maxValueLengthByHeader.get(name) match {
-                      case Some(len) if len < valueLength =>
-                          maxValueLengthByHeader += (name -> valueLength)
-                      case Some(len) =>
-                      case None => //first time seeing this field name
-                          headers += name
-                          val len = Math.max(name.length, valueLength)
-                          maxValueLengthByHeader += (name -> len)
+            val record = new ResultRecord(records(i))
+            for (fValues <- record.getFieldValues) {
+                for (columnName <- fValues.getHeaderNames) {
+                    val value = record.getChild(columnName).getValue
+                    if (null != value) {
+                        val valueLength = value.toString.length
+                        maxValueLengthByHeader.get(columnName) match {
+                            case Some(len) if len < valueLength =>
+                                maxValueLengthByHeader += (columnName -> valueLength)
+                            case Some(len) =>
+                            case None => //first time seeing this field name
+                                headers += columnName
+                                val len = Math.max(columnName.length, valueLength)
+                                maxValueLengthByHeader += (columnName -> len)
+                        }
+                        //println(columnName + "=" + record.getChild(columnName).getValue)
+                    } else {
+                        fieldsWithNestedValueBuilder += columnName
                     }
-                } else {
-                    fieldsWithNestedValueBuilder += name
                 }
-
             }
+
             i += 1
         }
 
@@ -212,17 +226,40 @@ class SoqlQuery extends ApexAction {
         //expand each header to the size of its longest value
         val wideHeaders = for (header <- compactHeaders) yield {
             maxValueLengthByHeader.get(header) match {
-              case Some(len) =>
-                  "" + header.padTo(len, " ").mkString("")
-              case None => ""
+                case Some(len) =>
+                    "" + header.padTo(len, " ").mkString("")
+                case None => ""
             }
         }
         new Headers(compactHeaders, fieldsWithNestedValue, maxValueLengthByHeader.toMap, wideHeaders)
-
     }
 
-    case class ResultRecord(record: XmlObject) {
+    trait XmlObjectUtils {
+        def getXmlObject: XmlObject
+
+        def getChild(name: String): XmlObject = {
+            def getFieldValue(field: XmlObject, path: List[String]): XmlObject = {
+                if (Nil == path.tail) {
+                    //arrived at the end of the path
+                    field.getChild(path.head)
+                } else {
+                    getFieldValue(field.getChild(path.head), path.tail)
+                }
+            }
+
+            if (name.indexOf(".") < 0) {
+                getXmlObject.getChild(name)
+            } else {
+                val path = name.split("\\.")
+                getFieldValue(getXmlObject, path.toList)
+            }
+        }
+
+    }
+    case class ResultRecord(record: XmlObject) extends XmlObjectUtils {
         assert(null != record.getXmlType && "sObject" == record.getXmlType.getLocalPart)
+
+        def getXmlObject: XmlObject = record
 
         def getFieldValues: List[FieldValue] = {
 
@@ -248,9 +285,45 @@ class SoqlQuery extends ApexAction {
             }
             Map(getType -> new JsObject(fields.result())).toJson
         }
+
+        def toPipeDelimited(headers: Option[Headers] = None): String = {
+
+            val fields = List.newBuilder[String]
+            for (field <- getFieldValues) {
+                headers match {
+                  case Some(_headers) =>
+                      val width = _headers.lengthByName.getOrElse(field.getLocalName, -1)
+                      fields += field.toPipeDelimited(width)
+                  case None =>
+                      fields += field.toPipeDelimited(-1)
+                }
+            }
+            fields.result().mkString(" | ")
+        }
+
+        def getFieldNames: List[String] = {
+            getFieldValues.map(_.getName)
+        }
     }
 
-    case class FieldValue(node: XmlObject, parentNode: Option[FieldValue]) {
+    case class FieldValue(node: XmlObject, parentNode: Option[FieldValue]) extends XmlObjectUtils {
+        def getXmlObject: XmlObject = node
+
+        def getHeaderNames: List[String] = {
+            if (null != node.getXmlType && "sObject" == node.getXmlType.getLocalPart) {
+                //this is a relationship field
+                //Owner (Name , Id)
+                getValue match {
+                  case Some(x::xs) =>
+                      val values = x::xs
+                      val result = values.map(value => value.asInstanceOf[FieldValue].getHeaderNames).flatten
+                      result
+                  case _ => List("")
+                }
+            } else {
+                List(getName)
+            }
+        }
 
         def getName: String = {
             parentNode match {
@@ -314,7 +387,6 @@ class SoqlQuery extends ApexAction {
                         fields += field.getLocalName -> field.toJson
                     }
                     new JsObject(fields.result())
-                    //values.map(value => value.asInstanceOf[FieldValue].toJson).toJson
                 case Some(x::xs) if x.isInstanceOf[ResultRecord]=>
                     val values = x::xs
                     values.map(value => value.asInstanceOf[ResultRecord].toJson).toJson
@@ -326,52 +398,31 @@ class SoqlQuery extends ApexAction {
         }
 
         def toPipeDelimited(width: Int): String = {
-            if (node.hasChildren) {
-                val records = Array.newBuilder[String]
-                for (recordsNode <- getRecordsNodes(node.getChildren)) {
-                    records += "    \n"
-                    var isSkipId = true
-                    val values = List.newBuilder[String]
-                    val children = recordsNode.getChildren
-                    while (children.hasNext) {
-                        val child = children.next()
-                        val skipValue = isSkipId && "Id" == child.getName.getLocalPart
-                        if (!skipValue) {
-                            val value = getFieldValue(child)
-                            values += value.toPipeDelimited(width)
-                        } else {
-                            isSkipId = false
-                        }
+            val value = getValue match {
+                case Some(x::xs) if x.isInstanceOf[FieldValue]=>
+                    val values = x::xs
+                    val fields = List.newBuilder[String]
+                    for (value <- values) {
+                        val field = value.asInstanceOf[FieldValue]
+                        fields += field.toPipeDelimited(width)
                     }
-                    records += values.result().mkString(" | ")
-                }
-                records.result().mkString(" | ")
-            } else {
-                //normal field
-                if (null != node.getValue) {
-                    val strVal = node.getValue.toString
+                    fields.result().mkString(" | ")
+                case Some(x::xs) if x.isInstanceOf[ResultRecord]=>
+                    val values = x::xs
+                    values.map{value =>
+                        val record = value.asInstanceOf[ResultRecord]
+                        "\n\t" + record.getType + " => " + record.toPipeDelimited()
+                    }.mkString("")
+                case Some(_value) =>
                     if (width > 0) {
-                        strVal.padTo(width, " ").mkString("")
+                        _value.toString.padTo(width, "").mkString("")
                     } else {
-                        strVal
+                        _value.toString
                     }
-                } else {
-                    ""
-                }
+                case None => ""
             }
+            value
 
-        }
-
-        //find child which contains actual child "records" payload of current node
-        private def getRecordsNodes(children: java.util.Iterator[XmlObject]): List[XmlObject] = {
-            val recordNodes = List.newBuilder[XmlObject]
-            while (children.hasNext) {
-                val child = children.next()
-                if ("records" == child.getName.getLocalPart) {
-                    recordNodes += child
-                }
-            }
-            recordNodes.result()
         }
     }
 
