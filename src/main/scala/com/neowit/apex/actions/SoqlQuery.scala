@@ -236,8 +236,17 @@ class SoqlQuery extends ApexAction {
             }
             result.result()
         }
+
+        def getType: String = record.getChild("type").getValue.toString
         override def toString: String = {
-            "\t" + record.getChild("type").getValue + " => " + getFieldValues.map(_.toString).mkString(" | ")
+            "\t" + getType + " => " + getFieldValues.map(_.toString).mkString(" | ")
+        }
+        def toJson: JsValue = {
+            val fields = Map.newBuilder[String, JsValue]
+            for (field <- getFieldValues) {
+                fields += field.getName -> field.toJson
+            }
+            Map(getType -> new JsObject(fields.result())).toJson
         }
     }
 
@@ -246,21 +255,12 @@ class SoqlQuery extends ApexAction {
         def getName: String = {
             parentNode match {
               case Some(parent) =>
-                  parent.getName + "." + node.getName.getLocalPart
+                  parent.getName + "." + getLocalName
               case None =>
-                  node.getName.getLocalPart
+                  getLocalName
             }
         }
-
-        override def toString: String = {
-            val value = getValue match {
-              case Some(values: List[Any]) =>
-                  values.map(value => value.toString).mkString("\n")
-              case Some(_value) => getName + "=" + _value.toString
-              case None => ""
-            }
-            value
-        }
+        def getLocalName: String = node.getName.getLocalPart
 
         def getValue:Option[Any] = {
             if (node.hasChildren) {
@@ -294,26 +294,35 @@ class SoqlQuery extends ApexAction {
 
         }
 
-        def toJson: JsValue = {
-
-            if (node.hasChildren) {
-                val records = Array.newBuilder[JsValue]
-                for (recordsNode <- getRecordsNodes(node.getChildren)) {
-                    val values = Map.newBuilder[String, JsValue]
-                    val children = recordsNode.getChildren
-                    while (children.hasNext) {
-                        val child = children.next()
-                        val value = getFieldValue(child)
-                        values += (child.getName.getLocalPart -> value.toJson)
-                    }
-                    records += values.result().toJson
-                }
-                    records.result().toJson
-                } else {
-                //normal field
-                if (null != node.getValue) node.getValue.toString.toJson else "".toJson
+        override def toString: String = {
+            val value = getValue match {
+                case Some(values: List[Any]) =>
+                    values.map(value => value.toString).mkString("\n")
+                case Some(_value) => getName + "=" + _value.toString
+                case None => ""
             }
+            value
+        }
 
+        def toJson: JsValue = {
+            val value = getValue match {
+                case Some(x::xs) if x.isInstanceOf[FieldValue]=>
+                    val values = x::xs
+                    val fields = Map.newBuilder[String, JsValue]
+                    for (value <- values) {
+                        val field = value.asInstanceOf[FieldValue]
+                        fields += field.getLocalName -> field.toJson
+                    }
+                    new JsObject(fields.result())
+                    //values.map(value => value.asInstanceOf[FieldValue].toJson).toJson
+                case Some(x::xs) if x.isInstanceOf[ResultRecord]=>
+                    val values = x::xs
+                    values.map(value => value.asInstanceOf[ResultRecord].toJson).toJson
+                case Some(_value) =>
+                    _value.toString.toJson
+                case None => "".toJson
+            }
+            value
         }
 
         def toPipeDelimited(width: Int): String = {
