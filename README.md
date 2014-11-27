@@ -10,7 +10,7 @@ Current version of this tool is similar in functionality to [Force.com Migration
 
 ## FEATURES
 
-Non project specific:  
+### Non project specific:  
 
 - Retrieve - metadata retrieval
 - Deploy (all, specific files)
@@ -19,14 +19,15 @@ Non project specific:
 - List Metadata - list members of specific metadata type (e.g. list all Apex Classes)
 - ExecuteAnonymous - run arbitrary piece of Apex Code
 - ListConflicts - display list of local files which have been updated in SFDC since last deployment
+- Execute SOQL query
 
-Project specific  
+### Project specific  
 Also supported a "project like" mode - where relevant metadata about deployments and retrievals is cached in a set of local files and makes possible operations like:
 
 - Deploy modified files
 - List Modified files
 - Conflict checking before deployment (test if file(s) you are trying to deploy have been modified by someone else in SFDC since your last Refresh or Deployment.
-- list candidates for auto-completion (note: current version does not fully support visibility context resolution and may list more items than current Apex scope actually allows)
+- list candidates for auto-completion (note: current version is "work in progress")
 
 
 ## System requirements
@@ -54,15 +55,16 @@ When connection requires proxy it can be passed as java -D params or as tooling-
 
  - make sure you have [sbt](http://www.scala-sbt.org/) installed.
  - Generate partner-api, apex-api, metadata-api and tooling-api jars using instructions from [Force.com Web Service Connector (WSC)](https://github.com/forcedotcom/wsc)
- - rename and place generated files under lib folder such as the file structure looks like this (assuming API v29.0)
+ - rename and place generated files under lib folder such as the file structure looks like this (assuming API v32.0)
 
 <pre>
 	lib/
-	----apex-wsdl-29.0.jar
-	----partner-wsdl-29.0.jar
-	----metadata-wsdl-29.0.jar
-	----tooling-wsdl-29.0.jar
-	----force-wsc-29.0.0.jar
+	----apex-wsdl-32.0.jar
+	----partner-wsdl-32.0.jar
+	----metadata-wsdl-32.0.jar
+	----tooling-wsdl-32.0.jar
+	----force-wsc-32.0.0.jar
+	----<a href="http://www.antlr.org/download/antlr-runtime-4.4.jar">antlr-runtime-4.4.jar</a>
 	project/
 	src/
 	assembly.sbt
@@ -85,5 +87,6 @@ Third-Party Licenses:
 * [Force.com Web Service Connector (WSC)](https://github.com/forcedotcom/wsc) - see [LICENSE.md](https://github.com/forcedotcom/wsc/blob/master/LICENSE.md)  
 * [Apache Commons-logging](http://commons.apache.org/proper/commons-logging/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 * [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
+* [ANTLR 4](http://www.antlr.org/) - [BSD license](http://www.antlr.org/license.html)  
 * [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 
