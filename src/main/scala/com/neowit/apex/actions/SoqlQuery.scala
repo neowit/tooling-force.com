@@ -19,19 +19,22 @@ class SoqlQuery extends ApexAction {
         val soqlQuery = scala.io.Source.fromFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
         //dump first batch of results into the output file
         var queryResult = session.query(soqlQuery)
-        if (queryResult.getRecords.length > 0) {
+        var loadedRecordCount = queryResult.getRecords.length
+        val size = queryResult.getSize
+        if (loadedRecordCount > 0) {
             val outputFile = new File(outputFilePath)
             writeResults(queryResult.getRecords, outputFile)
 
             while (!queryResult.isDone) {
+                logger.info("Loaded " + loadedRecordCount + " out of " + size)
                 queryResult = session.queryMore(queryResult.getQueryLocator)
                 writeResults(queryResult.getRecords, outputFile)
+                loadedRecordCount += queryResult.getRecords.length
             }
             responseWriter.println("RESULT=SUCCESS")
             responseWriter.println("RESULT_FILE=" + outputFilePath)
         } else {
            //looks like this is just a count() query
-            val size = queryResult.getSize
             responseWriter.println("RESULT=SUCCESS")
             responseWriter.println("RESULT_SIZE=" + size)
             responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))
