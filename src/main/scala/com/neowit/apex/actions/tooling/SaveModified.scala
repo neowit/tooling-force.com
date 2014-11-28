@@ -12,7 +12,7 @@ import com.sforce.ws.bind.XmlObject
 
 class SaveError(msg: String) extends Error(msg: String)
 /**
- * Unlike SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
+ * SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
  *
  * Extra command line params:
  * --ignoreConflicts=true|false (defaults to false) - if true then skip ListConflicting check
@@ -33,7 +33,7 @@ class SaveModified extends DeployModified {
     val CONTAINER_PREFIX = "tooling-force.com"
 
     //we can use ToolingApi in following cases
-    //1. there are not -meta.xml files
+    //1. there are no -meta.xml files
     //2. there are no new files
     //3. all files are supported by Tooling API
     def canUseTooling(files: List[File]): Boolean = {
