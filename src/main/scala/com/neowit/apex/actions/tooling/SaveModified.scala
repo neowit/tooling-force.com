@@ -36,6 +36,7 @@ class SaveModified extends DeployModified {
     //1. there are no -meta.xml files
     //2. there are no new files
     //3. all files are supported by Tooling API
+    //4. there is NO mix of aura and non aura files in the list of files to deploy
     def canUseTooling(files: List[File]): Boolean = {
         val hasMeta = None != files.find(_.getName.endsWith("-meta.xml"))
         if (hasMeta) {
@@ -50,9 +51,14 @@ class SaveModified extends DeployModified {
         if (hasNewFile) {
             return false
         }
+        val hasAuraFiles = None != files.find(AuraMember.isSupportedType(_))
+        val hasApexFiles = None != files.find(ApexMember.isSupportedType(_, session))
+        val hasMixOfApexAndAura = hasAuraFiles && hasApexFiles
         //check if all files supported by tooling api
-        val hasUnsupportedType = None != files.find(f =>  !ApexMember.isSupportedType(f, session) )
-        !hasUnsupportedType
+        val hasUnsupportedType = None != files.find(f => !ApexMember.isSupportedType(f, session) && !AuraMember.isSupportedType(f))
+        val canNotUseTooling = hasUnsupportedType || hasMixOfApexAndAura
+
+        !canNotUseTooling
     }
 
     def deleteMetadataContainer(session: Session) {
@@ -131,61 +137,123 @@ class SaveModified extends DeployModified {
             //can not use tooling, fall back to metadata version - DeployModified
             super.deploy(files, updateSessionDataOnSuccess)
         } else {
-            withMetadataContainer(session) { container =>
-                val membersMap = (for(f <- files) yield {
-                    val member = ApexMember.getInstance(f, session)
-                    member.setMetadataContainerId(container.getId)
-                    (member, f)
-                }).toMap
+            val hasAuraFiles = None != files.find(AuraMember.isSupportedType(_))
+            if (!hasAuraFiles) {
+                deployWithMetadataContaner(files, updateSessionDataOnSuccess)
+            } else {
+                //aura
+                deployAura(files, updateSessionDataOnSuccess)
+            }
+        }
 
-                val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toInt
-                val saveResults = session.createTooling(membersMap.map(_._1.asInstanceOf[SObject]).toArray)
-                val res = saveResults.head
-                if (res.isSuccess) {
-                    val request = new ContainerAsyncRequest()
-                    request.setIsCheckOnly(session.getConfig.isCheckOnly)
-                    request.setMetadataContainerId(container.getId)
-                    val requestResults = session.createTooling(Array(request))
-                    for (res <- requestResults) {
-                        if (res.isSuccess) {
-                            val requestId = res.getId
-                            val soql = "SELECT Id, State, DeployDetails, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
-                            val asyncQueryResult = session.queryTooling(soql)
-                            if (asyncQueryResult.getSize > 0) {
-                                var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
-                                var lastReportTime = System.currentTimeMillis()
-                                var attempts = 0
-                                while ("Queued" == _request.getState) {
-                                    val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
-                                    blocking {
-                                        Thread.sleep(waitTimeMilliSecs)
-                                        _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
-                                    }
-                                    //report only once every 3 seconds
-                                    if (reportAttempt) {
-                                        logger.info("waiting result, poll #" + attempts)
-                                        lastReportTime = System.currentTimeMillis()
-                                    } else {
-                                        logger.trace("waiting result, poll #" + attempts)
-                                    }
-                                    attempts += 1
-                                }
-                                processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
-                            }
-                        } else {
-                            throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
+    }
+    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+        if (1 == files.size) {
+            val member = AuraMember.getInstance(files.head, session)
+            val saveResults = session.updateTooling(Array(member))
+            logger.debug(saveResults)
+            if (saveResults.head.isSuccess) {
+                if (updateSessionDataOnSuccess) {
+                    val modificationDataByFile = getFilesModificationData("AuraDefinition", files)
+                    for (f <- files) {
+                        modificationDataByFile.get(f) match {
+                            case Some(data) =>
+                                val key = session.getKeyByFile(f)
+                                val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
+                                val newData = MetadataType.getValueMap(config, f, "AuraDefinition", Some(member.getId), lastModifiedDate, fileMeta = None)
+                                val oldData = session.getData(key)
+                                session.setData(key, oldData ++ newData)
+                            case None =>
                         }
                     }
-                } else {
-                    throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
                 }
+                config.responseWriter.println("RESULT=SUCCESS")
+                config.responseWriter.println("FILE_COUNT=" + files.size)
+                if (!config.isCheckOnly) {
+                    config.responseWriter.startSection("SAVED FILES")
+                    files.foreach(f => config.responseWriter.println(f.getName))
+                    config.responseWriter.endSection("SAVED FILES")
+                }
+            } else {
 
-
+                logger.debug("Request failed")
+                responseWriter.println("RESULT=FAILURE")
+                config.responseWriter.startSection("ERROR LIST")
+                for (saveResult <- saveResults) {
+                    val error = saveResult.getErrors.head
+                    val problem = error.getMessage
+                    val statusCode = error.getStatusCode
+                    val fields = error.getFields
+                    logger.debug("fields=" + fields)
+                    logger.debug("fields=" + fields)
+                    //display errors both as messages and as ERROR: lines
+                    val generalFailureMessage = new Message(ResponseWriter.WARN, "General failure")
+                    responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem, "code" -> statusCode))
+                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem, "code" -> statusCode, "fields" -> fields)))
+                }
             }
             session.storeSessionData()
             true
+        } else {
+            throw new IllegalAccessError("Saving of multiple Aura files is not yet implemented")
         }
+    }
 
+    private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+        logger.debug("Deploying with Metadata Container")
+        withMetadataContainer(session) { container =>
+            val membersMap = (for(f <- files) yield {
+                val member = ApexMember.getInstance(f, session)
+                member.setMetadataContainerId(container.getId)
+                (member, f)
+            }).toMap
+
+            val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toInt
+            val saveResults = session.createTooling(membersMap.map(_._1.asInstanceOf[SObject]).toArray)
+            val res = saveResults.head
+            if (res.isSuccess) {
+                val request = new ContainerAsyncRequest()
+                request.setIsCheckOnly(session.getConfig.isCheckOnly)
+                request.setMetadataContainerId(container.getId)
+                val requestResults = session.createTooling(Array(request))
+                for (res <- requestResults) {
+                    if (res.isSuccess) {
+                        val requestId = res.getId
+                        val soql = "SELECT Id, State, DeployDetails, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
+                        val asyncQueryResult = session.queryTooling(soql)
+                        if (asyncQueryResult.getSize > 0) {
+                            var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                            var lastReportTime = System.currentTimeMillis()
+                            var attempts = 0
+                            while ("Queued" == _request.getState) {
+                                val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
+                                blocking {
+                                    Thread.sleep(waitTimeMilliSecs)
+                                    _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                }
+                                //report only once every 3 seconds
+                                if (reportAttempt) {
+                                    logger.info("waiting result, poll #" + attempts)
+                                    lastReportTime = System.currentTimeMillis()
+                                } else {
+                                    logger.trace("waiting result, poll #" + attempts)
+                                }
+                                attempts += 1
+                            }
+                            processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
+                        }
+                    } else {
+                        throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
+                    }
+                }
+            } else {
+                throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
+            }
+
+
+        }
+        session.storeSessionData()
+        true
     }
 
     /**
@@ -251,7 +319,7 @@ class SaveModified extends DeployModified {
         }
         val ids = fileById.keys
         if (ids.nonEmpty) {
-            val queryResult = session.query("select Id, Name, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
+            val queryResult = session.query("select Id, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
                 + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
             val records = queryResult.getRecords
 

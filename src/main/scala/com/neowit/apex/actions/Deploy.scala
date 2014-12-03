@@ -1,5 +1,6 @@
 package com.neowit.apex.actions
 
+import com.neowit.apex.actions.tooling.AuraMember
 import com.neowit.apex.{StubFileGenerator, MetadataType, MetaXml}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
@@ -310,7 +311,7 @@ class DeployModified extends Deploy {
      * @return
      */
     private def getAllFilesInAuraBundle(fileInBundle: File): Set[File] = {
-        DescribeMetadata.getAuraBundleDir(fileInBundle) match {
+        AuraMember.getAuraBundleDir(fileInBundle) match {
           case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
           case None => Set()
         }
