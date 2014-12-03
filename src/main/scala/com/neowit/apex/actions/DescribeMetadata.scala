@@ -70,10 +70,35 @@ object DescribeMetadata {
         else
             getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
                 case Some(x) => true
-                case None => false
+                case None => isAuraFile(file)
             }
     }
 
+    def isAuraFile(file: File): Boolean = {
+        //is this file in "aura" folder
+        FileUtils.getParentByName(file, Set("aura")) match {
+            case Some(x) =>
+                val extension = FileUtils.getExtension(file)
+                Set("app", "cmp", "evt", "intf", "js", "css", "auradoc").contains(extension)
+            case None => false //not in aura folder
+        }
+    }
+
+    /**
+     * @param file - if this file is part of aura bundle then name of the bundle is returned
+     * @return
+     */
+    def getAuraBundleDir(file: File): Option[File] = {
+        var currentDir = if (file.isDirectory) file else file.getParentFile
+        var dir:Option[File] = None
+
+        while (null != currentDir && "aura" != currentDir.getName) {
+            dir = Some(currentDir)
+            currentDir = currentDir.getParentFile
+        }
+        dir
+
+    }
     /**
      * using provided xmlName try to find dirName and Suffix
      * @param xmlName - e.g. "ApexClass"

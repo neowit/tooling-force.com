@@ -152,10 +152,10 @@ object FileUtils {
      * @param includeFolders - set to false if list should be single level, not recursive and without nested folders
      * @return list of all files under dir (including dir)
      */
-    def listFiles(dir: File, includeFolders: Boolean = true):List[File] = {
+    def listFiles(dir: File, descentIntoFolders: Boolean = true, includeFolders: Boolean = true):List[File] = {
         def listOnelevel(f: File):List[File] = {
-            if (f.isDirectory && includeFolders) {
-                f.listFiles().filter(ff => ff.canRead && !isIgnored(ff)).flatMap(listOnelevel).toList
+            if (f.isDirectory && descentIntoFolders) {
+                f.listFiles().filter(ff => ff.canRead && !isIgnored(ff) && (!ff.isDirectory || includeFolders)).flatMap(listOnelevel).toList
             } else {
                 List(f)
             }

@@ -169,8 +169,10 @@ class DeployModified extends Deploy {
                                     sourceFile = new File(file.getAbsolutePath.replace("-meta.xml", ""))
                                     if sourceFile.exists()) yield sourceFile
 
+        //for every file that is part of aura bundle, include all files in that bundle
+        val auraFiles = files.map(getAllFilesInAuraBundle(_)).flatten
 
-        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles).toSet
+        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles).toSet
 
         val packageXml = new MetaXml(config)
         val packageXmlFile = packageXml.getPackageXml
@@ -179,13 +181,16 @@ class DeployModified extends Deploy {
             allFilesToDeploySet += packageXmlFile
         }
         /*
+        //DEBUG
         //for debug purpose only, to check what is put in the archive
         //get temp file name
         val destZip = FileUtils.createTempFile("deploy", ".zip")
         destZip.delete()
 
         ZipUtils.zipDir(session.getConfig.srcPath, destZip.getAbsolutePath, excludeFileFromZip(allFilesToDeploySet, _))
+        //end DEBUG
         */
+
         val checkOnly = config.isCheckOnly
         val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
         val isRunningTests = testMethodsByClassName.nonEmpty
@@ -270,7 +275,7 @@ class DeployModified extends Deploy {
             val relativePath = successMessage.getFileName
             val key = session.getKeyByRelativeFilePath(relativePath)
             val f = new File(config.projectDir, relativePath)
-            if (f.exists()) {
+            if (f.exists() && !f.isDirectory) {
                 val xmlType = describeByDir.get(f.getParentFile.getName) match {
                     case Some(describeMetadataObject) => describeMetadataObject.getXmlName
                     case None => "" //package.xml and -meta.xml do not have xmlType
@@ -295,6 +300,20 @@ class DeployModified extends Deploy {
             }
         }
 
+    }
+
+    /**
+     * current version (v32.0) of metadata API fails to deploy packages if they contain incomplete Aura Bundle
+     * i.e. if any single file from aura bundle is included (e.g. <app-name>.css ) then *all* files in this bunde must be
+     * part of deployment package, otherwise SFDC returns: UNKNOWN_EXCEPTION: An unexpected error occurred.
+     * @param fileInBundle - file which belongs to Aura bundle
+     * @return
+     */
+    private def getAllFilesInAuraBundle(fileInBundle: File): Set[File] = {
+        DescribeMetadata.getAuraBundleDir(fileInBundle) match {
+          case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
+          case None => Set()
+        }
     }
 
     private def writeDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Unit = {
