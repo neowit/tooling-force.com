@@ -222,9 +222,8 @@ class SaveModified extends DeployModified {
                 val problem = error.getMessage
                 val statusCode = error.getStatusCode.toString
                 val fields = error.getFields
-                logger.debug("fields=" + fields.mkString(","))
                 //display errors both as messages and as ERROR: lines
-                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem))
+                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
                 responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
             }
             false
