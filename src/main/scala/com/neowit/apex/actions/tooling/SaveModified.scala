@@ -219,7 +219,11 @@ class SaveModified extends DeployModified {
                 val file = fileArray(index)
                 val filePath = session.getRelativePath(file)
                 val error = errorByFileIndex(index)
-                val problem = error.getMessage
+                var problem = error.getMessage
+                if (com.sforce.soap.tooling.StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
+                    problem = s"Stored Id of ${file.getName} is no longer valid. Try to use 'deploy' instead of 'save' to enforce using metadata API. " +
+                    s"Original error: $problem"
+                }
                 val statusCode = error.getStatusCode.toString
                 val fields = error.getFields
                 //display errors both as messages and as ERROR: lines
