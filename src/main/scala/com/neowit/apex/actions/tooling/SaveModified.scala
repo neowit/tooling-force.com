@@ -147,26 +147,54 @@ class SaveModified extends DeployModified {
         }
 
     }
+
+    /**
+     *
+     * @param files - all files must be aura files
+     * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
+     * @return
+     */
     private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
-        if (1 == files.size) {
-            val member = AuraMember.getInstance(files.head, session)
-            val saveResults = session.updateTooling(Array(member))
-            logger.debug(saveResults)
-            if (saveResults.head.isSuccess) {
-                if (updateSessionDataOnSuccess) {
-                    val modificationDataByFile = getFilesModificationData(files)
-                    for (f <- files) {
-                        modificationDataByFile.get(f) match {
-                            case Some(data) =>
-                                val key = session.getKeyByFile(f)
-                                val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
-                                val newData = MetadataType.getValueMap(config, f, AuraMember.XML_TYPE, Some(member.getId), lastModifiedDate, fileMeta = None)
-                                val oldData = session.getData(key)
-                                session.setData(key, oldData ++ newData)
-                            case None =>
-                        }
-                    }
+        val members = files.map(AuraMember.getInstance(_, session))
+        val saveResults = session.updateTooling(members.toArray)
+        logger.debug(saveResults)
+        val errorBuilderByFileIndex = Map.newBuilder[Int, com.sforce.soap.tooling.Error]
+
+        var saveSessionData = false
+        var index = 0
+        val fileArray = files.toArray
+
+        //prepare list of files to load LastModifiedDate from SFDC
+        val successfulFilesBuilder = List.newBuilder[File]
+        for (saveResult <- saveResults) {
+            if (saveResult.isSuccess) {
+                successfulFilesBuilder += fileArray(index)
+            } else {
+                errorBuilderByFileIndex += index -> saveResult.getErrors.head
+            }
+            index += 1
+        }
+
+        val errorByFileIndex = errorBuilderByFileIndex.result()
+        val successfulFiles = successfulFilesBuilder.result()
+
+        if (updateSessionDataOnSuccess && successfulFiles.nonEmpty) {
+            val modificationDataByFile = getFilesModificationData(successfulFiles)
+            for (f <- modificationDataByFile.keys) {
+                modificationDataByFile.get(f) match {
+                    case Some(data) =>
+                        val key = session.getKeyByFile(f)
+                        val recordId = data("Id").toString
+                        val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
+                        val newData = MetadataType.getValueMap(config, f, AuraMember.XML_TYPE, Some(recordId), lastModifiedDate, fileMeta = None)
+                        val oldData = session.getData(key)
+                        session.setData(key, oldData ++ newData)
+                        saveSessionData = true
+                    case None =>
                 }
+
+            }
+            if (errorByFileIndex.isEmpty) {
                 config.responseWriter.println("RESULT=SUCCESS")
                 config.responseWriter.println("FILE_COUNT=" + files.size)
                 if (!config.isCheckOnly) {
@@ -174,29 +202,36 @@ class SaveModified extends DeployModified {
                     files.foreach(f => config.responseWriter.println(f.getName))
                     config.responseWriter.endSection("SAVED FILES")
                 }
-            } else {
-
-                logger.debug("Request failed")
-                responseWriter.println("RESULT=FAILURE")
-                config.responseWriter.startSection("ERROR LIST")
-                for (saveResult <- saveResults) {
-                    val error = saveResult.getErrors.head
-                    val problem = error.getMessage
-                    val statusCode = error.getStatusCode.toString
-                    val fields = error.getFields
-                    logger.debug("fields=" + fields)
-                    logger.debug("fields=" + fields)
-                    //display errors both as messages and as ERROR: lines
-                    val generalFailureMessage = new Message(ResponseWriter.WARN, "General failure")
-                    responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem, "code" -> statusCode))
-                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
-                }
             }
             session.storeSessionData()
-            true
-        } else {
-            throw new IllegalAccessError("Saving of multiple Aura files is not yet implemented")
         }
+
+        //now process errors
+        if (errorByFileIndex.nonEmpty) {
+            logger.debug("Request failed")
+            responseWriter.println("RESULT=FAILURE")
+            config.responseWriter.startSection("ERROR LIST")
+            val problemType = "ERROR"
+            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
+            responseWriter.println(componentFailureMessage)
+
+            for (index <- errorByFileIndex.keys) {
+                val file = fileArray(index)
+                val filePath = session.getRelativePath(file)
+                val error = errorByFileIndex(index)
+                val problem = error.getMessage
+                val statusCode = error.getStatusCode.toString
+                val fields = error.getFields
+                logger.debug("fields=" + fields.mkString(","))
+                //display errors both as messages and as ERROR: lines
+                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem))
+                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+            }
+            false
+        } else {
+            true
+        }
+
     }
 
     private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
@@ -336,6 +371,7 @@ class SaveModified extends DeployModified {
 
                 file -> Map(
                     "file" -> file,
+                    "Id" -> record.getId,
                     "LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
                     "LastModifiedById" -> record.getField("LastModifiedById"),
                     "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(lastModifiedDate),
