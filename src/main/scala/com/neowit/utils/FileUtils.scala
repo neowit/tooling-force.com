@@ -155,7 +155,8 @@ object FileUtils {
     def listFiles(dir: File, descentIntoFolders: Boolean = true, includeFolders: Boolean = true):List[File] = {
         def listOnelevel(f: File):List[File] = {
             if (f.isDirectory && descentIntoFolders) {
-                f.listFiles().filter(ff => ff.canRead && !isIgnored(ff) && (!ff.isDirectory || includeFolders)).flatMap(listOnelevel).toList
+                val files = f.listFiles().filter(ff => ff.canRead && !isIgnored(ff) && (!ff.isDirectory || includeFolders)).flatMap(listOnelevel).toList
+                if (includeFolders) f :: files else files
             } else {
                 List(f)
             }

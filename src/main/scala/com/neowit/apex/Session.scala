@@ -141,10 +141,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
      */
     def getDeletedLocalFilePaths(extraSrcFoldersToLookIn: List[File]):List[String] = {
         val config = getConfig
-        val allFiles = (config.srcDir :: extraSrcFoldersToLookIn).map(FileUtils.listFiles(_)).flatten
-        val existingFiles  = allFiles.filter(
+        val allFiles = (config.srcDir :: extraSrcFoldersToLookIn).map(FileUtils.listFiles(_, descentIntoFolders = true, includeFolders = true)).flatten
+        val existingFiles = allFiles.filter(
             //remove all non apex files
-            file => DescribeMetadata.isValidApexFile(this, file)
+            file => file.isDirectory || DescribeMetadata.isValidApexFile(this, file)
         ).map(getRelativePath(_))
             //normalise all paths to start with src/ rather than unpackaged/
             .map(name => if (name.startsWith("unpackaged/")) name.replaceFirst("unpackaged/", "src/") else name)
