@@ -243,7 +243,7 @@ class DeployModified extends Deploy {
             }
             //update session data for successful files
             if (updateSessionDataOnSuccess) {
-                updateSessionDataForSuccessfulFiles(deployResult)
+                updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
             }
             session.storeSessionData()
             responseWriter.println("RESULT=SUCCESS")
@@ -265,39 +265,61 @@ class DeployModified extends Deploy {
     }
 
     //update session data for successful files
-    private def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult): Unit = {
-        val deployDetails = deployResult.getDetails
-
+    private def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult, auraFiles: List[File]): Unit = {
+        val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
         val calculateMD5 = config.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
 
-        val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
+        def processOneFile(f: File, successMessage: com.sforce.soap.metadata.DeployMessage, xmlType: String): Unit = {
+            val relativePath = session.getRelativePath(f) //successMessage.getFileName
+            val key = session.getKeyByRelativeFilePath(relativePath)
+            val localMills = f.lastModified()
+
+            val md5Hash = if (calculateMD5 && !f.isDirectory) FileUtils.getMD5Hash(f) else ""
+            val crc32Hash = if (calculateCRC32 && !f.isDirectory) FileUtils.getCRC32Hash(f) else -1L
+
+            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
+                (fMeta.lastModified(),
+                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
+            } else {
+                (-1L, "", -1L)
+            }
+
+            val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+            val oldData = session.getData(key)
+            session.setData(key, oldData ++ newData)
+
+        }
+
+        val deployDetails = deployResult.getDetails
+
+        val auraFilesByBundleName = auraFiles.groupBy(f => {
+            AuraMember.getAuraBundleDir(f).map(_.getName).getOrElse("")
+        } ).filterNot(_._1.isEmpty)
+
         for ( successMessage <- deployDetails.getComponentSuccesses) {
             val relativePath = successMessage.getFileName
-            val key = session.getKeyByRelativeFilePath(relativePath)
             val f = new File(config.projectDir, relativePath)
-            if (f.exists() && !f.isDirectory) {
-                val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                    case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                    case None => "" //package.xml and -meta.xml do not have xmlType
-                }
-                val localMills = f.lastModified()
-
-                val md5Hash = if (calculateMD5) FileUtils.getMD5Hash(f) else ""
-                val crc32Hash = if (calculateCRC32) FileUtils.getCRC32Hash(f) else -1L
-
-                val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-                val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
-                    (fMeta.lastModified(),
-                        if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
-                        if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
-                } else {
-                    (-1L, "", -1L)
+            if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
+                //process bundle definition
+                processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
+                //for aura bundles Metadata API reports only bundle name, not individual files
+                //so we need to process all bundle files manually
+                auraFilesByBundleName.get(successMessage.getFullName) match {
+                  case Some(files) => files.map(processOneFile(_, successMessage, AuraMember.XML_TYPE ))
+                  case None =>
                 }
 
-                val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-                val oldData = session.getData(key)
-                session.setData(key, oldData ++ newData)
+            } else {
+                if (f.exists() && !f.isDirectory) {
+                    val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                        case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                        case None => "" //package.xml and -meta.xml do not have xmlType
+                    }
+                    processOneFile(f, successMessage, xmlType)
+                }
             }
         }
 

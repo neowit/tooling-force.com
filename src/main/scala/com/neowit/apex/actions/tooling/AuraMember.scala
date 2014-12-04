@@ -9,6 +9,7 @@ import com.sforce.soap.tooling.AuraDefinition
 object AuraMember {
     val EXTENSIONS = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc")
     val XML_TYPE = "AuraDefinition"
+    val BUNDLE_XML_TYPE = "AuraDefinitionBundle"
     def isSupportedType(file: File): Boolean = {
         //is this file in "aura" folder
         FileUtils.getParentByName(file, Set("aura")) match {
