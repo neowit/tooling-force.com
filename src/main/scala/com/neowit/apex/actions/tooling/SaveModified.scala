@@ -154,13 +154,13 @@ class SaveModified extends DeployModified {
             logger.debug(saveResults)
             if (saveResults.head.isSuccess) {
                 if (updateSessionDataOnSuccess) {
-                    val modificationDataByFile = getFilesModificationData("AuraDefinition", files)
+                    val modificationDataByFile = getFilesModificationData(files)
                     for (f <- files) {
                         modificationDataByFile.get(f) match {
                             case Some(data) =>
                                 val key = session.getKeyByFile(f)
                                 val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
-                                val newData = MetadataType.getValueMap(config, f, "AuraDefinition", Some(member.getId), lastModifiedDate, fileMeta = None)
+                                val newData = MetadataType.getValueMap(config, f, AuraMember.XML_TYPE, Some(member.getId), lastModifiedDate, fileMeta = None)
                                 val oldData = session.getData(key)
                                 session.setData(key, oldData ++ newData)
                             case None =>
@@ -182,14 +182,14 @@ class SaveModified extends DeployModified {
                 for (saveResult <- saveResults) {
                     val error = saveResult.getErrors.head
                     val problem = error.getMessage
-                    val statusCode = error.getStatusCode
+                    val statusCode = error.getStatusCode.toString
                     val fields = error.getFields
                     logger.debug("fields=" + fields)
                     logger.debug("fields=" + fields)
                     //display errors both as messages and as ERROR: lines
                     val generalFailureMessage = new Message(ResponseWriter.WARN, "General failure")
                     responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem, "code" -> statusCode))
-                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem, "code" -> statusCode, "fields" -> fields)))
+                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
                 }
             }
             session.storeSessionData()
@@ -285,17 +285,21 @@ class SaveModified extends DeployModified {
      * @return
      */
     private def getFilesModificationData(files: List[File]): Map[File, Map[String, Any]] = {
-        val filesByExtension = files.groupBy(f => FileUtils.getExtension(f))
-
-        val dataByFileCol = filesByExtension.keys.par.map(extension => {
-            DescribeMetadata.getXmlNameBySuffix(session, extension) match {
-                case Some(xmlType) =>
-                    val res = getFilesModificationData(xmlType, filesByExtension(extension))
-                    res
-                case None => Map[File, Map[String, Any]]() //did not recognise extension
+        val filesByXmlType = files.groupBy(f => {
+            val isAuraFile = AuraMember.isSupportedType(f)
+            val xmlType = if (isAuraFile) {
+                AuraMember.XML_TYPE
+            } else {
+                DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse("")
             }
+            xmlType
+        }).filterNot(p => p._1.isEmpty) //here we are making sure that there are not files with empty xml types
 
+        val dataByFileCol = filesByXmlType.keys.par.map(xmlType => {
+            val res = getFilesModificationData(xmlType, filesByXmlType(xmlType))
+            res
         })
+
         //now convert ParIterable of maps into a single map
         val dataByFile = dataByFileCol.foldLeft(Map[File, Map[String, Any]] ())(_ ++ _)
 
