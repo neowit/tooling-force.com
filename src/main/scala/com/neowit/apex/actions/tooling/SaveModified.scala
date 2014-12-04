@@ -3,7 +3,7 @@ package com.neowit.apex.actions.tooling
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
 import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
-import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult}
+import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult, StatusCode}
 import com.neowit.utils.ResponseWriter.Message
 import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
 import scala.concurrent._
@@ -132,7 +132,7 @@ class SaveModified extends DeployModified {
      * @return - true if deployment is successful
      */
     override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
-        logger.debug("Entered deploy()")
+        logger.debug("Entered SaveModified.deploy()")
         if (!canUseTooling(files)) {
             //can not use tooling, fall back to metadata version - DeployModified
             super.deploy(files, updateSessionDataOnSuccess)
@@ -155,9 +155,10 @@ class SaveModified extends DeployModified {
      * @return
      */
     private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+
         val members = files.map(AuraMember.getInstance(_, session))
         val saveResults = session.updateTooling(members.toArray)
-        logger.debug(saveResults)
+
         val errorBuilderByFileIndex = Map.newBuilder[Int, com.sforce.soap.tooling.Error]
 
         var saveSessionData = false
@@ -209,28 +210,35 @@ class SaveModified extends DeployModified {
         //now process errors
         if (errorByFileIndex.nonEmpty) {
             logger.debug("Request failed")
-            responseWriter.println("RESULT=FAILURE")
-            config.responseWriter.startSection("ERROR LIST")
-            val problemType = "ERROR"
-            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-            responseWriter.println(componentFailureMessage)
+            val isIdProblemsOnly = errorByFileIndex.values.toList.filterNot(StatusCode.INVALID_ID_FIELD != _.getStatusCode).isEmpty
+            if (!isIdProblemsOnly) {
+                logger.debug("Looks like we have Id related problems only. Fall back to Metadata deploy()")
+                val deployModified = new DeployModified().load[DeployModified](session.basicConfig)
+                deployModified.deploy(files, updateSessionDataOnSuccess)
+            } else {
+                responseWriter.println("RESULT=FAILURE")
+                config.responseWriter.startSection("ERROR LIST")
+                val problemType = "ERROR"
+                val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
+                responseWriter.println(componentFailureMessage)
 
-            for (index <- errorByFileIndex.keys) {
-                val file = fileArray(index)
-                val filePath = session.getRelativePath(file)
-                val error = errorByFileIndex(index)
-                var problem = error.getMessage
-                if (com.sforce.soap.tooling.StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
-                    problem = s"Stored Id of ${file.getName} is no longer valid. Try to use 'deploy' instead of 'save' to enforce using metadata API. " +
-                    s"Original error: $problem"
+                for (index <- errorByFileIndex.keys) {
+                    val file = fileArray(index)
+                    val filePath = session.getRelativePath(file)
+                    val error = errorByFileIndex(index)
+                    var problem = error.getMessage
+                    if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
+                        problem = s"Stored Id of ${file.getName} is no longer valid. Try to use 'deploy' instead of 'save' to enforce using Metadata API. " +
+                            s"Original error: $problem"
+                    }
+                    val statusCode = error.getStatusCode.toString
+                    val fields = error.getFields
+                    //display errors both as messages and as ERROR: lines
+                    responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
+                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
                 }
-                val statusCode = error.getStatusCode.toString
-                val fields = error.getFields
-                //display errors both as messages and as ERROR: lines
-                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
-                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+                false
             }
-            false
         } else {
             true
         }
