@@ -295,23 +295,13 @@ class DeployModified extends Deploy {
 
         val deployDetails = deployResult.getDetails
 
-        val auraFilesByBundleName = auraFiles.groupBy(f => {
-            AuraMember.getAuraBundleDir(f).map(_.getName).getOrElse("")
-        } ).filterNot(_._1.isEmpty)
-
         for ( successMessage <- deployDetails.getComponentSuccesses) {
             val relativePath = successMessage.getFileName
             val f = new File(config.projectDir, relativePath)
             if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
                 //process bundle definition
+                //for aura bundles Metadata API deploy() reports only bundle name, not individual files
                 processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
-                //for aura bundles Metadata API reports only bundle name, not individual files
-                //so we need to process all bundle files manually
-                auraFilesByBundleName.get(successMessage.getFullName) match {
-                  case Some(files) => files.map(processOneFile(_, successMessage, AuraMember.XML_TYPE ))
-                  case None =>
-                }
-
             } else {
                 if (f.exists() && !f.isDirectory) {
                     val xmlType = describeByDir.get(f.getParentFile.getName) match {
@@ -322,8 +312,10 @@ class DeployModified extends Deploy {
                 }
             }
         }
-
+        //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
+        AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
     }
+
 
     /**
      * current version (v32.0) of metadata API fails to deploy packages if they contain incomplete Aura Bundle

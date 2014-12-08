@@ -5,7 +5,7 @@ import com.sforce.soap.metadata.{ListMetadataQuery, DescribeMetadataObject}
 import com.neowit.apex.Session
 import scala.collection.mutable
 import java.io.{PrintWriter, File}
-import com.neowit.utils.{BasicConfig, ResponseWriter, FileUtils}
+import com.neowit.utils.{ResponseWriter, FileUtils}
 import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
 import scala.util.{Failure, Success, Try}
 
@@ -285,7 +285,7 @@ class ListMetadata extends ApexAction {
         }
 
         responseWriter.println("RESULT=SUCCESS")
-        if (!resourcesByXmlTypeName.isEmpty) {
+        if (resourcesByXmlTypeName.nonEmpty) {
             //dump results to JSON file, with each line looking like this
             //{"CustomTab" : ["Account_Edit", "My_Object__c"]}
 
