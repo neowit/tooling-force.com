@@ -190,6 +190,8 @@ class RefreshMetadata extends RetrieveMetadata {
     def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult) {
         val tempFolder = FileUtils.createTempDir(config)
         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
+        //clear Ids of all files not loaded from the Org
+        session.resetData(filePropsMap.keySet)
 
         config.responseWriter.println("RESULT=SUCCESS")
         config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)

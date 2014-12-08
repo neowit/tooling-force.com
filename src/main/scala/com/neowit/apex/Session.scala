@@ -117,6 +117,27 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     /**
+     * find all file keys (i.e. those starting with "unpackaged/...") and if that key is not in keepKeys then reset all remote attributes
+     * such as Id and LastModifiedDate
+     * @param keepKeys - keys of files to keep
+     * @return - original values of cleaned entries before reset
+     */
+    def resetData(keepKeys: Set[String]): Map[String, Any] = {
+        val oldValues = Map.newBuilder[String, Any]
+        for (key <- getFileKeysInSession) {
+            if (!keepKeys.contains(key)) {
+                val oldData = getData(key)
+                oldValues += key -> oldData
+                val newData = oldData.filterKeys(_field => !Set("Id", "LastModifiedDate", "LastModifiedDateMills").contains(_field))
+                setData(key, newData)
+            }
+
+        }
+        storeSessionData()
+        oldValues.result()
+    }
+
+    /**
      * using keys stored in session return all those that point to files
      * such keys always start with prefix: "unpackaged/"
      * @return list of files in the following format
@@ -126,11 +147,20 @@ class Session(val basicConfig: BasicConfig) extends Logging {
      *
      */
     def getRelativeFilePathsInSession: List[String] = {
-        val names = sessionProperties.propertyNames()
-        //val nameIterator = new scala.collection.JavaConversions.JEnumerationWrapper(names)
-        val prefix = "unpackaged/"
-        val fileNameKeys = names.asScala.toList.filter(_.toString.startsWith(prefix))
+        val fileNameKeys = getFileKeysInSession
         fileNameKeys.map(key => getRelativeFilePathByKey(key.toString))
+    }
+
+    /**
+     * using keys stored in session return all those that point to files
+     * such keys always start with prefix: "unpackaged/"
+     * @return list of keys that start with "unpackaged/"
+     */
+    def getFileKeysInSession: List[String] = {
+        val names = sessionProperties.propertyNames()
+        val prefix = "unpackaged/"
+        val fileNameKeys = names.asScala.toList.filter(_.toString.startsWith(prefix)).map(_.toString)
+        fileNameKeys
     }
 
     /**
