@@ -124,6 +124,15 @@ object FileUtils {
         File.createTempFile(prefix, suffix)
     }
 
+    /**
+     * @return path to temporary file which does not exist
+     */
+    def getTempFilePath(prefix: String, suffix: String): String = {
+        val tempFile = createTempFile(prefix, suffix)
+        tempFile.delete()
+        tempFile.getAbsolutePath
+    }
+
     private def isIgnored(file: File) = {
         file.getName.startsWith(".") || file.getName.contains("~")
     }
@@ -213,5 +222,10 @@ object FileUtils {
         } finally{
             writer.close()
         }
+    }
+
+    def writeFile(xmlBody: scala.xml.Elem, filePath: String): File = {
+        scala.xml.XML.save(filePath, xmlBody, enc = "UTF-8" )
+        new File(filePath)
     }
 }
