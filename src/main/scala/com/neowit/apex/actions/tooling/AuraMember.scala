@@ -5,7 +5,7 @@ import java.io.File
 import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.apex.actions.BulkRetrieve
 import com.neowit.utils.FileUtils
-import com.sforce.soap.metadata.AuraDefinitionBundle
+import com.sforce.soap.metadata.{FileProperties, AuraDefinitionBundle}
 import com.sforce.soap.tooling.AuraDefinition
 
 object AuraMember {
@@ -81,15 +81,13 @@ object AuraMember {
      * @param auraFiles - expect only aura files here
      * @param idsOnly - set to true if no data must be changed except Ids
      */
-    def updateAuraDefinitionData(session: Session, auraFiles: List[File], idsOnly: Boolean): Unit = {
+    def updateAuraDefinitionData(session: Session, auraFiles: List[File], idsOnly: Boolean): Map[File, FileProperties] = {
         if (auraFiles.isEmpty)
-            return
+            return Map()
 
-        val auraFilesByBundleName = auraFiles.groupBy(f => {
-            AuraMember.getAuraBundleDir(f).map(_.getName).getOrElse("")
-        } ).filterNot(_._1.isEmpty)
+        val auraBundleNames = auraFiles.map(AuraMember.getAuraBundleDir(_).map(_.getName).get).toSet
 
-        val tempFolder =  FileUtils.createTempDir(session.config)
+
         val bulkRetrieve = new BulkRetrieve {
             override protected def isUpdateSessionDataOnSuccess: Boolean = false
 
@@ -97,19 +95,19 @@ object AuraMember {
 
             override protected def getSpecificTypesFile: File = {
                 val metaXml = new MetaXml(session.getConfig)
-                val _package = metaXml.createPackage(config.apiVersion, Map(AuraMember.BUNDLE_XML_TYPE -> auraFilesByBundleName.keys.toList))
+                val _package = metaXml.createPackage(config.apiVersion, Map(AuraMember.BUNDLE_XML_TYPE -> auraBundleNames.toList))
                 val packageXml = metaXml.packageToXml(_package)
-                val tempFile = FileUtils.createTempFile("package", "xml")
-                tempFile.delete()
-                scala.xml.XML.save(tempFile.getAbsolutePath, packageXml, enc = "UTF-8" )
-                new File(tempFile.getAbsolutePath)
+                val tempFilePath = FileUtils.getTempFilePath("package", "xml")
+                FileUtils.writeFile(packageXml, tempFilePath)
             }
         }
         bulkRetrieve.load[BulkRetrieve](session.basicConfig)
 
+        val tempFolder =  FileUtils.createTempDir(session.config)
         val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
         val calculateMD5 = session.config.useMD5Hash
 
+        val conflictingFiles = Map.newBuilder[File, FileProperties]
         for(file <- auraFiles) {
             val key = session.getKeyByFile(file)
             bulkRetrieveResult.getFileProps(key) match {
@@ -121,17 +119,21 @@ object AuraMember {
                     } else {
                         val localMills: Long = file.lastModified()
                         val (md5Hash: String, crc32: Long) = if (calculateMD5) (FileUtils.getMD5Hash(file), -1L) else ("", FileUtils.getCRC32Hash(file))
-                        val metaMills: Long = -1L
-                        val metaMd5Hash: String = ""
-                        val metaCRC32: Long = -1L
                         val newData = MetadataType.getValueMap(props, localMills, md5Hash, crc32,
-                            metaMills, metaMd5Hash, metaCRC32)
+                                                                metaMills = -1L, metaMd5Hash = "", metaCRC32 = -1L)
+
+                        val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).toString.toLong
+                        val millsRemote = MetadataType.getLastModifiedDateMills(props)
+                        if (millsRemote > millsLocal) {
+                            conflictingFiles += file -> props
+                        }
                         session.setData(key, data ++ newData)
                     }
                 case _ => //this file has not been returned, assume it has been deleted
                     session.removeData(key)
             }
         }
+        conflictingFiles.result()
     }
 }
 

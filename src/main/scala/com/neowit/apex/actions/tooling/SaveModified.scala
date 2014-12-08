@@ -1,8 +1,8 @@
 package com.neowit.apex.actions.tooling
 
-import com.neowit.apex.{MetaXml, MetadataType, Session}
+import com.neowit.apex.{MetadataType, Session}
 import java.io.File
-import com.neowit.apex.actions.{BulkRetrieve, DescribeMetadata, DeployModified}
+import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
 import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult, StatusCode}
 import com.neowit.utils.ResponseWriter.Message
 import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
@@ -198,41 +198,30 @@ class SaveModified extends DeployModified {
         //now process errors
         if (errorByFileIndex.nonEmpty) {
             logger.debug("Request failed")
-            val isIdProblemsOnly = errorByFileIndex.values.toList.filterNot(StatusCode.INVALID_ID_FIELD == _.getStatusCode).isEmpty
-            if (isIdProblemsOnly) {
-                logger.debug("Looks like we have Id related problems only. Assume that files have been deleted from remote and we need to create them again")
-                //delete existing Ids and try to create all files again
-                updateAuraDefinitionData(files, idsOnly = true)
-                if (!canUseTooling(files)) {
-                    //can not use tooling, fall back to metadata version - DeployModified
-                    super.deploy(files, updateSessionDataOnSuccess)
-                } else {
-                    deployAura(files, updateSessionDataOnSuccess, fallBackIfIdErrors = false)
-                }
-            } else {
-                responseWriter.println("RESULT=FAILURE")
-                config.responseWriter.startSection("ERROR LIST")
-                val problemType = "ERROR"
-                val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-                responseWriter.println(componentFailureMessage)
+            responseWriter.println("RESULT=FAILURE")
+            config.responseWriter.startSection("ERROR LIST")
+            val problemType = "ERROR"
+            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
+            responseWriter.println(componentFailureMessage)
 
-                for (index <- errorByFileIndex.keys) {
-                    val file = fileArray(index)
-                    val filePath = session.getRelativePath(file)
-                    val error = errorByFileIndex(index)
-                    var problem = error.getMessage
-                    if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
-                        problem = s"Stored Id of ${file.getName} is no longer valid. Try to use 'deploy' instead of 'save' to enforce using Metadata API. " +
-                            s"Original error: $problem"
-                    }
-                    val statusCode = error.getStatusCode.toString
-                    val fields = error.getFields
-                    //display errors both as messages and as ERROR: lines
-                    responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
-                    responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+            for (index <- errorByFileIndex.keys) {
+                val file = fileArray(index)
+                val filePath = session.getRelativePath(file)
+                val error = errorByFileIndex(index)
+                var problem = error.getMessage
+                if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
+                    problem = s"Stored Id of ${file.getName} is no longer valid. " +
+                        "You may want to call 'refresh' to make sure there are no aura files deleted and re-created with new Ids. " +
+                        "Alternatively (to force deployment) - use 'deploy' instead of 'save' to force using Metadata API. " +
+                        s"Original error: $problem"
                 }
-                false
+                val statusCode = error.getStatusCode.toString
+                val fields = error.getFields
+                //display errors both as messages and as ERROR: lines
+                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
+                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
             }
+            false
         } else {
             true
         }
@@ -261,49 +250,6 @@ class SaveModified extends DeployModified {
 
     }
 
-    /**
-     * presently the only way of matching local file names to aura object Ids is via metadata retrieve
-     * AuraDefinition objects do not have Names and retrieve seems to be the only truly reliable way of matching local file names to SFDC Ids
-     * @param auraFiles - expect only aura files here
-     * @param idsOnly - set to true if no data must be changed except Ids
-     */
-    def updateAuraDefinitionData(auraFiles: List[File], idsOnly: Boolean): Unit = {
-        val auraFilesByBundleName = auraFiles.groupBy(f => {
-            AuraMember.getAuraBundleDir(f).map(_.getName).getOrElse("")
-        } ).filterNot(_._1.isEmpty)
-
-        val tempFolder =  FileUtils.createTempDir(config)
-        val bulkRetrieve = new BulkRetrieve {
-            override protected def isUpdateSessionDataOnSuccess: Boolean = false
-
-            override protected def getTypesFileFormat: String = "packageXml"
-
-            override protected def getSpecificTypesFile: File = {
-                val metaXml = new MetaXml(session.getConfig)
-                val _package = metaXml.createPackage(config.apiVersion, Map(AuraMember.BUNDLE_XML_TYPE -> auraFilesByBundleName.keys.toList))
-                val packageXml = metaXml.packageToXml(_package)
-                val tempFile = FileUtils.createTempFile("package", "xml")
-                tempFile.delete()
-                scala.xml.XML.save(tempFile.getAbsolutePath, packageXml, enc = "UTF-8" )
-                new File(tempFile.getAbsolutePath)
-            }
-        }
-        bulkRetrieve.load[BulkRetrieve](session.basicConfig)
-
-        val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
-        for(file <- auraFiles) {
-            val key = session.getKeyByFile(file)
-            bulkRetrieveResult.getFileProps(key) match {
-                case Some(props) if null != props.getId =>
-                    val data = session.getData(key)
-                    val newData = Map("Id" -> props.getId )
-                    session.setData(key, data ++ newData)
-                case _ => //this file has not been returned, assume it has been deleted
-                    session.removeData(key)
-            }
-        }
-        //processRetrieveResult(tempFolder, bulkRetrieveResult)
-    }
     private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
         logger.debug("Deploying with Metadata Container")
         withMetadataContainer(session) { container =>
