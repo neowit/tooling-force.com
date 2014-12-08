@@ -171,7 +171,7 @@ class DeployModified extends Deploy {
                                     if sourceFile.exists()) yield sourceFile
 
         //for every file that is part of aura bundle, include all files in that bundle
-        val auraFiles = files.map(getAllFilesInAuraBundle(_)).flatten
+        val auraFiles = files.map(getAllFilesInAuraBundle(_)).flatten.toSet.toList
 
         var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles).toSet
 
