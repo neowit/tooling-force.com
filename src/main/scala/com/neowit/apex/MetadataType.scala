@@ -25,6 +25,11 @@ import java.util.{Calendar, TimeZone}
 import java.io.File
 import com.sforce.soap.metadata.{DeployResult, DeployMessage}
 
+/*
+case class SessionDataEntry(xmlType: String, name: String, lastModifiedDate: java.util.Calendar,
+                       localMills: Long, md5Hash: Option[String], crc32: Option[Long],
+                       metaMills: Option[Long], metaMD5Hash: Option[String], metaCRC32: Option[Long])
+*/
 object MetadataType extends Logging {
     val LOCAL_MILLS = "LocalMills"
     val MD5 = "md5"
@@ -42,17 +47,9 @@ object MetadataType extends Logging {
 
     def getValueMap(props: FileProperties, localMills: Long, md5Hash: String, crc32: Long,
                     metaMills: Long, metaMd5Hash: String, metaCRC32: Long):Map[String, Any] = {
-        /*
-        val lastModifiedDateText = getLastModifiedDateText(props)
-        val lastModifiedDateMills = getLastModifiedDateMills(props)
-        val data = Map("Id" -> props.getId, "Type" -> props.getType , "Name" -> getName(props), "LastModifiedDate" -> lastModifiedDateText,
-            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills, MD5 -> md5Hash, CRC32 -> crc32)
-        if (metaMills > 0)
-            Map("meta" + LOCAL_MILLS -> metaMills, "meta" + MD5 -> metaMd5Hash, "meta" + CRC32 -> metaCRC32) ++ data
-        else
-            data
-        */
-        getValueMap(getName(props), props.getType, Some(props.getId), props.getLastModifiedDate, localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
+
+        getValueMap(getName(props), props.getType, Some(props.getId), props.getLastModifiedDate,
+                    localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
     }
 
     def getValueMap(deployResult: DeployResult, message: DeployMessage, xmlType: String, localMills: Long, md5Hash: String, crc32: Long,
