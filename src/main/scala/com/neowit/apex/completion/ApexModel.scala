@@ -164,7 +164,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         if (null == is) {
             return
         }
-        val doc = scala.io.Source.fromInputStream(is.openStream()).getLines().mkString
+        val doc = scala.io.Source.fromInputStream(is.openStream())("UTF-8").getLines().mkString
         val jsonAst = JsonParser(doc)
         val types = jsonAst.asJsObject.fields //Map[typeName -> type description JSON]
         val typesWithSuperTypes = List.newBuilder[ApexType]
