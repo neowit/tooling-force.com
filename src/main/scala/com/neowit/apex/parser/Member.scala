@@ -841,7 +841,7 @@ class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
         PropertyMember.getModifiers(ctx)
     }
 
-    val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
+    private lazy val _isStatic = getModifiers.map(_.toLowerCase).indexOf("static") >=0
 
     override def isStatic: Boolean = _isStatic
 
