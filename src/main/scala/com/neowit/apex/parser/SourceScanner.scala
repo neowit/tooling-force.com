@@ -29,16 +29,25 @@ class SourceScanner (files: List[File]) extends Logging {
             if (completeScan || file.lastModified() > lastModifiedTime) {
                 logger.debug("scanning file: " + file.getName)
 
-                val tokens = new CommonTokenStream(getLexer(file))
-                val parser = new ApexcodeParser(tokens)
-                ApexParserUtils.removeConsoleErrorListener(parser)
-                 //parser.setErrorHandler(new BailErrorStrategy())
-                 //parser.setErrorHandler(new CompletionErrorStrategy())
-                 val tree = parser.compilationUnit()
-                 val extractor = new TreeListener(parser)
-                 walker.walk(extractor, tree)
-                 completeTree.extend(extractor.getTree)
-                fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
+                try {
+                    val tokens = new CommonTokenStream(getLexer(file))
+                    val parser = new ApexcodeParser(tokens)
+                    ApexParserUtils.removeConsoleErrorListener(parser)
+                    //parser.setErrorHandler(new BailErrorStrategy())
+                    //parser.setErrorHandler(new CompletionErrorStrategy())
+                    val tree = parser.compilationUnit()
+                    val extractor = new TreeListener(parser)
+                    walker.walk(extractor, tree)
+                    completeTree.extend(extractor.getTree)
+                    fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
+                } catch {
+                    case ex:Exception =>
+                        logger.error("Failed to parse file: " + file.getName, ex)
+                        logger.error(ex.getStackTraceString)
+                        println("Failed to parse file: " + file.getName)
+                        println(ex)
+                        println(ex.getStackTraceString)
+                }
             }
         }
         //println(getTree)
