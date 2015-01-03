@@ -809,7 +809,7 @@ object PropertyMember {
     def getModifiers(ctx: ParseTree): List[String] = {
         ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
             case Some(classBodyDeclarationCtx) =>
-                classBodyDeclarationCtx.modifier().map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
+                classBodyDeclarationCtx.modifier().filter(null != _.classOrInterfaceModifier()).map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
             case None => List()
         }
     }
