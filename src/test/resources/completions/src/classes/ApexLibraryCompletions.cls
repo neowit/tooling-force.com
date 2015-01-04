@@ -11,7 +11,7 @@ public with sharing class ApexClassCompletions {
 	private static Integer STATIC_INT = 0;
 	public enum Season {WINTER, SPRING, SUMMER, FALL}
 
-	public String propShort { public get; set; }
+	public transient String propShort { public get; set; } //use 'transient' here to check that it does not cause any problems for parser
 	
 	public Double propLong {get; 
 						private set { 
