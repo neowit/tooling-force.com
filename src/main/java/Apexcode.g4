@@ -427,7 +427,6 @@ statement
     |   'do' statement 'while' parExpression ';'
     |   'try' block (catchClause+ finallyBlock? | finallyBlock)
     |   'try' resourceSpecification block catchClause* finallyBlock?
-    |   'switch' parExpression '{' switchBlockStatementGroup* switchLabel* '}'
     |   'return' expression? ';'
     |   'throw' expression ';'
     |   'break' Identifier? ';'
@@ -472,19 +471,6 @@ resources
 
 resource
     :   variableModifier* classOrInterfaceType variableDeclaratorId '=' expression
-    ;
-
-/** Matches cases then statements, both of which are mandatory.
- *  To handle empty cases at the end, we add switchLabel* to statement.
- */
-switchBlockStatementGroup
-    :   switchLabel+ blockStatement+
-    ;
-
-switchLabel
-    :   'case' constantExpression ':'
-    |   'case' enumConstantName ':'
-    |   'default' ':'
     ;
 
 forControl
@@ -659,7 +645,6 @@ ABSTRACT      : 'abstract';
 BOOLEAN       : 'boolean';
 BREAK         : 'break';
 BYTE          : 'byte';
-CASE          : 'case';
 CATCH         : 'catch';
 CHAR          : 'char';
 CLASS         : 'class';
@@ -694,7 +679,6 @@ SHORT         : 'short';
 STATIC        : 'static';
 
 SUPER         : 'super';
-SWITCH        : 'switch';
 SYNCHRONIZED  : 'synchronized';
 THIS          : 'this';
 THROW         : 'throw';
