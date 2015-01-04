@@ -114,13 +114,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         clearWhiteSpace(typeName).endsWith("[]")
     }
     def isListDefinition(typeName: String): Boolean = {
-        clearWhiteSpace(typeName).startsWith("List<")
+        clearWhiteSpace(typeName).toLowerCase.startsWith("list<")
     }
     def isMapDefinition(typeName: String): Boolean = {
-        clearWhiteSpace(typeName).startsWith("Map<")
+        clearWhiteSpace(typeName).toLowerCase.startsWith("map<")
     }
     def isSetDefinition(typeName: String): Boolean = {
-        clearWhiteSpace(typeName).startsWith("Set<")
+        clearWhiteSpace(typeName).toLowerCase.startsWith("set<")
     }
     private def clearWhiteSpace(str: String): String = {
         if (null == str) {
