@@ -634,7 +634,7 @@ arguments
 // Apex - SOQL literal
 
 SoqlLiteral
-    : '[' 'select' .*? ']'
+    : '[' SELECT .*? ']'
 	;
 	
 // LEXER
@@ -694,6 +694,7 @@ GLOBAL	      : 'global';
 WEBSERVICE    : 'webservice';
 APEX_WITH_SHARING :    'with sharing';
 APEX_WITHOUT_SHARING : 'without sharing';
+SELECT        : [Ss][Ee][Ll][Ee][Cc][Tt];
 
 
 // §3.10.1 Integer Literals
