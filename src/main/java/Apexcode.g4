@@ -435,6 +435,7 @@ statement
     |   ';'
     |   statementExpression ';'
     |   Identifier ':' statement
+    |   apexDbExpression ';'
     ;
 
 propertyBlock
@@ -510,6 +511,20 @@ constantExpression
     :   expression
     ;
 
+apexDbExpressionLong
+    :   'Database' '.' (DB_INSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
+    ;
+	
+apexDbExpressionShort
+    :   (DB_INSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) expression
+    ;
+
+
+apexDbExpression
+	: apexDbExpressionLong
+	| apexDbExpressionShort
+	;
+	
 expression
     :   primary
     |   expression '.' 'get' '(' expressionList? ')'
@@ -697,6 +712,10 @@ WEBSERVICE    : 'webservice';
 APEX_WITH_SHARING :    'with sharing';
 APEX_WITHOUT_SHARING : 'without sharing';
 SELECT        : [Ss][Ee][Ll][Ee][Cc][Tt];
+DB_INSERT     : [Ii][Nn][Ss][Ee][Rr][Tt];
+DB_UPDATE     : [Uu][Pp][Dd][Aa][Tt][Ee];
+DB_DELETE     : [Dd][Ee][Ll][Ee][Tt][Ee];
+DB_UNDELETE   : [Un][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
 
 
 // §3.10.1 Integer Literals
