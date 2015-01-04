@@ -201,6 +201,23 @@ public with sharing class ApexClassCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "completeSetLowerCase",
+		"column": 8,
+		"itemsCountMin": 17,
+		"signatureContains": ["addAll(List<Object> fromList)", "addAll(Set<Object> fromSet)", "add(", "clear", "Set<Object> clone", "removeAll"],
+		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate", "get", "sort"]
+		}
+	 * #END
+	 */
+	public void completeSetLowerCase() {
+		//check clash of set collection name with 'set' of property setter
+		final set<String> sset = new sEt<String>();
+		sset.;//completeSetLowerCase
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "completeMap",
 		"column": 8,
 		"itemsCountMin": 16,

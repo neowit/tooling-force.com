@@ -271,6 +271,7 @@ type
 
 classOrInterfaceType
     :   Identifier typeArguments? ('.' Identifier typeArguments? )*
+    |   'set' typeArguments // 'set <' has to be defined explisitly, otherwise it clashes with 'set' of property setter
     ;
 
 primitiveType
@@ -574,6 +575,7 @@ creator
 createdName
     :   Identifier typeArgumentsOrDiamond? ('.' Identifier typeArgumentsOrDiamond?)*
     |   primitiveType
+    |   'set' typeArgumentsOrDiamond // 'set <' has to be defined explisitly, otherwise it clashes with 'set' of property setter
     ;
 
 innerCreator
