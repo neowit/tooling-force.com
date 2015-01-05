@@ -136,12 +136,24 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
                             addChild(new SObjectRelationshipFieldMember(field), overwrite = true)
                         }
                     }
+                    extendSObject()
                 }
                 scheduleRefresh()
 
             case Failure(error) => //ignore errors because we are in auto-complete mode
                 isDoneLoading = false
                 println(error)
+        }
+
+    }
+
+    /**
+     * every DB object extends SObject, so we need to add SObject methods to each DB Object type
+     */
+    private def extendSObject(): Unit = {
+        ApexModel.getSystemTypeMember("SObject") match {
+          case Some(member) => member.getChildren.map(m => this.addChild(m))
+          case None =>
         }
 
     }
