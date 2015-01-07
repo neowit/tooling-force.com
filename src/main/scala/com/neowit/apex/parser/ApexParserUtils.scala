@@ -1,6 +1,5 @@
 package com.neowit.apex.parser
 
-import com.neowit.apex.parser.antlr.ApexcodeParser
 import org.antlr.v4.runtime.{Parser, ConsoleErrorListener}
 import scala.collection.JavaConversions._
 
