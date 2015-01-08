@@ -512,11 +512,11 @@ constantExpression
     ;
 
 apexDbExpressionLong
-    :   'Database' '.' (DB_INSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
+    :   'Database' '.' (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
     ;
 	
 apexDbExpressionShort
-    :   (DB_INSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) expression
+    :   (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) expression
     ;
 
 
@@ -713,6 +713,7 @@ APEX_WITH_SHARING :    'with sharing';
 APEX_WITHOUT_SHARING : 'without sharing';
 SELECT        : [Ss][Ee][Ll][Ee][Cc][Tt];
 DB_INSERT     : [Ii][Nn][Ss][Ee][Rr][Tt];
+DB_UPSERT     : [Uu][Pp][Ss][Ee][Rr][Tt];
 DB_UPDATE     : [Uu][Pp][Dd][Aa][Tt][Ee];
 DB_DELETE     : [Dd][Ee][Ll][Ee][Tt][Ee];
 DB_UNDELETE   : [Un][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
