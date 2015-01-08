@@ -46,8 +46,30 @@ class DatabaseModel(session: Session) {
             val sObjectApiName = describeGlobalSObjectResult.getName
             val sObjectMember = new SObjectMember(sObjectApiName, session)
             _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
+            val withoutNamespace = stripNamespace(sObjectApiName)
+            if (sObjectApiName != withoutNamespace) {
+                _memberBySobjectType += withoutNamespace.toLowerCase -> sObjectMember
+            }
         }
         _memberBySobjectType.result()
+    }
+
+    /**
+     * @param sObjectApiName - full SObject API Name
+     * @return
+     *          if sObjectApiName looks like Something__Name[__c] then
+     *          return: Name[__c]
+     *          otherwise return sObjectApiName as is
+     */
+    private def stripNamespace(sObjectApiName: String): String = {
+        val namespaceEnd = sObjectApiName.indexOf("__")
+        if ((sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
+            //has namespace prefix
+            sObjectApiName.substring(namespaceEnd + 2)
+        } else {
+            sObjectApiName
+        }
+
     }
 }
 
