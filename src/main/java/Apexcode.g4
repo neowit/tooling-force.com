@@ -651,7 +651,7 @@ arguments
 // Apex - SOQL literal
 
 SoqlLiteral
-    : '[' SELECT .*? ']'
+    : '[' WS* SELECT .*? ']'
 	;
 	
 // LEXER
