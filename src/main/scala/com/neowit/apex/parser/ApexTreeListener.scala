@@ -9,7 +9,7 @@ import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 
-class TreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1) extends ApexcodeBaseListener {
+class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top

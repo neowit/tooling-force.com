@@ -64,7 +64,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         ApexParserUtils.removeConsoleErrorListener(parser)
         val tree = parser.compilationUnit()
         val walker = new ParseTreeWalker()
-        val extractor = new TreeListener(parser, line, column)
+        val extractor = new ApexTreeListener(parser, line, column)
         walker.walk(extractor, tree)
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
@@ -435,7 +435,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      *         - ParseTree - declarationContext
      *         - ParseTree = identifier or type context
      */
-    private def findSymbolType(caretAToken: AToken, extractor: TreeListener, fullCachedTree: ApexTree): Option[DefinitionWithType] = {
+    private def findSymbolType(caretAToken: AToken, extractor: ApexTreeListener, fullCachedTree: ApexTree): Option[DefinitionWithType] = {
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
@@ -489,7 +489,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 
     //check if this item is on the right side of '=', in which case it can not be a field of SObject
-    private def isToTheRightOfEqualsSign(caretAToken: AToken, extractor: TreeListener): Boolean = {
+    private def isToTheRightOfEqualsSign(caretAToken: AToken, extractor: ApexTreeListener): Boolean = {
         var i = caretAToken.index
         val inputStream = extractor.parser.getInputStream
 
@@ -553,7 +553,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
         var index = startTokenIndex
         var currentToken = startToken
-        var symbol = if (CompletionUtils.isWordToken(startToken)) startToken.getText else ""
+        var symbol = if (ApexParserUtils.isWordToken(startToken)) startToken.getText else ""
         var expression = symbol
         var token:Option[Token] = Some(currentToken)
 
@@ -674,7 +674,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         private var tokenType: String = ""
 
         def getOffset: Int = {
-            CompletionUtils.getOffset(file, line, startIndex)
+            ApexParserUtils.getOffset(file, line, startIndex)
         }
 
         def setType(path: String): Unit = {
@@ -761,10 +761,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     }
 
     protected def isWordToken(token: Token): Boolean = {
-        CompletionUtils.isWordToken(token)
+        ApexParserUtils.isWordToken(token)
     }
     protected def isWordTokenOrDot(token: Token): Boolean = {
-        CompletionUtils.isWordToken(token) || "." == token.getText
+        ApexParserUtils.isWordToken(token) || "." == token.getText
     }
 
     protected def isRightParenthesis(token: Token): Boolean = {
@@ -871,35 +871,6 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
     var prevToken: Token = null
 
 
-}
-
-object CompletionUtils {
-
-    private val WORD_PATTERN_STR = "^[\\$A-Za-z_][A-Za-z0-9_]*$"
-    private val WORD_PATTERN: Pattern = Pattern.compile(WORD_PATTERN_STR)
-
-    def isWordToken(token: Token): Boolean = {
-        WORD_PATTERN.matcher(token.getText).matches
-    }
-
-    def getOffset(file: File, line: Int, startIndex: Int): Int = {
-        val text = scala.io.Source.fromFile(file).mkString
-        //val bytes = text.take
-        var lineNum: Int = 1
-        var pos = 0
-
-        while ( lineNum < line && pos < text.length ) {
-            val ch = text.charAt(pos)
-            if ('\n' == ch) {
-                lineNum += 1
-            }
-            if (lineNum < line) {
-                pos = pos + 1
-            }
-        }
-        val offset = pos + startIndex
-        offset
-    }
 }
 
 

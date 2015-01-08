@@ -36,7 +36,7 @@ class SourceScanner (files: List[File]) extends Logging {
                     //parser.setErrorHandler(new BailErrorStrategy())
                     //parser.setErrorHandler(new CompletionErrorStrategy())
                     val tree = parser.compilationUnit()
-                    val extractor = new TreeListener(parser)
+                    val extractor = new ApexTreeListener(parser)
                     walker.walk(extractor, tree)
                     completeTree.extend(extractor.getTree)
                     fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
