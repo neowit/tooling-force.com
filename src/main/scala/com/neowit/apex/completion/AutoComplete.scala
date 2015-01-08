@@ -22,6 +22,9 @@ import org.antlr.v4.runtime._
  */
 private class DefinitionWithType(val definitionMember: Member, val typeMember: Member)
 
+private object AToken {
+    val SOQL_Pattern = "(?i)\\[\\s*select\\s+".r
+}
 /**
  * AToken represents a symbol which type we need to resolve
  * consider expression
@@ -35,6 +38,12 @@ private class DefinitionWithType(val definitionMember: Member, val typeMember: M
  * @param finalContext - parse tree context calculated by Apex parser for the expression in <caret> position
  */
 private case class AToken(index: Int, symbol: String, expression: String, token: Option[Token], finalContext: ParseTree) {
+
+    def isSoql: Boolean = token match {
+      case Some(x) =>
+          AToken.SOQL_Pattern.findFirstIn(x.getText).isDefined
+      case None => false
+    }
     def isArray: Boolean = expression.endsWith("]")
     def isMethod: Boolean = expression.endsWith(")")
     //def getToken:Token = if (caretAToken.isDefined) caretAToken.get else null
@@ -71,6 +80,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //List( someClassInstance, method(), goes, .)
         val fullApexTree: ApexTree = cachedTree.clone()
         fullApexTree.extend(extractor.tree)
+
+        //check if caret is inside SOQL expression [select ...]
+        if (1 == expressionTokens.size && expressionTokens.head.isSoql) {
+            val soqlComplete = new SoqlAutoComplete(expressionTokens.head.token.get, line, column, fullApexTree, session)
+            soqlComplete.listOptions
+        }
+
 
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
         definition match {
