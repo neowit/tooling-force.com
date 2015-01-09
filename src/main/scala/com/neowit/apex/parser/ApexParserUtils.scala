@@ -17,6 +17,10 @@ object ApexParserUtils {
 
     def getOffset(file: File, line: Int, startIndex: Int): Int = {
         val text = scala.io.Source.fromFile(file).mkString
+        getOffset(text, line, startIndex)
+    }
+
+    def getOffset(text: String, line: Int, startIndex: Int): Int = {
         //val bytes = text.take
         var lineNum: Int = 1
         var pos = 0
