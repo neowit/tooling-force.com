@@ -454,7 +454,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val symbol = caretAToken.symbol.toLowerCase
         if ("this" == symbol || "super" == symbol) {
             //process special cases: this & super
-            ClassBodyMember.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
+            ApexParserUtils.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
                 case Some(classDeclarationContext) =>
                     return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
                         case Some(thisClassMember: ClassMember) if "this" == symbol => Some(new DefinitionWithType(thisClassMember, thisClassMember))
