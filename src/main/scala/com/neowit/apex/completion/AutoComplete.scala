@@ -6,7 +6,7 @@ import com.neowit.apex.Session
 import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._
-import org.antlr.v4.runtime.misc.IntervalSet
+
 import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
@@ -281,7 +281,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 findTypeMember(_childMember, apexTree) match {
                     case Some(_typeMember) =>
                         return resolveExpression(_typeMember, tokensToGo, apexTree, Some(_childMember), caretScopeOpt)
-                    case None => List()
+                    case None =>
                 }
             case None if tokensToGo.isEmpty => //parent does not have a child with this identity, return partial match
                 val partialMatchChildren = filterByPrefix(parentType.getChildrenWithInheritance(apexTree), token.symbol)
