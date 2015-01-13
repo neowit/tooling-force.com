@@ -32,26 +32,33 @@ object DatabaseModel {
 
 class DatabaseModel(session: Session) {
 
-    private val memberBySobjectType: Map[String, DatabaseModelMember] = load()
+    private val (memberBySobjectType: Map[String, DatabaseModelMember], sObjectMembers: List[DatabaseModelMember]) = load()
 
     def getSObjectMember(typeName: String): Option[DatabaseModelMember] = {
         memberBySobjectType.get(typeName.toLowerCase)
     }
 
-    def load(): Map[String, DatabaseModelMember] = {
+    def getSObjectMembers: List[Member] = sObjectMembers
+
+    def load(): (Map[String, DatabaseModelMember], List[DatabaseModelMember]) = {
         val _memberBySobjectType = Map.newBuilder[String, DatabaseModelMember]
+        val _sObjectMembers = List.newBuilder[DatabaseModelMember]
         val describeGlobalResult = session.describeGlobal
 
         for (describeGlobalSObjectResult <- describeGlobalResult.getSobjects) {
             val sObjectApiName = describeGlobalSObjectResult.getName
             val sObjectMember = new SObjectMember(sObjectApiName, session)
+
             _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
+            _sObjectMembers += sObjectMember
+
             val withoutNamespace = stripNamespace(sObjectApiName)
             if (sObjectApiName != withoutNamespace) {
                 _memberBySobjectType += withoutNamespace.toLowerCase -> sObjectMember
+                _sObjectMembers += sObjectMember
             }
         }
-        _memberBySobjectType.result()
+        (_memberBySobjectType.result(), _sObjectMembers.result())
     }
 
     /**
