@@ -46,7 +46,10 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //check if caret is inside SOQL expression [select ...]
         if (1 == expressionTokens.size && expressionTokens.head.isSoql) {
             val soqlComplete = new SoqlAutoComplete(expressionTokens.head.token.get, line, column, fullApexTree, session)
-            soqlComplete.listOptions
+            val result = soqlComplete.listOptions
+            if (result.isSoqlStatement) {
+                return result.options
+            }
         }
 
 

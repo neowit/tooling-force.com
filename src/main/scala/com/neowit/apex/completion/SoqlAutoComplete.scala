@@ -1,17 +1,27 @@
 package com.neowit.apex.completion
 
 import com.neowit.apex.Session
-import com.neowit.apex.parser.antlr.{ApexcodeParser, SoqlParser, SoqlLexer}
-import com.neowit.apex.parser.{Caret, ApexParserUtils, ApexTree, Member}
-import org.antlr.v4.runtime.tree.ParseTreeWalker
-import org.antlr.v4.runtime.{CommonTokenStream, ANTLRInputStream, Token}
+import com.neowit.apex.parser.antlr.SoqlParser._
+import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
+import com.neowit.apex.parser.{SoqlTreeListener, ApexParserUtils, ApexTree, Member}
+import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
+import org.antlr.v4.runtime.{ParserRuleContext, CommonTokenStream, ANTLRInputStream, Token}
+import scala.collection.JavaConversions._
+
+class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean)
 
 class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
-    def listOptions:List[Member] = {
 
-        val (caretLine, caretColumn) = getCaretPositionInSoql(token, line, column)
+    def listOptions:SoqlCompletionResult = {
 
         val soqlString = stripBrackets(token.getText)
+        val expressionTokens = getCaretStatement(soqlString)
+        if (expressionTokens.isEmpty) {
+            //looks like the file is too broken to get to the point where caret resides
+            return new SoqlCompletionResult(List(), isSoqlStatement = true)
+        }
+
+
         val input = new ANTLRInputStream(soqlString)
         val lexer = new SoqlLexer(input)
         val tokens = new CommonTokenStream(lexer)
