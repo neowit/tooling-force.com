@@ -3,6 +3,7 @@ package com.neowit.apex.parser
 import java.io.File
 import java.util.regex.Pattern
 
+import com.neowit.apex.parser.antlr.ApexcodeLexer
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.{Token, Parser, ConsoleErrorListener}
 import scala.collection.JavaConversions._
@@ -140,4 +141,18 @@ object ApexParserUtils {
         }
         getParentImpl(ctx.getParent, ctxType)
     }
+
+    def isWordTokenOrDot(token: Token): Boolean = {
+        isWordToken(token) || ApexcodeLexer.DOT == token.getType
+    }
+
+    def isRightParenthesis(token: Token): Boolean = {
+        ApexcodeLexer.RPAREN == token.getType
+    }
+
+    def isLeftParenthesis(token: Token): Boolean = {
+        ApexcodeLexer.LPAREN == token.getType
+    }
+
+
 }
