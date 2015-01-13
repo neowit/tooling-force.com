@@ -63,7 +63,7 @@ class DatabaseModel(session: Session) {
      */
     private def stripNamespace(sObjectApiName: String): String = {
         val namespaceEnd = sObjectApiName.indexOf("__")
-        if ((sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
+        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
             //has namespace prefix
             sObjectApiName.substring(namespaceEnd + 2)
         } else {
