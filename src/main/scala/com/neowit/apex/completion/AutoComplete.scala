@@ -10,18 +10,18 @@ import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
 import org.antlr.v4.runtime._
 
-/**
- * public void method() {
- *     String str;
- *     str.<caret>
- * }
- *
- * @param definitionMember - in the above example: definitionMember will be LocalVariableMember - "str"
- * @param typeMember - in the above example: typeMember will be ApexModel.ApexType member  - "String"
- */
-private class DefinitionWithType(val definitionMember: Member, val typeMember: Member)
 
 class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
+    /**
+     * public void method() {
+     *     String str;
+     *     str.<caret>
+     * }
+     *
+     * @param definitionMember - in the above example: definitionMember will be LocalVariableMember - "str"
+     * @param typeMember - in the above example: typeMember will be ApexModel.ApexType member  - "String"
+     */
+    private class DefinitionWithType(val definitionMember: Member, val typeMember: Member)
 
     def listOptions:List[Member] = {
         val expressionTokens = getCaretStatement
