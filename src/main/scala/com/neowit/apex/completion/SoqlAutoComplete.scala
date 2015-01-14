@@ -4,7 +4,7 @@ import com.neowit.apex.Session
 import com.neowit.apex.parser.antlr.SoqlParser._
 import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
 import com.neowit.apex.parser.{ApexParserUtils, ApexTree, Member}
-import org.antlr.v4.runtime.misc.{IntervalSet}
+import com.sforce.soap.partner.ChildRelationship
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
@@ -172,6 +172,13 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: WhereConditionExpressionContext =>
                 //started new field inside where
                 getFromMember(tree)
+            case ctx: RelationshipPathContext =>
+                //started new relationship name inside nested select
+                getFromMember(tree) match {
+                  case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
+                      Some(new ChildRelationshipsContainerMember(fromMember.asInstanceOf[FromTypeMember]))
+                  case None => None
+                }
 
             case _ => None //TODO
         }
@@ -212,7 +219,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case _ => members
         }
         //remove all SObject methods, leave Fields and Relationships only
-        membersWithoutDuplicates.filter(_.isInstanceOf[SObjectFieldMember])
+        membersWithoutDuplicates.filterNot(m => m.isInstanceOf[ApexMethod])
 
     }
 }
@@ -255,6 +262,18 @@ class FromTypeMember(ctx: ObjectTypeContext, session: Session) extends SoqlMembe
             case None => None
         }
     }
+
+    def getChildRelationships: Array[com.sforce.soap.partner.ChildRelationship]  = {
+        getSObjectMember match {
+            case Some(member) if member.isInstanceOf[SObjectMember] =>
+                val sobjectMember = member.asInstanceOf[SObjectMember]
+                //force sobject member to load its children (including relationships)
+                sobjectMember.getChildren
+                //return actual relationships
+                sobjectMember.asInstanceOf[SObjectMember].getChildRelationships
+            case None => Array()
+        }
+    }
 }
 
 class DBModelMember(session: Session) extends Member {
@@ -284,6 +303,31 @@ class DBModelMember(session: Session) extends Member {
             case None => None
         }
     }
+}
+
+/**
+ * artificial proxy which contains list of relationships for specific object type
+ */
+class ChildRelationshipsContainerMember(fromTypeMember: FromTypeMember) extends SoqlMember {
+
+    override def getIdentity: String = fromTypeMember.getIdentity + "CHILD_RELATIONSHIPS"
+
+    override def getType: String = getIdentity
+
+    override def getSignature: String = getIdentity
+
+    override def getChildren: List[Member] = fromTypeMember.getChildRelationships.toList.filter(null != _.getRelationshipName).map(new ChildRelationshipMember(_))
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = super.getChild(identity, withHierarchy)
+}
+
+class ChildRelationshipMember(relationship: ChildRelationship) extends SoqlMember {
+
+    override def getIdentity: String = relationship.getRelationshipName
+
+    override def getType: String = getIdentity
+
+    override def getSignature: String = getIdentity + " -> " + relationship.getChildSObject
 }
 
 class SoqlCompletionErrorStrategy extends DefaultErrorStrategy {
