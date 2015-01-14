@@ -143,15 +143,15 @@ object ApexParserUtils {
     }
 
     def isWordTokenOrDot(token: Token): Boolean = {
-        isWordToken(token) || ApexcodeLexer.DOT == token.getType
+        isWordToken(token) || "." == token.getText
     }
 
     def isRightParenthesis(token: Token): Boolean = {
-        ApexcodeLexer.RPAREN == token.getType
+        ")" == token.getText
     }
 
     def isLeftParenthesis(token: Token): Boolean = {
-        ApexcodeLexer.LPAREN == token.getType
+        "(" == token.getText
     }
 
 
