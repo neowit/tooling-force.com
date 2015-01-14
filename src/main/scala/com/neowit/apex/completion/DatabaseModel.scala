@@ -2,11 +2,8 @@ package com.neowit.apex.completion
 
 import com.neowit.TcpServer
 import com.neowit.apex.Session
-import com.neowit.apex.actions.DescribeMetadata
 import com.neowit.apex.parser.Member
 import com.neowit.utils.Logging
-
-import com.sforce.soap.metadata.ListMetadataQuery
 
 import akka.actor.Actor
 import akka.actor.Props

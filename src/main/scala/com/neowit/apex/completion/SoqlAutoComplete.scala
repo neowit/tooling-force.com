@@ -3,9 +3,10 @@ package com.neowit.apex.completion
 import com.neowit.apex.Session
 import com.neowit.apex.parser.antlr.SoqlParser._
 import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
-import com.neowit.apex.parser.{SoqlTreeListener, ApexParserUtils, ApexTree, Member}
-import org.antlr.v4.runtime.tree.{ParseTree, ParseTreeWalker}
-import org.antlr.v4.runtime.{ParserRuleContext, CommonTokenStream, ANTLRInputStream, Token}
+import com.neowit.apex.parser.{ApexParserUtils, ApexTree, Member}
+import org.antlr.v4.runtime.misc.{IntervalSet}
+import org.antlr.v4.runtime.tree.ParseTree
+import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
 
 class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean)
@@ -27,27 +28,25 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val tokens = new CommonTokenStream(lexer)
         val parser = new SoqlParser(tokens)
         ApexParserUtils.removeConsoleErrorListener(parser)
+        parser.setErrorHandler(new SoqlCompletionErrorStrategy())
         val tree = parser.soqlStatement()
+        /*
         val walker = new ParseTreeWalker()
         val extractor = new SoqlTreeListener(parser, line, column)
         walker.walk(extractor, tree)
+        */
 
         val finalContext = expressionTokens.head.finalContext
         val definition = findSymbolType(expressionTokens, tree)
 
         definition match {
           case Some(soqlTypeMember) =>
-              if (expressionTokens.size > 1)
-                      new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens.tail), finalContext), isSoqlStatement = true)
-                  else
-                      new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext), isSoqlStatement = true)
+              new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext), isSoqlStatement = true)
           case None =>
               println("Failed to find definition")
               new SoqlCompletionResult(Nil, isSoqlStatement = false)
         }
     }
-
-
 
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken]): List[Member] = {
         //TODO
@@ -61,7 +60,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val tokensToGo = expressionTokens.tail
         parentType.getChild(token.symbol) match {
             case Some(_childMember) =>
-                resolveExpression(_childMember, tokensToGo)
+                return resolveExpression(_childMember, tokensToGo)
             case None if tokensToGo.isEmpty => //parent does not have a child with this identity, return partial match
                 val partialMatchChildren = filterByPrefix(parentType.getChildren, token.symbol)
                 if (partialMatchChildren.isEmpty) {
@@ -165,6 +164,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: FieldNameContext if ctx.getParent.isInstanceOf[AggregateFunctionContext] =>
                 //started new field inside aggregate function which requires an argument
                 getFromMember(tree)
+            case ctx: FieldNameContext if ctx.getParent.isInstanceOf[FieldItemContext] =>
+                //looks like this is part of relationship e.g. Owner.<caret>
+                getFromMember(tree)
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
                 Some(new DBModelMember(session))
@@ -179,7 +181,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         soqlStatementContextOption match {
             case Some(soqlStatement) =>
                 val objTypeMembers = ApexParserUtils.findChild(soqlStatement, classOf[FromStatementContext]) match {
-                  case Some(fromStatement) => fromStatement.objectType().map(new FromTypeMember(_, session))
+                  case Some(fromStatement) =>
+                      fromStatement.objectType().map(new FromTypeMember(_, session))
                   case None => Nil
                 }
                 objTypeMembers.toList
@@ -198,14 +201,16 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         def isReferenceMember(m: Member): Boolean = {
             m.isInstanceOf[SObjectFieldMember] && m.asInstanceOf[SObjectFieldMember].isReference
         }
-        finalContext match {
+        val membersWithoutDuplicates = finalContext match {
             case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SelectStatementContext] =>
                 //started new field in Select part
                 val existingFieldNames = ApexParserUtils.findChildren(ctx.getParent, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
                 members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
 
-            case _ => Nil
+            case _ => members
         }
+        //remove all SObject methods, leave Fields and Relationships only
+        membersWithoutDuplicates.filter(_.isInstanceOf[SObjectFieldMember])
 
     }
 }
@@ -218,6 +223,7 @@ class CaretInString(line:  Int, column: Int, str: String) extends Caret (line, c
 
 trait SoqlMember extends Member {
     override def isStatic: Boolean = false
+    override def toString: String = getIdentity
 }
 
 class FromTypeMember(ctx: ObjectTypeContext, session: Session) extends SoqlMember {
@@ -227,13 +233,25 @@ class FromTypeMember(ctx: ObjectTypeContext, session: Session) extends SoqlMembe
 
     override def getSignature: String = getIdentity
 
-    override def getChildren: List[Member] = DatabaseModel.getModelBySession(session) match {
-        case Some(dbModel) => dbModel.getSObjectMember(getIdentity) match {
+    private def getSObjectMember: Option[DatabaseModelMember] = DatabaseModel.getModelBySession(session) match {
+        case Some(dbModel) => dbModel.getSObjectMember(getIdentity)
+        case _ => None
+    }
+
+    override def getChildren: List[Member] = {
+        getSObjectMember match {
             case Some(sobjectMember) =>
                 sobjectMember.getChildren
             case None => Nil
         }
-        case None => Nil
+    }
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
+        getSObjectMember match {
+            case Some(sobjectMember) =>
+                sobjectMember.getChild(identity)
+            case None => None
+        }
     }
 }
 
@@ -263,5 +281,15 @@ class DBModelMember(session: Session) extends Member {
             case Some(dbModel) => dbModel.getSObjectMember(getIdentity)
             case None => None
         }
+    }
+}
+
+class SoqlCompletionErrorStrategy extends DefaultErrorStrategy {
+
+    override def singleTokenDeletion(recognizer: Parser): Token = {
+        if (SoqlLexer.FROM == recognizer.getInputStream.LA(1))
+            null //force singleTokenInsertion to make FROM parseable
+        else
+            super.singleTokenDeletion(recognizer)
     }
 }
