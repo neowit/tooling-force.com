@@ -134,6 +134,8 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
     private var isDoneLoading = false
     override protected def isLoaded: Boolean = isDoneLoading
 
+    private var childRelationships: Array[com.sforce.soap.partner.ChildRelationship] = Array()
+
     override def getType: String = sObjectApiName //SObject API Name here
 
     override def getSignature: String = sObjectApiName
@@ -154,6 +156,7 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
             case Success(describeSObjectResults) =>
                 if (describeSObjectResults.nonEmpty) {
                     val describeSobjectResult = describeSObjectResults.head
+                    childRelationships = describeSobjectResult.getChildRelationships
                     for (field <- describeSobjectResult.getFields) {
                         val fMember = new SObjectFieldMember(field)
                         addChild(fMember, overwrite = true)
@@ -188,7 +191,9 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
         isDoneLoading = false
         //clearChildren()
         loadMembers()
-
+    }
+    def getChildRelationships: Array[com.sforce.soap.partner.ChildRelationship]  = {
+        childRelationships
     }
 }
 
