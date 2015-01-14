@@ -49,7 +49,6 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     }
 
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken]): List[Member] = {
-        //TODO
         if (Nil == expressionTokens) {
             return parentType.getChildren
         }
@@ -170,6 +169,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
                 Some(new DBModelMember(session))
+            case ctx: WhereConditionExpressionContext =>
+                //started new field inside where
+                getFromMember(tree)
 
             case _ => None //TODO
         }
