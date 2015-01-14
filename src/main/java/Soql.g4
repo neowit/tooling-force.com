@@ -120,19 +120,27 @@ whereConditionExpressions
 	:	whereConditionExpression ((AND | OR) whereConditionExpression)*
 	;
 
+whereConditionExpressionsSimple
+	:	whereConditionExpressionSimple ((AND | OR) whereConditionExpressionSimple)*
+	;
+
 whereConditionExpression
-	:	fieldItem IN whereSubquery
-	|	fieldItem IN ':' expression
+	:	whereConditionExpressionSimple
+	|	whereConditionExpressionWithSubquery
+	;
+
+whereConditionExpressionSimple
+	:	fieldItem IN ':' expression
 	|	distanceFunction simpleOperator expression
-	|	conditionExpressions
+	|	conditionExpression
+	;
+
+whereConditionExpressionWithSubquery
+	:	fieldItem IN whereSubquery
 	;
 
 whereSubquery
-	:	'(' SELECT fieldName FROM objectType WHERE conditionExpressions ')'
-	;
-
-conditionExpressions
-	:	conditionExpression ((AND | OR) conditionExpression)*
+	:	'(' SELECT fieldName FROM objectType WHERE whereConditionExpressionsSimple ')'
 	;
 
 conditionExpression
