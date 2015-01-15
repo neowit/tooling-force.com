@@ -18,6 +18,10 @@ package com.neowit.apex.parser.antlr;
 }
 
 // starting point for parsing a SOQL expression
+soqlCodeUnit
+	:	 ('[' soqlStatement ']' | soqlStatement) EOF
+	;
+
 soqlStatement
     :   selectStatement 
 		fromStatement 
@@ -27,7 +31,7 @@ soqlStatement
 		orderByStatement? 
 		limitStatement? 
 		offsetStatement? 
-		(forViewStatement | forReferenceStatement)? updateStatement? EOF
+		(forViewStatement | forReferenceStatement)? updateStatement?
     ;
 
 
