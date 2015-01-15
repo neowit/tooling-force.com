@@ -37,7 +37,7 @@ class CodeCompletions extends FunSuite {
             responseFile.delete()
         }
     }
-    case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]],
+    case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]], identityMustNotContain: Option[List[String]],
                            signatureContains: Option[List[String]], signatureMustNotContain: Option[List[String]]) {
         /**
          * find lineMarker in the specified file
@@ -67,7 +67,7 @@ class CodeCompletions extends FunSuite {
     case class CompletionItem(realIdentity: String, signature: String, doc: String, identity: String, `type`: String, visibility: String)
 
     object ApexModelJsonProtocol extends DefaultJsonProtocol {
-        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "signatureContains", "signatureMustNotContain"))
+        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "identityMustNotContain", "signatureContains", "signatureMustNotContain"))
         implicit val testCompletionItemFormat: JsonFormat[CompletionItem] = lazyFormat(jsonFormat(CompletionItem, "realIdentity", "signature", "doc", "identity", "type", "visibility"))
     }
 
@@ -144,10 +144,20 @@ class CodeCompletions extends FunSuite {
           case None =>
         }
 
+        //check identityMustNotContain
+        config.identityMustNotContain match {
+            case Some(identities) =>
+                val completionResult = collectFoundItems(config.lineMarker, lines, matchIdentityMustNotContain(identities))
+                assert(completionResult.matchingItemsSet.isEmpty, "Scenario: " + config.lineMarker + "; did not expect to find following identities: " + completionResult.matchingItemsSet)
+            case None =>
+        }
     }
     //find exact item identity in the list of all exected identities
     private def matchIdentity(identities: List[String])(item: CompletionItem): String = {
         if (identities.contains(item.identity)) item.identity else ""
+    }
+    private def matchIdentityMustNotContain(identities: List[String])(item: CompletionItem): String = {
+        if (matchIdentity(identities)(item).nonEmpty) item.signature else ""
     }
     private def matchSignatureContains(signatureSubstrings: List[String])(item: CompletionItem): String = {
         var longestMatch = ""
@@ -209,6 +219,11 @@ class CodeCompletions extends FunSuite {
 
     test("Apex code completions, i.e. completions involving user defined Apex classes") {
         val testApexClassFilePath = projectPath + "/src/classes/ApexClassCompletions.cls"
+        testCompletionsInFile(testApexClassFilePath)
+    }
+
+    test("SOQL completions, i.e. completions involving SQOL statements") {
+        val testApexClassFilePath = projectPath + "/src/classes/SOQLCompletions.cls"
         testCompletionsInFile(testApexClassFilePath)
     }
 }
