@@ -15,7 +15,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
     def listOptions:SoqlCompletionResult = {
 
-        val soqlString = stripBrackets(token.getText)
+        //val soqlString = stripBrackets(token.getText)
+        val soqlString = token.getText
         val expressionTokens = getCaretStatement(soqlString)
         if (expressionTokens.isEmpty) {
             //looks like the file is too broken to get to the point where caret resides
@@ -29,7 +30,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val parser = new SoqlParser(tokens)
         ApexParserUtils.removeConsoleErrorListener(parser)
         parser.setErrorHandler(new SoqlCompletionErrorStrategy())
-        val tree = parser.soqlStatement()
+        val tree = parser.soqlCodeUnit()
         /*
         val walker = new ParseTreeWalker()
         val extractor = new SoqlTreeListener(parser, line, column)
@@ -96,17 +97,6 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         (caretLine, caretColumn)
     }
 
-    /**
-     * @param text - convert '[select ...]' into 'select ...'
-     * @return
-     */
-    private def stripBrackets(text: String): String = {
-        if (text.startsWith("[") && text.endsWith("]")) {
-            text.substring(1, text.length - 1)
-        } else {
-            text
-        }
-    }
 
     private def getCaretStatement(soqlString: String): List[AToken] = {
         val (caretLine, caretColumn) = getCaretPositionInSoql(token, line, column)
@@ -123,7 +113,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
         //parse tree until we reach caret caretAToken
         try {
-            parser.soqlStatement()
+            parser.soqlCodeUnit()
         } catch {
             case ex: CaretReachedException =>
                 return CompletionUtils.breakExpressionToATokens(ex)
@@ -140,7 +130,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
      *
      * @return typeMember - in the above example: typeMember will be FromTypeMember - "Account"
      */
-    private def findSymbolType(expressionTokens: List[AToken], tree: SoqlStatementContext ): Option[Member] = {
+    private def findSymbolType(expressionTokens: List[AToken], tree: SoqlCodeUnitContext ): Option[Member] = {
 
         def getFromMember(ctx: ParserRuleContext): Option[SoqlMember] = {
             getFrom(ctx) match {
@@ -186,8 +176,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
     private def getFrom(ctx: ParserRuleContext): List[FromTypeMember] = {
 
-        val soqlStatementContextOption = if (ctx.isInstanceOf[SoqlStatementContext]) Some(ctx) else ApexParserUtils.getParent(ctx, classOf[SoqlStatementContext])
-        soqlStatementContextOption match {
+        val soqlCodeUnitContextOption = if (ctx.isInstanceOf[SoqlCodeUnitContext]) Some(ctx) else ApexParserUtils.getParent(ctx, classOf[SoqlCodeUnitContext])
+        soqlCodeUnitContextOption match {
             case Some(soqlStatement) =>
                 val objTypeMembers = ApexParserUtils.findChild(soqlStatement, classOf[FromStatementContext]) match {
                   case Some(fromStatement) =>
