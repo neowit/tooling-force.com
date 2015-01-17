@@ -56,6 +56,7 @@ object CompletionUtils {
      * "completion(some.num[other]).goes.her|)" => List( completion(), goes, her)
      */
     def breakExpressionToATokens(ex: CaretReachedException): List[AToken] = {
+
         val expressionTokens = List.newBuilder[AToken]
         //at this point ex contains all information we need to build full statement on which ctrl+space was pressed
         //e.g.: MyClass.MyInnerClass.
@@ -74,7 +75,7 @@ object CompletionUtils {
 
         var index = startTokenIndex
         var currentToken = startToken
-        var symbol = if (ApexParserUtils.isWordToken(startToken)) startToken.getText else ""
+        var symbol = if (ApexParserUtils.isWordToken(startToken) ) startToken.getText else ""
         var expression = symbol
         var token:Option[Token] = Some(currentToken)
 
@@ -135,8 +136,31 @@ object CompletionUtils {
      * @return
      */
     private def findStartToken(ex: CaretReachedException): Token = {
+        /**
+         * caret token often gets associated with the NEXT token after Caret instead of Previous one
+         * this method is trying to identify if caret token has gone too far and if we need to use the
+         * token which goes BEFORE caret
+         * @return
+         */
+        def getStartToken: Token = {
+            val ctx = ex.finalContext
+            val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+
+            if (CaretToken2.CARET_TOKEN_TYPE == startToken.getType) {
+                val caretToken = startToken.asInstanceOf[CaretTokenTrait]
+                val prevToken = caretToken.prevToken
+                if (null != prevToken && caretToken.isBeyondCaret) {
+                    //val prevTokenEndIndex = prevToken.getCharPositionInLine + (prevToken.getStopIndex - prevToken.getStartIndex) + 1
+                    //if (startToken.getCharPositionInLine == prevTokenEndIndex + 1 || caretToken.getLine > caretToken.getCaretLine) {
+                    return prevToken
+                    //}
+                }
+            }
+            startToken
+        }
         val ctx = ex.finalContext
-        val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+        //val startToken = ctx.asInstanceOf[ParserRuleContext].getStart //e.g. 'str'
+        val startToken = getStartToken //e.g. 'str'
         val startTokenIndex = startToken.getTokenIndex //@333 = 333
         //get to caret token and then back to the most likely start of the expression
 
