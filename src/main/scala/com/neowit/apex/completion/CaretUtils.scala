@@ -70,6 +70,7 @@ class CodeCompletionTokenSource( source: TokenSource, caret: Caret) extends Toke
                 //found target?
                 //caretToken = prevToken
                 val t = CaretToken2(tokenFactorySourcePair, Token.DEFAULT_CHANNEL, caretOffset, caretOffset)
+                t.setCaret(caret)
                 t.setOriginalToken(token)
                 t.prevToken = prevToken
                 token = t
@@ -81,6 +82,7 @@ class CodeCompletionTokenSource( source: TokenSource, caret: Caret) extends Toke
                     }
                 }
                 val t = CaretToken2(token)
+                t.setCaret(caret)
                 t.prevToken = prevToken
                 token = t
                 caretToken = token
@@ -99,8 +101,9 @@ class CodeCompletionTokenSource( source: TokenSource, caret: Caret) extends Toke
         this.tokenFactory = if (tokenFactory != null) tokenFactory else CommonTokenFactory.DEFAULT
     }
 }
-class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val cause: Option[RecognitionException] = None )
+class CaretReachedException(val recognizer: Parser, val finalContext: RuleContext, val caretToken: CaretTokenTrait, val cause: Option[RecognitionException] = None )
     extends RuntimeException {
+
     def getInputStream: CommonTokenStream = cause match {
         case Some(exception) => exception.getInputStream.asInstanceOf[CommonTokenStream]
         case None =>
@@ -122,10 +125,10 @@ class CompletionErrorStrategy extends DefaultErrorStrategy {
     override def recover(recognizer: Parser, e: RecognitionException) {
         if (e != null && e.getOffendingToken != null) {
             if (e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
-                throw new CaretReachedException(recognizer, recognizer.getContext, Some(e))
+                throw new CaretReachedException(recognizer, recognizer.getContext, e.getOffendingToken.asInstanceOf[CaretTokenTrait], Some(e))
             } else if (e.getInputStream.index() + 1 <= e.getInputStream.size() &&
                 e.getInputStream.asInstanceOf[CommonTokenStream].LT(2).getType == CaretToken2.CARET_TOKEN_TYPE) {
-                throw new CaretReachedException(recognizer, recognizer.getContext, Some(e))
+                throw new CaretReachedException(recognizer, recognizer.getContext, e.getInputStream.asInstanceOf[CommonTokenStream].LT(2).asInstanceOf[CaretTokenTrait], Some(e))
             }
         }
         super.recover(recognizer, e)
@@ -136,7 +139,7 @@ class CompletionErrorStrategy extends DefaultErrorStrategy {
 
     override def recoverInline(recognizer: Parser): Token = {
         if (recognizer.getInputStream.LA(1) == CaretToken2.CARET_TOKEN_TYPE) {
-            throw new CaretReachedException(recognizer, recognizer.getContext)
+            throw new CaretReachedException(recognizer, recognizer.getContext, recognizer.getInputStream.LT(1).asInstanceOf[CaretTokenTrait])
         }
         super.recoverInline(recognizer)
     }
@@ -192,6 +195,46 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
     }
     var prevToken: Token = null
 
+    private var caret: Option[Caret] = None
 
+    def setCaret(caret: Caret): Unit = {
+        this.caret = Some(caret)
+    }
+
+    def getCaretPositionInLine:Int = caret match {
+      case Some(_caret) => _caret.startIndex
+      case None => -1
+    }
+
+    def getCaretLine:Int = caret match {
+        case Some(_caret) => _caret.line
+        case None => -1
+    }
+
+    def getCaret: Option[Caret] = caret
+
+    /**
+     * make sure that for token which parser put into Caret position we
+     * do not return text of the token *after* caret
+     */
+    override def getText: String = {
+        if (this.getCharPositionInLine < getCaretPositionInLine && this.getLine == getCaretLine)
+            super.getText
+        else
+            ""
+    }
+
+    /**
+     * if current token starts from <caret> position or after then this is most likely not the token we are interested in
+     */
+    def isBeyondCaret:Boolean = {
+        if (getLine < getCaretLine) {
+            false
+        } else if (getLine == getCaretLine) {
+            getCaretPositionInLine <= getCharPositionInLine
+        } else { //getLine > getCaretLine
+            true
+        }
+    }
 }
 
