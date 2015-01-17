@@ -3,7 +3,7 @@ package com.neowit.apex.completion
 import com.neowit.apex.Session
 import com.neowit.apex.parser.antlr.SoqlParser._
 import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
-import com.neowit.apex.parser.{ApexParserUtils, ApexTree, Member}
+import com.neowit.apex.parser.{SoqlParserUtils, ApexParserUtils, ApexTree, Member}
 import com.sforce.soap.partner.ChildRelationship
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
@@ -17,7 +17,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
         //val soqlString = stripBrackets(token.getText)
         val soqlString = token.getText
-        val expressionTokens = getCaretStatement(soqlString)
+        val (expressionTokens, caretReachedException) = getCaretStatement(soqlString)
         if (expressionTokens.isEmpty) {
             //looks like the file is too broken to get to the point where caret resides
             return new SoqlCompletionResult(List(), isSoqlStatement = true)
@@ -38,7 +38,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         */
 
         val finalContext = expressionTokens.head.finalContext
-        val definition = findSymbolType(expressionTokens, tree)
+        val definition = findSymbolType(expressionTokens, tree, tokens, caretReachedException)
 
         definition match {
           case Some(soqlTypeMember) =>
@@ -98,7 +98,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     }
 
 
-    private def getCaretStatement(soqlString: String): List[AToken] = {
+    private def getCaretStatement(soqlString: String): (List[AToken], Option[CaretReachedException]) = {
         val (caretLine, caretColumn) = getCaretPositionInSoql(token, line, column)
 
         val caret = new CaretInString(caretLine + 1, caretColumn, soqlString)
@@ -116,32 +116,52 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             parser.soqlCodeUnit()
         } catch {
             case ex: CaretReachedException =>
-                return CompletionUtils.breakExpressionToATokens(ex)
+                return (breakExpressionToATokens(ex), Some(ex))
             case e:Throwable =>
                 println(e.getMessage)
         }
 
-        List()
+        (List(), None)
 
+    }
+    def breakExpressionToATokens(ex: CaretReachedException): List[AToken] = {
+        val expressionTokens = CompletionUtils.breakExpressionToATokens(ex)
+        if (expressionTokens.nonEmpty && Set("select", "from").contains(expressionTokens(expressionTokens.size-1).symbol.toLowerCase)) {
+            //most likely attempting to complete first field name in SELECT ... part
+            val lastToken = expressionTokens(expressionTokens.size-1)
+            return expressionTokens.init ++ List(new AToken(lastToken.index + 1, "", "", None, ex.finalContext))
+        }
+        expressionTokens
     }
 
     /**
-     * select Id, <caret> from Account
+     * select Id, _caret_ from Account
      *
      * @return typeMember - in the above example: typeMember will be FromTypeMember - "Account"
      */
-    private def findSymbolType(expressionTokens: List[AToken], tree: SoqlCodeUnitContext ): Option[Member] = {
+    private def findSymbolType(expressionTokens: List[AToken], tree: SoqlCodeUnitContext, tokens: TokenStream,
+                               caretReachedException: Option[CaretReachedException] ): Option[Member] = {
 
         def getFromMember(ctx: ParserRuleContext): Option[SoqlMember] = {
-            getFrom(ctx) match {
-                case x :: xs => Some(x)
-                case _ => None
+            caretReachedException match {
+                case Some(_caretReachedException) => getFrom(tokens, _caretReachedException) match {
+                    case x :: xs => Some(x)
+                    case _ => None
+                }
+                case None => //fall back to what parser managed to deduce from current SQOL expression
+                    getFrom(ctx) match {
+                        case x :: xs => Some(x)
+                        case _ => None
 
+                    }
             }
         }
 
         expressionTokens.head.finalContext match {
             case ctx: SelectItemContext =>
+                //started new field in Select part
+                getFromMember(tree)
+            case ctx: SelectStatementContext =>
                 //started new field in Select part
                 getFromMember(tree)
             case ctx: FieldItemContext =>
@@ -155,6 +175,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 getFromMember(tree)
             case ctx: FieldNameContext if ctx.getParent.isInstanceOf[FieldItemContext] =>
                 //looks like this is part of relationship e.g. Owner.<caret>
+                getFromMember(tree)
+            case ctx: FromStatementContext =>
+                //most likely partial field (last one) in Select part before 'from'
                 getFromMember(tree)
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
@@ -174,7 +197,34 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         }
     }
 
-    private def getFrom(ctx: ParserRuleContext): List[FromTypeMember] = {
+    /**
+     * find FROM _Object_Type_ in provided token stream
+     * this method first tries to detect scope and find FROM in that scope
+     * if this method fails then fall back to FromStatementContext detected by main antlr parser
+     * @param tokens - tokes representing current SOQL expression
+     * @param caretReachedException - used mainly for information about caret location
+     * @return
+     *         current version returns only 1 object type (ignoring the fact that SOQL supports multiple
+     *         objects in main FROM part)
+     */
+    private def getFrom(tokens: TokenStream, caretReachedException: CaretReachedException ): List[FromTypeMember] = {
+        SoqlParserUtils.findFromToken(tokens, caretReachedException.caretToken) match {
+            case Some(fromToken) =>
+                val objectTypeTokenIndex = fromToken.getTokenIndex + 1
+                if (objectTypeTokenIndex < tokens.size()) {
+                    return List(new FromTypeMember(tokens.get(objectTypeTokenIndex), session))
+                }
+            case None =>
+        }
+        getFrom(caretReachedException.finalContext)
+    }
+
+    /**
+     * less reliable alternative to getFrom(tokens: TokenStream, caretReachedException: CaretReachedException ):
+     * if SOQL expression is sufficiently broken then this method may return wrong FROM clause (e.g. from nested SELECT)
+     * @return
+     */
+    private def getFrom(ctx: RuleContext): List[FromTypeMember] = {
 
         val soqlCodeUnitContextOption = if (ctx.isInstanceOf[SoqlCodeUnitContext]) Some(ctx) else ApexParserUtils.getParent(ctx, classOf[SoqlCodeUnitContext])
         soqlCodeUnitContextOption match {
@@ -225,8 +275,12 @@ trait SoqlMember extends Member {
     override def toString: String = getIdentity
 }
 
-class FromTypeMember(ctx: ObjectTypeContext, session: Session) extends SoqlMember {
-    override def getIdentity: String = ctx.Identifier().getSymbol.getText
+class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMember {
+
+    def this(ctx: ObjectTypeContext, session: Session) {
+        this(ctx.Identifier().getSymbol, session)
+    }
+    override def getIdentity: String = objectTypeToken.getText
 
     override def getType: String = getIdentity
 

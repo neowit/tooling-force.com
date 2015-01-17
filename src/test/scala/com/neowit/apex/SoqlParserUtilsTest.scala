@@ -1,7 +1,7 @@
 package com.neowit.apex
 
-import com.neowit.apex.parser.{ApexParserUtils, SoqlParserUtils}
-import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
+import com.neowit.apex.parser.SoqlParserUtils
+import com.neowit.apex.parser.antlr.SoqlLexer
 import org.antlr.v4.runtime.{Token, TokenStream, ANTLRInputStream, CommonTokenStream}
 import org.scalatest.FunSuite
 
@@ -93,11 +93,6 @@ class SoqlParserUtilsTest extends FunSuite {
         val lexer = new SoqlLexer(input)
         val tokens = new CommonTokenStream(lexer)
         tokens.fill()
-        /*
-        val parser = new SoqlParser(tokens)
-        ApexParserUtils.removeConsoleErrorListener(parser)
-        val tree = parser.soqlCodeUnit()
-        */
         tokens
     }
 
