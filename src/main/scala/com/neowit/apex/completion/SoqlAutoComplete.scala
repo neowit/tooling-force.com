@@ -266,7 +266,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
 class CaretInString(line:  Int, column: Int, str: String) extends Caret (line, column){
     def getOffset: Int = {
-        ApexParserUtils.getOffset(str, line, column)
+        ApexParserUtils.getOffset(str, line, column) - 1 //because starts from 0
     }
 }
 
