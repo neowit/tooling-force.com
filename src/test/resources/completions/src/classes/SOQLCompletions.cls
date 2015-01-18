@@ -26,7 +26,7 @@ public with sharing class SOQLCompletions {
 	/**
 	 * #START
 		{
-		"lineMarker": "tesSecondFieldInSelect",
+		"lineMarker": "testSecondFieldInSelect",
 		"column": 27,
 		"itemsCountMin": 30,
 		"identities": ["Name", "Owner", "OwnerId", "AccountNumber"],
@@ -35,7 +35,36 @@ public with sharing class SOQLCompletions {
 	 * #END
 	 */
 	public void tesSecondFieldInSelect() {
-		Account a  = [select Id, from Account];// tesSecondFieldInSelect
+		Account a  = [select Id, from Account];// testSecondFieldInSelect
 	}
 
+	/**
+	 * #START
+		{
+		"lineMarker": "testFromObjectList",
+		"column": 32,
+		"itemsCountMin": 30,
+		"identities": ["Account", "Contact"],
+		"identityMustNotContain": ["Id"]
+		}
+	 * #END
+	 */
+	public void testFromObjectList() {
+		Account a  = [select Id from ];// testFromObjectList
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testPartialFromObjectList",
+		"column": 35,
+		"itemsCountMin": 3,
+		"identities": ["Account", "AccountContactRole"],
+		"identityMustNotContain": ["Id", "Contact"]
+		}
+	 * #END
+	 */
+	public void testPartialFromObjectList() {
+		Account a  = [select Id from Acc];// testPartialFromObjectList
+	}
 }

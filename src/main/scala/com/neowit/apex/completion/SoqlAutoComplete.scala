@@ -162,6 +162,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
                 Some(new DBModelMember(session))
+            case ctx: SoqlCodeUnitContext =>
+                //looks like caret is just after 'FROM' keyword
+                Some(new DBModelMember(session))
             case ctx: RelationshipPathContext =>
                 //started new relationship name inside nested select
                 getFromMember(tree) match {
