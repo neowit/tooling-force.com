@@ -17,6 +17,23 @@ object ApexParserUtils {
     def isWordToken(token: Token): Boolean = {
         WORD_PATTERN.matcher(token.getText).matches
     }
+    def isDotToken(token: Token): Boolean = {
+        "." == token.getText
+    }
+
+    def isWordTokenOrDot(token: Token): Boolean = {
+        isWordToken(token) || isDotToken(token)
+    }
+
+    def isRightParenthesis(token: Token): Boolean = {
+        ")" == token.getText
+    }
+
+    def isLeftParenthesis(token: Token): Boolean = {
+        "(" == token.getText
+    }
+
+
 
     def getOffset(file: File, line: Int, startIndex: Int): Int = {
         val text = scala.io.Source.fromFile(file).mkString
@@ -141,18 +158,5 @@ object ApexParserUtils {
         }
         getParentImpl(ctx.getParent, ctxType)
     }
-
-    def isWordTokenOrDot(token: Token): Boolean = {
-        isWordToken(token) || "." == token.getText
-    }
-
-    def isRightParenthesis(token: Token): Boolean = {
-        ")" == token.getText
-    }
-
-    def isLeftParenthesis(token: Token): Boolean = {
-        "(" == token.getText
-    }
-
 
 }
