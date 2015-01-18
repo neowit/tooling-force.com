@@ -241,7 +241,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     private def removeDuplicates(members: List[Member], finalContext: ParseTree, tree: SoqlCodeUnitContext): List[Member] = {
         //need to keep relationship fields because these can be useful more than once in the same SELECT statement
         def isReferenceMember(m: Member): Boolean = {
-            m.isInstanceOf[SObjectFieldMember] && m.asInstanceOf[SObjectFieldMember].isReference
+            m.isInstanceOf[SObjectRelationshipFieldMember]
         }
         val membersWithoutDuplicates = finalContext match {
             case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SelectStatementContext] =>
