@@ -37,7 +37,7 @@ soqlStatement
 
 
 selectStatement
-	:	SELECT selectItem (',' selectItem)?
+	:	SELECT selectItem (',' selectItem)*
 	|	SELECT typeOfExpression
 	;
 
