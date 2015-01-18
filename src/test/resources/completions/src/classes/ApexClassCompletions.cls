@@ -145,7 +145,7 @@ public with sharing class ApexClassCompletions {
 	 * #START
 		{
 		"lineMarker": "completeTwoLevels",
-		"column": 8,
+		"column": 29,
 		"itemsCountMin": 2,
 		"signatureContains": ["inner1_public_Integer", "inner1Method1"],
 		"signatureMustNotContain" : ["inner1_private_Boolean"]

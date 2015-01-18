@@ -2,11 +2,8 @@ package com.neowit.apex.completion
 
 import com.neowit.TcpServer
 import com.neowit.apex.Session
-import com.neowit.apex.actions.DescribeMetadata
 import com.neowit.apex.parser.Member
 import com.neowit.utils.Logging
-
-import com.sforce.soap.metadata.ListMetadataQuery
 
 import akka.actor.Actor
 import akka.actor.Props
@@ -32,26 +29,33 @@ object DatabaseModel {
 
 class DatabaseModel(session: Session) {
 
-    private val memberBySobjectType: Map[String, DatabaseModelMember] = load()
+    private val (memberBySobjectType: Map[String, DatabaseModelMember], sObjectMembers: List[DatabaseModelMember]) = load()
 
     def getSObjectMember(typeName: String): Option[DatabaseModelMember] = {
         memberBySobjectType.get(typeName.toLowerCase)
     }
 
-    def load(): Map[String, DatabaseModelMember] = {
+    def getSObjectMembers: List[Member] = sObjectMembers
+
+    def load(): (Map[String, DatabaseModelMember], List[DatabaseModelMember]) = {
         val _memberBySobjectType = Map.newBuilder[String, DatabaseModelMember]
+        val _sObjectMembers = List.newBuilder[DatabaseModelMember]
         val describeGlobalResult = session.describeGlobal
 
         for (describeGlobalSObjectResult <- describeGlobalResult.getSobjects) {
             val sObjectApiName = describeGlobalSObjectResult.getName
             val sObjectMember = new SObjectMember(sObjectApiName, session)
+
             _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
+            _sObjectMembers += sObjectMember
+
             val withoutNamespace = stripNamespace(sObjectApiName)
             if (sObjectApiName != withoutNamespace) {
                 _memberBySobjectType += withoutNamespace.toLowerCase -> sObjectMember
+                _sObjectMembers += sObjectMember
             }
         }
-        _memberBySobjectType.result()
+        (_memberBySobjectType.result(), _sObjectMembers.result())
     }
 
     /**
@@ -63,7 +67,7 @@ class DatabaseModel(session: Session) {
      */
     private def stripNamespace(sObjectApiName: String): String = {
         val namespaceEnd = sObjectApiName.indexOf("__")
-        if ((sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
+        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
             //has namespace prefix
             sObjectApiName.substring(namespaceEnd + 2)
         } else {
@@ -130,6 +134,8 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
     private var isDoneLoading = false
     override protected def isLoaded: Boolean = isDoneLoading
 
+    private var childRelationships: Array[com.sforce.soap.partner.ChildRelationship] = Array()
+
     override def getType: String = sObjectApiName //SObject API Name here
 
     override def getSignature: String = sObjectApiName
@@ -150,6 +156,7 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
             case Success(describeSObjectResults) =>
                 if (describeSObjectResults.nonEmpty) {
                     val describeSobjectResult = describeSObjectResults.head
+                    childRelationships = describeSobjectResult.getChildRelationships
                     for (field <- describeSobjectResult.getFields) {
                         val fMember = new SObjectFieldMember(field)
                         addChild(fMember, overwrite = true)
@@ -184,7 +191,9 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
         isDoneLoading = false
         //clearChildren()
         loadMembers()
-
+    }
+    def getChildRelationships: Array[com.sforce.soap.partner.ChildRelationship]  = {
+        childRelationships
     }
 }
 

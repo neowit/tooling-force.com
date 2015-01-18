@@ -333,15 +333,15 @@ abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
     override def isStatic: Boolean = false
 
     def getSignature: String = {
-        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
+        ApexParserUtils.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
     }
 
     //TODO add proper support for "implements"
     override def getSuperType: Option[String] = {
         //if one of ctx children is "extends" then the next one will be TypeContext with the name of super class
-        val extendIndex = ClassBodyMember.findChildIndex(ctx, _ctx => "extends" == _ctx.getText.toLowerCase )
+        val extendIndex = ApexParserUtils.findChildIndex(ctx, _ctx => "extends" == _ctx.getText.toLowerCase )
         val index = if (extendIndex > 0 && ctx.getChildCount > extendIndex) extendIndex else {
-            ClassBodyMember.findChildIndex(ctx, _ctx => "implements" == _ctx.getText.toLowerCase )
+            ApexParserUtils.findChildIndex(ctx, _ctx => "implements" == _ctx.getText.toLowerCase )
         }
 
         if (index > 0 && ctx.getChildCount > index) {
@@ -431,7 +431,7 @@ class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
 
     override def getVisibility: String = {
         //go up the tree (if needed) to get to ClassBodyDeclarationContext and from there find visibility
-        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+        ApexParserUtils.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
             case Some(member) => ClassBodyMember.getVisibility(member)
             case None => "private"
         }
@@ -448,7 +448,7 @@ class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(
     override def getType: String = getIdentity
 
     override def getSignature: String = {
-        ClassBodyMember.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
+        ApexParserUtils.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
     }
 
     override def isStatic: Boolean = false
@@ -459,7 +459,7 @@ abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMem
 
     override def getSignature: String = {
         val clsBodyDeclaration = ctx.getParent.getParent
-        ClassBodyMember.findChildren(clsBodyDeclaration, classOf[TerminalNodeImpl]).map(_.getText).mkString(" ")
+        ApexParserUtils.findChildren(clsBodyDeclaration, classOf[TerminalNodeImpl]).map(_.getText).mkString(" ")
     }
     override def getFullType: String = {
         getParent match {
@@ -556,20 +556,20 @@ object ClassBodyMember {
     }
     //def isMethodOfClass(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.MethodDeclarationContext]).nonEmpty
     def isMethodOfClass(ctx: ParseTree): Boolean = {
-        val memberDeclarations = getChildren(ctx, _.isInstanceOf[MemberDeclarationContext])
-        memberDeclarations.nonEmpty && getChildren(memberDeclarations.head, _.isInstanceOf[MethodDeclarationContext]).nonEmpty
+        val memberDeclarations = ApexParserUtils.getChildren(ctx, _.isInstanceOf[MemberDeclarationContext])
+        memberDeclarations.nonEmpty && ApexParserUtils.getChildren(memberDeclarations.head, _.isInstanceOf[MethodDeclarationContext]).nonEmpty
     }
 
     def isMethodOfInterface(ctx: ParseTree): Boolean = {
-        val memberDeclarations = getChildren(ctx, _.isInstanceOf[InterfaceMemberDeclarationContext])
-        memberDeclarations.nonEmpty && getChildren(memberDeclarations.head, _.isInstanceOf[InterfaceMethodDeclarationContext]).nonEmpty
+        val memberDeclarations = ApexParserUtils.getChildren(ctx, _.isInstanceOf[InterfaceMemberDeclarationContext])
+        memberDeclarations.nonEmpty && ApexParserUtils.getChildren(memberDeclarations.head, _.isInstanceOf[InterfaceMethodDeclarationContext]).nonEmpty
     }
 
-    def isEnum(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.EnumDeclarationContext]).nonEmpty
+    def isEnum(ctx: ParseTree): Boolean = ApexParserUtils.findChildren(ctx, classOf[ApexcodeParser.EnumDeclarationContext]).nonEmpty
     def isField(ctx: ParseTree): Boolean = {
-        getChild[ApexcodeParser.MemberDeclarationContext](ctx, classOf[ApexcodeParser.MemberDeclarationContext]) match {
+        ApexParserUtils.getChild[ApexcodeParser.MemberDeclarationContext](ctx, classOf[ApexcodeParser.MemberDeclarationContext]) match {
             case Some(memberDeclarationContext) =>
-                getChild[ApexcodeParser.FieldDeclarationContext](memberDeclarationContext, classOf[ApexcodeParser.FieldDeclarationContext])  match {
+                ApexParserUtils.getChild[ApexcodeParser.FieldDeclarationContext](memberDeclarationContext, classOf[ApexcodeParser.FieldDeclarationContext])  match {
                     case Some(x) =>
                         true
                     case None => false
@@ -577,14 +577,14 @@ object ClassBodyMember {
             case None => false
         }
     }
-    def isProperty(ctx: ParseTree): Boolean = findChildren(ctx, classOf[ApexcodeParser.PropertyDeclarationContext]).nonEmpty
+    def isProperty(ctx: ParseTree): Boolean = ApexParserUtils.findChildren(ctx, classOf[ApexcodeParser.PropertyDeclarationContext]).nonEmpty
 
     def isStatic(ctx: ParseTree): Boolean = {
         //classOrInterfaceModifier-s
-        val modifierContexts = findChildren(ctx, classOf[ApexcodeParser.ClassOrInterfaceModifierContext])
+        val modifierContexts = ApexParserUtils.findChildren(ctx, classOf[ApexcodeParser.ClassOrInterfaceModifierContext])
         val x = modifierContexts.find(
             context => {
-                val children = getChildren[ParseTree](context)
+                val children = ApexParserUtils.getChildren[ParseTree](context)
                 children.nonEmpty && "static" == children(0).getText
             })
         x.isDefined
@@ -607,103 +607,12 @@ object ClassBodyMember {
     }
 
     /**
-     * find children (recursively) satisfying given context type
-     */
-    def findChildren[T <: ParseTree](ctx: ParseTree, ctxType: Class[T],
-                                     filter: ParseTree => Boolean = { _ => true}): List[T] = {
-        val foundChildren = getChildren[ParseTree](ctx, filter).filter(_.getClass == ctxType).map(_.asInstanceOf[T])
-        if (foundChildren.isEmpty) {
-            //descend 1 level
-            val res= getChildren[ParseTree](ctx, filter).map(findChildren(_, ctxType, filter)).flatMap(_.toList)
-            res
-        } else {
-            foundChildren.toList
-        }
-    }
-    def findChild[T <: ParseTree](ctx: ParseTree, ctxType: Class[T]): Option[T] = {
-        val foundChildren = findChildren(ctx, ctxType)
-        if (foundChildren.nonEmpty)
-            Some(foundChildren.head)
-        else
-            None
-    }
-
-    def getChildren[T](ctx:ParseTree, filter: ParseTree => Boolean = { _ => true}): List[T] = {
-        var children = mutable.ListBuffer[T]()
-        var i = 0
-        while (i < ctx.getChildCount) {
-            val child = ctx.getChild(i)
-            if (filter(child)) {
-                children += child.asInstanceOf[T]
-            }
-
-            i += 1
-        }
-        children.toList
-    }
-
-    def getChild[T](ctx:ParseTree, filter: ParseTree => Boolean = { _ => true}): Option[T] = {
-        var i = 0
-        while (i < ctx.getChildCount) {
-            val child = ctx.getChild(i)
-            if (filter(child)) {
-                return Some(child.asInstanceOf[T])
-            }
-
-            i += 1
-        }
-        None
-    }
-
-    /**
-     *
-     * @param ctx parent context
-     * @param filter - predicate to apply
-     * @return index of a direct child which matches specified predicate
-     */
-    def findChildIndex(ctx: ParseTree, filter: (ParseTree) => Boolean): Int = {
-        var i = 0
-        while (i < ctx.getChildCount) {
-            val child = ctx.getChild(i)
-            if (filter(child)) {
-                return i
-            }
-
-            i += 1
-        }
-        -1
-    }
-
-    def getChild[T](ctx:ParseTree, cls: Class[T]): Option[T] = {
-        getChild(ctx, n => n.getClass == cls)
-    }
-
-    def getParent[T](ctx:ParseTree, ctxType: Class[T]): Option[T] = {
-        def getParentImpl[T](ctx: ParseTree, ctxType: Class[T]): Option[T] = {
-            if (null == ctx) {
-                None
-            } else {
-                if (ctx.getClass == ctxType) {
-                    Some(ctx.asInstanceOf[T])
-                } else {
-                    if (null != ctx.getParent) {
-                        getParentImpl(ctx.getParent, ctxType)
-                    } else {
-                        None
-                    }
-                }
-            }
-        }
-        getParentImpl(ctx.getParent, ctxType)
-    }
-
-    /**
      * find top most class declaration context compared to current context
      * @param ctx - context used as a start point of climbing parse tree
      * @return higher level class declaration if there is one
      */
     def getTopMostClassContext(ctx: ParseTree): Option[ParseTree] = {
-        getParent(ctx, classOf[ClassDeclarationContext]) match {
+        ApexParserUtils.getParent(ctx, classOf[ClassDeclarationContext]) match {
             case Some(classCtx) => getTopMostClassContext(classCtx)
             case None =>
                 if (ctx.isInstanceOf[ClassDeclarationContext]) {
@@ -757,7 +666,7 @@ class EnumMember(ctx: EnumDeclarationContext) extends Member {
     }
 
     override def getSignature: String = {
-        ClassBodyMember.findChildren(ctx, classOf[TerminalNodeImpl]).filter(node => "{" != node.getText && "}" != node.getText).mkString(" ")
+        ApexParserUtils.findChildren(ctx, classOf[TerminalNodeImpl]).filter(node => "{" != node.getText && "}" != node.getText).mkString(" ")
     }
 
     override def getType: String = getIdentity
@@ -807,7 +716,7 @@ object PropertyMember {
         if (ClassBodyMember.isProperty(ctx)) Some(ctx) else None
     }
     def getModifiers(ctx: ParseTree): List[String] = {
-        ClassBodyMember.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
+        ApexParserUtils.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
             case Some(classBodyDeclarationCtx) =>
                 classBodyDeclarationCtx.modifier().filter(null != _.classOrInterfaceModifier()).map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
             case None => List()
@@ -860,7 +769,7 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
     val fieldDeclarationContext = ctx
 
     override def getIdentity:String = {
-        val fieldDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[VariableDeclaratorIdContext])
+        val fieldDeclarationContext = ApexParserUtils.findChildren(ctx, classOf[VariableDeclaratorIdContext])
         if (fieldDeclarationContext.nonEmpty) {
             fieldDeclarationContext.head.Identifier().getText
         } else ""
@@ -958,9 +867,9 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
     def getMethodMemberClass:  Class[_ <: ParserRuleContext]
 
     override def getSignature:String = {
-        ClassBodyMember.findChild(ctx, getMethodMemberClass) match {
+        ApexParserUtils.findChild(ctx, getMethodMemberClass) match {
             case Some(methodDeclaration) =>
-                val start = ClassBodyMember.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
+                val start = ApexParserUtils.findChildren(ctx, classOf[ClassOrInterfaceModifierContext])
                     .filter(null!= _.getChild(classOf[TerminalNodeImpl], 0))
                     .map(_.getChild(classOf[TerminalNodeImpl], 0)).mkString(" ")
                 val params = getArgs.mkString(",")
@@ -1014,7 +923,7 @@ class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends 
 
     override def getMethodName:String = {
         //... <Type> methodName (formalParameters)
-        val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        val methodDeclarationContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (methodDeclarationContext.nonEmpty) {
             methodDeclarationContext.head.Identifier().getText
         } else {
@@ -1023,7 +932,7 @@ class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends 
     }
 
     override def getType: String = {
-        val declarationContexts = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        val declarationContexts = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (declarationContexts.nonEmpty) {
             val declarationContext = declarationContexts.head
             if (null != declarationContext.`type`())
@@ -1033,7 +942,7 @@ class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends 
     }
 
     override def getArgs:List[MethodParameter] = {
-        val paramsContext = ClassBodyMember.findChildren(ctx, classOf[MethodDeclarationContext])
+        val paramsContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (paramsContext.nonEmpty) {
             getFormalParams(paramsContext.head.formalParameters())
         } else {
@@ -1054,7 +963,7 @@ class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
 
     override def getMethodName:String = {
         //... <Type> methodName (formalParameters)
-        val methodDeclarationContext = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        val methodDeclarationContext = ApexParserUtils.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
         if (methodDeclarationContext.nonEmpty) {
             methodDeclarationContext.head.Identifier().getText
         } else {
@@ -1063,7 +972,7 @@ class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
     }
 
     override def getType: String = {
-        val declarationContexts = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        val declarationContexts = ApexParserUtils.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
         if (declarationContexts.nonEmpty) {
             val declarationContext = declarationContexts.head
             if (null != declarationContext.`type`())
@@ -1072,7 +981,7 @@ class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
         "void"
     }
     override def getArgs:List[MethodParameter] = {
-        val paramsContext = ClassBodyMember.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        val paramsContext = ApexParserUtils.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
         if (paramsContext.nonEmpty) {
             getFormalParams(paramsContext.head.formalParameters())
         } else {
@@ -1185,7 +1094,7 @@ class CreatorMember(ctx: ApexcodeParser.CreatorContext) extends AnonymousMember 
         _createdName match {
           case Some(name) => name
           case None => //calculate
-              val typeArgs = ClassBodyMember.findChildren(ctx, classOf[TypeArgumentContext])
+              val typeArgs = ApexParserUtils.findChildren(ctx, classOf[TypeArgumentContext])
               if (typeArgs.isEmpty) {
                   //simple case: Account acc = new Account( <caret>)
                   _createdName = Some(ctx.createdName().getText)
