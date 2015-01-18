@@ -160,7 +160,7 @@ object CompletionUtils {
                 while ((index -1) >0 && tokenIndex < 0) {
                     index -= 1
                     val token = tokenStream.get(index)
-                    if (token.getStartIndex <= caretOffset) {
+                    if (token.getStopIndex +1 == caretOffset) {
                         tokenIndex = token.getTokenIndex
                         resultToken = tokenStream.get(index)
                     }
@@ -198,10 +198,19 @@ object CompletionUtils {
         val tokenStream = ex.getInputStream
         val streamSize = tokenStream.size()
         var currentToken = tokenStream.get(index)
+        var prevToken: Option[Token] = None
 
         while (index > 0 && newStart < 0) {
             if (ApexParserUtils.isWordTokenOrDot(currentToken)) {
-                index -= 1
+                if (isValidChain(prevToken, currentToken)) {
+                    prevToken = Some(currentToken)
+                    index -= 1
+                } else {
+                    newStart = prevToken match {
+                      case Some(_prevToken) => _prevToken.getTokenIndex
+                      case None => startToken.getTokenIndex
+                    }
+                }
             } else if (ApexParserUtils.isRightParenthesis(currentToken)) {
                 index = getBalancedLeftParenthesisTokenIndex(currentToken, tokenStream) - 1
             } else {
@@ -215,6 +224,27 @@ object CompletionUtils {
             currentToken = tokenStream.get(newStart)
         }
         currentToken
+    }
+
+    /**
+     * make sure that tokens chain always looks like one of these
+     *  'word' - where prevToken is None, "word" is nextToken, i.e. right-to-left
+     *  'word.' - where "." is prevToken, "word" is nextToken, i.e. right-to-left
+     *  'word.word'
+     *  'word.word.'
+     *  etc
+     * but never looks like so
+     *  word _space_ word
+     */
+    private def isValidChain(prevToken: Option[Token], nextToken: Token): Boolean = {
+        if (ApexParserUtils.isWordToken(nextToken)) {
+            //previous token must be nothing or "."
+            prevToken.isEmpty || ApexParserUtils.isDotToken(prevToken.get)
+        } else if (ApexParserUtils.isDotToken(nextToken)) {
+            prevToken.isEmpty || ApexParserUtils.isWordToken(prevToken.get)
+        } else {
+            false
+        }
     }
 
     /**
