@@ -109,7 +109,7 @@ class CodeCompletions extends FunSuite {
         val jsonAst = JsonParser(jsonConfigStr)
         val config = jsonAst.convertTo[TestConfig](ApexModelJsonProtocol.testConfigFormat)
         val lineNumber = config.getLineNumber(apexClassPath)
-        assert(lineNumber > 0, "could not file line number by marker: " + config.lineMarker)
+        assert(lineNumber > 0, "could not find line number by marker: " + config.lineMarker)
 
         val extraParams = Array[String]("--column=" + config.column, "--line=" + lineNumber)
         Runner.main(commandLineParams ++ extraParams)
