@@ -24,8 +24,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
     private class DefinitionWithType(val definitionMember: Member, val typeMember: Member)
 
     def listOptions:List[Member] = {
-        val expressionTokens = getCaretStatement
-        if (expressionTokens.isEmpty) {
+        val (initialExpressionTokens, caretReachedException) = getCaretStatement
+        if (initialExpressionTokens.isEmpty) {
             //looks like the file is too broken to get to the point where caret resides
             return List()
         }
@@ -35,7 +35,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         ApexParserUtils.removeConsoleErrorListener(parser)
         val tree = parser.compilationUnit()
         val walker = new ParseTreeWalker()
-        val extractor = new ApexTreeListener(parser, line, column)
+        val extractor = caretReachedException match {
+          case Some(_caretReachedException) =>
+              new ApexTreeListener(parser, line, column, _caretReachedException.caretToken.getCaret)
+          case None =>
+              new ApexTreeListener(parser, line, column)
+        }
         walker.walk(extractor, tree)
 
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
@@ -44,13 +49,17 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         fullApexTree.extend(extractor.tree)
 
         //check if caret is inside SOQL expression [select ...]
-        if (1 == expressionTokens.size && expressionTokens.head.isSoql) {
-            val soqlComplete = new SoqlAutoComplete(expressionTokens.head.token.get, line, column, fullApexTree, session)
+        var realExpressionTokens = initialExpressionTokens
+        if (1 == initialExpressionTokens.size && initialExpressionTokens.head.isSoql) {
+            val soqlComplete = new SoqlAutoComplete(initialExpressionTokens.head.token.get, line, column, fullApexTree, session)
             val result = soqlComplete.listOptions
             if (result.isSoqlStatement) {
                 return result.options
+            } else {
+                realExpressionTokens = result.expressionTokens
             }
         }
+        val expressionTokens = realExpressionTokens
 
 
         val definition = findSymbolType(expressionTokens.head, extractor, fullApexTree)
@@ -381,7 +390,7 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
      * collection[0].| - list of all methods of element in collection (need to know element type)
      * @return
      */
-    private def getCaretStatement: List[AToken] = {
+    private def getCaretStatement: (List[AToken], Option[CaretReachedException]) = {
         val caret = new CaretInFile(line, column, file)
         val tokenSource = new CodeCompletionTokenSource(getLexer(file), caret)
         val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
@@ -399,13 +408,12 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 //println("found caret?")
                 //println(ex.getToken.getText)
                 //listOptions(ex)
-                return CompletionUtils.breakExpressionToATokens(ex)
+                return (CompletionUtils.breakExpressionToATokens(ex), Some(ex))
             case e:Throwable =>
                 println(e.getMessage)
         }
 
-        List()
-
+        (List(), None)
     }
 
     /**

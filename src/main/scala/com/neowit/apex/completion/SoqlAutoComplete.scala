@@ -8,7 +8,7 @@ import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
 
-class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean)
+class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean, val expressionTokens: List[AToken] = Nil )
 
 class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
 
@@ -20,6 +20,21 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         if (expressionTokens.isEmpty) {
             //looks like the file is too broken to get to the point where caret resides
             return new SoqlCompletionResult(List(), isSoqlStatement = true)
+        }
+        //check if this is apex bound expression inside SOQL statement
+        //i.e. [select ... from ... where Something > :expr<caret>]
+        if (expressionTokens.nonEmpty) {
+            expressionTokens.head.token match {
+                case Some(_token) if caretReachedException.isDefined && _token.getTokenIndex > 0=>
+                    val tokens = caretReachedException.get.getInputStream
+                    val tokenBeforeExpression = tokens.get(_token.getTokenIndex -1)
+                    if (":" == tokenBeforeExpression.getText) {
+                        //this looks like a bound variable in SOQL
+                        return new SoqlCompletionResult(List(), isSoqlStatement = false, expressionTokens)
+                    }
+
+                case _ =>
+            }
         }
 
 

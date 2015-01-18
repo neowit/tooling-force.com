@@ -1,5 +1,6 @@
 package com.neowit.apex.parser
 
+import com.neowit.apex.completion.Caret
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ErrorNode, TerminalNode}
@@ -9,7 +10,7 @@ import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 
-class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1) extends ApexcodeBaseListener {
+class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1, caret: Option[Caret] = None) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
@@ -239,15 +240,23 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
      * check if current node is part of the token we are trying to auto-complete
      */
     private def checkTargetMember(token: Token) {
-        if (line > 0 && token.getLine == line && token.getCharPositionInLine < column) {
+        if (line > 0 && memberScopeStack.nonEmpty) {
             //we are in progress of parsing file where completion needs to be done
             //println("target node=" + token.getText)
             //println("target node.Line=" + token.getLine)
-            if (memberScopeStack.nonEmpty) {
+            if (token.getLine == line && token.getCharPositionInLine < column) {
                 caretScopeMember = Some(memberScopeStack.top)
+            } else {
+                //alternative way of detecting scope - when we have caret offset information
+                caret match {
+                    case Some(_caret) if token.getStartIndex < _caret.getOffset && token.getStopIndex >= _caret.getOffset =>
+                        //looks like current token surrounds caret
+                        caretScopeMember = Some(memberScopeStack.top)
+                    case _ =>
+                }
             }
-        }
 
+        }
     }
 }
 
