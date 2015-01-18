@@ -22,7 +22,10 @@ object SoqlParserUtils {
 
         val brackets = mutable.Stack[String]()
         while (searchDescriptor.canContinue(tokenIndex)) {
-            val token = tokens.get(tokenIndex)
+            var token = tokens.get(tokenIndex)
+            if (token.getTokenIndex == startToken.getTokenIndex) {
+                token = startToken
+            }
 
             if (searchDescriptor.scopeCloseSymbol == token.getText) {
                 if (brackets.nonEmpty && searchDescriptor.scopeOpenSymbol == brackets.top) {
