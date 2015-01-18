@@ -42,7 +42,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
         definition match {
           case Some(soqlTypeMember) =>
-              new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext), isSoqlStatement = true)
+              new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext, tree), isSoqlStatement = true)
           case None =>
               println("Failed to find definition")
               new SoqlCompletionResult(Nil, isSoqlStatement = false)
@@ -245,7 +245,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
      * @param finalContext - caret context
      * @return - reduced list of members
      */
-    private def removeDuplicates(members: List[Member], finalContext: ParseTree): List[Member] = {
+    private def removeDuplicates(members: List[Member], finalContext: ParseTree, tree: SoqlCodeUnitContext): List[Member] = {
         //need to keep relationship fields because these can be useful more than once in the same SELECT statement
         def isReferenceMember(m: Member): Boolean = {
             m.isInstanceOf[SObjectFieldMember] && m.asInstanceOf[SObjectFieldMember].isReference
@@ -253,7 +253,30 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val membersWithoutDuplicates = finalContext match {
             case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SelectStatementContext] =>
                 //started new field in Select part
-                val existingFieldNames = ApexParserUtils.findChildren(ctx.getParent, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
+                val existingFieldNames =
+                    ApexParserUtils.findChild(tree, classOf[SelectStatementContext]) match {
+                  case Some(selectStatementContext) =>
+                      ApexParserUtils.findChildren(selectStatementContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
+                  case None => Set()
+                }
+                members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
+            case ctx: FromStatementContext =>
+                // check if we are dealing with last field in main SELECT mistakenly associated with FROM context
+                val existingFieldNames =
+                    ApexParserUtils.getParent(ctx, classOf[SoqlStatementContext]) match {
+                        case Some(soqlStatementContext) =>
+                            ApexParserUtils.findChildren(soqlStatementContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
+                        case None => Set()
+                    }
+                members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
+            case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SubqueryContext] || ctx.getParent.isInstanceOf[FromSubqueryStatementContext]   =>
+                //sub-query
+                val existingFieldNames =
+                    ApexParserUtils.getParent(ctx, classOf[SubqueryContext]) match {
+                        case Some(subqueryContext) =>
+                            ApexParserUtils.findChildren(subqueryContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
+                        case None => Set()
+                    }
                 members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
 
             case _ => members
@@ -266,7 +289,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
 class CaretInString(line:  Int, column: Int, str: String) extends Caret (line, column){
     def getOffset: Int = {
-        ApexParserUtils.getOffset(str, line, column) - 1 //because starts from 0
+        ApexParserUtils.getOffset(str, line, column)  //because starts from 0
     }
 }
 
