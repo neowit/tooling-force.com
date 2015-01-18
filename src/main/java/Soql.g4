@@ -42,7 +42,7 @@ selectStatement
 	;
 
 selectItem
-	:	fieldList
+	:	fieldItem
 	|	subquery
 	;
 
