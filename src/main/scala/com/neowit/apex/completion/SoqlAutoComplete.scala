@@ -174,7 +174,17 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 }
             case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
                 //this is a sub query
-                getSubqueryFrom(tree, tokens, caretReachedException)
+                if (caretReachedException.isDefined && null != caretReachedException.get.caretToken.prevToken
+                    && "from" == caretReachedException.get.caretToken.prevToken.getText) {
+                    //this is not field item, it looks more like a relationship name in FROM part of inside nested select
+                    getTopLevelFrom(tokens, session) match {
+                        case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
+                            Some(new ChildRelationshipsContainerMember(fromMember.asInstanceOf[FromTypeMember]))
+                        case None => None
+                    }
+                } else {
+                    getSubqueryFrom(tree, tokens, caretReachedException)
+                }
             case ctx: FieldNameContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
                 //this is a sub query
                 getSubqueryFrom(tree, tokens, caretReachedException)

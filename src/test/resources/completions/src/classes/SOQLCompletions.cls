@@ -185,6 +185,24 @@ public with sharing class SOQLCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testInnerQueryFromWithoutFields",
+		"column": 19,
+		"itemsCountMin": 3,
+		"identities": ["Attachments", "Contacts", "Notes"],
+		"identityMustNotContain": ["Id", "Contact", "Account"]
+		}
+	 * #END
+	 */
+	public void testInnerQueryFromWithoutFields() {
+		final List<My_Object__c> accs = [ select AccountNumber,
+			  (select from ), AccountSource, testInnerQueryFromWithoutFields
+				from Account
+				where CreatedDate = TODAY ];
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "testInnerQueryFromPartial",
 		"column": 15,
 		"itemsCountMin": 2,
