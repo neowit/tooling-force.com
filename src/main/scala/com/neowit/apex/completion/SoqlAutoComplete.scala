@@ -370,6 +370,8 @@ class DBModelMember(session: Session) extends Member {
             case None => None
         }
     }
+
+    override def toString: String = getIdentity
 }
 
 /**
