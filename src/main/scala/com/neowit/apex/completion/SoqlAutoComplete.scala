@@ -157,7 +157,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             }
         }
 
-        expressionTokens.head.finalContext match {
+        val finalContext = expressionTokens.head.finalContext
+        finalContext match {
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
                 Some(new DBModelMember(session))
@@ -166,6 +167,22 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 getFromMember(tree) match {
                   case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
                       Some(new ChildRelationshipsContainerMember(fromMember.asInstanceOf[FromTypeMember]))
+                  case None => None
+                }
+            case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+                //this is a sub query
+                getFromMember(tree) match {
+                  case Some(subqueryFromMember) =>
+                      SoqlParserUtils.findFromToken(tokens, tokens.get(1)) match {
+                          case Some(fromToken) => //top level FROM object type
+                              val objectTypeTokenIndex = fromToken.getTokenIndex + 1
+                              if (objectTypeTokenIndex < tokens.size()) {
+                                  Some(new SubqueryFromTypeMember(subqueryFromMember.getIdentity, new FromTypeMember(tokens.get(objectTypeTokenIndex), session), session))
+                              } else {
+                                  None
+                              }
+                          case None => None
+                  }
                   case None => None
                 }
 
@@ -245,7 +262,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                         case None => Set()
                     }
                 members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
-            case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SubqueryContext] || ctx.getParent.isInstanceOf[FromSubqueryStatementContext]   =>
+
+            case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined   =>
                 //sub-query
                 val existingFieldNames =
                     ApexParserUtils.getParent(ctx, classOf[SubqueryContext]) match {
@@ -265,7 +283,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
 class CaretInString(line:  Int, column: Int, str: String) extends Caret (line, column){
     def getOffset: Int = {
-        ApexParserUtils.getOffset(str, line, column)  //because starts from 0
+        ApexParserUtils.getOffset(str, line, column)
     }
 }
 
@@ -315,6 +333,51 @@ class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMembe
                 //return actual relationships
                 sobjectMember.asInstanceOf[SObjectMember].getChildRelationships
             case None => Array()
+        }
+    }
+
+    def getChildRelationship(identity: String): Option[com.sforce.soap.partner.ChildRelationship] = {
+        getChildRelationships.find(_.getRelationshipName.toLowerCase == identity.toLowerCase)
+    }
+}
+
+class SubqueryFromTypeMember(relationshipName: String, parentFromMember: FromTypeMember, session: Session) extends SoqlMember {
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = relationshipName
+
+    override def getType: String = parentFromMember.getType + "." + getIdentity
+
+    override def getSignature: String = getIdentity
+
+
+    override def getChildren: List[Member] = {
+        getSObjectMember match {
+            case Some(member) => member.getChildren
+            case None => Nil
+        }
+    }
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
+        getSObjectMember match {
+            case Some(member) => member.getChild(identity, withHierarchy = false)
+            case None => None
+        }
+    }
+
+    private def getSObjectMember: Option[DatabaseModelMember] = {
+        parentFromMember.getChildRelationship(getIdentity) match {
+          case Some(relationship) =>
+              DatabaseModel.getModelBySession(session) match {
+                  case Some(dbModel) => dbModel.getSObjectMember(relationship.getChildSObject)
+                  case _ => None
+              }
+          case None => None
         }
     }
 }
