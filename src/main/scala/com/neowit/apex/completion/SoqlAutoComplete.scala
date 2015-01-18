@@ -289,8 +289,36 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 }
 
 class CaretInString(line:  Int, column: Int, str: String) extends Caret (line, column){
-    def getOffset: Int = {
-        ApexParserUtils.getOffset(str, line, column)
+    lazy val getOffset: Int =  getOffset(str, line, column - 1)
+
+    /**
+     * this method is different from ApexParserUtils.getOffset
+     * in this method pos is incremented every time when "\n" character is encountered
+     * @param line -  line - starts from 1
+     * @param startIndex - column in line, starts from zero
+     *                   e.g.: in vim columns start from 1,
+     *                   so before passing value to this method make sure to do: column - 1
+     * @return
+     */
+    def getOffset(text: String, line: Int, startIndex: Int): Int = {
+        //val bytes = text.take
+        var lineNum: Int = 1
+        var pos = 0
+
+        while ( lineNum < line && pos < text.length ) {
+            val ch = text.charAt(pos)
+            if ('\n' == ch) {
+                if (lineNum < line) {
+                    pos = pos + 1
+                }
+                lineNum += 1
+            }
+            if (lineNum < line) {
+                pos = pos + 1
+            }
+        }
+        val offset = pos + startIndex
+        offset
     }
 }
 
