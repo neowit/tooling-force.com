@@ -104,6 +104,68 @@ public with sharing class SOQLCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testEmptyWhere",
+		"column": 46,
+		"itemsCountMin": 3,
+		"identities": ["AccountNumber", "AccountSource"],
+		"identityMustNotContain": ["Contact"]
+		}
+	 * #END
+	 */
+	public void testEmptyWhere() {
+		Account a  = [select Id from Account where ];// testEmptyWhere
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testEmptyWhereMultiLine",
+		"column": 10,
+		"itemsCountMin": 3,
+		"identities": ["AccountNumber", "AccountSource"],
+		"identityMustNotContain": ["Contact"]
+		}
+	 * #END
+	 */
+	public void testEmptyWhereMultiLine() {
+		Account a  = [select Id from Account 
+			where ];// testEmptyWhereMultiLine
+	}
+	
+	/**
+	 * #START
+		{
+		"lineMarker": "testWhere",
+		"column": 69,
+		"itemsCountMin": 3,
+		"identities": ["AccountNumber", "AccountSource"],
+		"identityMustNotContain": ["Contact"]
+		}
+	 * #END
+	 */
+	public void testWhere() {
+		Account a  = [select Id from Account where CreatedDate < TODAY or ];// testWhere
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testWhereMultiLine",
+		"column": 34,
+		"itemsCountMin": 3,
+		"identities": ["AccountNumber", "AccountSource"],
+		"identityMustNotContain": ["Contact"]
+		}
+	 * #END
+	 */
+	public void testWhereMultiLine() {
+		Account a  = [select Id from Account 
+			where CreatedDate < TODAY and ];// testWhereMultiLine
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "testInnerQueryFrom",
 		"column": 12,
 		"itemsCountMin": 3,
@@ -173,6 +235,74 @@ public with sharing class SOQLCompletions {
 		final List<My_Object__c> accs = [ select AccountNumber,
 			  (select AccountId, ,testInnerQuerySelectMidleField
 			   from Contacts), AccountSource 
+				from Account
+				where CreatedDate = TODAY ];
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testInnerQueryWhere",
+		"column": 27,
+		"itemsCountMin": 3,
+		"identities": ["Birthdate", "AssistantName", "Id", "Email", "Account"]
+		}
+	 * #END
+	 */
+	public void testInnerQueryWhere() {
+		final List<My_Object__c> accs = [ select AccountNumber,
+			  (select AccountId, AssistantName
+			   from Contacts where ), AccountSource, testInnerQueryFrom
+				from Account
+				where CreatedDate = TODAY ];
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testInnerQueryWherePartial",
+		"column": 30,
+		"itemsCountMin": 3,
+		"identities": ["CreatedDate", "CreatedBy"],
+		"identityMustNotContain": ["Birthdate", "AssistantName", "Id"]
+		}
+	 * #END
+	 */
+	public void testInnerQueryWherePartial() {
+		final List<My_Object__c> accs = [ select AccountNumber,
+			  (select AccountId, AssistantName
+			   from Contacts where Cre), AccountSource, testInnerQueryWherePartial
+				from Account
+				where CreatedDate = TODAY ];
+	}
+	
+	/**
+	 * #START
+		{
+		"lineMarker": "testInnerQueryWhereSingleline",
+		"column": 128,
+		"itemsCountMin": 3,
+		"identities": ["Birthdate", "AssistantName", "Id", "Email", "Account"]
+		}
+	 * #END
+	 */
+	public void testInnerQueryWhereSingleline() {
+		final List<My_Object__c> accs = [ select AccountNumber, (select AccountId, testInnerQueryWhereSingleline from Contacts where ), AccountSource from Account];
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testInnerQueryWhereMiddleField",
+		"column": 64,
+		"itemsCountMin": 3,
+		"identities": ["Birthdate", "AssistantName", "Id", "Email", "Account"]
+		}
+	 * #END
+	 */
+	public void testInnerQueryWhereMiddleField() {
+		final List<My_Object__c> accs = [ select AccountNumber,
+			  (select AccountId from Contacts where AccountId = '1' and  and CreatedBy.AboutMe = ''), testInnerQueryWhereMiddleField 
 				from Account
 				where CreatedDate = TODAY ];
 	}
