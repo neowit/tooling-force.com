@@ -181,17 +181,20 @@ object CaretToken2 {
 }
 trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
 
-    private var originalToken: Token = null
+    private var originalToken: Option[Token] = None
 
     def setOriginalToken(token: Token) {
-        originalToken = token
+        originalToken = Some(token)
     }
-    def getOriginalToken: Token = {
+    def getOriginalToken: Option[Token] = {
         originalToken
     }
 
     def getOriginalType: Int = {
-        originalToken.getType
+        originalToken match {
+          case Some(token) => token.getType
+          case None => - 1
+        }
     }
     var prevToken: Token = null
 
@@ -211,30 +214,30 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
         case None => -1
     }
 
+    def getCaretOffset:Int = caret match {
+        case Some(_caret) => _caret.getOffset
+        case None => -1
+    }
+
     def getCaret: Option[Caret] = caret
 
     /**
      * make sure that for token which parser put into Caret position we
-     * do not return text of the token *after* caret
+     * do not return text of the token that starts *after* caret or ends *before* caret
      */
     override def getText: String = {
-        if (this.getLine < getCaretLine || (this.getLine == getCaretLine && this.getCharPositionInLine < getCaretPositionInLine))
-            super.getText
-        else
-            ""
-    }
 
-    /**
-     * if current token starts from <caret> position or after then this is most likely not the token we are interested in
-     */
-    def isBeyondCaret:Boolean = {
-        if (getLine < getCaretLine) {
-            false
-        } else if (getLine == getCaretLine) {
-            getCaretPositionInLine <= getCharPositionInLine
-        } else { //getLine > getCaretLine
-            true
+        getOriginalToken match {
+          case Some(token) =>
+              if (this.getCaretOffset >= 0 && token.getStartIndex < this.getCaretOffset && (token.getStopIndex +1) >= this.getCaretOffset) {
+                  super.getText
+              } else {
+                  ""
+              }
+          case None =>
+                  ""
         }
     }
+
 }
 
