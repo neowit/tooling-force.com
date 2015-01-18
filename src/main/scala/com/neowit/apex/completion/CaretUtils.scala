@@ -218,7 +218,7 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
      * do not return text of the token *after* caret
      */
     override def getText: String = {
-        if (this.getCharPositionInLine < getCaretPositionInLine && this.getLine == getCaretLine)
+        if (this.getLine < getCaretLine || (this.getLine == getCaretLine && this.getCharPositionInLine < getCaretPositionInLine))
             super.getText
         else
             ""
