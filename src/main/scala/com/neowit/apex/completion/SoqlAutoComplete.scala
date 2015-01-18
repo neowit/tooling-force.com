@@ -29,7 +29,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val tokens = new CommonTokenStream(lexer)
         val parser = new SoqlParser(tokens)
         ApexParserUtils.removeConsoleErrorListener(parser)
-        parser.setErrorHandler(new SoqlCompletionErrorStrategy())
+        //parser.setErrorHandler(new SoqlCompletionErrorStrategy())
         val tree = parser.soqlCodeUnit()
         /*
         val walker = new ParseTreeWalker()
