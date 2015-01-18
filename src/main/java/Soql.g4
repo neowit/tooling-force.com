@@ -150,7 +150,7 @@ whereSubquery
 conditionExpression
 	:	fieldItem (simpleOperator | likeOperator) primary
 	|	fieldItem specialOperator '(' primary (',' primary)* ')'
-	|	fieldItem boundOperator expression
+	|	fieldItem bindOperator expression
 	;
 	
 whenExpression
@@ -179,7 +179,7 @@ specialOperator
 		)
 	;
 
-boundOperator
+bindOperator
 	: simpleOperator ':'
 	| likeOperator ':'
 	;
@@ -236,13 +236,14 @@ relationshipPath
 
 expression
     :   primary
-	|	expression '.' Identifier
+	|	expression '.' expression
 	;
 
 primary
 	:	parExpression
 	|	literal
 	|	dateLiteral
+	|	Identifier
 	;
 
 parExpression
