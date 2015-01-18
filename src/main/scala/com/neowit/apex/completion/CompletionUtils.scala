@@ -2,7 +2,7 @@ package com.neowit.apex.completion
 
 import com.neowit.apex.parser.ApexParserUtils
 import org.antlr.v4.runtime.tree.ParseTree
-import org.antlr.v4.runtime.{CommonTokenStream, Token, ParserRuleContext}
+import org.antlr.v4.runtime.{TokenStream, CommonTokenStream, Token, ParserRuleContext}
 
 object AToken {
     val SOQL_Pattern = "(?i)\\[\\s*select\\s+".r
@@ -198,32 +198,52 @@ object CompletionUtils {
         val tokenStream = ex.getInputStream
         val streamSize = tokenStream.size()
         var currentToken = tokenStream.get(index)
-        var expectLeftParenthesis = false
+
         while (index > 0 && newStart < 0) {
             if (ApexParserUtils.isWordTokenOrDot(currentToken)) {
                 index -= 1
             } else if (ApexParserUtils.isRightParenthesis(currentToken)) {
-                expectLeftParenthesis = true
-                index -= 1
-            } else if (ApexParserUtils.isLeftParenthesis(currentToken)) {
-                if (expectLeftParenthesis) {
-                    expectLeftParenthesis = false
-                    index -= 1
-                } else {
-                    newStart = index + 1
-                    if (newStart < streamSize) {
-                        currentToken = tokenStream.get(newStart)
-                    }
-                }
+                index = getBalancedLeftParenthesisTokenIndex(currentToken, tokenStream) - 1
             } else {
                 newStart = index + 1
-                if (newStart < streamSize) {
-                    currentToken = tokenStream.get(newStart)
-                }
             }
-            currentToken = tokenStream.get(index)
+            if (index >=0 ) {
+                currentToken = tokenStream.get(index)
+            }
+        }
+        if (newStart >=0 && newStart < streamSize) {
+            currentToken = tokenStream.get(newStart)
         }
         currentToken
+    }
+
+    /**
+     * starting given token, which must be ")", move right-to-left and find next balanced "("
+     * @param scopeEnd - token which contains start of the scope token, i.e. ")"
+     * @param tokenStream - tokens
+     * @return index of first balanced "(" token
+     */
+    private def getBalancedLeftParenthesisTokenIndex(scopeEnd: Token, tokenStream: TokenStream): Int = {
+        if (!ApexParserUtils.isRightParenthesis(scopeEnd)) {
+            scopeEnd.getTokenIndex
+        } else {
+            val brackets = new scala.collection.mutable.Stack[String]()
+            var index = scopeEnd.getTokenIndex
+            while (index > 0) {
+                index -= 1
+                val token = tokenStream.get(index)
+                if (ApexParserUtils.isRightParenthesis(token)) {
+                    brackets.push(")")
+                } else if (ApexParserUtils.isLeftParenthesis(token)) {
+                    if (brackets.isEmpty) {
+                        return index
+                    } else {
+                        brackets.pop()
+                    }
+                }
+            }
+            index
+        }
     }
 
     private def consumeUntil(tokenStream: CommonTokenStream, startTokenIndex: Integer, str: String): Int = {
