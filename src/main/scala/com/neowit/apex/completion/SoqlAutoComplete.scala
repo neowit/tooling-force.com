@@ -141,20 +141,6 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     private def findSymbolType(expressionTokens: List[AToken], tree: SoqlCodeUnitContext, tokens: TokenStream,
                                caretReachedException: Option[CaretReachedException] ): Option[Member] = {
 
-        def getFromMember(ctx: ParserRuleContext): Option[SoqlMember] = {
-            caretReachedException match {
-                case Some(_caretReachedException) => getFrom(tokens, _caretReachedException) match {
-                    case x :: xs => Some(x)
-                    case _ => None
-                }
-                case None => //fall back to what parser managed to deduce from current SQOL expression
-                    getFrom(ctx) match {
-                        case x :: xs => Some(x)
-                        case _ => None
-
-                    }
-            }
-        }
 
         val finalContext = expressionTokens.head.finalContext
         finalContext match {
@@ -173,18 +159,12 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 }
             case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
                 //this is a sub query
-                getFromMember(tree) match {
-                  case Some(subqueryFromMember) =>
-                      getTopLevelFrom(tokens, session) match {
-                          case Some(fromTypeMember) => //top level FROM object type
-                                  Some(new SubqueryFromTypeMember(subqueryFromMember.getIdentity, fromTypeMember, session))
-                          case None => None
+                getSubqueryFrom(tree, tokens, caretReachedException)
+            case ctx: WhereConditionExpressionContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+                //this is a sub query
+                getSubqueryFrom(tree, tokens, caretReachedException)
 
-                  }
-                  case None => None
-                }
-
-            case _ => getFromMember(tree)
+            case _ => getFromMember(tree, tokens, caretReachedException)
         }
     }
 
@@ -192,6 +172,33 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         SoqlParserUtils.findFromToken(tokens, tokens.get(1)) match {
             case Some(fromToken) if tokens.size() > fromToken.getTokenIndex + 1=> //top level FROM object type
                 Some(new FromTypeMember(tokens.get(fromToken.getTokenIndex + 1), session))
+            case None => None
+        }
+    }
+
+    def getFromMember(ctx: ParserRuleContext, tokens: TokenStream, caretReachedException: Option[CaretReachedException]): Option[SoqlMember] = {
+        caretReachedException match {
+            case Some(_caretReachedException) => getFrom(tokens, _caretReachedException) match {
+                case x :: xs => Some(x)
+                case _ => None
+            }
+            case None => //fall back to what parser managed to deduce from current SQOL expression
+                getFrom(ctx) match {
+                    case x :: xs => Some(x)
+                    case _ => None
+
+                }
+        }
+    }
+    private def getSubqueryFrom(ctx: ParserRuleContext, tokens: TokenStream, caretReachedException: Option[CaretReachedException]): Option[SubqueryFromTypeMember] = {
+        getFromMember(ctx, tokens, caretReachedException) match {
+            case Some(subqueryFromMember) =>
+                getTopLevelFrom(tokens, session) match {
+                    case Some(fromTypeMember) => //top level FROM object type
+                        Some(new SubqueryFromTypeMember(subqueryFromMember.getIdentity, fromTypeMember, session))
+                    case None => None
+
+                }
             case None => None
         }
     }
