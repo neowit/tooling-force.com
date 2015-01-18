@@ -158,33 +158,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         }
 
         expressionTokens.head.finalContext match {
-            case ctx: SelectItemContext =>
-                //started new field in Select part
-                getFromMember(tree)
-            case ctx: SelectStatementContext =>
-                //started new field in Select part
-                getFromMember(tree)
-            case ctx: FieldItemContext =>
-                //part of field (most likely trying to complete relationship)
-                getFromMember(tree)
-            case ctx: AggregateFunctionContext =>
-                //started new field inside aggregate function which has a variant without argument
-                getFromMember(tree)
-            case ctx: FieldNameContext if ctx.getParent.isInstanceOf[AggregateFunctionContext] =>
-                //started new field inside aggregate function which requires an argument
-                getFromMember(tree)
-            case ctx: FieldNameContext if ctx.getParent.isInstanceOf[FieldItemContext] =>
-                //looks like this is part of relationship e.g. Owner.<caret>
-                getFromMember(tree)
-            case ctx: FromStatementContext =>
-                //most likely partial field (last one) in Select part before 'from'
-                getFromMember(tree)
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
                 Some(new DBModelMember(session))
-            case ctx: WhereConditionExpressionContext =>
-                //started new field inside where
-                getFromMember(tree)
             case ctx: RelationshipPathContext =>
                 //started new relationship name inside nested select
                 getFromMember(tree) match {
@@ -193,7 +169,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                   case None => None
                 }
 
-            case _ => None //TODO
+            case _ => getFromMember(tree)
         }
     }
 
