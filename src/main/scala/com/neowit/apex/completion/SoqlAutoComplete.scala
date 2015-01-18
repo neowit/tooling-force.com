@@ -175,6 +175,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
                 //this is a sub query
                 getSubqueryFrom(tree, tokens, caretReachedException)
+            case ctx: FieldNameContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+                //this is a sub query
+                getSubqueryFrom(tree, tokens, caretReachedException)
             case ctx: WhereConditionExpressionContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
                 //this is a sub query
                 getSubqueryFrom(tree, tokens, caretReachedException)

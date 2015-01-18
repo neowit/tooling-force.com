@@ -242,6 +242,25 @@ public with sharing class SOQLCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testInnerQuerySelectRelationship",
+		"column": 22,
+		"itemsCountMin": 10,
+		"identities": ["AccountNumber", "AccountSource", "Id", "BillingCity", "CreatedBy"],
+		"identityMustNotContain": ["Birthdate"]
+		}
+	 * #END
+	 */
+	public void testInnerQuerySelectRelationship() {
+		final List<My_Object__c> accs = [ select AccountNumber,
+			  (select Account., ,testInnerQuerySelectRelationship
+			   from Contacts), AccountSource 
+				from Account
+				where CreatedDate = TODAY ];
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "testInnerQueryWhere",
 		"column": 27,
 		"itemsCountMin": 3,
