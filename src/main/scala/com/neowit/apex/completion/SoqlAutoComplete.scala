@@ -167,7 +167,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 Some(new DBModelMember(session))
             case ctx: RelationshipPathContext =>
                 //started new relationship name inside nested select
-                getFromMember(tree) match {
+                getTopLevelFrom(tokens, session) match {
                   case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
                       Some(new ChildRelationshipsContainerMember(fromMember.asInstanceOf[FromTypeMember]))
                   case None => None
@@ -176,20 +176,24 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 //this is a sub query
                 getFromMember(tree) match {
                   case Some(subqueryFromMember) =>
-                      SoqlParserUtils.findFromToken(tokens, tokens.get(1)) match {
-                          case Some(fromToken) => //top level FROM object type
-                              val objectTypeTokenIndex = fromToken.getTokenIndex + 1
-                              if (objectTypeTokenIndex < tokens.size()) {
-                                  Some(new SubqueryFromTypeMember(subqueryFromMember.getIdentity, new FromTypeMember(tokens.get(objectTypeTokenIndex), session), session))
-                              } else {
-                                  None
-                              }
+                      getTopLevelFrom(tokens, session) match {
+                          case Some(fromTypeMember) => //top level FROM object type
+                                  Some(new SubqueryFromTypeMember(subqueryFromMember.getIdentity, fromTypeMember, session))
                           case None => None
+
                   }
                   case None => None
                 }
 
             case _ => getFromMember(tree)
+        }
+    }
+
+    private def getTopLevelFrom(tokens: TokenStream, session: Session): Option[FromTypeMember] = {
+        SoqlParserUtils.findFromToken(tokens, tokens.get(1)) match {
+            case Some(fromToken) if tokens.size() > fromToken.getTokenIndex + 1=> //top level FROM object type
+                Some(new FromTypeMember(tokens.get(fromToken.getTokenIndex + 1), session))
+            case None => None
         }
     }
 
