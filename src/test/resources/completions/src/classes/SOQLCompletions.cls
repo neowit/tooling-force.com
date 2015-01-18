@@ -306,4 +306,58 @@ public with sharing class SOQLCompletions {
 				from Account
 				where CreatedDate = TODAY ];
 	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testBoundVariableSingleLine",
+		"column": 87,
+		"itemsCountMin": 2,
+		"identities": ["publicProperty", "getPublicString"],
+		"identityMustNotContain": ["getPrivateStringStatically", "privateProperty"]
+		}
+	 * #END
+	 */
+	public void testBoundVariableSingleLine() {
+		OtherClass1 some;
+
+		final List<My_Object__c> accs = [select Id from Account where FieldName like : some.]; // testBoundVariableSingleLine
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testBoundVariableMultiLine",
+		"column": 32,
+		"itemsCountMin": 2,
+		"identities": ["publicProperty", "getPublicString"],
+		"identityMustNotContain": ["getPrivateStringStatically", "privateProperty"]
+		}
+	 * #END
+	 */
+	public void testBoundVariableMultiLine() {
+		OtherClass1 some;
+
+		final List<My_Object__c> accs = [select Id from Account 
+			where FieldName like : some.]; // testBoundVariableMultiLine
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testBoundVariableInnerSoql",
+		"column": 25,
+		"itemsCountMin": 2,
+		"identities": ["publicProperty", "getPublicString"],
+		"identityMustNotContain": ["getPrivateStringStatically", "privateProperty"]
+		}
+	 * #END
+	 */
+	public void testBoundVariableInnerSoql() {
+		OtherClass1 some;
+
+		final List<My_Object__c> accs = [ select AccountNumber, (select Id from Contacts
+					where Name = :some.), testBoundVariableInnerSoql
+				from Account]; 
+	}
 }
