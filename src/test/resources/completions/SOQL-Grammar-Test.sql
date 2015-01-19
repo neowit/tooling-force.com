@@ -114,8 +114,9 @@ SELECT Amount, Id, Name, (SELECT Quantity, ListPrice, PricebookEntry.UnitPrice, 
 SELECT UserId, LoginTime from LoginHistory
 --#END
 
---#START: Relationship queries with number of logins per user in a specific time range	
-SELECT UserId, COUNT(Id) from LoginHistory WHERE LoginTime > 2010-09-20T22:16:30.000Z AND LoginTime < 2010-09-21T22:16:30.000Z GROUP BY UserId
+--#START:  date format 1
+SELECT UserId, COUNT(Id) from LoginHistory WHERE LoginTime > 2010-09-20T22:16:30.000Z AND LoginTime < 2010-09-21T22:16:30Z GROUP BY UserId
+--#END
 
 --#START:  NOT Operator
 SELECT Id from User WHERE NOT IsActive = true 
