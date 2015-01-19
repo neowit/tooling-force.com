@@ -162,10 +162,13 @@ havingConditionExpression
 	;
 
 simpleOperator
-	: ('<' 
-		| '>' 
+	: ('=' 
+		| '!=' 
 		| '<>' 
-		| '='
+		| '<'
+		| '<='
+		| '>'
+		| '>='
 		)
 	;
 
