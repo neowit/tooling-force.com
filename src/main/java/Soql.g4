@@ -148,7 +148,8 @@ whereSubquery
 	;
 
 conditionExpression
-	:	fieldItem (simpleOperator | likeOperator) primary
+	:	fieldItem (simpleOperator | likeOperator) expression
+	|	NOT fieldItem simpleOperator expression
 	|	fieldItem specialOperator '(' primary (',' primary)* ')'
 	|	fieldItem bindOperator expression
 	;

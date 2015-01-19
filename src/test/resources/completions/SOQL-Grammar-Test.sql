@@ -116,6 +116,13 @@ SELECT UserId, LoginTime from LoginHistory
 
 --#START: Relationship queries with number of logins per user in a specific time range	
 SELECT UserId, COUNT(Id) from LoginHistory WHERE LoginTime > 2010-09-20T22:16:30.000Z AND LoginTime < 2010-09-21T22:16:30.000Z GROUP BY UserId
+
+--#START:  NOT Operator
+SELECT Id from User WHERE NOT IsActive = true 
+--#END
+--
+--#START: NOT, <>, =, != Operators
+SELECT Id from User WHERE IsActive <> true and IsActive != true and not IsActive = true
 --#END
 
 --#START: Date Functions 1
