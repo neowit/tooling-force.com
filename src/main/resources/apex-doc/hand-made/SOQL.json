@@ -1,0 +1,86 @@
+{
+  "aggregateFunction": {
+    "name": "aggregateFunction",
+    "methods": [
+      {
+        "s": "1",
+        "n": "avg",
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the average value of a numeric field",
+        "r": "Decimal",
+        "d": "avg(fieldname)"
+      },
+      
+      {
+        "s": "1",
+        "n": "count",
+        "v": "public",
+        "p": [],
+        "h": "Returns the number of rows matching the query criteria.\nThe COUNT(fieldName) syntax is available in API version 18.0 and later. If you are using a GROUP BY clause, use COUNT(fieldName) instead of COUNT()",
+        "r": "Integer",
+        "d": "count()"
+      },
+      {
+        "s": "1",
+        "n": "count" ,
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the number of rows matching the query criteria",
+        "r": "Integer",
+        "d": "count(fieldname)"
+      },
+      {
+        "s": "1",
+        "n": "count_distinct",
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the number of distinct non-null field values matching the query criteria.\nCOUNT_DISTINCT(fieldName) in SOQL is equivalent to COUNT(DISTINCT fieldName) in SQL. To query for all the distinct values, including null, for an object, see GROUP BY.",
+        "r": "Integer",
+        "d": "count_distinct(fieldname)"
+      },
+      {
+        "s": "1",
+        "n": "min",
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the minimum value of a field.\nIf you use the MIN() or MAX() functions on a picklist field, the function uses the sort order of the picklist values instead of alphabetical order.",
+        "r": "Decimal",
+        "d": "min(fieldname)"
+      },
+      {
+        "s": "1",
+        "n": "max",
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the maximum value of a field.",
+        "r": "Decimal",
+        "d": "max(fieldname)"
+      },
+      {
+        "s": "1",
+        "n": "sum",
+        "v": "public",
+        "p": [
+			"Field Name"
+		],
+        "h": "Returns the total sum of a numeric field.",
+        "r": "Decimal",
+        "d": "sum(fieldname)"
+      }
+    ],
+    "tag": "CLASSDEF",
+    "ctors": [],
+    "fqn": "SOQL.aggregateFunction"
+  }
+}
