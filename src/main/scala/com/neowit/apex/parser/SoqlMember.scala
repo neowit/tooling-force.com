@@ -3,9 +3,11 @@ package com.neowit.apex.parser
 import com.neowit.apex.Session
 import com.neowit.apex.completion.models.SoqlModel
 import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMember}
+import com.neowit.apex.parser.antlr.SoqlParser
 import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
 import com.sforce.soap.partner.ChildRelationship
-import org.antlr.v4.runtime.Token
+import org.antlr.v4.runtime.tree.TerminalNode
+import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
 trait SoqlMember extends Member {
     override def isStatic: Boolean = false
@@ -58,6 +60,27 @@ class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMembe
 
     def getChildRelationship(identity: String): Option[com.sforce.soap.partner.ChildRelationship] = {
         getChildRelationships.find(_.getRelationshipName.toLowerCase == identity.toLowerCase)
+    }
+
+    protected def getSession = session
+}
+
+class SelectItemMember(fromTypeMember: FromTypeMember, parser: SoqlParser) extends SoqlMember {
+    override def getIdentity: String = fromTypeMember.getIdentity
+
+    override def getType: String = fromTypeMember.getType
+
+    override def getSignature: String = fromTypeMember.getSignature
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = super.getChild(identity, withHierarchy)
+
+    override def getChildren: List[Member] = {
+        val fromTypeChildren = fromTypeMember.getChildren
+        val functions = SoqlModel.getMember("aggregateFunction") match {
+          case Some(m) => m.getChildren
+          case None => Nil
+        }
+        fromTypeChildren ++ functions
     }
 }
 

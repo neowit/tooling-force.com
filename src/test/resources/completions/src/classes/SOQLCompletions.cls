@@ -15,7 +15,7 @@ public with sharing class SOQLCompletions {
 		"lineMarker": "testFirstFieldInSelect",
 		"column": 24,
 		"itemsCountMin": 30,
-		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber"]
+		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct"]
 		}
 	 * #END
 	 */
@@ -29,7 +29,7 @@ public with sharing class SOQLCompletions {
 		"lineMarker": "testSecondFieldInSelect",
 		"column": 27,
 		"itemsCountMin": 30,
-		"identities": ["Name", "Owner", "OwnerId", "AccountNumber"],
+		"identities": ["Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct"],
 		"identityMustNotContain": ["Id"]
 		}
 	 * #END
@@ -397,4 +397,5 @@ public with sharing class SOQLCompletions {
 					where Name = :some.), testBoundVariableInnerSoql
 				from Account]; 
 	}
+
 }

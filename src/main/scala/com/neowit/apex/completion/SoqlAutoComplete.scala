@@ -53,7 +53,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         */
 
         val finalContext = expressionTokens.head.finalContext
-        val definition = findSymbolType(expressionTokens, tree, tokens, caretReachedException)
+        val definition = findSymbolType(expressionTokens, tree, tokens, caretReachedException, parser)
 
         definition match {
           case Some(soqlTypeMember) =>
@@ -155,7 +155,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
      * @return typeMember - in the above example: typeMember will be FromTypeMember - "Account"
      */
     private def findSymbolType(expressionTokens: List[AToken], tree: SoqlCodeUnitContext, tokens: TokenStream,
-                               caretReachedException: Option[CaretReachedException] ): Option[Member] = {
+                               caretReachedException: Option[CaretReachedException], parser: SoqlParser ): Option[Member] = {
 
 
         val finalContext = expressionTokens.head.finalContext
@@ -193,6 +193,20 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 //this is a sub query
                 getSubqueryFrom(tree, tokens, caretReachedException)
 
+            case ctx: SelectStatementContext =>
+                //first field in empty SELECT
+                getFromMember(tree, tokens, caretReachedException) match {
+                  case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
+                      Some(new SelectItemMember(fromMember.asInstanceOf[FromTypeMember], parser))
+                  case None => None
+                }
+            case ctx: SelectItemContext =>
+                //second or more field in non empty SELECT
+                getFromMember(tree, tokens, caretReachedException) match {
+                    case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
+                        Some(new SelectItemMember(fromMember.asInstanceOf[FromTypeMember], parser))
+                    case None => None
+                }
             case _ => getFromMember(tree, tokens, caretReachedException)
         }
     }
