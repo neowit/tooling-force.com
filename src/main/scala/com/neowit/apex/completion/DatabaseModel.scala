@@ -2,6 +2,7 @@ package com.neowit.apex.completion
 
 import com.neowit.TcpServer
 import com.neowit.apex.Session
+import com.neowit.apex.completion.models.ApexModel
 import com.neowit.apex.parser.Member
 import com.neowit.utils.Logging
 

@@ -1,6 +1,7 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.Session
+import com.neowit.apex.completion.models.SoqlModel
 import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMember}
 import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
 import com.sforce.soap.partner.ChildRelationship

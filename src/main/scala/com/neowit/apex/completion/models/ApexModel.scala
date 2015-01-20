@@ -1,4 +1,4 @@
-package com.neowit.apex.completion
+package com.neowit.apex.completion.models
 
 import com.neowit.apex.parser.{BuiltInMethodMember, Member}
 //import scala.collection.JavaConversions._
@@ -147,9 +147,9 @@ case class ApexNamespace(name: String) extends ApexModelMember {
             loadFile("hand-made/System_Trigger")
             //add methods from System.System
             getChild("System") match {
-              case Some(systemMember) =>
-                  systemMember.getChildren.foreach(this.addChild)
-              case None =>
+                case Some(systemMember) =>
+                    systemMember.getChildren.foreach(this.addChild)
+                case None =>
             }
             //override erroneous System namespace definitions
             loadFile("hand-made/System_ApexPages", overwriteChildren = true)
@@ -217,12 +217,12 @@ case class ApexType(name: String, superType: Option[String], enums: Option[List[
     override def loadMembers(): Unit = {
         isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
         methods match {
-          case Some(_methods) =>
-              for (method <- _methods) {
-                  //method.setParent(this)
-                  addChild(method)
-              }
-          case None =>
+            case Some(_methods) =>
+                for (method <- _methods) {
+                    //method.setParent(this)
+                    addChild(method)
+                }
+            case None =>
         }
         enums match {
             case Some(_enums) =>

@@ -3,6 +3,7 @@ package com.neowit.apex.completion
 import java.io.{FileInputStream, File}
 
 import com.neowit.apex.Session
+import com.neowit.apex.completion.models._
 import com.neowit.apex.parser._
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import com.neowit.apex.parser.antlr.ApexcodeParser._

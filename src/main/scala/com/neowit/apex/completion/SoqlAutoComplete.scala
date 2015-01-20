@@ -1,6 +1,7 @@
 package com.neowit.apex.completion
 
 import com.neowit.apex.Session
+import com.neowit.apex.completion.models.ApexMethod
 import com.neowit.apex.parser.antlr.SoqlParser._
 import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
 import com.neowit.apex.parser._
