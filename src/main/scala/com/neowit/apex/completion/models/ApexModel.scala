@@ -5,12 +5,10 @@ import com.neowit.apex.parser.{BuiltInMethodMember, Member}
 import spray.json._
 
 object ApexModelJsonProtocol extends DefaultJsonProtocol {
-    //implicit val namespaceFormat = jsonFormat1(ApexNamespace)
     implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "enums", "methods", "tag", "ctors", "fqn"))
     implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
     implicit val apexEnumFormat: JsonFormat[ApexEnumMember] = lazyFormat(jsonFormat(ApexEnumMember, "name", "enumConstants", "tag", "fqn"))
     implicit val apexEnumConstantFormat: JsonFormat[ApexEnumConstantMember] = lazyFormat(jsonFormat(ApexEnumConstantMember, "s", "n", "v", "h", "r"))
-    //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
 
 object ApexModel {

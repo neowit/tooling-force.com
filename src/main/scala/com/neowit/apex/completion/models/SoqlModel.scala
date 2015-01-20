@@ -4,10 +4,8 @@ import com.neowit.apex.parser.Member
 import spray.json.{JsValue, JsonFormat, DefaultJsonProtocol}
 
 object SoqlModelJsonProtocol extends DefaultJsonProtocol {
-    //implicit val namespaceFormat = jsonFormat1(ApexNamespace)
     implicit val soqlTypeFormat: JsonFormat[SoqlType] = lazyFormat(jsonFormat(SoqlType, "name", "methods", "tag", "fqn"))
     implicit val soqlAggregateFunction: JsonFormat[SoqlFunction] = lazyFormat(jsonFormat(SoqlFunction, "n", "v", "p", "h", "r", "d"))
-    //implicit val apexParamFormat: JsonFormat[ApexParam2] = jsonFormat(ApexParam2)
 }
 object SoqlModel extends ModelBase {
 
@@ -26,12 +24,13 @@ object SoqlModel extends ModelBase {
         if (fqn.indexOf(".") > 0) {
             //this is probably a fully qualified name
             val types = getMembers(fqn.split("\\.")(0))
-            return types.find(_.getSignature.toLowerCase == fqn.toLowerCase) match {
+
+            types.find(_.getSignature.toLowerCase == fqn.toLowerCase) match {
                 case Some(member) => Some(member)
                 case None => None
             }
         } else {
-            //check if this is a system type
+            //add namespace name
             getMember("SOQL." + fqn)
         }
     }

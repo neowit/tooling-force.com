@@ -48,16 +48,6 @@ trait Namespace extends ApexModelMember {
     override def getSignature: String = getIdentity
     override def isStatic: Boolean = true
 
-    //private var isDoneLoading = false
-    //override def isLoaded:Boolean = isDoneLoading
-
-    /*
-    override def loadMembers(): Unit = {
-        isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
-        loadFile(getName)
-    }
-    */
-
     protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean = false)
 
     protected def loadFile(filePath: String, overwriteChildren: Boolean = false): Unit = {
