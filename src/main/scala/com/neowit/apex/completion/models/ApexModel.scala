@@ -39,7 +39,8 @@ object ApexModel {
         if (fqn.indexOf(".") > 0) {
             //this is probably a fully qualified name
             val types = getMembers(fqn.split("\\.")(0))
-            return types.find(_.getSignature.toLowerCase == fqn.toLowerCase) match {
+
+            types.find(_.getSignature.toLowerCase == fqn.toLowerCase) match {
                 case Some(member) => Some(member)
                 case None => None
             }
@@ -79,36 +80,8 @@ object ApexModel {
     }
 }
 
-trait ApexModelMember extends Member {
-    //this is for cases when we load stuff from System.<Class> into appropriate <Class> namespace
-    //e.g. System.Database methods are loaded into Database namespace
-    override def isParentChangeAllowed: Boolean = true
 
-    override def getVisibility: String = "public"
-    override def getType: String = getIdentity
-
-    protected def isLoaded: Boolean = true
-
-    override def getChildren: List[Member] = {
-        if (!isLoaded) {
-            loadMembers()
-        }
-        super.getChildren
-    }
-    def getStaticChildren: List[Member] = {
-        getChildren.filter(_.isStatic)
-    }
-
-    def loadMembers(): Unit = {  }
-
-    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
-        if (!isLoaded) {
-            loadMembers()
-        }
-        super.getChild(identity, withHierarchy)
-    }
-}
-case class ApexNamespace(name: String) extends ApexModelMember {
+class ApexNamespace(name: String) extends GenericNamespace(name) {
 
     import ApexModelJsonProtocol._
 
@@ -131,6 +104,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
 
         myChildren ++ extraMembers
     }
+
     override def loadMembers(): Unit = {
         isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
         loadFile(name)
@@ -157,14 +131,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         }
     }
 
-    private def loadFile(filePath: String, overwriteChildren: Boolean = false): Unit = {
-        val is = getClass.getClassLoader.getResource("apex-doc/" + filePath + ".json")
-        if (null == is) {
-            return
-        }
-        val doc = scala.io.Source.fromInputStream(is.openStream())("UTF-8").getLines().mkString
-        val jsonAst = JsonParser(doc)
-        val types = jsonAst.asJsObject.fields //Map[typeName -> type description JSON]
+    protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean) {
         val typesWithSuperTypes = List.newBuilder[ApexType]
         for (typeName <- types.keys) {
             val typeJson = types(typeName)
@@ -203,6 +170,7 @@ case class ApexNamespace(name: String) extends ApexModelMember {
         }
     }
 }
+
 case class ApexType(name: String, superType: Option[String], enums: Option[List[ApexEnumMember]],
                     methods: Option[List[ApexMethod]], tag: String, ctors: Option[List[ApexMethod]], fqn: String) extends ApexModelMember {
 

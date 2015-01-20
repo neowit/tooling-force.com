@@ -16,7 +16,7 @@ object SoqlModel extends ModelBase {
     override def getNameSpaces: List[String] = NAMESPACES
 
 
-    override def getNamespaceInstance(namespace: String): Namespace = new SoqlNamespace(namespace)
+    override def getNamespaceInstance(namespace: String): GenericNamespace = new SoqlNamespace(namespace)
 
     override def getMemberByNamespace: Map[String, ApexModelMember] = memberByNamespace
 
@@ -36,10 +36,8 @@ object SoqlModel extends ModelBase {
     }
 }
 
-case class SoqlNamespace(name: String) extends Namespace {
+class SoqlNamespace(name: String) extends GenericNamespace(name) {
     import com.neowit.apex.completion.models.SoqlModelJsonProtocol._
-
-    override def getName: String = name
 
     private var isDoneLoading = false
     override def isLoaded:Boolean = isDoneLoading
