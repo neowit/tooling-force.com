@@ -15,7 +15,7 @@ public with sharing class SOQLCompletions {
 		"lineMarker": "testFirstFieldInSelect",
 		"column": 24,
 		"itemsCountMin": 30,
-		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct"]
+		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct", "convertCurrency"]
 		}
 	 * #END
 	 */
@@ -29,7 +29,7 @@ public with sharing class SOQLCompletions {
 		"lineMarker": "testSecondFieldInSelect",
 		"column": 27,
 		"itemsCountMin": 30,
-		"identities": ["Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct"],
+		"identities": ["Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct", "convertCurrency"],
 		"identityMustNotContain": ["Id"]
 		}
 	 * #END

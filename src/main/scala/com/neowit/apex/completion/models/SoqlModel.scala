@@ -5,7 +5,7 @@ import spray.json.{JsValue, JsonFormat, DefaultJsonProtocol}
 
 object SoqlModelJsonProtocol extends DefaultJsonProtocol {
     implicit val soqlTypeFormat: JsonFormat[SoqlType] = lazyFormat(jsonFormat(SoqlType, "name", "methods", "tag", "fqn"))
-    implicit val soqlAggregateFunction: JsonFormat[SoqlFunction] = lazyFormat(jsonFormat(SoqlFunction, "n", "v", "p", "h", "r", "d"))
+    implicit val soqlFunction: JsonFormat[SoqlFunction] = lazyFormat(jsonFormat(SoqlFunction, "n", "v", "p", "h", "r", "d", "scope"))
 }
 object SoqlModel extends ModelBase {
 
@@ -82,12 +82,12 @@ case class SoqlType(name: String,  methods: Option[List[SoqlFunction]], tag: Str
     }
 }
 
-case class SoqlFunction(n: String, v: String, p: List[String], h: String, r: String, d: String) extends ApexModelMember {
+case class SoqlFunction(n: String, v: String, p: List[String], h: String, r: String, d: String, scope: List[String]) extends ApexModelMember {
 
     override def getIdentity: String = n + p.mkString(", ")
 
     /**
-     * for most member types Identity is unique (for Methods, Aggregate functions, and Inner Classes it is not)
+     * for most member types Identity is unique (for Methods, SOQL functions, and Inner Classes it is not)
      */
     override def getIdentityToDisplay: String = n
 
@@ -96,6 +96,10 @@ case class SoqlFunction(n: String, v: String, p: List[String], h: String, r: Str
     override def getDoc: String = h
 
     override def getType: String = r
+
+    def isInScope(scopeName: String) =
+        scope.map(_.toLowerCase).contains(scopeName.toLowerCase)
+
 
     private var isDoneLoading = false
     override def isLoaded:Boolean = isDoneLoading

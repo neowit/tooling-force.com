@@ -1,7 +1,7 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.Session
-import com.neowit.apex.completion.models.SoqlModel
+import com.neowit.apex.completion.models.{SoqlFunction, SoqlModel}
 import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMember}
 import com.neowit.apex.parser.antlr.SoqlParser
 import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
@@ -76,8 +76,9 @@ class SelectItemMember(fromTypeMember: FromTypeMember, parser: SoqlParser) exten
 
     override def getChildren: List[Member] = {
         val fromTypeChildren = fromTypeMember.getChildren
-        val functions = SoqlModel.getMember("aggregateFunction") match {
-          case Some(m) => m.getChildren
+        val functions = SoqlModel.getMember("functions") match {
+          case Some(m) =>
+              m.getChildren.filter(mm => mm.isInstanceOf[SoqlFunction] && mm.asInstanceOf[SoqlFunction].isInScope("select"))
           case None => Nil
         }
         fromTypeChildren ++ functions
