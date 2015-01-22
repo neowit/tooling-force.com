@@ -25,9 +25,8 @@ abstract class Caret(val line:  Int, val startIndex: Int) {
 }
 
 class CaretInFile(line:  Int, startIndex: Int, file: File) extends Caret (line, startIndex){
-    def getOffset: Int = {
-        ApexParserUtils.getOffset(file, line, startIndex)
-    }
+    //make sure that offset is calculated once and not recalculated on each access
+    lazy val getOffset: Int =  ApexParserUtils.getOffset(file, line, startIndex)
 }
 /**
  *
