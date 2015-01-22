@@ -86,6 +86,7 @@ classOrInterfaceModifier
         |   'webservice' // class only -- does not apply to interfaces
         |   'override'   // method only
         |   'virtual'    // method only
+        |   TESTMETHOD    // method only
 		|	APEX_WITH_SHARING // class only
 		|	APEX_WITHOUT_SHARING //class only
         )
@@ -717,6 +718,7 @@ DB_UPSERT     : [Uu][Pp][Ss][Ee][Rr][Tt];
 DB_UPDATE     : [Uu][Pp][Dd][Aa][Tt][Ee];
 DB_DELETE     : [Dd][Ee][Ll][Ee][Tt][Ee];
 DB_UNDELETE   : [Un][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
+TESTMETHOD   : [Tt][Ee][Ss][Tt][Mm][Ee][Tt][Hh][Oo][Dd];
 
 
 // §3.10.1 Integer Literals
