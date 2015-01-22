@@ -652,9 +652,17 @@ arguments
 // Apex - SOQL literal
 
 SoqlLiteral
-    : '[' WS* SELECT .*? ']'
+    : '[' WS* SELECT (SelectRestNoInnerBrackets | SelectRestAllowingInnerBrackets)*? ']'
 	;
 	
+fragment SelectRestAllowingInnerBrackets
+	:  '[' ~']' .*? ']'
+	|	~'[' .*?
+	;
+
+fragment SelectRestNoInnerBrackets
+	:  ~'['
+	;
 // LEXER
 
 // §3.9 Keywords

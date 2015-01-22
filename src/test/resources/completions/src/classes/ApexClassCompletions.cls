@@ -8,6 +8,7 @@
  */
 
 public with sharing class ApexClassCompletions {
+
 	//static field
 	private static Integer STATIC_INT = 0;
 	public enum Season {WINTER, SPRING, SUMMER, FALL}
@@ -22,8 +23,15 @@ public with sharing class ApexClassCompletions {
 							propLong = value;
 						} 
 	}
+	
+	//this is just to test if syntax of select is understood and ignored
+	private static Boolean IS_SANDBOX = [select count() from Organization where IsSandbox = true] > 0;
 
-    void test1() {}
+    void test1() {
+		//this is just to test if syntax of nested select is understood and ignored
+		final Map<Id, Account> accountMap = new Map<Id, Account>([select Id, IsValid__c from Account where Id in :new Set<Id>{a[0].Id, a[1].Id, a[2].Id, a[3].Id}]);
+
+	}
     //void test24() {}
 
 	/**
