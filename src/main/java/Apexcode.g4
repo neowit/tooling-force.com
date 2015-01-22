@@ -720,13 +720,13 @@ GLOBAL	      : 'global';
 WEBSERVICE    : 'webservice';
 APEX_WITH_SHARING :    'with sharing';
 APEX_WITHOUT_SHARING : 'without sharing';
-SELECT        : [Ss][Ee][Ll][Ee][Cc][Tt];
-DB_INSERT     : [Ii][Nn][Ss][Ee][Rr][Tt];
-DB_UPSERT     : [Uu][Pp][Ss][Ee][Rr][Tt];
-DB_UPDATE     : [Uu][Pp][Dd][Aa][Tt][Ee];
-DB_DELETE     : [Dd][Ee][Ll][Ee][Tt][Ee];
-DB_UNDELETE   : [Uu][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
-TESTMETHOD   : [Tt][Ee][Ss][Tt][Mm][Ee][Tt][Hh][Oo][Dd];
+SELECT        : 'select';
+DB_INSERT     : 'insert';
+DB_UPSERT     : 'upsert';
+DB_UPDATE     : 'update';
+DB_DELETE     : 'delete';
+DB_UNDELETE   : 'undelete';
+TESTMETHOD   : 'testMethod';
 
 
 // §3.10.1 Integer Literals

@@ -516,7 +516,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
 
 
     private def getLexer(file: File): ApexcodeLexer = {
-        val input = new ANTLRInputStream(new FileInputStream(file))
+        //val input = new ANTLRInputStream(new FileInputStream(file))
+        val input = new CaseInsensitiveInputStream(new FileInputStream(file))
         val lexer = new ApexcodeLexer(input)
         lexer
     }

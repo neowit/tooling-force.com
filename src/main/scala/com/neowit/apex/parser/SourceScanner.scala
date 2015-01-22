@@ -5,14 +5,15 @@ import java.io.{FileInputStream, File}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import com.neowit.utils.Logging
 import org.antlr.v4.runtime.tree.ParseTreeWalker
-import org.antlr.v4.runtime.{CommonTokenStream, ANTLRInputStream}
+import org.antlr.v4.runtime.CommonTokenStream
 
 class SourceScanner (files: List[File]) extends Logging {
     val completeTree = new ApexTree
     val fileModificationTimes = Map.newBuilder[String, Long]
 
     private def getLexer(file: File): ApexcodeLexer = {
-        val input = new ANTLRInputStream(new FileInputStream(file))
+        //val input = new ANTLRInputStream(new FileInputStream(file))
+        val input = new CaseInsensitiveInputStream(new FileInputStream(file))
         val lexer = new ApexcodeLexer(input)
         lexer
     }
