@@ -717,7 +717,7 @@ DB_INSERT     : [Ii][Nn][Ss][Ee][Rr][Tt];
 DB_UPSERT     : [Uu][Pp][Ss][Ee][Rr][Tt];
 DB_UPDATE     : [Uu][Pp][Dd][Aa][Tt][Ee];
 DB_DELETE     : [Dd][Ee][Ll][Ee][Tt][Ee];
-DB_UNDELETE   : [Un][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
+DB_UNDELETE   : [Uu][Nn][Dd][Ee][Ll][Ee][Tt][Ee];
 TESTMETHOD   : [Tt][Ee][Ss][Tt][Mm][Ee][Tt][Hh][Oo][Dd];
 
 
