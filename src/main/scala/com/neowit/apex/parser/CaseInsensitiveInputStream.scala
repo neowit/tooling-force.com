@@ -1,13 +1,15 @@
 package com.neowit.apex.parser
 
-import java.io._
+
+import java.io.{InputStreamReader, InputStream, Reader}
 
 import org.antlr.v4.runtime.{IntStream, ANTLRInputStream}
 
 class CaseInsensitiveInputStream(r: Reader, initialSize: Int, readChunkSize: Int)
     extends ANTLRInputStream(r, initialSize, readChunkSize) {
 
-    private var lookAheadData: Array[Char] = new Array[Char](data.length)
+    //lazy is important here because need initiated data[], which is loaded in super class
+    private lazy val lowercaseData: Array[Char] = data.map(_.toLower)
 
     def this (r: Reader) {
         this(r, initialSize = 1024, readChunkSize = 1024)
@@ -30,15 +32,12 @@ class CaseInsensitiveInputStream(r: Reader, initialSize: Int, readChunkSize: Int
         if ((p + i - 1) >= n) {
             return IntStream.EOF
         }
-        //lookAheadData(p + i - 1)
-        lookAheadData(p + i - 1)
-        data(p + i - 1).toLower
-    }
 
-    override def load(r: Reader, size: Int, readChunkSize: Int): Unit = {
-        super.load(r, size, readChunkSize)
-        lookAheadData = new Array[Char](data.length)
-        lookAheadData = data.map(_.toLower)
+        if (null != lowercaseData) {
+            lowercaseData(p + i - 1)
+        } else {
+            data(p + i - 1).toLower
+        }
     }
 
 }
