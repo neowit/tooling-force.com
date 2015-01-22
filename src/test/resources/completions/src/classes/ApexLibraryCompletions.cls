@@ -351,7 +351,7 @@ public with sharing class ApexClassCompletions {
 	 * #END
 	 */
 	public void completeStaticApexTypeReference() {
-		insert new Account();//check that shorthand DB operator does not cause problems
+		inSert new Account();//check that shorthand DB operator does not cause problems
 		ApexPages.; //completeStaticApexTypeReference
 	}
 
@@ -366,7 +366,7 @@ public with sharing class ApexClassCompletions {
 	 * #END
 	 */
 	public void completeApexModelEnum() {
-		Database.insert(new Account(), false);//check that long version of DB operator does not cause problems
+		DatAbase.insert(new Account(), false);//check that long version of DB operator does not cause problems
 		ApexPages.Severity.; //completeApexModelEnum
 	}
 }

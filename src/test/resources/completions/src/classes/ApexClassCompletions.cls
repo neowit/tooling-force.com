@@ -10,7 +10,7 @@
 public with sharing class ApexClassCompletions {
 
 	//static field
-	private static Integer STATIC_INT = 0;
+	private sTatIc Integer STATIC_INT = 0; //deliberately mixed case word "static" to check CaseInsensitiveInputStream
 	public enum Season {WINTER, SPRING, SUMMER, FALL}
 	
 	//static property
