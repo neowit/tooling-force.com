@@ -15,7 +15,8 @@ public with sharing class SOQLCompletions {
 		"lineMarker": "testFirstFieldInSelect",
 		"column": 24,
 		"itemsCountMin": 30,
-		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct", "convertCurrency"]
+		"identities": ["Id", "Name", "Owner", "OwnerId", "AccountNumber", "count", "avg", "sum", "count_distinct", "convertCurrency", "toLabel", "CALENDAR_MONTH"],
+		"identityMustNotContain": ["NEXT_90_DAYS"]
 		}
 	 * #END
 	 */
@@ -396,6 +397,40 @@ public with sharing class SOQLCompletions {
 		final List<My_Object__c> accs = [ select AccountNumber, (select Id from Contacts
 					where Name = :some.), testBoundVariableInnerSoql
 				from Account]; 
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testLeftWhereFunction",
+		"column": 77,
+		"itemsCountMin": 2,
+		"identities": ["DAY_IN_YEAR", "AccountNumber"],
+		"identityMustNotContain": ["LAST_90_DAYS"]
+		}
+	 * #END
+	 */
+	public void testLeftWhereFunction() {
+		OtherClass1 some;
+
+		final List<My_Object__c> accs = [ select toLabel(Type) from Account where ]; // testLeftWhereFunction
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testRightWhereFunction",
+		"column": 91,
+		"itemsCountMin": 2,
+		"identities": ["LAST_90_DAYS", "NEXT_90_DAYS"],
+		"identityMustNotContain": ["AccountNumber", "DAY_IN_YEAR", "toLabel"]
+		}
+	 * #END
+	 */
+	public void testRightWhereFunction() {
+		OtherClass1 some;
+
+		final List<My_Object__c> accs = [ select toLabel(Type) from Account where CreatedDate < ]; // testRightWhereFunction
 	}
 
 }
