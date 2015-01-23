@@ -159,6 +159,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
 
 
         val finalContext = expressionTokens.head.finalContext
+        val isSubquery = ApexParserUtils.getParent(finalContext, classOf[SubqueryContext]).isDefined
+
         finalContext match {
             case ctx: ObjectTypeContext if ctx.getParent.isInstanceOf[FromStatementContext] =>
                 //looks like caret is just after 'FROM' keyword
@@ -173,7 +175,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                       Some(new ChildRelationshipsContainerMember(fromMember.asInstanceOf[FromTypeMember]))
                   case None => None
                 }
-            case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+            case ctx: FieldItemContext if isSubquery =>
                 //this is a sub query
                 if (caretReachedException.isDefined && null != caretReachedException.get.caretToken.prevToken
                     && "from" == caretReachedException.get.caretToken.prevToken.getText) {
@@ -186,12 +188,26 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                 } else {
                     getSubqueryFrom(tree, tokens, caretReachedException)
                 }
-            case ctx: FieldNameContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+            case ctx: FieldNameContext if isSubquery =>
                 //this is a sub query
                 getSubqueryFrom(tree, tokens, caretReachedException)
-            case ctx: WhereConditionExpressionContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined =>
+            case ctx: WhereConditionExpressionContext if isSubquery =>
                 //this is a sub query
-                getSubqueryFrom(tree, tokens, caretReachedException)
+                getSubqueryFrom(tree, tokens, caretReachedException) match {
+                    case Some(_fromTypeMember) =>
+                        Some(new WhereLeftItemMember(_fromTypeMember, parser))
+                    case None => None
+                }
+            case ctx: WhereConditionExpressionContext if !isSubquery =>
+                //this is a sub query
+                getFromMember(tree, tokens, caretReachedException) match {
+                    case Some(_fromTypeMember) =>
+                        Some(new WhereLeftItemMember(_fromTypeMember, parser))
+                    case None => None
+                }
+
+            case ctx: ConditionExpressionContext=>
+                Some(new WhereRightItemMember())
 
             case ctx: SelectStatementContext =>
                 //first field in empty SELECT
@@ -203,8 +219,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
             case ctx: SelectItemContext =>
                 //second or more field in non empty SELECT
                 getFromMember(tree, tokens, caretReachedException) match {
-                    case Some(fromMember) if fromMember.isInstanceOf[FromTypeMember] =>
-                        Some(new SelectItemMember(fromMember.asInstanceOf[FromTypeMember], parser))
+                    case Some(fromMember) =>
+                        Some(new SelectItemMember(fromMember, parser))
                     case None => None
                 }
             case _ => getFromMember(tree, tokens, caretReachedException)

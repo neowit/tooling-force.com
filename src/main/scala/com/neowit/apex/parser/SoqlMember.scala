@@ -65,24 +65,68 @@ class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMembe
     protected def getSession = session
 }
 
-class SelectItemMember(fromTypeMember: FromTypeMember, parser: SoqlParser) extends SoqlMember {
-    override def getIdentity: String = fromTypeMember.getIdentity
+trait SoqlFunctionItemMember extends SoqlMember {
+    protected def getSoqlScope:String
 
-    override def getType: String = fromTypeMember.getType
-
-    override def getSignature: String = fromTypeMember.getSignature
 
     override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = super.getChild(identity, withHierarchy)
 
     override def getChildren: List[Member] = {
-        val fromTypeChildren = fromTypeMember.getChildren
         val functions = SoqlModel.getMember("functions") match {
-          case Some(m) =>
-              m.getChildren.filter(mm => mm.isInstanceOf[SoqlFunction] && mm.asInstanceOf[SoqlFunction].isInScope("select"))
-          case None => Nil
+            case Some(m) =>
+                m.getChildren.filter(mm => mm.isInstanceOf[SoqlFunction] && mm.asInstanceOf[SoqlFunction].isInScope(getSoqlScope))
+            case None => Nil
+        }
+        functions
+    }
+}
+trait SoqlItemMember extends SoqlMember {
+    protected def getSoqlScope:String
+    protected def getFromTypeMember: SoqlMember
+
+    override def getIdentity: String = getFromTypeMember.getIdentity
+
+    override def getType: String = getFromTypeMember.getType
+
+    override def getSignature: String = getFromTypeMember.getSignature
+
+    override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = super.getChild(identity, withHierarchy)
+
+    override def getChildren: List[Member] = {
+        val fromTypeChildren = getFromTypeMember.getChildren
+        val functions = SoqlModel.getMember("functions") match {
+            case Some(m) =>
+                m.getChildren.filter(mm => mm.isInstanceOf[SoqlFunction] && mm.asInstanceOf[SoqlFunction].isInScope(getSoqlScope))
+            case None => Nil
         }
         fromTypeChildren ++ functions
     }
+}
+class SelectItemMember(fromTypeMember: SoqlMember, parser: SoqlParser) extends SoqlItemMember {
+    protected def getSoqlScope:String = "select"
+    protected def getFromTypeMember: SoqlMember = fromTypeMember
+}
+
+class WhereLeftItemMember(fromTypeMember: SoqlMember, parser: SoqlParser) extends SelectItemMember(fromTypeMember, parser) {
+    override protected def getSoqlScope:String = "where_left"
+}
+
+class WhereRightItemMember extends SoqlFunctionItemMember {
+
+    protected def getSoqlScope:String = "where"
+
+    /**
+     * @return
+     * for class it is class name
+     * for method it is method name + string of parameter types
+     * for variable it is variable name
+     * etc
+     */
+    override def getIdentity: String = "WHERE_RIGHT"
+
+    override def getType: String = "WHERE_RIGHT"
+
+    override def getSignature: String = ""
 }
 
 class SubqueryFromTypeMember(relationshipName: String, parentFromMember: FromTypeMember, session: Session) extends SoqlMember {
