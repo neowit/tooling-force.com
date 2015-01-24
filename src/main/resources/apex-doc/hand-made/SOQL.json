@@ -12,7 +12,7 @@
         "h": "Returns the average value of a numeric field",
         "r": "Decimal",
         "d": "avg(fieldname)",
-		"scope": ["select", "group_by", "having"]
+		"scope": ["select", "having"]
       },
       
       {
@@ -59,7 +59,7 @@
         "h": "Returns the minimum value of a field.\nIf you use the MIN() or MAX() functions on a picklist field, the function uses the sort order of the picklist values instead of alphabetical order.",
         "r": "Decimal",
         "d": "min(fieldname)",
-		"scope": ["select", "group_by", "having"]
+		"scope": ["select", "having"]
       },
       {
         "s": "1",
@@ -71,7 +71,7 @@
         "h": "Returns the maximum value of a field.",
         "r": "Decimal",
         "d": "max(fieldname)",
-		"scope": ["select", "group_by", "having"]
+		"scope": ["select", "having"]
       },
       {
         "s": "1",
@@ -83,7 +83,7 @@
         "h": "Returns the total sum of a numeric field.",
         "r": "Decimal",
         "d": "sum(fieldname)",
-		"scope": ["select", "group_by", "having"]
+		"scope": ["select", "having"]
       },
       {
         "s": "1",
