@@ -223,6 +223,13 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                         Some(new SelectItemMember(fromMember, parser))
                     case None => None
                 }
+            case ctx: FieldItemContext if ApexParserUtils.getParent(finalContext, classOf[GroupByStatementContext]).isDefined =>
+                //this is left Group By
+                getFromMember(tree, tokens, caretReachedException) match {
+                    case Some(fromMember) =>
+                        Some(new GroupByItemMember(fromMember, parser))
+                    case None => None
+                }
             case _ => getFromMember(tree, tokens, caretReachedException)
         }
     }

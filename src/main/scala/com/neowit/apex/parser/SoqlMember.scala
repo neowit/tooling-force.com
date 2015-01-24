@@ -129,6 +129,11 @@ class WhereRightItemMember extends SoqlFunctionItemMember {
     override def getSignature: String = ""
 }
 
+class GroupByItemMember(fromTypeMember: SoqlMember, parser: SoqlParser) extends SoqlItemMember {
+    override protected def getSoqlScope:String = "group_by"
+    override protected def getFromTypeMember: SoqlMember = fromTypeMember
+}
+
 class SubqueryFromTypeMember(relationshipName: String, parentFromMember: FromTypeMember, session: Session) extends SoqlMember {
     /**
      * @return
