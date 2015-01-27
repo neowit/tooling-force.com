@@ -432,8 +432,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
             ApexParserUtils.getParent(caretAToken.finalContext, classOf[ClassDeclarationContext]) match {
                 case Some(classDeclarationContext) =>
                     return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
-                        case Some(thisClassMember: ClassMember) if "this" == symbol => Some(new DefinitionWithType(thisClassMember, thisClassMember))
-                        case Some(thisClassMember: ClassMember) if "super" == symbol => thisClassMember.getSuperClassMember match {
+                        case Some(thisClassMember: ClassLikeMember) if "this" == symbol => Some(new DefinitionWithType(thisClassMember, thisClassMember))
+                        case Some(thisClassMember: ClassLikeMember) if "super" == symbol => thisClassMember.getSuperClassMember match {
                           case Some(typeMember) => Some(new DefinitionWithType(thisClassMember, typeMember))
                           case None => None
                         }

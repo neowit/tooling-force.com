@@ -28,7 +28,7 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
                     case None => None
                 }
             }
-            None
+
             None
         } else {
             tree.get(lowerCaseIdentity)
