@@ -23,18 +23,27 @@ object AuraMember {
     }
 
     /**
+     * check if this file sits in aura/something folder
      * @param file - if this file is part of aura bundle then name of the bundle is returned
      * @return
      */
     def getAuraBundleDir(file: File): Option[File] = {
-        var currentDir = if (file.isDirectory) file else file.getParentFile
-        var dir:Option[File] = None
+        //if we have reached one of these dirs then the search is over
+        val topLevelDirs = Set("src", "unpackaged", "aura")
 
-        while (null != currentDir && "aura" != currentDir.getName) {
-            dir = Some(currentDir)
-            currentDir = currentDir.getParentFile
+        def ascend(file: File): Option[File] = {
+           if (null != file && !topLevelDirs.contains(file.getName)) {
+               val parentFile = file.getParentFile
+               if (null != parentFile && "aura" == parentFile.getName) {
+                   Some(file)
+               } else {
+                   ascend(file.getParentFile)
+               }
+           } else {
+               None
+           }
         }
-        dir
+        ascend(file)
     }
 
     def getInstanceForCreate(file: File, session: Session): AuraDefinitionMember = {
