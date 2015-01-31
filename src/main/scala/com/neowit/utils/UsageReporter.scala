@@ -28,23 +28,30 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
             "unknown"
         }
 
+        val proxyType = basicConfig.getProperty("http.proxyHost") match {
+            case Some(x) => basicConfig.getProperty("http.proxyUsername") match {
+                case Some(y) => "Authenticated"
+                case None => "Un-authenticated"
+            }
+            case None => "None"
+        }
         val data = Map(
             "action" -> basicConfig.action,
             "macHash" -> macHash,
             "os" -> System.getProperty("os.name"),
-            "version" -> AppVersion.VERSION
+            "version" -> AppVersion.VERSION,
+            "proxyType" -> proxyType
         )
         logger.trace("usage report: " + data)
 
         val url = new URL("https://usage-developer-edition.eu0.force.com/services/apexrest/usage")
-        val conn = getProxy  match {
-          case Some(proxy) => url.openConnection(proxy)
-          case None => url.openConnection
-        }
+        val connectionConfig = Connection.initConnectorConfig(basicConfig)
+        val conn = connectionConfig.createConnection(url, new java.util.HashMap[String, String](), false)
         //conn.setConnectTimeout(0)
         conn.setRequestProperty("Content-Type", "application/json")
-        //conn.setConnectTimeout(HttpRequestTimeout)
+        conn.setRequestMethod("POST")
         conn.setDoOutput(true)
+        conn.setDoInput(true)
         conn.connect()
         val wr = new OutputStreamWriter(conn.getOutputStream)
         wr.write(encodePostData(data))
@@ -60,34 +67,8 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
                 reportUsage()
             } catch {
                 case x: Throwable => //usage reports are not important enough to do anything about them
+                    println(x)
             }
         }
     }
-
-    private def getProxy: Option[Proxy] = {
-        val proxyHost = basicConfig.getProperty("http.proxyHost")
-        val proxyPort = basicConfig.getProperty("http.proxyPort")
-        val proxy = if (None != proxyHost && None != proxyPort) {
-            Some(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost.get, proxyPort.get.toInt)))
-        } else {
-            None
-        }
-
-        val proxyUsername = basicConfig.getProperty("http.proxyUsername") match {
-            case Some(s) => Some(s)
-            case None => basicConfig.getProperty("http.proxyUser")
-        }
-        val proxyPassword = basicConfig.getProperty("http.proxyPassword").getOrElse("")
-
-        if (proxyUsername.isDefined) {
-            val authenticator = new Authenticator() {
-                override def getPasswordAuthentication: PasswordAuthentication = {
-                    new PasswordAuthentication(proxyUsername.get, proxyPassword.toCharArray)
-                }
-            }
-            Authenticator.setDefault(authenticator)
-        }
-        proxy
-    }
-
 }

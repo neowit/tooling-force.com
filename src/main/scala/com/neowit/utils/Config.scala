@@ -193,7 +193,7 @@ regardless of whether it is also specified in config file or not
     lazy val action = getRequiredProperty("action").get
 }
 
-class Config(basicConfig: BasicConfig) extends Logging{
+class Config(val basicConfig: BasicConfig) extends Logging{
     val apiVersion:Double = 32.0
 
     //make BasicConfig methods available in Config

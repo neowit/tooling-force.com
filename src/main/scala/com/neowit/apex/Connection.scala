@@ -19,20 +19,13 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{Config, Logging}
+import com.neowit.utils.{BasicConfig, Config, Logging}
 
 object Connection extends Logging {
     val CLIENT_NAME = AppVersion.APP_NAME + "/" + AppVersion.VERSION
 
-    private def getConnectionConfig (appConfig: Config) = {
+    def initConnectorConfig(appConfig: BasicConfig): com.sforce.ws.ConnectorConfig = {
         val config = new com.sforce.ws.ConnectorConfig()
-        config.setUsername(appConfig.username)
-        config.setPassword(appConfig.password)
-
-        val endpoint = appConfig.soapEndpoint
-        if (null != endpoint)
-            config.setAuthEndpoint(endpoint)
-        config.setServiceEndpoint(endpoint)
 
         config.setCompression(true)
 
@@ -40,8 +33,8 @@ object Connection extends Logging {
         val proxyPort = appConfig.getProperty("http.proxyPort")
 
         val proxyUsername = appConfig.getProperty("http.proxyUsername") match {
-          case Some(s) => Some(s)
-          case None => appConfig.getProperty("http.proxyUser")
+            case Some(s) => Some(s)
+            case None => appConfig.getProperty("http.proxyUser")
         }
         if (None != proxyUsername )
             config.setProxyUsername(proxyUsername.get)
@@ -66,6 +59,20 @@ object Connection extends Logging {
         val readTimeoutSecs = appConfig.getProperty("http.readTimeoutSecs")
         if (None != readTimeoutSecs )
             config.setReadTimeout(readTimeoutSecs.get.toInt * 1000)
+
+
+        config
+    }
+
+    private def getConnectionConfig (appConfig: Config) = {
+        val config = initConnectorConfig(appConfig.basicConfig)
+        config.setUsername(appConfig.username)
+        config.setPassword(appConfig.password)
+
+        val endpoint = appConfig.soapEndpoint
+        if (null != endpoint)
+            config.setAuthEndpoint(endpoint)
+        config.setServiceEndpoint(endpoint)
 
         config
     }
