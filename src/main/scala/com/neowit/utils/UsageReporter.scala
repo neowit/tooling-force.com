@@ -1,18 +1,19 @@
 package com.neowit.utils
 
-import com.neowit.apex.AppVersion
+import com.neowit.apex.{Connection, AppVersion}
 
-import scala.util.parsing.json.JSONObject
+import spray.json._
+import DefaultJsonProtocol._
 import java.io.OutputStreamWriter
 import java.security.MessageDigest
 import java.net._
 
 /**
  * this class sends anonymised usage statistics
- * @param basicConfig
+ * @param basicConfig - application config
  */
 class UsageReporter(basicConfig: BasicConfig) extends Logging {
-    private def encodePostData(data: Map[String, String]) = JSONObject(data).toString()
+    private def encodePostData(data: Map[String, String]) = data.toJson.toString()
 
     private def reportUsage() {
         val localAddress = InetAddress.getLocalHost
