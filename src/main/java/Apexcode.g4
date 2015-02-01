@@ -1082,6 +1082,10 @@ ELLIPSIS : '...';
 WS  :  [ \t\r\n\u000C]+ -> skip
     ;
 
+APEXDOC_COMMENT
+    :   '/**' [\r\n] .*? '*/' -> channel(HIDDEN)
+    ;
+
 COMMENT
     :   '/*' .*? '*/' -> skip
     ;

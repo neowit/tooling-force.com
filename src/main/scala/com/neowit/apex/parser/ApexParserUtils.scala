@@ -3,9 +3,8 @@ package com.neowit.apex.parser
 import java.io.File
 import java.util.regex.Pattern
 
-import com.neowit.apex.parser.antlr.ApexcodeLexer
 import org.antlr.v4.runtime.tree.ParseTree
-import org.antlr.v4.runtime.{Token, Parser, ConsoleErrorListener}
+import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -157,6 +156,59 @@ object ApexParserUtils {
             }
         }
         getParentImpl(ctx.getParent, ctxType)
+    }
+
+    /**
+     * try to find hidden token of specified type (e.g. javadoc like comment) by checking tokens to the left of current context
+     * and making sure that comment token does not end more than 2 lines before ctx
+     * @param startToken - start token - we will be moving left from this token
+     * @param tokenType - type of hidden token to look for
+     * @return Option[found token] or None
+     */
+    def getNearestHiddenTokenToLeft(startToken: Token, tokenType: Int, tokens: CommonTokenStream): Option[Token] = {
+        //
+        def getNearestHiddenTokenToLeft(currentToken: Token): Option[Token] = {
+            val linesBetween = Math.abs(getNumOfLinesBetween(currentToken, startToken))
+            if (linesBetween > 2) {
+                None
+            } else {
+                val index = currentToken.getTokenIndex
+                val hiddenTokens = tokens.getHiddenTokensToLeft(index)
+                if (null != hiddenTokens && hiddenTokens.nonEmpty && tokenType == hiddenTokens.head.getType) {
+                    Some(hiddenTokens.head)
+                } else {
+                    if (index <= 0) {
+                        return None
+                    }
+                    getNearestHiddenTokenToLeft(tokens.get(index - 1))
+                }
+            }
+        }
+        //
+        val startIndex = startToken.getTokenIndex
+        if (startIndex > 0) {
+            getNearestHiddenTokenToLeft(tokens.get(startIndex))
+        } else {
+            None
+        }
+    }
+
+    /**
+     * count number of lines between the end of prev token and next token
+     * @param prev - token that goes before next
+     * @param next - token that goes after prev
+     */
+    def getNumOfLinesBetween(prev: Token, next: Token): Int = {
+        if (prev.getTokenIndex != next.getTokenIndex) {
+            val prevLineStart = prev.getLine
+            val prevLineEnd = if (null == prev.getText) prevLineStart
+            else {
+                prevLineStart + prev.getText.split("\\n").size - 1
+            }
+            next.getLine - prevLineEnd
+        } else {
+            0 //same token
+        }
     }
 
 }

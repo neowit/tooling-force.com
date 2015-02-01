@@ -1,10 +1,10 @@
 package com.neowit.apex.parser
 
 import com.neowit.apex.parser.antlr.ApexcodeParser._
-import org.antlr.v4.runtime.ParserRuleContext
+import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext}
 import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
 
-import com.neowit.apex.parser.antlr.ApexcodeParser
+import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
@@ -885,6 +885,34 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
     }
 
     def getArgs:List[MethodParameter]
+
+
+    override def getDoc: String = {
+        val startToken = ctx.getStart
+        parser.getTokenStream match {
+            case tokens: CommonTokenStream =>
+                ApexParserUtils.getNearestHiddenTokenToLeft(startToken, ApexcodeLexer.APEXDOC_COMMENT, tokens) match {
+                  case Some(_commentToken) =>
+                      return unwrapJavadoc(_commentToken.getText)
+                  case None =>
+                }
+            case _ =>
+        }
+        super.getDoc
+    }
+
+    /**
+     * if doc is inside javadoc style comments then we need to remove leading spaces and "*" in each line
+     * @param text - text to clean up
+     * @return
+     */
+    private def unwrapJavadoc(text: String): String = {
+        if (null != text) {
+            text.split("\n").map(line => line.replaceFirst("\\s*((\\/\\*+)|(\\**\\/)|(\\**)*)", "")).filterNot(_.trim.isEmpty).mkString("\n")
+        } else {
+            ""
+        }
+    }
 
     protected def getFormalParams(formalParams: ApexcodeParser.FormalParametersContext):List[MethodParameter] = {
         formalParams.formalParameterList() match {
