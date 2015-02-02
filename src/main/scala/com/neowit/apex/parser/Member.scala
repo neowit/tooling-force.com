@@ -908,7 +908,7 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
      */
     private def unwrapJavadoc(text: String): String = {
         if (null != text) {
-            text.split("\n").map(line => line.replaceFirst("\\s*((\\/\\*+)|(\\**\\/)|(\\**)*)", "")).filterNot(_.trim.isEmpty).mkString("\n")
+            text.split("\\r?\\n").map(line => line.replaceFirst("\\s*((\\/\\*+)|(\\**\\/)|(\\**)*)", "")).filterNot(_.trim.isEmpty).mkString(System.getProperty("line.separator"))
         } else {
             ""
         }
