@@ -38,7 +38,8 @@ class CodeCompletions extends FunSuite {
         }
     }
     case class  TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]], identityMustNotContain: Option[List[String]],
-                           signatureContains: Option[List[String]], signatureMustNotContain: Option[List[String]]) {
+                           signatureContains: Option[List[String]], signatureMustNotContain: Option[List[String]],
+                           docContains: Option[List[String]], docMustNotContain: Option[List[String]]   ) {
         /**
          * find lineMarker in the specified file
          * @return line number where marker is found
@@ -67,7 +68,7 @@ class CodeCompletions extends FunSuite {
     case class CompletionItem(realIdentity: String, signature: String, doc: String, identity: String, `type`: String, visibility: String)
 
     object ApexModelJsonProtocol extends DefaultJsonProtocol {
-        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "identityMustNotContain", "signatureContains", "signatureMustNotContain"))
+        implicit val testConfigFormat: JsonFormat[TestConfig] = lazyFormat(jsonFormat(TestConfig, "lineMarker", "column", "itemsCountMin", "identities", "identityMustNotContain", "signatureContains", "signatureMustNotContain", "docContains", "docMustNotContain"))
         implicit val testCompletionItemFormat: JsonFormat[CompletionItem] = lazyFormat(jsonFormat(CompletionItem, "realIdentity", "signature", "doc", "identity", "type", "visibility"))
     }
 
@@ -151,6 +152,21 @@ class CodeCompletions extends FunSuite {
                 assert(completionResult.matchingItemsSet.isEmpty, "Scenario: " + config.lineMarker + "; did not expect to find following identities: " + completionResult.matchingItemsSet)
             case None =>
         }
+
+        //check docContains
+        config.docContains match {
+            case Some(strings) =>
+                val completionResult = collectFoundItems(config.lineMarker, lines, matchDocContains(strings))
+                assert(completionResult.matchingItemsSet.nonEmpty, "Scenario: " + config.lineMarker + "; did not find some or all of the following docs: " + strings)
+            case None =>
+        }
+        //check docMustNotContain
+        config.docMustNotContain match {
+            case Some(strings) =>
+                val completionResult = collectFoundItems(config.lineMarker, lines, matchDocMustNotContain(strings))
+                assert(completionResult.matchingItemsSet.isEmpty, "Scenario: " + config.lineMarker + "; did not expect to find following docs: " + completionResult.matchingItemsSet)
+            case None =>
+        }
     }
     //find exact item identity in the list of all exected identities
     private def matchIdentity(identities: List[String])(item: CompletionItem): String = {
@@ -160,20 +176,30 @@ class CodeCompletions extends FunSuite {
         if (matchIdentity(identities)(item).nonEmpty) item.signature else ""
     }
     private def matchSignatureContains(signatureSubstrings: List[String])(item: CompletionItem): String = {
-        var longestMatch = ""
-        for(signatureSubstring <- signatureSubstrings) {
-            if (item.signature.contains(signatureSubstring)) {
-                if (signatureSubstring.length > longestMatch.length) {
-                    longestMatch = signatureSubstring
-                    signatureSubstring
-                }
-            }
-        }
-        longestMatch
+        matchContains(signatureSubstrings, item => item.signature)(item)
     }
 
     private def matchSignatureMustNotContain(signatureSubstrings: List[String])(item: CompletionItem): String = {
         if (matchSignatureContains(signatureSubstrings)(item).nonEmpty) item.signature else ""
+    }
+    private def matchDocContains(docSubstrings: List[String])(item: CompletionItem): String = {
+        matchContains(docSubstrings, item => item.doc)(item)
+    }
+    private def matchDocMustNotContain(docSubstrings: List[String])(item: CompletionItem): String = {
+        if (matchDocContains(docSubstrings)(item).nonEmpty) item.doc else ""
+    }
+
+    private def matchContains(substrings: List[String], textExtractor: CompletionItem => String)(item: CompletionItem): String = {
+        var longestMatch = ""
+        for(substring <- substrings) {
+            if (textExtractor(item).contains(substring)) {
+                if (substring.length > longestMatch.length) {
+                    longestMatch = substring
+                    substring
+                }
+            }
+        }
+        longestMatch
     }
 
     case class CompletionResult(itemsTotal: Int, matchingItemsSet: Set[String])

@@ -69,7 +69,8 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "testStaticClassRef",
 		"column": 24,
 		"itemsCountMin": 6,
-		"signatureContains": ["STATIC_INT", "futureTest", "Season", "InnerClass1", "InnerClass2", "InnerClass3", "MyInnerInterface"]
+		"signatureContains": ["STATIC_INT", "futureTest", "Season", "InnerClass1", "InnerClass2", "InnerClass3", "MyInnerInterface"],
+		"docContains" : ["this is documentation of futureTest", "@return void", "testStaticClassRef"]
 		}
 	 * #END
 	 */
@@ -128,6 +129,9 @@ public with sharing class ApexClassCompletions {
 
 	}
 
+    /**
+     * this is documentation of futureTest
+     */
 	@future(callout=true)
 	static void futureTest() {
 
