@@ -63,6 +63,7 @@ public with sharing class ApexClassCompletions {
 	public void testStaticProperty () {
 		propStatic.; //testStaticProperty
 	}
+
 	/**
 	 * #START
 		{
@@ -76,6 +77,23 @@ public with sharing class ApexClassCompletions {
 	 */
 	public void testStaticClassRef () {
 		ApexClassCompletions.; //testStaticClassRef
+		
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "testStaticClassRefWithDoc",
+		"column": 31,
+		"itemsCountMin": 1,
+		"signatureContains": ["futureTest"],
+		"docContains" : ["this is documentation of futureTest", "@return void", "testStaticClassRef"],
+		"docMustNotContain" : ["testStaticClassRefWithDoc", "testStaticClassRef", "docContains"]
+		}
+	 * #END
+	 */
+	public void testStaticClassRefWithDoc () {
+		ApexClassCompletions.futureT; //testStaticClassRefWithDoc
 		
 	}
 
