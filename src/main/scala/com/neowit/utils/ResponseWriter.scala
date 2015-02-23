@@ -124,6 +124,9 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     def println(messageDetail: MessageDetail): Unit = {
         println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.toString(ResponseWriter.defaultFormatter))
     }
+    def println(messageDetails: List[MessageDetail]): Unit = {
+        messageDetails.foreach(println(_))
+    }
     def println(prefix: String, data: Map[String, Any]): Unit = {
         println(prefix + ": " + JSONObject(data).toString(ResponseWriter.defaultFormatter))
     }

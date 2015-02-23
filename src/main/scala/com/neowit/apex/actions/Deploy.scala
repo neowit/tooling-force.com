@@ -471,11 +471,12 @@ class DeployModified extends Deploy {
         }
 
         val reportedNames = mutable.Set[String]()
+        val coverageRelatedMessages = Map.newBuilder[String, MessageDetail]
         for ( coverageResult <- runTestResult.getCodeCoverage) {
             reportedNames += coverageResult.getName
             val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
             val coveragePercent = if (coverageResult.getNumLocations > 0) linesCovered * 100 / coverageResult.getNumLocations else 0
-            responseWriter.println(new MessageDetail(coverageDetails,
+            coverageRelatedMessages += coverageResult.getName -> new MessageDetail(coverageDetails,
                 Map("text" ->
                     (coverageResult.getName +
                         ": lines total " + coverageResult.getNumLocations +
@@ -483,7 +484,8 @@ class DeployModified extends Deploy {
                         "; covered " + coveragePercent + "%"),
                     "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
                 )
-            ))
+            )
+
             coverageWriter match {
                 case Some(writer) =>
                     val filePath = session.getRelativePath(classDir, coverageResult.getName + "." + classExtension) match {
@@ -513,6 +515,9 @@ class DeployModified extends Deploy {
                 case None =>
             }
         }
+        //dump coverage related MessageDetail-s into the response file, making sure that messages are sorted by file name
+        val messageDetailsSortedByFileName = coverageRelatedMessages.result().toSeq.sortBy(_._1.toLowerCase).map(_._2).toList
+        responseWriter.println(messageDetailsSortedByFileName)
 
         val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
         if (runTestResult.getCodeCoverageWarnings.nonEmpty) {
