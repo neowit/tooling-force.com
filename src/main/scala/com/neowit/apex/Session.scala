@@ -28,7 +28,7 @@ import com.sforce.soap.metadata._
 import scala.concurrent._
 import collection.JavaConverters._
 import java.io.File
-import com.neowit.apex.actions.DescribeMetadata
+import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 
 /**
  * manages local data store related to specific project
@@ -347,6 +347,43 @@ class Session(val basicConfig: BasicConfig) extends Logging {
 
         }
         fileDiffBySessionData
+    }
+
+    /**
+     * using text file with list of relative file paths
+     * - check each file to be Apex file type
+     * - check if file exists
+     *
+     * @param fileListFile - file with following structure
+     * -------------------------------
+     * src/classes/AccountHandler.cls
+     * src/triggers/Account.trigger
+     * ...
+     * -------------------------------
+     * @return list of valid files
+     */
+    def listApexFilesFromFile(fileListFile: File): List[File] = {
+        val config = this.getConfig
+
+        //logger.debug("packageXmlData=" + packageXmlData)
+        val projectDir = config.projectDir
+
+        //load file list from specified file
+        val files:List[File] = scala.io.Source.fromFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
+
+        //for each file check that it exists
+        files.find(!_.canRead) match {
+            case Some(f) =>
+                throw new ActionError("Can not read file: " + f.getAbsolutePath)
+            case None =>
+        }
+
+        val allFiles  = files.filter(
+            //remove all non apex files
+            file => DescribeMetadata.isValidApexFile(this, file)
+        ).toSet
+
+        allFiles.toList
     }
 
     private def getPartnerConnection: PartnerConnection = {

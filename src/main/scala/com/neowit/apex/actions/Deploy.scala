@@ -965,31 +965,13 @@ class DeploySpecificFiles extends DeployModified {
     }
 
     /**
-     * list locally modified files using data from session.properties
+     * list files specified in --specificFiles parameter
      */
-    def getFiles:List[File] = {
+    private def getFiles:List[File] = {
         val config = session.getConfig
-
-        //logger.debug("packageXmlData=" + packageXmlData)
-        val projectDir = config.projectDir
-
         //load file list from specified file
         val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
-        val files:List[File] = scala.io.Source.fromFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
-
-        //for each file check that it exists
-        files.find(!_.canRead) match {
-            case Some(f) =>
-                throw new ActionError("Can not read file: " + f.getAbsolutePath)
-            case None =>
-        }
-
-        val allFiles  = files.filter(
-            //remove all non apex files
-            file => DescribeMetadata.isValidApexFile(session, file)
-        ).toSet
-
-        allFiles.toList
+        session.listApexFilesFromFile(fileListFile)
     }
 }
 
