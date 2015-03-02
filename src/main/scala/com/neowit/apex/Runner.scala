@@ -127,8 +127,8 @@ class Executor extends Logging {
     def help(actionHelp: ActionHelp) {
         System.out.println("\n--action=" + actionHelp.getName)
         System.out.println(" " + actionHelp.getSummary)
-        if (!actionHelp.getParamNames.isEmpty) {
-            System.out.println("Additional parameters:")
+        if (actionHelp.getParamNames.nonEmpty) {
+            System.out.println("\nAdditional parameters:")
             for(paramName <- actionHelp.getParamNames) {
                 System.out.println(actionHelp.getParamDescription(paramName))
             }
