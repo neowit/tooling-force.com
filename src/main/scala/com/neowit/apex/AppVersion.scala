@@ -6,7 +6,7 @@ import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
-    val VERSION = "0.3.3.1"
+    val VERSION = "0.3.3.2"
 }
 class AppVersion extends ApexAction {
     override def act(): Unit = {
