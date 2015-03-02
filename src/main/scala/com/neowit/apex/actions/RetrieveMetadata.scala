@@ -342,16 +342,17 @@ class BulkRetrieveResult(val errors: List[ResponseWriter.Message], val fileCount
  * Extra command line params:
  * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
  * --specificTypes=/path/to/file.js with extraction details
- * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
  * --typesFileFormat=json|file-paths|package.xml, default is 'json'
  *  if format is set to "file-paths" then types list should look like so:
- * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  *  -------------------------------
  *  objects/Account.object
  *  classes/MyClass.cls
  *  classes/A_Class.cls
  *  -------------------------------
  *  if format is set to "packageXml" then --specificTypes parameter must contain path to package.xml
+ *
+ * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
+ * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
 class BulkRetrieve extends RetrieveMetadata {
 
@@ -410,6 +411,7 @@ class BulkRetrieve extends RetrieveMetadata {
                     "/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
 
                 case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
+                case _ => ""
             }
         }
 
@@ -586,7 +588,7 @@ class BulkRetrieve extends RetrieveMetadata {
                     case Failure(err) =>
                         err match {
                             case e: RetrieveError =>
-                                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                e.retrieveResult.getMessages match {
                                     case messages if null != messages && messages.nonEmpty=>
                                         for(msg <- messages) {
                                             errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
@@ -639,7 +641,7 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
     def getConflictingFiles = conflictingFileMapBuilder.result()
 }
 /**
- * 'diffWithRemote' action - using package.xml extract files from SFDC and list
+ * 'diffWithRemote' action - using package.xml or list of specific files extract files from SFDC and list
  * - files with different size
  * - files missing locally
  * - files missing on remote (but present locally)
@@ -647,14 +649,24 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
  * --projectPath=/full/path/to/project/folder - the one which contains /src subfolder in it
  * --responseFilePath=full path to file where result of the operation will be documented.
  * --targetFolder=/path/to/dir (optional), if specified then extract will be done in this folder
+ * --specificTypes=/path/to/file with details about resources to extract - (optional), if not provided then assume local project's package.xml
+ * --typesFileFormat=json|file-paths|package.xml, default is 'json'
+ *  if format is set to "file-paths" then types list should look like so:
+ *  -------------------------------
+ *  objects/Account.object
+ *  classes/MyClass.cls
+ *  classes/A_Class.cls
+ *  -------------------------------
  */
 class DiffWithRemote extends RetrieveMetadata {
 
-    override def getHelp: ActionHelp = new ActionHelp {
+    private val superActionHelp = new BulkRetrieve().getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
         override def getExample: String =
             """
               |In order to get list of differences between local project and remote SFDC Org 'diffWithRemote' can be called like so
               |... --action=diffWithRemote --projectPath=/home/users/tester/MyApexProject  --responseFilePath=/path/to/response.txt
+              |--specificTypes=/temp/file-paths.txt --typesFileFormat=file-paths
             """.stripMargin
 
         override def getParamDescription(paramName: String): String = {
@@ -662,15 +674,13 @@ class DiffWithRemote extends RetrieveMetadata {
                 case "config" => "--config - full path to config.properties file"
                 case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
                 case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
-                case "targetFolder" =>
-                    "--targetFolder=/path/to/dir (optional), if specified then retrieved files will be saved in this folder"
-                case _ => ""
+                case _ => superActionHelp.getParamDescription(paramName)
             }
         }
 
-        override def getParamNames: List[String] = List("projectPath", "targetFolder")
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath", "targetFolder", "specificTypes", "typesFileFormat")
 
-        override def getSummary: String = "return differences between local and remote file sets using metadata types specified in local package.xml"
+        override def getSummary: String = "return differences between local and remote file sets using metadata types specified in local package.xml or file specified by --specificTypes parameter"
 
         override def getName: String = "diffWithRemote"
     }
@@ -699,12 +709,14 @@ class DiffWithRemote extends RetrieveMetadata {
         val bulkRetrieve = new BulkRetrieve {
             override protected def isUpdateSessionDataOnSuccess: Boolean = false
 
-            override protected def getTypesFileFormat: String = "packageXml"
-
             override protected def getSpecificTypesFile: File = {
-                val metaXml = new MetaXml(session.getConfig)
-                val packageXmlFile = metaXml.getPackageXml
-                packageXmlFile
+                super.getTypesFileFormat match {
+                    case "packageXml" =>
+                        val metaXml = new MetaXml(session.getConfig)
+                        val packageXmlFile = metaXml.getPackageXml
+                        packageXmlFile
+                    case _ => super.getSpecificTypesFile
+                }
             }
         }
         bulkRetrieve.load[BulkRetrieve](session.basicConfig)
@@ -713,7 +725,7 @@ class DiffWithRemote extends RetrieveMetadata {
         processRetrieveResult(tempFolder, bulkRetrieveResult)
     }
 
-    private def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Option[DiffWithRemoteReport] = {
+    protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Option[DiffWithRemoteReport] = {
         val errors = bulkRetrieveResult.errors
 
         if (errors.isEmpty) {
@@ -742,24 +754,38 @@ class DiffWithRemote extends RetrieveMetadata {
         }
     }
 
+    private def getFilePaths(srcDir: File): List[File] = {
+        config.getRequiredProperty("typesFileFormat").get match {
+            case "packageXml" =>
+                FileUtils.listFiles(srcDir)
+            case "file-paths" =>
+                io.Source.fromFile(new File(config.getRequiredProperty("specificTypes").get)).
+                                                getLines().filter(!_.trim.isEmpty).
+                                                map(new File(srcDir, _)).toList
+            case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")
+        }
+    }
+    protected def getLocalFiles: List[File] =  getFilePaths(config.srcDir)
+
+    protected def getRemoteFiles(remoteSrcFolder: File): List[File] = getFilePaths(remoteSrcFolder)
     /**
      *
      * @param bulkRetrieveResult - result of
      * @param remoteSrcFolderPath - src/ folder where results of retrieve command dump were moved
-     *                            by default retrieve dumps stuff in .../unpackaged/ rathe than .../src/
+     *                            by default retrieve dumps stuff in .../unpackaged/ rather than .../src/
      */
     def generateDiffReport(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String): DiffWithRemoteReport = {
         val report = new DiffWithRemoteReport(bulkRetrieveResult, remoteSrcFolderPath)
 
         //local files
-        val existingFileByRelativePath  = FileUtils.listFiles(config.srcDir).filter(
+        val existingFileByRelativePath  = getLocalFiles.filter(
             //remove all non apex files
             file => DescribeMetadata.isValidApexFile(session, file) && "package.xml" != file.getName
         ).map(file => (session.getRelativePath(file), file) ).toMap
 
         //remote files
         val remoteSrcFolder = new File(remoteSrcFolderPath)
-        val remoteFiles = FileUtils.listFiles(remoteSrcFolder).filter(
+        val remoteFiles = getRemoteFiles(remoteSrcFolder).filter(
             //remove all non apex files
             file => DescribeMetadata.isValidApexFile(session, file) && "package.xml" != file.getName
         )
@@ -809,7 +835,7 @@ class DiffWithRemote extends RetrieveMetadata {
         report
     }
 
-    private def writeReportToResponseFile(report: DiffWithRemoteReport): Unit = {
+    protected def writeReportToResponseFile(report: DiffWithRemoteReport): Unit = {
         val bulkRetrieveResult: BulkRetrieveResult = report.bulkRetrieveResult
         val remoteSrcFolderPath: String = report.remoteSrcFolderPath
 
@@ -836,6 +862,7 @@ class DiffWithRemote extends RetrieveMetadata {
                             val sizeRemote = conflictingFile.fileRemote.length()
                             val text = conflictingFile.fileLocal.getName +
                                 " => Modified By: " + props.getLastModifiedByName +
+                                "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                 s"; Local size: $sizeLocal; remote size: $sizeRemote"
                             responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
                         case None =>
