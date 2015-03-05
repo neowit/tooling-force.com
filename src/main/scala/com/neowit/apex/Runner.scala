@@ -103,7 +103,7 @@ class Executor extends Logging {
         }
 
         ActionFactory.getAction(basicConfig, basicConfig.action) match {
-            case Some(action) => action.act()
+            case Some(action) => action.execute()
             case None =>
         }
 

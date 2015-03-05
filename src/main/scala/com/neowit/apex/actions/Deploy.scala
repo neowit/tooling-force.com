@@ -314,6 +314,8 @@ class DeployModified extends Deploy {
         }
         //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
         AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
+        //dump session data to disk
+        session.storeSessionData()
     }
 
 

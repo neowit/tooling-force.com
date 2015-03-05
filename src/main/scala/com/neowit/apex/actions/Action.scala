@@ -78,12 +78,22 @@ object ActionFactory {
 
 }
 trait Action extends Logging {
-    def act(): Unit
+    def execute(): Unit = {
+        act()
+        finalise()
+    }
+
+    //this method should implement main logic of the action
+    protected def act(): Unit
+
+    //implement if need to execute some logic only after main action is complete, e.g. persist data to disk
+    protected def finalise(): Unit
 
     def load[T <:Action](basicConfig: BasicConfig): T
 
     def getHelp: ActionHelp
 }
+
 abstract class AsyncAction extends Action {
     protected var _basicConfig: Option[BasicConfig] = None
 
@@ -108,6 +118,10 @@ abstract class ApexAction extends AsyncAction {
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _session = Some(Session(basicConfig))
         this.asInstanceOf[T]
+    }
+    protected override def finalise(): Unit = {
+        //make sure that session data is saved to disk
+        session.storeSessionData()
     }
 
     //need to def (as opposed to val) to stop from failing when called for help() display without session

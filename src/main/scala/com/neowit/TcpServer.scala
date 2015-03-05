@@ -22,7 +22,7 @@ object MyServer extends App{
 }
 
 class ServerStart  extends AsyncAction {
-    override def act(): Unit = {
+    override protected def act(): Unit = {
         val port = basicConfig.getProperty("port").getOrElse("8888").toInt
         val timeoutMillis = basicConfig.getProperty("timeoutSec").getOrElse("30").toInt * 1000
         val server = new TcpServer(port, timeoutMillis)
@@ -48,6 +48,9 @@ class ServerStart  extends AsyncAction {
         }
         }
     }
+
+    //implement if need to execute some logic only after main action is complete, e.g. persist data to disk
+    override protected def finalise(): Unit = {}
 }
 
 object TcpServer {

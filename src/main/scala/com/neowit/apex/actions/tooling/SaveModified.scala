@@ -423,6 +423,9 @@ class SaveModified extends DeployModified {
 
                     }
                 }
+                //dump session data to disk
+                session.storeSessionData()
+
                 config.responseWriter.println("RESULT=SUCCESS")
                 config.responseWriter.println("FILE_COUNT=" + membersMap.size)
                 if (!config.isCheckOnly) {
