@@ -237,6 +237,7 @@ class Config(val basicConfig: BasicConfig) extends Logging{
     def storeSessionProps() {
         val writer = new FileWriter(new File(sessionFolder, "session.properties"))
         lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
+        writer.flush()
     }
 
     /**
