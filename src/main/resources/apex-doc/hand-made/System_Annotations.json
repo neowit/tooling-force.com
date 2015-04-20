@@ -3,14 +3,14 @@
     "name": "Annotations",
     "annotations": [
       {
-        "n": "Deprecated",
+        "n": "deprecated",
         "h": "Use the deprecated annotation to identify methods, classes, exceptions, enums, interfaces, or variables that can no longer be referenced in subsequent releases of the managed package in which they reside. This is useful when you are refactoring code in managed packages as the requirements evolve. New subscribers cannot see the deprecated elements, while the elements continue to function for existing subscribers and API integrations.",
-        "d": "@Deprecated"
+        "d": "@deprecated"
       },
       {
-        "n": "Future",
+        "n": "future",
         "h": "Use the future annotation to identify methods that are executed asynchronously. When you specify future, the method executes when Salesforce has available resources.",
-        "d": "@Future"
+        "d": "@future"
       },
       {
         "n": "InvocableMethod",

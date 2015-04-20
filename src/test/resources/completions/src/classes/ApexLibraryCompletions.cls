@@ -376,7 +376,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "completeApexModelAnnotation",
 		"column": 4,
 		"itemsCountMin": 4,
-		"signatureContains": ["@Deprecated", "@Future", "@isTest", "isTest(SeeAllData=", "HttpGet"]
+		"signatureContains": ["@deprecated", "@future", "@isTest", "isTest(SeeAllData=", "HttpGet"]
 		}
 	 * #END
 	 */
@@ -390,7 +390,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "completeApexModelAnnotationPrefix",
 		"column": 5,
 		"itemsCountMin": 1,
-		"signatureContains": ["@Deprecated"]
+		"signatureContains": ["@deprecated"]
 		}
 	 * #END
 	 */
