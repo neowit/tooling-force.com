@@ -1,0 +1,112 @@
+{
+	"Annotations": {
+    "name": "Annotations",
+    "annotations": [
+      {
+        "n": "Deprecated",
+        "h": "Use the deprecated annotation to identify methods, classes, exceptions, enums, interfaces, or variables that can no longer be referenced in subsequent releases of the managed package in which they reside. This is useful when you are refactoring code in managed packages as the requirements evolve. New subscribers cannot see the deprecated elements, while the elements continue to function for existing subscribers and API integrations.",
+        "d": "@Deprecated"
+      },
+      {
+        "n": "Future",
+        "h": "Use the future annotation to identify methods that are executed asynchronously. When you specify future, the method executes when Salesforce has available resources.",
+        "d": "@Future"
+      },
+      {
+        "n": "InvocableMethod",
+        "h": "Use the InvocableMethod annotation to identify methods that can be run as invocable actions.\nInvocable methods are called with the REST API and used to invoke a single Apex method. Invocable methods have dynamic input and output values and support describe calls.",
+        "p": [
+            "label=''",
+            "description=''"
+        ],
+        "d": "@InvocableMethod(label='', description='')"
+      },
+      {
+        "n": "InvocableVariable",
+        "h": "Use the InvocableVariable annotation to identify variables used by invocable methods in custom classes.\nThe InvocableVariable annotation identifies a class variable used as an input or output parameter for an InvocableMethod method’s invocable action. If you create your own custom class to use as the input or output to an invocable method, you can annotate individual class member variables to make them available to the method.",
+        "p": [
+            "label=''",
+            "description=''",
+            "required=''"
+        ],
+        "d": "@InvocableVariable ([label='yourLabel'] [description='yourDescription'] [required=(true | false)])"
+      },
+      {
+        "n": "isTest",
+        "h": "Use the isTest annotation to define classes and methods that only contain code used for testing your application. The isTest annotation on methods is equivalent to the testMethod keyword.",
+        "d": "@isTest"
+      },
+      {
+        "n": "isTest",
+        "h": "For Apex code saved using Salesforce API version 24.0 and later, use the isTest(SeeAllData=true) annotation to grant test classes and individual test methods access to all data in the organization, including pre-existing data that the test didn’t create. Starting with Apex code saved using Salesforce API version 24.0, test methods don’t have access by default to pre-existing data in the organization. However, test code saved against Salesforce API version 23.0 and earlier continues to have access to all data in the organization and its data access is unchanged.",
+        "p": [
+            "SeeAllData=false]"
+        ],
+        "d": "@isTest(SeeAllData=[true|false])"
+      },
+      {
+        "n": "isTest",
+        "h": "Use the IsTest(OnInstall=true) annotation to specify which Apex tests are executed during package installation. This annotation is used for tests in managed or unmanaged packages. Only test methods with this annotation, or methods that are part of a test class that has this annotation, will be executed during package installation. Tests annotated to run during package installation must pass in order for the package installation to succeed. It is no longer possible to bypass a failing test during package installation. A test method or a class that doesn't have this annotation, or that is annotated with isTest(OnInstall=false) or isTest, won't be executed during installation.",
+        "p": [
+            "OnInstall=true"
+        ],
+        "d": "@isTest(OnInstall=[true|false])"
+      },
+      {
+        "n": "ReadOnly",
+        "h": "The @ReadOnly annotation allows you to perform unrestricted queries against the Force.com database. All other limits still apply. It's important to note that this annotation, while removing the limit of the number of returned rows for a request, blocks you from performing the following operations within the request: DML operations, calls to System.schedule, calls to methods annotated with @future, and sending emails.",
+        "d": "@ReadOnly"
+      },
+      {
+        "n": "RemoteAction",
+        "h": "The RemoteAction annotation provides support for Apex methods used in Visualforce to be called via JavaScript. This process is often referred to as JavaScript remoting.\nNote: Methods with the RemoteAction annotation must be static and either global or public.",
+        "d": "@RemoteAction"
+      },
+      {
+        "n": "TestSetup",
+        "h": "Methods defined with the @testSetup annotation are used for creating common test records that are available for all test methods in the class.",
+        "d": "@TestSetup"
+      },
+      {
+        "n": "TestVisible",
+        "h": "Use the TestVisible annotation to allow test methods to access private or protected members of another class outside the test class. These members include methods, member variables, and inner classes. This annotation enables a more permissive access level for running tests only. This annotation doesn’t change the visibility of members if accessed by non-test classes.",
+        "d": "@TestVisible"
+      },
+      {
+        "n": "RestResource",
+        "h": "Used at the class level and enables you to expose an Apex class as a REST resource.\n\nURL Guidelines\nURL path mappings are as follows:\n - The path must begin with a '/'\n - If an '*' appears, it must be preceded by '/' and followed by '/', unless the '*' is the last character, in which case it need not be followed by '/'",
+        "p": [
+            "urlMapping='/yourUrl'"
+        ],
+        "d": "@RestResource(urlMapping='/yourUrl')"
+      },
+      {
+        "n": "HttpDelete",
+        "h": "The @HttpDelete annotation is used at the method level and enables you to expose an Apex method as a REST resource. This method is called when an HTTP DELETE request is sent, and deletes the specified resource.\nTo use this annotation, your Apex method must be defined as global static.",
+        "d": "@HttpDelete"
+      },
+      {
+        "n": "HttpGet",
+        "h": "The @HttpGet annotation is used at the method level and enables you to expose an Apex method as a REST resource. This method is called when an HTTP GET request is sent, and returns the specified resource.",
+        "d": "@HttpGet"
+      },
+      {
+        "n": "HttpPatch",
+        "h": "The @HttpPatch annotation is used at the method level and enables you to expose an Apex method as a REST resource. This method is called when an HTTP PATCH request is sent, and updates the specified resource.",
+        "d": "@HttpPatch"
+      },
+      {
+        "n": "HttpPost",
+        "h": "The @HttpPost annotation is used at the method level and enables you to expose an Apex method as a REST resource. This method is called when an HTTP POST request is sent, and creates a new resource.",
+        "d": "@HttpPost"
+      },
+      {
+        "n": "HttpPut",
+        "h": "The @HttpPut annotation is used at the method level and enables you to expose an Apex method as a REST resource. This method is called when an HTTP PUT request is sent, and creates or updates the specified resource.",
+        "d": "@HttpPut"
+      }
+	],
+    "tag": "ANNOTATION",
+    "fqn": "System.Annotations"
+  }
+}
