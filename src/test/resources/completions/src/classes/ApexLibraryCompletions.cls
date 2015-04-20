@@ -369,5 +369,33 @@ public with sharing class ApexClassCompletions {
 		DatAbase.insert(new Account(), false);//check that long version of DB operator does not cause problems
 		ApexPages.Severity.; //completeApexModelEnum
 	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeApexModelAnnotation",
+		"column": 4,
+		"itemsCountMin": 4,
+		"signatureContains": ["@Deprecated", "@Future", "@isTest", "isTest(SeeAllData=", "HttpGet"]
+		}
+	 * #END
+	 */
+	public void completeApexModelAnnotation() {
+		@ ; //completeApexModelAnnotation
+	}
+
+	/**
+	 * #START
+		{
+		"lineMarker": "completeApexModelAnnotationPrefix",
+		"column": 5,
+		"itemsCountMin": 1,
+		"signatureContains": ["@Deprecated"]
+		}
+	 * #END
+	 */
+	public void completeApexModelAnnotationPrefix() {
+		@d ; //completeApexModelAnnotationPrefix
+	}
 }
 
