@@ -75,7 +75,7 @@ object CompletionUtils {
 
         var index = startTokenIndex
         var currentToken = startToken
-        var symbol = if (ApexParserUtils.isWordToken(startToken) ) startToken.getText else ""
+        var symbol = if (ApexParserUtils.isWordToken(startToken) || ApexParserUtils.isAtToken(startToken) ) startToken.getText else ""
         var expression = symbol
         var token:Option[Token] = Some(currentToken)
 
@@ -96,6 +96,13 @@ object CompletionUtils {
                     i
                 case "." => //end of expression
                     expressionTokens.+=(new AToken(index - 1, symbol, expression, token, ctx))
+                    symbol = ""
+                    expression = ""
+                    token = None
+                    //index + 1
+                    index
+                case "@" => //annotation
+                    expressionTokens.+=(new AToken(index, symbol, expression, token, ctx))
                     symbol = ""
                     expression = ""
                     token = None
@@ -177,7 +184,7 @@ object CompletionUtils {
                 }
             }
 
-            if (ApexParserUtils.isWordTokenOrDot(resultToken)) {
+            if (ApexParserUtils.isWordTokenOrDotOrAt(resultToken)) {
                 resultToken
             } else {
                 startToken
@@ -186,7 +193,7 @@ object CompletionUtils {
 
         //
         val startToken = getTokenBeforeCaret
-        if (!ApexParserUtils.isWordTokenOrDot(startToken)) {
+        if (!ApexParserUtils.isWordTokenOrDotOrAt(startToken)) {
             //if token in caret position is not word token or "." then no point to continue finding "start" of expression
             return startToken
         }
@@ -201,7 +208,7 @@ object CompletionUtils {
         var prevToken: Option[Token] = None
 
         while (index > 0 && newStart < 0) {
-            if (ApexParserUtils.isWordTokenOrDot(currentToken)) {
+            if (ApexParserUtils.isWordTokenOrDotOrAt(currentToken)) {
                 if (isValidChain(prevToken, currentToken)) {
                     prevToken = Some(currentToken)
                     index -= 1
@@ -229,6 +236,7 @@ object CompletionUtils {
     /**
      * make sure that tokens chain always looks like one of these
      *  'word' - where prevToken is None, "word" is nextToken, i.e. right-to-left
+     *  '@' - where prevToken is "word", "@" is nextToken , i.e. right-to-left
      *  'word.' - where "." is prevToken, "word" is nextToken, i.e. right-to-left
      *  'word.word'
      *  'word.word.'
@@ -238,9 +246,11 @@ object CompletionUtils {
      */
     private def isValidChain(prevToken: Option[Token], nextToken: Token): Boolean = {
         if (ApexParserUtils.isWordToken(nextToken)) {
-            //previous token must be nothing or "."
+            //previous token must be nothing or "." or "@"
             prevToken.isEmpty || ApexParserUtils.isDotToken(prevToken.get)
         } else if (ApexParserUtils.isDotToken(nextToken)) {
+            prevToken.isEmpty || ApexParserUtils.isWordToken(prevToken.get)
+        } else if (ApexParserUtils.isAtToken(nextToken)) {
             prevToken.isEmpty || ApexParserUtils.isWordToken(prevToken.get)
         } else {
             false

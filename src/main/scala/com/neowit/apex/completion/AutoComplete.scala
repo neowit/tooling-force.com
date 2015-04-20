@@ -434,14 +434,18 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                     return findMember(classDeclarationContext.Identifier().getText, fullCachedTree, Some(caretAToken.finalContext)) match {
                         case Some(thisClassMember: ClassLikeMember) if "this" == symbol => Some(new DefinitionWithType(thisClassMember, thisClassMember))
                         case Some(thisClassMember: ClassLikeMember) if "super" == symbol => thisClassMember.getSuperClassMember match {
-                          case Some(typeMember) => Some(new DefinitionWithType(thisClassMember, typeMember))
-                          case None => None
+                            case Some(typeMember) => Some(new DefinitionWithType(thisClassMember, typeMember))
+                            case None => None
                         }
                         case _ => None
                     }
                 case None => None
             }
-
+        } else if ("@" == symbol) {
+            ApexModel.getTypeMember("Annotations") match {
+              case Some(annotationsMember) => Some(new DefinitionWithType(annotationsMember, annotationsMember))
+              case None => None
+            }
         } else {
             extractor.getCaretScopeMember match {
                 case Some(parentScopeMemberOfCaret) =>

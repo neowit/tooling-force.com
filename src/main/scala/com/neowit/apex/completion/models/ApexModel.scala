@@ -9,6 +9,8 @@ object ApexModelJsonProtocol extends DefaultJsonProtocol {
     implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
     implicit val apexEnumFormat: JsonFormat[ApexEnumMember] = lazyFormat(jsonFormat(ApexEnumMember, "name", "enumConstants", "tag", "fqn"))
     implicit val apexEnumConstantFormat: JsonFormat[ApexEnumConstantMember] = lazyFormat(jsonFormat(ApexEnumConstantMember, "s", "n", "v", "h", "r"))
+    implicit val apexAnnotationFormat: JsonFormat[ApexAnnotationMember] = lazyFormat(jsonFormat(ApexAnnotationMember, "name", "annotations", "tag", "fqn"))
+    implicit val apexAnnotationConstantFormat: JsonFormat[ApexAnnotationConstantMember] = lazyFormat(jsonFormat(ApexAnnotationConstantMember, "n", "h", "p", "d"))
 }
 
 object ApexModel {
@@ -117,6 +119,8 @@ class ApexNamespace(name: String) extends GenericNamespace(name) {
             loadFile("hand-made/System_StatusCode")
             //add Trigger to System namespace
             loadFile("hand-made/System_Trigger")
+            //add Annotations to System namespace
+            loadFile("hand-made/System_Annotations")
             //add methods from System.System
             getChild("System") match {
                 case Some(systemMember) =>
@@ -139,6 +143,8 @@ class ApexNamespace(name: String) extends GenericNamespace(name) {
             val apexModelMember =
                 if (typeJson.asJsObject.getFields("tag").head.toString().contains("ENUMDEF"))
                     typeJson.convertTo[ApexEnumMember]
+                else if (typeJson.asJsObject.getFields("tag").head.toString().contains("ANNOTATION"))
+                    typeJson.convertTo[ApexAnnotationMember]
                 else //assume CLASSDEF
                     typeJson.convertTo[ApexType]
 
@@ -268,5 +274,40 @@ case class ApexEnumMember(name: String, enumConstants: List[ApexEnumConstantMemb
             addChild(enumConstant)
         }
         addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
+    }
+}
+
+case class ApexAnnotationConstantMember(n: String, h: String, p: Option[List[String]], d: String) extends ApexModelMember {
+    override def getVisibility: String = "public"
+
+    override def getIdentity: String = n + (p match {
+                                              case Some(params) if params.nonEmpty => "(" + params.mkString(", ") + ")"
+                                              case None => ""
+                                            })
+
+    override def getSignature: String = d
+    override def isStatic: Boolean = true
+    override def getDoc: String = h
+
+    override def getType: String = "Annotation"
+}
+
+case class ApexAnnotationMember(name: String, annotations: List[ApexAnnotationConstantMember],
+                          tag: String, fqn: String) extends ApexModelMember {
+    override def getVisibility: String = "public"
+
+    override def getIdentity: String = name
+
+    override def getSignature: String = fqn
+    override def isStatic: Boolean = true
+
+    private var isDoneLoading = false
+    override def isLoaded:Boolean = isDoneLoading
+    override def loadMembers(): Unit = {
+        isDoneLoading = true //must do it here because loadFile calls getChild and isDoneLoading = false causes infinite loop
+        for (annotationConstant <- annotations) {
+            //method.setParent(this)
+            addChild(annotationConstant)
+        }
     }
 }

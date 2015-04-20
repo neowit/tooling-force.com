@@ -20,8 +20,16 @@ object ApexParserUtils {
         "." == token.getText
     }
 
+    def isAtToken(token: Token): Boolean = {
+        "@" == token.getText
+    }
+
     def isWordTokenOrDot(token: Token): Boolean = {
         isWordToken(token) || isDotToken(token)
+    }
+
+    def isWordTokenOrDotOrAt(token: Token): Boolean = {
+        isWordToken(token) || isDotToken(token) || isAtToken(token)
     }
 
     def isRightParenthesis(token: Token): Boolean = {
