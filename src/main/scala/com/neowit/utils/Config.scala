@@ -37,7 +37,7 @@ class ConfigValueException(msg:String) extends IllegalArgumentException(msg: Str
 
 
 class BasicConfig extends Logging {
-    private var out: OutputStream = System.out
+    private var out: OutputStream = Console.out
     def setOutputStream(out: OutputStream) { this.out = out}
     def getResponseWriter = new ResponseWriter(this.out)
     lazy val responseWriter= getResponseWriter

@@ -19,6 +19,7 @@
 
 package com.neowit.utils
 
+import org.apache.commons.logging.impl.SimpleLog
 import org.apache.commons.logging.{Log, LogFactory}
 /**
  * a simple "logger".
@@ -50,3 +51,18 @@ trait Logging {
 
     def logger = this
 }
+
+/**
+ * the only purpose of custom LogImpl is to use Console.out instead of System.err which SimpleLog uses
+ */
+class LogImpl(logName: String) extends SimpleLog (logName) {
+    /**
+     * SimpleLog writes to System.err which is not suitable in multi-thread environment
+     * as one thread blocks out of the other
+     * @param buffer - stuff to write into log
+     */
+    override def write(buffer: StringBuffer): Unit = {
+        Console.out.println(buffer.toString)
+    }
+}
+

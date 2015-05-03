@@ -185,11 +185,12 @@ class CommandProcessor extends Actor {
 
         val out = new PrintStream(socket.getOutputStream, true)
         //redirect system out and err to show messages on the client rather than server
-        System.setOut(out)
-        System.setErr(out)
-
-        val runner = new Executor()
-        runner.execute(commandLineArgs)
+        scala.Console.withErr(out) {
+            scala.Console.withOut(out) {
+                val runner = new Executor()
+                runner.execute(commandLineArgs)
+            }
+        }
 
         //out.println("your command have been processed")
         out.close()
