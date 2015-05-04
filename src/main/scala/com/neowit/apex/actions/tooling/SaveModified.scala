@@ -10,6 +10,8 @@ import scala.concurrent._
 import com.neowit.utils.ResponseWriter.MessageDetail
 import com.sforce.ws.bind.XmlObject
 
+import scala.util.{Success, Failure, Try}
+
 class SaveError(msg: String) extends Error(msg: String)
 /**
  * SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
@@ -314,21 +316,27 @@ class SaveModified extends DeployModified {
      * @return
      */
     override def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
-        val modificationDataByFile = getFilesModificationData(files)
+        Try(getFilesModificationData(files)) match {
+            case Success(modificationDataByFile) =>
+                val dataOrNone: List[Option[Map[String, Any]]] = for (file <- files) yield {
+                    modificationDataByFile.get(file)  match {
+                        case Some(data) =>
+                            val localMillis = ZuluTime.deserialize(data("Local-LastModifiedDateStr").toString).getTimeInMillis
+                            val remoteMillis = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString).getTimeInMillis
 
-        val dataOrNone: List[Option[Map[String, Any]]] = for (file <- files) yield {
-            modificationDataByFile.get(file)  match {
-                case Some(data) =>
-                    val localMillis = ZuluTime.deserialize(data("Local-LastModifiedDateStr").toString).getTimeInMillis
-                    val remoteMillis = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString).getTimeInMillis
+                            if (localMillis < remoteMillis) Some(data) else None
 
-                    if (localMillis < remoteMillis) Some(data) else None
-
-                case None => None
-            }
+                        case None => None
+                    }
+                }
+                val res = dataOrNone.filter(_ != None).map(_.get)
+                if (res.isEmpty) None else Some(res)
+            case Failure(e) =>
+                // looks like we can not query some of the components being deployed/saved using SOQL
+                // fall back to metadata Retrieve call
+                super.getFilesNewerOnRemote(files)
         }
-        val res = dataOrNone.filter(_ != None).map(_.get)
-        if (res.isEmpty) None else Some(res)
+
     }
     /**
      * find remote modification Date + ById for all provided files
