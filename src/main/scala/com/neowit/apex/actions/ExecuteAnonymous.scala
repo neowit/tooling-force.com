@@ -29,7 +29,7 @@ class ExecuteAnonymous extends ApexAction {
 
     def act(): Unit = {
         val codeFile = new File(config.getRequiredProperty("codeFile").get)
-        val apexCode = scala.io.Source.fromFile(codeFile).getLines().mkString("\n")
+        val apexCode = FileUtils.readFile(codeFile).getLines().mkString("\n")
         val (executeAnonymousResult, log) = session.executeAnonymous(apexCode)
 
         if (executeAnonymousResult.isSuccess) {

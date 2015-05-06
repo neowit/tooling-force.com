@@ -5,7 +5,7 @@ import scala.collection.mutable
 import com.neowit.apex.Session
 import scala.util.{Failure, Success, Try}
 import scala.util.parsing.json.{JSON, JSONObject, JSONArray}
-import com.neowit.utils.{BasicConfig, ResponseWriter}
+import com.neowit.utils.{FileUtils, BasicConfig, ResponseWriter}
 import java.io.{PrintWriter, File}
 import com.neowit.apex.actions.{ActionHelp, ApexAction}
 
@@ -63,7 +63,7 @@ class DescribeTooling extends ApexAction {
     def loadFromFile: Map[String, DescribeGlobalSObjectResult] = {
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
 
-        for (line <- scala.io.Source.fromFile(config.storedDescribeToolingResultFile).getLines()) {
+        for (line <- FileUtils.readFile(config.storedDescribeToolingResultFile).getLines()) {
             //JSON.parseFull(line)
             JSON.parseRaw(line)  match {
                 case Some(json) =>

@@ -477,7 +477,7 @@ class BulkRetrieve extends RetrieveMetadata {
 
         //load file list from specified file
         val componentListFile = new File(config.getRequiredProperty("specificTypes").get)
-        val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
+        val components:List[String] = FileUtils.readFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
         components.map(FileUtils.normalizePath(_))
     }
 
@@ -527,7 +527,7 @@ class BulkRetrieve extends RetrieveMetadata {
             membersByXmlName ++= MetaXml.getMembersByType(typesFile)
 
         } else if (isJSONFormat) {
-            for (line <- scala.io.Source.fromFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
+            for (line <- FileUtils.readFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
                 JSON.parseRaw(line)  match {
                     case Some(json) =>
                         val data = json.asInstanceOf[JSONObject].obj
@@ -759,7 +759,7 @@ class DiffWithRemote extends RetrieveMetadata {
             case "packageXml" =>
                 FileUtils.listFiles(srcDir)
             case "file-paths" =>
-                io.Source.fromFile(new File(config.getRequiredProperty("specificTypes").get)).
+                FileUtils.readFile(new File(config.getRequiredProperty("specificTypes").get)).
                                                 getLines().filter(!_.trim.isEmpty).
                                                 map(new File(srcDir, _)).toList
             case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")

@@ -4,6 +4,7 @@ import java.util.Properties
 
 import com.neowit.apex.parser.ApexParserUtils
 import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
+import com.neowit.utils.FileUtils
 import org.antlr.v4.runtime._
 import org.scalatest.FunSuite
 
@@ -25,7 +26,7 @@ class SoqlGrammar extends FunSuite{
      */
     private def testGrammarInFile(soqlFilePath: String): Unit = {
 
-        val lines = scala.io.Source.fromFile(soqlFilePath).getLines().toArray[String]
+        val lines = FileUtils.readFile(soqlFilePath).getLines().toArray[String]
         var i = 0
         while (i < lines.size) {
             val line = lines(i)

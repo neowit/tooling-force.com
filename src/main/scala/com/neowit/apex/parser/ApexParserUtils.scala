@@ -3,6 +3,7 @@ package com.neowit.apex.parser
 import java.io.File
 import java.util.regex.Pattern
 
+import com.neowit.utils.FileUtils
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
@@ -43,7 +44,7 @@ object ApexParserUtils {
 
 
     def getOffset(file: File, line: Int, startIndex: Int): Int = {
-        val text = scala.io.Source.fromFile(file).mkString
+        val text = FileUtils.readFile(file).mkString
         getOffset(text, line, startIndex)
     }
 

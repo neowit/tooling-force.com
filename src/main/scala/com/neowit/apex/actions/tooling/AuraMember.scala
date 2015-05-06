@@ -151,7 +151,7 @@ trait AuraMember {
 }
 class AuraDefinitionMember extends AuraDefinition with AuraMember {
     def setSource(file: File) {
-        setSource(scala.io.Source.fromFile(file).mkString)
+        setSource(FileUtils.readFile(file).mkString)
     }
 
     def setFormat(file: File): Unit = {

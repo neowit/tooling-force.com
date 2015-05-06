@@ -228,4 +228,10 @@ object FileUtils {
         scala.xml.XML.save(filePath, xmlBody, enc = "UTF-8" )
         new File(filePath)
     }
+
+    implicit val codec = scala.io.Codec("UTF-8")
+
+    def readFile(file: File)(implicit codec : scala.io.Codec): scala.io.BufferedSource = scala.io.Source.fromFile(file)(codec)
+
+    def readFile(path: String)(implicit codec : scala.io.Codec): scala.io.BufferedSource = scala.io.Source.fromFile(path)(codec)
 }

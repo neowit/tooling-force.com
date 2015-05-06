@@ -3,6 +3,7 @@ package com.neowit.apex
 import java.io.File
 import java.util.Properties
 
+import com.neowit.utils.FileUtils
 import org.scalatest.FunSuite
 
 import spray.json._
@@ -45,7 +46,7 @@ class CodeCompletions extends FunSuite {
          * @return line number where marker is found
          */
         def getLineNumber(filePath: String): Int = {
-            val lines = scala.io.Source.fromFile(filePath).getLines().toArray[String]
+            val lines = FileUtils.readFile(filePath).getLines().toArray[String]
             var i = 0
             while (i < lines.size) {
                 val line = lines(i)
@@ -85,7 +86,7 @@ class CodeCompletions extends FunSuite {
                 s"--responseFilePath=${escapeFilePath(responseFile)}",
                 s"--currentFileContentPath=${escapeFilePath(apexClassPath)}"
             )
-            val lines = scala.io.Source.fromFile(apexClassPath).getLines().toArray[String]
+            val lines = FileUtils.readFile(apexClassPath).getLines().toArray[String]
             var i = 0
             while (i < lines.size) {
                 val line = lines(i)
@@ -115,7 +116,7 @@ class CodeCompletions extends FunSuite {
         val extraParams = Array[String]("--column=" + config.column, "--line=" + lineNumber)
         Runner.main(commandLineParams ++ extraParams)
         //validate result
-        val lines = scala.io.Source.fromFile(responseFile).getLines().toArray[String]
+        val lines = FileUtils.readFile(responseFile).getLines().toArray[String]
 
         assertResult("RESULT=SUCCESS")(lines(0))
 

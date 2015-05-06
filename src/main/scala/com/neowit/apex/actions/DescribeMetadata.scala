@@ -151,7 +151,7 @@ class DescribeMetadata extends ApexAction {
 
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeMetadataObject]
 
-        for (line <- scala.io.Source.fromFile(config.storedDescribeMetadataResultFile).getLines()) {
+        for (line <- FileUtils.readFile(config.storedDescribeMetadataResultFile).getLines()) {
             //JSON.parseFull(line)
             JSON.parseRaw(line)  match {
                 case Some(json) =>
@@ -258,7 +258,7 @@ class ListMetadata extends ApexAction {
         //load file list from specified file
         val queries = new mutable.ArrayBuffer[ListMetadataQuery]()
         val typesFile = new File(config.getRequiredProperty("specificTypes").get)
-        for (typeName <- scala.io.Source.fromFile(typesFile).getLines()) {
+        for (typeName <- FileUtils.readFile(typesFile).getLines()) {
             if (!typeName.isEmpty) {
                 metadataByXmlName.get(typeName)  match {
                     case Some(describeObject) =>

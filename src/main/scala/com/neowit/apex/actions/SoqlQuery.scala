@@ -16,7 +16,7 @@ class SoqlQuery extends ApexAction {
 
 
         val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
-        val soqlQuery = scala.io.Source.fromFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
+        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
         //dump first batch of results into the output file
         var queryResult = session.query(soqlQuery)
         var loadedRecordCount = queryResult.getRecords.length

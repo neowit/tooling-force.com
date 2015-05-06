@@ -369,7 +369,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         val projectDir = config.projectDir
 
         //load file list from specified file
-        val files:List[File] = scala.io.Source.fromFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
+        val files:List[File] = FileUtils.readFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
 
         //for each file check that it exists
         files.find(!_.canRead) match {

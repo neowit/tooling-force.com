@@ -55,7 +55,7 @@ trait ApexMember {
     def getContentEntityId: String
 
     def setBody(file: File) {
-        setBody(scala.io.Source.fromFile(file).mkString)
+        setBody(FileUtils.readFile(file).mkString)
     }
 }
 

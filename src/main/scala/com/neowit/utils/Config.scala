@@ -107,7 +107,7 @@ class BasicConfig extends Logging {
             //require(!configFilePaths.isEmpty, "missing --config parameter")
             for (confPath <- configFilePaths) {
                 val conf = new Properties()
-                conf.load(scala.io.Source.fromFile(confPath.toString).bufferedReader())
+                conf.load(FileUtils.readFile(confPath).bufferedReader())
 
                 val keys = conf.keySet().iterator()
                 while (keys.hasNext) {
@@ -231,7 +231,7 @@ class Config(val basicConfig: BasicConfig) extends Logging{
             file.createNewFile()
         }
         val props = new Properties() with JsonProperties
-        props.load(scala.io.Source.fromFile(file).bufferedReader())
+        props.load(FileUtils.readFile(file).bufferedReader())
         props
     }
     def storeSessionProps() {

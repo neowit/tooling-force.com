@@ -657,7 +657,7 @@ class DeployModified extends Deploy {
         val patternMethodNames = "(" + methodsToKeep.map("\\b" + _).mkString("|") + ")\\s*\\(\\s*\\)\\s*\\{"
         val regexMethodNames = new Regex(patternMethodNames)
 
-        val source = scala.io.Source.fromFile(classFile)
+        val source = FileUtils.readFile(classFile)
         val textIn = source.getLines().mkString("\n")
         source.close()
 
@@ -1203,7 +1203,7 @@ class DeployDestructive extends Deploy {
         //load file list from specified file
         val componentsPath = getSpecificComponentsFilePath
         val componentListFile = new File(componentsPath)
-        val components:List[String] = scala.io.Source.fromFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
+        val components:List[String] = FileUtils.readFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
         components
     }
 

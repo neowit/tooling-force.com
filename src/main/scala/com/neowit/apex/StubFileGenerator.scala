@@ -64,7 +64,7 @@ object StubFileGenerator {
     def generateTrigger(apiVersion: String, parentFolder: File, triggerFile: File, triggerName: String, withMetaXml:Boolean = true ): (File, Option[File]) = {
         if (triggerFile.exists()) {
             //figure out what object this trigger is on
-            val triggerBody = io.Source.fromFile(triggerFile).getLines().mkString(" ")
+            val triggerBody = FileUtils.readFile(triggerFile).getLines().mkString(" ")
             val objectTypeName = getTriggerObjectTypeName(triggerName, triggerBody) match {
                 case Some(_objectTypeName) => _objectTypeName
                 case _ => //trigger name not detected
