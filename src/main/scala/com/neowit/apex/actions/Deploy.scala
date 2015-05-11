@@ -133,12 +133,10 @@ class DeployModified extends Deploy {
 
     def act() {
         val hasTestsToRun = None != config.getProperty("testsToRun")
-        val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
+        val modifiedFiles = getFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-            responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+            reportEmptyFileList(modifiedFiles)
         } else {
             //first check if SFDC has newer version of files we are about to deploy
             val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
@@ -151,6 +149,18 @@ class DeployModified extends Deploy {
         }
     }
 
+    /**
+     * list files specified in --specificFiles parameter
+     */
+    protected def getFiles:List[File] = {
+        val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
+        modifiedFiles
+    }
+    protected def reportEmptyFileList(files: List[File]): Unit = {
+        responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("FILE_COUNT=" + files.size)
+        responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+    }
     /**
      * @return - true if deployment is successful
      */
@@ -945,35 +955,22 @@ class DeploySpecificFiles extends DeployModified {
             case _ => getParentActionHelp.getParamDescription(paramName)
         }
     }
-    override def act() {
-        val files = getFiles
-        if (files.isEmpty) {
-            responseWriter.println("RESULT=FAILURE")
-            val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
-            responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
-        } else {
-
-            //first check if SFDC has newer version of files we are about to deploy
-            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
-            val callingAnotherOrg = session.callingAnotherOrg
-
-            val canDeploy = callingAnotherOrg || ignoreConflicts || !hasConflicts(files)
-            if (canDeploy) {
-                deploy(files, isUpdateSessionDataOnSuccess)
-            }
-        }
-
-
-    }
 
     /**
      * list files specified in --specificFiles parameter
      */
-    private def getFiles:List[File] = {
+    protected override def getFiles:List[File] = {
         val config = session.getConfig
         //load file list from specified file
         val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
         session.listApexFilesFromFile(fileListFile)
+    }
+
+
+    protected override def reportEmptyFileList(files: List[File]): Unit = {
+        responseWriter.println("RESULT=FAILURE")
+        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
     }
 }
 

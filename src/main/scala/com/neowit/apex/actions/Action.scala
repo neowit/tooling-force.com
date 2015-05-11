@@ -33,6 +33,7 @@ object ActionFactory {
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
         "saveModified" -> "com.neowit.apex.actions.tooling.SaveModified",
+        "saveSpecificFiles" -> "com.neowit.apex.actions.tooling.SaveSpecificFiles",
         "deployModified" -> "DeployModified",
         "deployAll" -> "DeployAll",
         "deploySpecificFiles" -> "DeploySpecificFiles",

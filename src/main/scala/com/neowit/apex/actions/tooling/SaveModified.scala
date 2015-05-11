@@ -2,7 +2,7 @@ package com.neowit.apex.actions.tooling
 
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
-import com.neowit.apex.actions.{DescribeMetadata, DeployModified}
+import com.neowit.apex.actions._
 import com.sforce.soap.tooling.{SObject, ContainerAsyncRequest, MetadataContainer, SaveResult, StatusCode}
 import com.neowit.utils.ResponseWriter.Message
 import com.neowit.utils.{FileUtils, ZuluTime, ResponseWriter}
@@ -489,5 +489,57 @@ class SaveModified extends DeployModified {
                 logger.error("Request Failed with status: " + state)
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
         }
+    }
+}
+
+
+class SaveSpecificFiles extends SaveModified {
+    private val superActionHelp = super.getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
+        override def getExample: String =
+            """
+              |same as --deploySpecificFiles but uses Tooling API and hence only accepts files of *same* type and status.
+              |i.e. --saveSpecificFiles can be used for 1 or more Class Files or 1 or more Trigger files, but not for a mixture of classes and triggers
+              |All files must be either New or Existing, but not a mixture of new and existing files.
+              |If you have a mixture then you may need to make 2 saveSpecificFiles calls: 1 for New and 1 for Existing files, or use --deploySpecificFiles instead
+              |
+              |Suppose we want to save AccountHandler.cls and AccountHandlerTest.cls, content of file passed to --specificFiles
+              |may look like so
+              |-------------------------------
+              |src/classes/AccountHandler.cls
+              |src/classes/AccountHandlerTest.cls
+              |-------------------------------
+              |
+              |then in addition to all normal command line parameters you add
+              |... --specificFiles=/tmp/file_list.txt
+            """.stripMargin
+
+        override def getName: String = "saveSpecificFiles"
+
+        override def getSummary: String = "action uses file list specified in a file and sends update() Tooling API Based call"
+
+        override def getParamNames: List[String] = List("updateSessionDataOnSuccess", "specificFiles") ++ getParentActionHelp.getParamNames
+
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "updateSessionDataOnSuccess" => "--updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful"
+            case "specificFiles" => "--specificFiles=/path/to/file with file list"
+            case _ => getParentActionHelp.getParamDescription(paramName)
+        }
+    }
+
+    /**
+     * list files specified in --specificFiles parameter
+     */
+    protected override def getFiles:List[File] = {
+        val config = session.getConfig
+        //load file list from specified file
+        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        session.listApexFilesFromFile(fileListFile)
+    }
+
+    protected override def reportEmptyFileList(files: List[File]): Unit = {
+        responseWriter.println("RESULT=FAILURE")
+        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
     }
 }
