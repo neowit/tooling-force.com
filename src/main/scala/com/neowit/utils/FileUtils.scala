@@ -229,9 +229,13 @@ object FileUtils {
         new File(filePath)
     }
 
-    implicit val codec = scala.io.Codec("UTF-8")
+    val UTF_8 = scala.io.Codec("UTF-8")
 
-    def readFile(file: File)(implicit codec : scala.io.Codec): scala.io.BufferedSource = scala.io.Source.fromFile(file)(codec)
+    def readFile(file: File): scala.io.BufferedSource = {
+        scala.io.Source.fromFile(file)(UTF_8)
+    }
 
-    def readFile(path: String)(implicit codec : scala.io.Codec): scala.io.BufferedSource = scala.io.Source.fromFile(path)(codec)
+    def readFile(path: String): scala.io.BufferedSource = {
+        scala.io.Source.fromFile(path)(UTF_8)
+    }
 }
