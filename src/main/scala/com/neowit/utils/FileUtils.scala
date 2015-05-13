@@ -215,8 +215,8 @@ object FileUtils {
         crc.getValue
     }
 
-    def writeFile(text: String, file: File, append: Boolean = false) = {
-        val writer = new FileWriter(file, append)
+    def writeFile(text: String, file: File, append: Boolean = false, codec: scala.io.Codec = UTF_8) = {
+        val writer = new FileWriterWithEncoding(file, append, codec)
         try{
             writer.write(text)
         } finally{
@@ -239,3 +239,6 @@ object FileUtils {
         scala.io.Source.fromFile(path)(UTF_8)
     }
 }
+
+private class FileWriterWithEncoding(file: File, append: Boolean, codec: scala.io.Codec)
+                extends OutputStreamWriter(new FileOutputStream(file, append), codec.charSet)
