@@ -94,8 +94,7 @@ abstract class Deploy extends ApexAction {
  *      - ClassName[.methodName] -  means specific method of specific class
  *      - ClassName -  means *all* test methodsToKeep of specific class
  *
- *      if --testsToRun=* (star) then run all tests in all classes (containing testMethod or @isTest ) in
- *                              the *current* deployment package
+ *      if --testsToRun=* (star) then run all tests in all Local classes (excluding managed packages)
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  *
  */

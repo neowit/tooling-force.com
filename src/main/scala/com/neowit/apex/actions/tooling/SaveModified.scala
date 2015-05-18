@@ -34,35 +34,6 @@ class SaveError(msg: String) extends Error(msg: String)
 class SaveModified extends DeployModified {
     val CONTAINER_PREFIX = "tooling-force.com"
 
-    //we can use ToolingApi in following cases
-    //1. there are no -meta.xml files
-    //2. there are no new files
-    //3. all files are supported by Tooling API
-    //4. there is NO mix of aura and non aura files in the list of files to deploy
-    def canUseTooling(files: List[File]): Boolean = {
-        val hasMeta = None != files.find(_.getName.endsWith("-meta.xml"))
-        if (hasMeta) {
-            return false
-        }
-        //check if there are new files
-        val hasNewFile = None != files.find(f => {
-            val key = session.getKeyByFile(f)
-            "" == session.getData(key).getOrElse("Id", "")
-        })
-
-        if (hasNewFile) {
-            return false
-        }
-        val hasAuraFiles = None != files.find(AuraMember.isSupportedType(_))
-        val hasApexFiles = None != files.find(ApexMember.isSupportedType(_, session))
-        val hasMixOfApexAndAura = hasAuraFiles && hasApexFiles
-        //check if all files supported by tooling api
-        val hasUnsupportedType = None != files.find(f => !ApexMember.isSupportedType(f, session) && !AuraMember.isSupportedType(f))
-        val canNotUseTooling = hasUnsupportedType || hasMixOfApexAndAura
-
-        !canNotUseTooling
-    }
-
     def deleteMetadataContainer(session: Session) {
         getExistingMetadataContainer(session)  match {
             case Some(container) =>
@@ -135,7 +106,7 @@ class SaveModified extends DeployModified {
      */
     override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
         logger.debug("Entered SaveModified.deploy()")
-        if (!canUseTooling(files)) {
+        if (!ToolingUtils.canUseTooling(session, files)) {
             //can not use tooling, fall back to metadata version - DeployModified
             super.deploy(files, updateSessionDataOnSuccess)
         } else {

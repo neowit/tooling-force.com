@@ -689,12 +689,37 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }.asInstanceOf[com.sforce.soap.tooling.QueryResult]
         queryResult
     }
+
     def retrieveTooling(fields: List[String], xmlTypeName: String, ids: List[String]):Array[com.sforce.soap.tooling.SObject] = {
         val sobjects = withRetry {
             val conn = getToolingConnection
             conn.retrieve(fields.mkString(","), xmlTypeName, ids.toArray)
         }.asInstanceOf[Array[com.sforce.soap.tooling.SObject]]
         sobjects
+    }
+
+    def executeAnonymousTooling(apexCode: String ):(com.sforce.soap.tooling.ExecuteAnonymousResult, String) = {
+        var log = ""
+        val executeAnonymousResult = withRetry {
+            val conn = getToolingConnection
+            val res = conn.executeAnonymous(apexCode)
+            log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
+            res
+
+        }.asInstanceOf[com.sforce.soap.tooling.ExecuteAnonymousResult]
+        (executeAnonymousResult, log)
+    }
+
+    def runTestsTooling(runTestsRequest: com.sforce.soap.tooling.RunTestsRequest ):(com.sforce.soap.tooling.RunTestsResult) = {
+        var log = ""
+        val runTestsResult = withRetry {
+            val conn = getToolingConnection
+            val res = conn.runTests(runTestsRequest)
+            log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
+            res
+
+        }.asInstanceOf[com.sforce.soap.tooling.RunTestsResult]
+        runTestsResult
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
