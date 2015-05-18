@@ -5,7 +5,7 @@ import com.neowit.apex.{StubFileGenerator, MetadataType, MetaXml}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
 import java.io.{PrintWriter, FileWriter, File}
-import com.sforce.soap.metadata.{DescribeMetadataObject, DeployProblemType, DeployOptions}
+import com.sforce.soap.metadata.{TestLevel, DescribeMetadataObject, DeployProblemType, DeployOptions}
 import scala.collection.mutable
 import scala.util.matching.Regex
 import scala.util.parsing.json.{JSONArray, JSONObject}
@@ -226,7 +226,16 @@ class DeployModified extends Deploy {
         deployOptions.setPerformRetrieve(false)
         deployOptions.setAllowMissingFiles(true)
         deployOptions.setRollbackOnError(true)
-        deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
+        if (testMethodsByClassName.nonEmpty) {
+            if ("*" == testMethodsByClassName.keys.head) {
+                deployOptions.setTestLevel(TestLevel.RunLocalTests)
+            } else {
+                deployOptions.setTestLevel(TestLevel.RunSpecifiedTests)
+                deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
+            }
+        } else {
+            deployOptions.setTestLevel(TestLevel.NoTestRun)
+        }
 
         deployOptions.setCheckOnly(checkOnly)
 
@@ -598,18 +607,14 @@ class DeployModified extends Deploy {
      *      class/method can be specified in two forms
      *      - ClassName.<methodName> -  means specific method of specific class
      *      - ClassName -  means *all* test methodsToKeep of specific class
-     *      Special case: *  - means "run all test in all classes belonging to current deployment package"
+     *      Special case: *  - means "run all Local tests in the Org (exclude Packaged classes) "
      * @return if user passed any classes to run tests via "testsToRun" the return them here
      */
     private def getTestMethodsByClassName(files: Set[File]): Map[String, Set[String]] = {
         var methodsByClassName = Map[String, Set[String]]()
         config.getProperty("testsToRun") match {
             case Some(x) if "*" == x =>
-                //include all eligible classes
-                val classFiles = files.filter(_.getName.endsWith(".cls"))
-                for (classFile <- classFiles) {
-                    methodsByClassName += FileUtils.removeExtension(classFile) -> Set[String]()
-                }
+                methodsByClassName += "*" -> Set[String]()
 
             case Some(x) if !x.isEmpty =>
                 for (classAndMethodStr <- x.split(","); if !classAndMethodStr.isEmpty) {
