@@ -160,6 +160,7 @@ object Connection extends Logging {
         //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
         //having to use a workaround - connect via SOAP and then use obtained session for Tooling connection
         connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
+        connectionConfig.setAuthEndpoint(partnerConnectionConfig.getAuthEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
         connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
 
         val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(connectionConfig)
