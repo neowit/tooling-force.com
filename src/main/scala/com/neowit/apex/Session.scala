@@ -51,7 +51,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
-    private var connectionTooling:Option[com.sforce.soap.tooling.SoapConnection] = None
+    private var connectionTooling:Option[com.sforce.soap.tooling.ToolingConnection] = None
     private var connectionApex:Option[com.sforce.soap.apex.SoapConnection] = None
 
     //when user wants to work with files from one org and deploy them in another org we can not use stored session
@@ -421,7 +421,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         conn
     }
 
-    private def getToolingConnection: com.sforce.soap.tooling.SoapConnection = {
+    private def getToolingConnection: com.sforce.soap.tooling.ToolingConnection = {
         import com.sforce.soap.tooling._
         val conn = connectionTooling match {
             case Some(connection) => connection
@@ -706,7 +706,8 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         var attempts = 0
         var lastReportTime = System.currentTimeMillis()
 
-        var retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId)
+        val includeZip = true
+        var retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, includeZip)
         while (!retrieveResult.isDone) {
             val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
             blocking {
@@ -720,7 +721,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                 logger.trace("waiting result, poll #" + attempts)
             }
             attempts += 1
-            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId)
+            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, includeZip)
             if (!retrieveResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
                 throw new Exception("Request timed out.  If this is a large set " +
                     "of metadata components, check that the time allowed " +

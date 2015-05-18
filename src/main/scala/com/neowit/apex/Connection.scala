@@ -140,7 +140,7 @@ object Connection extends Logging {
      * @param appConfig
      * @return
      */
-    def createToolingConnection(appConfig: Config):com.sforce.soap.tooling.SoapConnection = {
+    def createToolingConnection(appConfig: Config):com.sforce.soap.tooling.ToolingConnection = {
         logger.debug("Creating NEW Tooling Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getToolingConnection(appConfig, partnerConnection)
@@ -153,7 +153,7 @@ object Connection extends Logging {
      * @return
      */
     def getToolingConnection(appConfig: Config,
-                              partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.tooling.SoapConnection = {
+                              partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.tooling.ToolingConnection = {
         val partnerConnectionConfig = partnerConnection.getConfig
 
         val connectionConfig = getConnectionConfig(appConfig)
@@ -165,7 +165,7 @@ object Connection extends Logging {
         val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(connectionConfig)
         setClient(toolingConnection)
     }
-    private def setClient(connection: com.sforce.soap.tooling.SoapConnection): com.sforce.soap.tooling.SoapConnection = {
+    private def setClient(connection: com.sforce.soap.tooling.ToolingConnection): com.sforce.soap.tooling.ToolingConnection = {
         val callOptions = new com.sforce.soap.tooling.CallOptions_element()
         callOptions.setClient(CLIENT_NAME)
         connection.__setCallOptions(callOptions)
@@ -184,7 +184,7 @@ object Connection extends Logging {
     }
 
     /**
-     * initialise tooling Connection based on existing PartnerConnection
+     * initialise apex Connection based on existing PartnerConnection
      * @param appConfig
      * @param partnerConnection
      * @return
