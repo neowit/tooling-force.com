@@ -17,7 +17,7 @@ object DescribeTooling {
      */
     def getMap(session: Session): Map[String, DescribeGlobalSObjectResult] = {
         if (describeToolingObjectMap.isEmpty) {
-            val describer = new DescribeTooling().load[DescribeTooling](session.basicConfig)
+            val describer = new DescribeTooling().load[DescribeTooling](session)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {

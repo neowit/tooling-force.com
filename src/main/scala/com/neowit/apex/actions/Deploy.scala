@@ -152,7 +152,7 @@ class DeployModified extends Deploy {
      * list files specified in --specificFiles parameter
      */
     protected def getFiles:List[File] = {
-        val modifiedFiles = new ListModified().load[ListModified](session.basicConfig).getModifiedFiles
+        val modifiedFiles = new ListModified().load[ListModified](session).getModifiedFiles
         modifiedFiles
     }
     protected def reportEmptyFileList(files: List[File]): Unit = {
@@ -571,14 +571,14 @@ class DeployModified extends Deploy {
     }
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
-        val checker = new ListConflicting().load[ListConflicting](session.basicConfig)
+        val checker = new ListConflicting().load[ListConflicting](session)
         checker.getFilesNewerOnRemote(files)
     }
 
     protected def hasConflicts(files: List[File]): Boolean = {
         if (files.nonEmpty) {
             logger.info("Check Conflicts with Remote")
-            val checker = new ListConflicting().load[ListConflicting](session.basicConfig)
+            val checker = new ListConflicting().load[ListConflicting](session)
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
@@ -795,7 +795,7 @@ class DeployAllDestructive extends DeployAll {
              */
             override def getTargetFolder: Option[String] = Some(FileUtils.createTempDir("remote_files").getAbsolutePath)
         }
-        diffWithRemote.load[DiffWithRemote](session.basicConfig)
+        diffWithRemote.load[DiffWithRemote](session)
 
         diffWithRemote.getDiffReport match {
             case None =>
@@ -872,7 +872,7 @@ class DeployAllDestructive extends DeployAll {
                     updateSessionDataOnSuccess
                 }
             }
-            deployDestructiveAction.load[DeployDestructive](session.basicConfig)
+            deployDestructiveAction.load[DeployDestructive](session)
 
             //make sure that Delete operation appends to response file, rather than overwrites it
             deployDestructiveAction.setResponseWriter(this.responseWriter)
@@ -1306,7 +1306,7 @@ class DeployModifiedDestructive extends DeployModified {
 
     override def act() {
         val hasTestsToRun = None != config.getProperty("testsToRun")
-        val listModified = new ListModified().load[ListModified](session.basicConfig)
+        val listModified = new ListModified().load[ListModified](session)
         val modifiedFiles = listModified.getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml").toList
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
@@ -1349,7 +1349,7 @@ class DeployModifiedDestructive extends DeployModified {
                     updateSessionDataOnSuccess
                 }
             }
-            deployDestructiveAction.load[DeployDestructive](session.basicConfig)
+            deployDestructiveAction.load[DeployDestructive](session)
 
             deployDestructiveAction.act()
             //get rid of temp file

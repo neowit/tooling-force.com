@@ -110,7 +110,7 @@ object AuraMember {
                 FileUtils.writeFile(packageXml, tempFilePath)
             }
         }
-        bulkRetrieve.load[BulkRetrieve](session.basicConfig)
+        bulkRetrieve.load[BulkRetrieve](session)
 
         val tempFolder =  FileUtils.createTempDir(session.config)
         val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)

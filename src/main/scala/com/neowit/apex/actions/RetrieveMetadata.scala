@@ -152,7 +152,7 @@ class RefreshMetadata extends RetrieveMetadata {
     def act() {
         //first check if we have modified files
         val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
-        val modifiedFileChecker = new ListModified().load[ListModified](session.basicConfig)
+        val modifiedFileChecker = new ListModified().load[ListModified](session)
         val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
 
         if (modifiedFiles.isEmpty) {
@@ -295,7 +295,7 @@ class ListConflicting extends RetrieveMetadata {
     }
 
     def act() {
-        val checker = new ListModified().load[ListModified](session.basicConfig)
+        val checker = new ListModified().load[ListModified](session)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
@@ -719,7 +719,7 @@ class DiffWithRemote extends RetrieveMetadata {
                 }
             }
         }
-        bulkRetrieve.load[BulkRetrieve](session.basicConfig)
+        bulkRetrieve.load[BulkRetrieve](session)
 
         val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
         processRetrieveResult(tempFolder, bulkRetrieveResult)

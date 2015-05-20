@@ -17,7 +17,7 @@ object DescribeMetadata {
      */
     def getMap(session: Session): Map[String, DescribeMetadataObject] = {
         if (describeMetadataObjectMap.isEmpty) {
-            val describer = new DescribeMetadata().load[DescribeMetadata](session.basicConfig)
+            val describer = new DescribeMetadata().load[DescribeMetadata](session)
             //first try to get metadata description from local file
             val localMap = describer.loadFromFile
             if (localMap.isEmpty) {

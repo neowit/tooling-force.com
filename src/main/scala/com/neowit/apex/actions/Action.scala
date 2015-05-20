@@ -91,6 +91,11 @@ trait Action extends Logging {
     //implement if need to execute some logic only after main action is complete, e.g. persist data to disk
     protected def finalise(): Unit
 
+    def load[T <:Action](existingSession: Session): T
+
+    /**
+     * do NOT call this method if there is an existing Session, use alternative with existingSession parameter instead
+     */
     def load[T <:Action](basicConfig: BasicConfig): T
 
     def getHelp: ActionHelp
@@ -108,6 +113,9 @@ abstract class AsyncAction extends Action {
         _basicConfig = Some(basicConfig)
         this.asInstanceOf[T]
     }
+    override def load[T <:Action](existingSession: Session): T = {
+        load(existingSession.getConfig.basicConfig)
+    }
 }
 
 abstract class ApexAction extends AsyncAction {
@@ -119,6 +127,10 @@ abstract class ApexAction extends AsyncAction {
     }
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _session = Some(Session(basicConfig))
+        this.asInstanceOf[T]
+    }
+    override def load[T <:Action](existingSession: Session): T = {
+        _session = Some(existingSession)
         this.asInstanceOf[T]
     }
     protected override def finalise(): Unit = {

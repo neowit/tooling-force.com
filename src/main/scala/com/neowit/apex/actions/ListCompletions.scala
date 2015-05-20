@@ -15,7 +15,7 @@ class ListCompletions extends ApexAction {
                 column <- config.getRequiredProperty("column")
         ) yield {
             val inputFile = new File(filePath)
-            val scanner = new ScanSource().load[ScanSource](session.basicConfig)
+            val scanner = new ScanSource().load[ScanSource](session)
             //exclude current file
             val currentFilePath = config.getRequiredProperty("currentFilePath")
             val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
