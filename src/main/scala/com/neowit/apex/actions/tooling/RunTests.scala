@@ -1,7 +1,5 @@
 package com.neowit.apex.actions.tooling
 
-import java.util.GregorianCalendar
-
 import com.neowit.apex._
 import com.neowit.apex.actions.{ActionHelp, ActionError, DeployModified}
 import com.neowit.utils.{FileUtils, ResponseWriter}
@@ -72,36 +70,51 @@ class RunTests extends DeployModified{
 
         val modifiedFiles = getFiles
         if (modifiedFiles.nonEmpty ) {
-            responseWriter.println("RESULT=FAILURE")
-            responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-            responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected. Save modified first"))
+            //check if we can save using tooling API
+            if (ToolingUtils.canUseTooling(session, modifiedFiles)) {
+                val saveModified = new SaveModified().load[SaveModified](session)
+                if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)) {
+                    responseWriter.println("RESULT=FAILURE")
+                    responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+                    responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Save/Deploy modified first"))
+                    return
+                }
+
+            }
+        }
+        val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
+
+        getTestClassNames match {
+            case List("*") =>
+                runTestsRequest.setAllTests(true)
+            case head :: tail =>
+                runTestsRequest.setClasses((head :: tail).toArray[String])
+        }
+        val traceId = ToolingUtils.setupTrace(session, logger)
+        logger.debug("Run tests")
+        val runTestsResult = session.runTestsTooling(runTestsRequest)
+        if (0 == runTestsResult.getNumFailures) {
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
         } else {
-            val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
+            responseWriter.println("RESULT=FAILURE")
+        }
+        ApexTestUtils.processCodeCoverage(new RunTests.RunTestResultTooling(runTestsResult), session, responseWriter) match {
+            case Some(coverageFile) =>
+                responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+            case _ =>
+        }
 
-            getTestClassNames match {
-                case List("*") =>
-                    runTestsRequest.setAllTests(true)
-                case head :: tail =>
-                    runTestsRequest.setClasses((head :: tail).toArray[String])
-            }
-            val traceId = setupLog()
-            val runTestsResult = session.runTestsTooling(runTestsRequest)
-            if (0 == runTestsResult.getNumFailures) {
-                responseWriter.println("RESULT=SUCCESS")
-                responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
-            } else {
-                responseWriter.println("RESULT=FAILURE")
-            }
-            TestResults.processCodeCoverage(new RunTests.RunTestResultTooling(runTestsResult), session, responseWriter) match {
-                case Some(coverageFile) =>
-                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-                case _ =>
-            }
-
-            if (!log.isEmpty) {
-                val logFile = config.getLogFile
-                FileUtils.writeFile(log, logFile)
-                responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+        if ("None" != session.getConfig.logLevel) {
+            ToolingUtils.getLastLogId(session) match {
+                case Some(logId) =>
+                    val log = ToolingUtils.getLog(session, logId)
+                    if (!log.isEmpty) {
+                        val logFile = config.getLogFile
+                        FileUtils.writeFile(log, logFile)
+                        responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                    }
+                case None =>
             }
         }
     }
