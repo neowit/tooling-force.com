@@ -28,7 +28,7 @@ trait CodeCoverageWarning {
     def getMessage: String
 }
 
-object TestResults {
+object ApexTestUtils {
 
     /**
      * process code coverage results
