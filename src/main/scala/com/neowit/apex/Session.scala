@@ -100,8 +100,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                             "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
                             "hash" -> getHash
             ))
+            sessionProperties.remove("UserInfo")
         } else {
             sessionProperties.remove("session")
+            sessionProperties.remove("UserInfo")
         }
         storeSessionData()
     }
