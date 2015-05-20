@@ -19,6 +19,7 @@
 
 package com.neowit.apex
 
+import java.net.URL
 import java.security.MessageDigest
 
 import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
@@ -27,7 +28,7 @@ import com.sforce.soap.metadata._
 
 import scala.concurrent._
 import collection.JavaConverters._
-import java.io.File
+import java.io._
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 
 /**
@@ -717,11 +718,51 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         val runTestsResult = withRetry {
             val conn = getToolingConnection
             val res = conn.runTests(runTestsRequest)
-            log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
             res
 
         }.asInstanceOf[com.sforce.soap.tooling.RunTestsResult]
         runTestsResult
+    }
+    import collection.JavaConverters._
+    /**
+     * @param path - e.x. /sobjects/ApexLog/id/Body/
+     * @param urlParameters: param1=aaa&paramX=123...
+     * @return
+     */
+    def getRestContentTooling(path: String, urlParameters: String = "",
+                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
+        val connectorConfig = getToolingConnection.getConfig
+        //convert this:
+        //  https://domain/services/Soap/T/33.0/00Dg0000006S2Wp
+        //to this:
+        //  https://domain/services/data/v33.0/tooling/sobjects/ApexLog/id/Body/
+        val domainEndIndex = connectorConfig.getServiceEndpoint.indexOf("services/Soap/T")
+        val domain = connectorConfig.getServiceEndpoint.substring(0, domainEndIndex)
+
+        val queryStr:String = if ("" != urlParameters) "?" + urlParameters else ""
+        val url = domain + s"services/data/v${config.apiVersion}/tooling" + path + queryStr
+        val conn = connectorConfig.createConnection(new URL(url), httpHeaders, true)
+        conn.setRequestProperty("Authorization", "Bearer " + getPartnerConnection.getSessionHeader.getSessionId)
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestMethod("GET")
+        conn.setDoOutput(true)
+        conn.setDoInput(true)
+        //conn.connect()
+        //conn.setReadTimeout(...)
+
+
+        //send request
+        val responseCode = conn.getResponseCode
+        if (200 == responseCode) {
+            val in = conn.getInputStream
+            val res = io.Source.fromInputStream(in).mkString("")
+            in.close()
+            Some(res)
+        } else {
+            logger.error(s"Request Failed - URL=$url")
+            logger.error(s"Response Code: $responseCode")
+            None
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
