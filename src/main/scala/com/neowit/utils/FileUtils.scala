@@ -138,20 +138,26 @@ object FileUtils {
     }
 
     def getExtension(file: File): String = {
-        val extStart = file.getName.lastIndexOf(".")
+        getExtension(file.getName)
+    }
+    def getExtension(fileName: String): String = {
+        val extStart = fileName.lastIndexOf(".")
         if (extStart > 0) {
             //file.getName.substring(extStart + 1)
-            file.getName.drop(extStart + 1)
+            fileName.drop(extStart + 1)
         } else {
             ""
         }
     }
     def removeExtension(file: File): String = {
-        val extStart = file.getName.lastIndexOf(".")
+        removeExtension(file.getName)
+    }
+    def removeExtension(fileName: String): String = {
+        val extStart = fileName.lastIndexOf(".")
         if (extStart > 0) {
-            file.getName.take(extStart)
+            fileName.take(extStart)
         } else {
-            file.getName
+            fileName
         }
     }
     /**
