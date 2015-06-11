@@ -1,15 +1,204 @@
 package com.neowit.apex.actions
 
 import java.io.File
-import com.neowit.utils.{ResponseWriter, FileUtils}
+import com.neowit.apex.Session
+import com.neowit.utils.{Logging, ResponseWriter, FileUtils}
 import com.sforce.ws.bind.XmlObject
 
 //import collection.JavaConverters._
 import spray.json._
 import DefaultJsonProtocol._
 
+object SoqlQuery {
+
+    def queryAll(soqlQuery: String, session: Session, logger: Logging): Array[com.sforce.soap.partner.sobject.SObject] = {
+        val records = Array.newBuilder[com.sforce.soap.partner.sobject.SObject]
+        var queryResult = session.query(soqlQuery)
+
+        val size = queryResult.getSize
+        var batchOfRecords = queryResult.getRecords
+        var loadedRecordCount = batchOfRecords.size
+        records ++= batchOfRecords
+        while (!queryResult.isDone) {
+            logger.info("Loaded " + loadedRecordCount + " out of " + size)
+            queryResult = session.queryMore(queryResult.getQueryLocator)
+
+            batchOfRecords = queryResult.getRecords
+            loadedRecordCount = batchOfRecords.size
+            records ++= batchOfRecords
+        }
+        records.result()
+    }
+
+    def getQueryBatchIteratorTooling[A](session: Session, queryStr: String):QueryBatchIterator[A] = {
+        new QueryBatchIterator[A](session, new QueryResultTooling(session.queryTooling(queryStr)))
+    }
+    def getQueryIteratorTooling[A](session: Session, queryStr: String):QueryIterator[A] = {
+        new QueryIterator[A](session, new QueryResultTooling(session.queryTooling(queryStr)))
+    }
+
+    def getQueryBatchIteratorPartner[A](session: Session, queryStr: String):QueryBatchIterator[A] = {
+        new QueryBatchIterator[A](session, new QueryResultPartner(session.query(queryStr)))
+    }
+    def getQueryIteratorPartner[A](session: Session, queryStr: String):QueryIterator[A] = {
+        new QueryIterator[A](session, new QueryResultPartner(session.query(queryStr)))
+    }
+
+    class QueryBatchIterator[A](session: Session, queryResult: GenericQueryResult) extends Iterator[Array[A]] {
+        private var queryResultInternal = queryResult
+        //private var onBatchCompleteFun:(Int, Int) => Unit = (0, 0) => Unit
+        private var onBatchCompleteFun = (totalRecordsLoaded: Int, batchNumber: Int) => {}
+        private var batchNumber = -1
+        private var totalRecordsLoaded = queryResult.getRecords.length
+
+        override def hasNext: Boolean = !queryResultInternal.isDone || (size > 0 && batchNumber < 0)
+
+
+        override def isEmpty: Boolean = size < 1
+
+        override def next(): Array[A] = {
+            val records =
+                if (batchNumber < 0) {
+                    queryResultInternal.getRecords[A]
+                }  else if (queryResultInternal.isDone) {
+                    throw new IllegalAccessError("Out of range")
+                } else {
+                    queryResultInternal = queryResult.queryMore(session, queryResultInternal.getQueryLocator)
+                    queryResultInternal.getRecords[A]
+                }
+            batchNumber += 1
+            totalRecordsLoaded += records.length
+            //alert about batch completion
+            onBatchCompleteFun(totalRecordsLoaded, batchNumber)
+            records
+        }
+
+
+        override def size: Int = queryResult.getSize
+        def getCurrentBatchSize: Int = queryResultInternal.getRecords.length
+
+        /**
+         *
+         * @param fun: (totalRecordsLoaded: Int, batchNumber: Int) = {}
+         */
+        def setOnBatchComplete(fun: (Int, Int) => Unit): Unit = {
+            onBatchCompleteFun = fun
+        }
+        def getBatchNumber: Int = batchNumber
+    }
+
+    class QueryIterator[A](session: Session, queryResult: GenericQueryResult) extends Iterator[A] {
+        private val batchIterator = new QueryBatchIterator(session, queryResult)
+
+        private var indexInBatch = 0
+        private var _records = batchIterator.next()
+
+        override def hasNext: Boolean = indexInBatch < batchIterator.getCurrentBatchSize || batchIterator.hasNext
+
+        override def next(): A = {
+            if (indexInBatch >= batchIterator.getCurrentBatchSize) {
+                _records = batchIterator.next()
+                indexInBatch = 0
+            }
+            val record: A = _records(indexInBatch)
+            indexInBatch += 1
+            record
+        }
+    }
+
+    trait GenericQueryResult {
+        def getQueryLocator: String
+        def getRecords[A]: Array[A]
+        def getSize: Int
+        def isDone: Boolean
+        def queryMore(session: Session, queryLocator: String): GenericQueryResult
+    }
+
+    class QueryResultTooling(queryResult: com.sforce.soap.tooling.QueryResult) extends GenericQueryResult {
+        override def getQueryLocator: String = queryResult.getQueryLocator
+
+        override def queryMore(session: Session, queryLocator: String): GenericQueryResult = new QueryResultTooling(session.queryMoreTooling(queryResult.getQueryLocator))
+
+        override def getSize: Int = queryResult.getSize
+
+        override def getRecords[A]: Array[A] = queryResult.getRecords.asInstanceOf[Array[A]]
+
+        override def isDone: Boolean = queryResult.isDone
+    }
+
+    class QueryResultPartner(queryResult: com.sforce.soap.partner.QueryResult) extends GenericQueryResult {
+        override def getQueryLocator: String = queryResult.getQueryLocator
+
+        override def queryMore(session: Session, queryLocator: String): GenericQueryResult = new QueryResultTooling(session.queryMoreTooling(queryResult.getQueryLocator))
+
+        override def getSize: Int = queryResult.getSize
+
+        override def getRecords[A]: Array[A] = queryResult.getRecords.asInstanceOf[Array[A]]
+
+        override def isDone: Boolean = queryResult.isDone
+    }
+}
+
 class SoqlQuery extends ApexAction {
     override def act(): Unit = {
+        val outputFilePath = config.getRequiredProperty("outputFilePath").get
+        //make sure output file does not exist
+        FileUtils.delete(new File(outputFilePath))
+
+
+        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
+        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
+
+        val queryIterator = SoqlQuery.getQueryBatchIteratorPartner[com.sforce.soap.partner.sobject.SObject](session, soqlQuery)
+
+        def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
+            logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
+        }
+        queryIterator.setOnBatchComplete(onBatchComplete)
+
+        if (queryIterator.isEmpty) {
+            //looks like this is just a count() query
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_SIZE=" + queryIterator.size)
+            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryIterator.size))
+        } else {
+            val outputFile = new File(outputFilePath)
+            for (batch <- queryIterator) {
+                writeResults(batch, outputFile)
+            }
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_FILE=" + outputFilePath)
+
+        }
+
+        //dump first batch of results into the output file
+        /*
+        var queryResult = session.query(soqlQuery)
+        var loadedRecordCount = queryResult.getRecords.length
+        val size = queryResult.getSize
+        if (loadedRecordCount > 0) {
+            val outputFile = new File(outputFilePath)
+            writeResults(queryResult.getRecords, outputFile)
+
+            while (!queryResult.isDone) {
+                logger.info("Loaded " + loadedRecordCount + " out of " + size)
+                queryResult = session.queryMore(queryResult.getQueryLocator)
+                writeResults(queryResult.getRecords, outputFile)
+                loadedRecordCount += queryResult.getRecords.length
+            }
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_FILE=" + outputFilePath)
+        } else {
+           //looks like this is just a count() query
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_SIZE=" + size)
+            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))
+        }
+        */
+
+    }
+
+    def act2(): Unit = {
         val outputFilePath = config.getRequiredProperty("outputFilePath").get
         //make sure output file does not exist
         FileUtils.delete(new File(outputFilePath))
@@ -34,7 +223,7 @@ class SoqlQuery extends ApexAction {
             responseWriter.println("RESULT=SUCCESS")
             responseWriter.println("RESULT_FILE=" + outputFilePath)
         } else {
-           //looks like this is just a count() query
+            //looks like this is just a count() query
             responseWriter.println("RESULT=SUCCESS")
             responseWriter.println("RESULT_SIZE=" + size)
             responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))

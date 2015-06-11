@@ -692,6 +692,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }.asInstanceOf[com.sforce.soap.tooling.QueryResult]
         queryResult
     }
+    def queryMoreTooling(queryLocator: String):com.sforce.soap.tooling.QueryResult = {
+        val queryResult = withRetry {
+            val conn = getToolingConnection
+            conn.queryMore(queryLocator)
+        }.asInstanceOf[com.sforce.soap.tooling.QueryResult]
+        queryResult
+    }
 
     def retrieveTooling(fields: List[String], xmlTypeName: String, ids: List[String]):Array[com.sforce.soap.tooling.SObject] = {
         val sobjects = withRetry {
