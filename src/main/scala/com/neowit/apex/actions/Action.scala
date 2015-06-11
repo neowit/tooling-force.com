@@ -49,7 +49,8 @@ object ActionFactory {
         "deployAllDestructive" -> "DeployAllDestructive",
         "scanSource" -> "ScanSource",
         "listCompletions" -> "ListCompletions",
-        "SoqlQuery" -> "SoqlQuery"
+        "soqlQuery" -> "SoqlQuery",
+        "changeLogLevels" -> "com.neowit.apex.actions.tooling.ChangeLogLevels"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 

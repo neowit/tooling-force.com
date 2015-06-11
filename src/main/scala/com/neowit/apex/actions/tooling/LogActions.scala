@@ -4,11 +4,13 @@ import java.io.File
 
 import com.neowit.apex.Session
 import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ApexAction}
-import com.neowit.utils.{ConfigValueException, FileUtils}
-import com.sforce.soap.tooling.{SaveResult, TraceFlag}
+import com.neowit.utils.{ZuluTime, ResponseWriter, ConfigValueException, FileUtils}
+import com.sforce.soap.tooling._
 
 import spray.json._
 import DefaultJsonProtocol._
+
+import scala.util.{Failure, Success, Try}
 
 class LogActions {
 
@@ -23,15 +25,31 @@ class ChangeLogLevels extends ApexAction {
                   |  All log types [ApexCode, ApexProfiling, ... Workflow] must be specified.
                   |  File content format is as follows:
                   |  "{"ApexCode": "Debug", "ApexProfiling": "Error", "Callout": "Error", "Database": "Error", "System": "Error", "Validation": "Error", "Visualforce": "Error", "Workflow": "Error"}"
-
+                """.stripMargin
+            case "scope" =>
+                """--scope=user|<empty>
+                  |  This parameter is Optional
+                  |  see TraceFlag.ScopeId in Tooling API documentation
+                  |  e.g. --scope=user
+                """.stripMargin
+            case "tracedEntity" =>
+                """--tracedEntity=username|classname|triggername|<empty>
+                  |  This parameter is Optional, defaults to current user
+                  |
+                  |  e.g. --tracedEntity=john@acme.com
+                  |      will set log levels for specific existing user
+                  |  e.g. --tracedEntity=MyClass.cls
+                  |      will set log levels for specific class
+                  |  e.g. --tracedEntity=MyTrigger.trigger
+                  |      will set log levels for specific trigger
                 """.stripMargin
         }
 
-        override def getParamNames: List[String] = List("logConfig")
+        override def getParamNames: List[String] = List("logConfig", "scope", "tracedEntity")
 
         override def getSummary: String = "Setup TraceFlag that triggers an Apex debug log at the specified logging level"
 
-        override def getName: String = "setupTraceFlag"
+        override def getName: String = "changeLogLevels"
     }
 
     //this method should implement main logic of the action
@@ -39,11 +57,13 @@ class ChangeLogLevels extends ApexAction {
         val traceFlagMap = loadTraceFlagConfig
 
         setupTrace(traceFlagMap, session, logger) match {
-            case Some(traceFlagId) =>
+            case Success(traceFlagId) =>
                 //TODO generate response file
                 responseWriter.println("RESULT=SUCCESS")
-            case None =>
+            case Failure(e) =>
                 responseWriter.println("RESULT=FAILURE")
+                responseWriter.println(ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage))
+
         }
     }
 
@@ -56,10 +76,9 @@ class ChangeLogLevels extends ApexAction {
                     val jsonAst = JsonParser(jsonStr)
                     val pairs = jsonAst.asJsObject.fields.map {
                         case (key, jsVal:JsString) => key -> jsVal.value
-                        case (key, jsVal) => {
+                        case (key, jsVal) =>
                             //this case should never be used, but have it here to make compiler happy
                             key -> jsVal.toString()
-                        }
                     }
                     pairs
                 } else {
@@ -80,15 +99,9 @@ class ChangeLogLevels extends ApexAction {
         session.setData("traceFlagConfig", traceFlagMap)
     }
 
-    def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.neowit.utils.Logging): Option[String] = {
+    def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.neowit.utils.Logging): Try[String] = {
 
         logger.debug("Setup TraceFlag")
-        //TODO check if trace for current session.getUserId is already setup, and delete it if it is
-        val queryIterator = SoqlQuery.getQueryIteratorTooling[TraceFlag](session, s"select Id from TraceFlag where TracedEntityId = '${session.getUserId}'")
-        if (queryIterator.hasNext) {
-            val record = queryIterator.next()
-            session.deleteTooling(record.getTracedEntityId)
-        }
 
         val flag: TraceFlag = new TraceFlag
         traceFlagMap.foreach{
@@ -100,24 +113,80 @@ class ChangeLogLevels extends ApexAction {
         calendar.add(java.util.Calendar.SECOND, session.getConfig.getProperty("timeoutSec").getOrElse("30").toInt)
 
         flag.setExpirationDate(calendar)
-        flag.setScopeId(null)
-        flag.setTracedEntityId(session.getUserId)
+
+        config.getProperty("scope") match {
+          case Some(x) if "user" == x =>
+              flag.setScopeId(session.getUserId)
+          case _ =>
+              flag.setScopeId(null)
+        }
+        getTracedEntityId match {
+            case Success(entityId) =>
+                flag.setTracedEntityId(entityId)
+            case Failure(e) =>
+                //messages += new ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage)
+                throw e
+        }
+        //check if trace for current scope/tracedEntity is already setup and expires too early, and delete it if one found
+        val queryIterator = SoqlQuery.getQueryIteratorTooling[TraceFlag](session,
+                                        s""" select Id from TraceFlag
+                                           |where TracedEntityId = '${flag.getTracedEntityId}' and ScopeId = '${flag.getScopeId}'
+                                           |""".stripMargin)
+        if (queryIterator.hasNext) {
+            val recordIds = queryIterator.map(_.getId).toArray
+            session.deleteTooling(recordIds)
+        }
 
         val saveResults: Array[SaveResult] = session.createTooling(Array(flag))
         if (saveResults.nonEmpty && saveResults.head.isSuccess) {
             saveTraceFlagConfig(traceFlagMap)
-            Some(saveResults.head.getId)
+            Success(saveResults.head.getId)
         } else {
             val errors = saveResults.head.getErrors
             if (null != errors && errors.nonEmpty) {
                 if (errors.head.getMessage.contains("This entity is already being traced")) {
                     //
                     logger.error("Failed to setup new TraceFlag: " + errors.head.getMessage)
+                    throw new RuntimeException("Failed to setup new TraceFlag: " + errors.head.getMessage)
                 } else {
                     logger.error("Failed to setup TraceFlag: " + errors.head.getMessage)
+                    throw new RuntimeException("Failed to setup TraceFlag: " + errors.head.getMessage)
                 }
             }
-            None
+            throw new RuntimeException("Failed to setup TraceFlag. Unknown error")
+        }
+    }
+
+    private def getTracedEntityId: Try[String] = {
+        config.getProperty("tracedEntity") match {
+            case Some(x) =>
+                FileUtils.getExtension(x.toLowerCase) match {
+                    case "trigger" =>
+                        val iterator = SoqlQuery.getQueryIteratorTooling[ApexTrigger](session, s"select Id from ApexTrigger where Name = '${FileUtils.removeExtension(x)}'")
+                        if (iterator.hasNext) {
+                            Success(iterator.next().getId)
+                        } else {
+                            throw new ConfigValueException(s"Trigger with name $x not found")
+                        }
+                    case "class" =>
+                        val iterator = SoqlQuery.getQueryIteratorTooling[ApexClass](session, s"select Id from ApexClass where Name = '${FileUtils.removeExtension(x)}'")
+                        if (iterator.hasNext) {
+                            Success(iterator.next().getId)
+                        } else {
+                            throw new ConfigValueException(s"Class with name $x not found")
+                        }
+                    case username =>
+                        val iterator = SoqlQuery.getQueryIteratorTooling[User](session, s"select Id from User where UserName = '$x'")
+                        if (iterator.hasNext) {
+                            Success(iterator.next().getId)
+                        } else {
+                            throw new ConfigValueException(s"User with UserName $x not found")
+                        }
+
+                }
+            case None =>
+                //Some(session.getUserId)
+                Success(session.getUserId)
         }
     }
     private def setLogLevelByType(logType: String, logLevel: String, traceFlag: TraceFlag) = {
