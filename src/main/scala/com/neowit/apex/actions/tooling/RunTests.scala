@@ -1,9 +1,11 @@
 package com.neowit.apex.actions.tooling
 
 import com.neowit.apex._
-import com.neowit.apex.actions.{ActionHelp, ActionError, DeployModified}
+import com.neowit.apex.actions.SoqlQuery.{QueryResultTooling, QueryIterator}
+import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ActionError, DeployModified}
 import com.neowit.utils.{FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
+import com.sforce.soap.tooling.{RunTestFailure, ApexTestQueueItem, AsyncApexJob}
 
 object RunTests {
 
@@ -40,6 +42,7 @@ object RunTests {
  *
  *      if --testsToRun=* (star) then run all tests in all Local classes (excluding installed packages)
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
+ * --async=true|false (defaults to false) - if true then use runTestsAsynchronous
  */
 class RunTests extends DeployModified{
 
@@ -49,7 +52,6 @@ class RunTests extends DeployModified{
         override def getParamDescription(paramName: String): String = paramName match {
             case "reportCoverage" =>
                 """--reportCoverage=true|false (defaults to false) - if true then generate code coverage file
-                  |Note: makes sence only when --testsToRun is also specified
                 """.stripMargin
             case
                 "testsToRun" =>
@@ -57,6 +59,10 @@ class RunTests extends DeployModified{
                   |       e.g. "ControllerTest, ControllerTest, HandlerTest1, Test3"
                   |
                   |       if --testsToRun=* (star) then run all tests in all Local classes (excluding installed packages)
+                """.stripMargin
+            case "async" =>
+                """--async=true|false (defaults to false) - if true then use runTestsAsynchronous.
+                   |      Running tests asynchronously allows methods runTestsAsynchronous() to process in parallel, cutting down your test run times.
                 """.stripMargin
         }
 
@@ -82,6 +88,9 @@ class RunTests extends DeployModified{
 
             }
         }
+        //val traceId = ToolingUtils.setupTrace(session, logger)
+
+        /*
         val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
 
         getTestClassNames match {
@@ -90,9 +99,11 @@ class RunTests extends DeployModified{
             case head :: tail =>
                 runTestsRequest.setClasses((head :: tail).toArray[String])
         }
-        val traceId = ToolingUtils.setupTrace(session, logger)
         logger.debug("Run tests")
         val runTestsResult = session.runTestsTooling(runTestsRequest)
+        */
+
+        val runTestsResult = runTests()
         if (0 == runTestsResult.getNumFailures) {
             responseWriter.println("RESULT=SUCCESS")
             responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
@@ -118,6 +129,199 @@ class RunTests extends DeployModified{
             }
         }
     }
+
+    private def runTests(): com.sforce.soap.tooling.RunTestsResult = {
+        //TODO uncomment
+        //val isAsync = config.getProperty("async").getOrElse("false").toBoolean
+        val isAsync = true
+        if (isAsync) {
+            runTestsAsynchronous()
+        } else {
+           runTestsSynchronous()
+        }
+
+    }
+    private def runTestsSynchronous(): com.sforce.soap.tooling.RunTestsResult = {
+        val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
+
+        getTestClassNames match {
+            case List("*") =>
+                runTestsRequest.setAllTests(true)
+            case head :: tail =>
+                runTestsRequest.setClasses((head :: tail).toArray[String])
+        }
+        logger.debug("Run tests Synchronous")
+        val runTestsResult = session.runTestsTooling(runTestsRequest)
+        runTestsResult
+    }
+
+    /**
+     * ID: 707g000000MRjHdAAL
+     * SELECT ApexClassId,CompletedDate,CreatedById,CreatedDate,ExtendedStatus,Id,JobItemsProcessed,JobType,
+     * LastProcessed,LastProcessedOffset,MethodName,NumberOfErrors,ParentJobId,Status,TotalJobItems FROM AsyncApexJob
+     * @return
+     */
+    private def runTestsAsynchronous(): com.sforce.soap.tooling.RunTestsResult = {
+        logger.debug("Run tests Asynchronous")
+        val records = getTestClassNames match {
+            case List("*") =>
+                SoqlQuery.queryAll("select Id from ApexClass where Status = 'Active' and NamespacePrefix = ''", session, logger)
+            case head :: tail =>
+                val classNames = (head :: tail).mkString("','")
+                SoqlQuery.queryAll(s"select Id from ApexClass where Name in ('$classNames')", session, logger)
+        }
+        val classIds = records.map(_.getId)
+        val asyncJobId = session.runTestsAsyncTooling(classIds.toList)
+        val loggerFunc = (record:ApexTestQueueItem) => {
+            logger.info("Running Test(s): " + record.getStatus)
+        }
+        waitAsyncJob(asyncJobId, reportTestProgress) match {
+          case Some(asyncApexJob) if "Completed" == asyncApexJob.getStatus=>
+              generateRunTestResult(asyncApexJob)
+
+          case Some(asyncApexJob) =>
+              //TODO - job is aborted or failed
+              new com.sforce.soap.tooling.RunTestsResult()
+          case None =>
+              new com.sforce.soap.tooling.RunTestsResult()
+        }
+
+    }
+
+    private def generateRunTestResult(asyncApexJob: AsyncApexJob): com.sforce.soap.tooling.RunTestsResult = {
+        val runTestResult = new com.sforce.soap.tooling.RunTestsResult()
+        //runTestResult.setTotalTime()
+        val query =
+            s"""select ApexClass.Name, ApexClassId, ApexLogId, Message, MethodName, Outcome, QueueItemId, StackTrace, TestTimestamp
+                |from ApexTestResult
+                |where AsyncApexJobId = '${asyncApexJob.getId}'
+            """.stripMargin
+
+        val queryIterator = SoqlQuery.getQueryIteratorTooling[com.sforce.soap.tooling.ApexTestResult](session, query)
+        //val queryResult = session.queryTooling(query)
+        if (queryIterator.isEmpty) {
+            runTestResult.setNumFailures(0)
+            runTestResult.setNumTestsRun(0)
+            runTestResult.setSuccesses(Array[com.sforce.soap.tooling.RunTestSuccess]())
+            return runTestResult
+        }
+        //val iterator = new QueryIterator[com.sforce.soap.tooling.ApexTestResult](session, new QueryResultTooling(queryResult))
+        val iterator = queryIterator
+
+        val failures = Array.newBuilder[com.sforce.soap.tooling.RunTestFailure]
+        val successes = Array.newBuilder[com.sforce.soap.tooling.RunTestSuccess]
+        for(record <- iterator) {
+
+            val className = record.getApexClass.getName
+            val methodName = record.getMethodName
+            val outcome = record.getOutcome
+            logger.info(s"$className.$methodName => $outcome")
+            //Pass, Failed, CompileFail, Skip
+            outcome match {
+                case "Pass" =>
+                    val success = new com.sforce.soap.tooling.RunTestSuccess()
+                    success.setMethodName(methodName)
+                    successes += success
+                case "Fail" =>
+                    val failure = new RunTestFailure()
+                    failure.setMethodName(methodName)
+                    failure.setMessage(record.getMessage)
+                    failures += failure
+                case "CompileFail" =>
+                    val failure = new RunTestFailure()
+                    failure.setMethodName(methodName)
+                    failure.setMessage(record.getMessage)
+                    failures += failure
+                case x => logger.debug("outcome: " + x)
+            }
+
+        }
+        runTestResult.setFailures(failures.result())
+        runTestResult.setNumFailures(runTestResult.getFailures.length)
+        runTestResult.setSuccesses(successes.result())
+        runTestResult.setNumTestsRun(runTestResult.getNumFailures + runTestResult.getSuccesses.length)
+        runTestResult
+    }
+
+    private val ONE_SECOND = 1000
+    private def waitAsyncJob(asyncJobId: String, progressReporter: (String, Set[String]) => Set[String]): Option[AsyncApexJob] = {
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
+        val FINAL_STATUSES = Set("Aborted", "Completed", "Failed")
+        val query = s"SELECT ApexClassId,ExtendedStatus,Id,ParentJobId,Status FROM AsyncApexJob where Id = '$asyncJobId'"
+        val doneClassIds = new collection.mutable.HashSet[String]()
+        while (true) {
+            val queryResult = session.queryTooling(query)
+            if (queryResult.getSize < 1) {
+                return None
+            }
+            val record = queryResult.getRecords.head.asInstanceOf[AsyncApexJob]
+            val isDone = FINAL_STATUSES.contains(record.getStatus)
+            if (isDone) {
+                return Some(record)
+            }
+            doneClassIds ++= progressReporter(asyncJobId, doneClassIds.toSet)
+            Thread.sleep(waitTimeMilliSecs)
+        }
+        None
+
+    }
+    /**
+     *
+     * @param asyncJobId - Id of AsyncApexJob
+     * @param ignoreClassIds - Id of classes for which we do not need to report status
+     * @return set of Done class Ids
+     */
+    private def reportTestProgress(asyncJobId: String, ignoreClassIds: Set[String]): Set[String] = {
+        val FINAL_STATUSES = Set("Aborted", "Completed", "Failed")
+        val query =
+            s"""SELECT ApexClassId, ApexClass.Name, ExtendedStatus, Id, ParentJobId, Status
+               |FROM ApexTestQueueItem
+               |where ParentJobId = '$asyncJobId'
+             """.stripMargin
+        val queryFilter = if (ignoreClassIds.nonEmpty) " and ApexClassId not in ('" + ignoreClassIds.mkString("','") + "')" else ""
+        val doneClassIds = Set.newBuilder[String]
+        val queryResult = session.queryTooling(query + queryFilter)
+
+        for (record <- queryResult.getRecords) {
+            val queueItem = record.asInstanceOf[ApexTestQueueItem]
+            val classId = queueItem.getApexClassId
+            val className = queueItem.getApexClass.getName
+            val extendedStatus = queueItem.getExtendedStatus
+            val status = queueItem.getStatus
+            if (null != extendedStatus) {
+                logger.info(s"$className => $extendedStatus")
+            } else {
+                logger.info(s"$className => $status")
+            }
+            if (FINAL_STATUSES.contains(status)) {
+                doneClassIds += classId
+            }
+        }
+        doneClassIds.result()
+
+    }
+
+    /*
+        val isDoneFunc = (record:ApexTestQueueItem) => Set("Aborted", "Completed", "Failed").contains(record.getStatus)
+        val loggerFunc = (record:ApexTestQueueItem) => {
+            logger.info("Running Test(s): " + record.getStatus)
+        }
+    private def waitAsyncJob[A](query: String, isDone: A => Boolean, loggerFunc: A => Unit): Option[A] = {
+        while (true) {
+            val queryResult = session.queryTooling(query)
+            if (queryResult.getSize < 1) {
+                return None
+            }
+            val record = queryResult.getRecords.head
+            if (isDone(record.asInstanceOf[A])) {
+                return Some(record.asInstanceOf[A])
+            }
+            loggerFunc(record.asInstanceOf[A])
+        }
+        None
+
+    }
+    */
 
     private def getTestClassNames: List[String] = {
         val classNames = Set.newBuilder[String]
