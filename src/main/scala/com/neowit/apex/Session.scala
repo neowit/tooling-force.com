@@ -714,7 +714,6 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     def runTestsTooling(runTestsRequest: com.sforce.soap.tooling.RunTestsRequest ):(com.sforce.soap.tooling.RunTestsResult) = {
-        var log = ""
         val runTestsResult = withRetry {
             val conn = getToolingConnection
             val res = conn.runTests(runTestsRequest)
@@ -723,7 +722,17 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }.asInstanceOf[com.sforce.soap.tooling.RunTestsResult]
         runTestsResult
     }
-    import collection.JavaConverters._
+
+    def runTestsAsyncTooling(classIds: List[String]):(String) = {
+        val runTestsResult = withRetry {
+            val conn = getToolingConnection
+            val res = conn.runTestsAsynchronous(classIds.mkString(","))
+            res
+
+        }.asInstanceOf[String]
+        runTestsResult
+    }
+
     /**
      * @param path - e.x. /sobjects/ApexLog/id/Body/
      * @param urlParameters: param1=aaa&paramX=123...
