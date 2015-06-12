@@ -11,7 +11,7 @@ import DefaultJsonProtocol._
 
 object SoqlQuery {
 
-    def queryAll(soqlQuery: String, session: Session, logger: Logging): Array[com.sforce.soap.partner.sobject.SObject] = {
+    def queryAllPartner(soqlQuery: String, session: Session, logger: Logging): Array[com.sforce.soap.partner.sobject.SObject] = {
         val records = Array.newBuilder[com.sforce.soap.partner.sobject.SObject]
         var queryResult = session.query(soqlQuery)
 
@@ -140,97 +140,6 @@ object SoqlQuery {
 }
 
 class SoqlQuery extends ApexAction {
-    override def act(): Unit = {
-        val outputFilePath = config.getRequiredProperty("outputFilePath").get
-        //make sure output file does not exist
-        FileUtils.delete(new File(outputFilePath))
-
-
-        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
-        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
-
-        val queryIterator = SoqlQuery.getQueryBatchIteratorPartner[com.sforce.soap.partner.sobject.SObject](session, soqlQuery)
-
-        def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
-            logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
-        }
-        queryIterator.setOnBatchComplete(onBatchComplete)
-
-        if (queryIterator.isEmpty) {
-            //looks like this is just a count() query
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_SIZE=" + queryIterator.size)
-            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryIterator.size))
-        } else {
-            val outputFile = new File(outputFilePath)
-            for (batch <- queryIterator) {
-                writeResults(batch, outputFile)
-            }
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_FILE=" + outputFilePath)
-
-        }
-
-        //dump first batch of results into the output file
-        /*
-        var queryResult = session.query(soqlQuery)
-        var loadedRecordCount = queryResult.getRecords.length
-        val size = queryResult.getSize
-        if (loadedRecordCount > 0) {
-            val outputFile = new File(outputFilePath)
-            writeResults(queryResult.getRecords, outputFile)
-
-            while (!queryResult.isDone) {
-                logger.info("Loaded " + loadedRecordCount + " out of " + size)
-                queryResult = session.queryMore(queryResult.getQueryLocator)
-                writeResults(queryResult.getRecords, outputFile)
-                loadedRecordCount += queryResult.getRecords.length
-            }
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_FILE=" + outputFilePath)
-        } else {
-           //looks like this is just a count() query
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_SIZE=" + size)
-            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))
-        }
-        */
-
-    }
-
-    def act2(): Unit = {
-        val outputFilePath = config.getRequiredProperty("outputFilePath").get
-        //make sure output file does not exist
-        FileUtils.delete(new File(outputFilePath))
-
-
-        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
-        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
-        //dump first batch of results into the output file
-        var queryResult = session.query(soqlQuery)
-        var loadedRecordCount = queryResult.getRecords.length
-        val size = queryResult.getSize
-        if (loadedRecordCount > 0) {
-            val outputFile = new File(outputFilePath)
-            writeResults(queryResult.getRecords, outputFile)
-
-            while (!queryResult.isDone) {
-                logger.info("Loaded " + loadedRecordCount + " out of " + size)
-                queryResult = session.queryMore(queryResult.getQueryLocator)
-                writeResults(queryResult.getRecords, outputFile)
-                loadedRecordCount += queryResult.getRecords.length
-            }
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_FILE=" + outputFilePath)
-        } else {
-            //looks like this is just a count() query
-            responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println("RESULT_SIZE=" + size)
-            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))
-        }
-
-    }
-
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -252,7 +161,73 @@ class SoqlQuery extends ApexAction {
         override def getName: String = "soqlQuery"
     }
 
-    def writeResults(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
+    override def act(): Unit = {
+
+
+        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
+        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
+
+        val queryIterator = SoqlQuery.getQueryBatchIteratorPartner[com.sforce.soap.partner.sobject.SObject](session, soqlQuery)
+
+        def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
+            logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
+        }
+        queryIterator.setOnBatchComplete(onBatchComplete)
+
+        responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("RESULT_SIZE=" + queryIterator.size)
+        if (queryIterator.isEmpty) {
+            //looks like this is just a count() query
+            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryIterator.size))
+        } else {
+            val outputFilePath = config.getRequiredProperty("outputFilePath").get
+            //make sure output file does not exist
+            FileUtils.delete(new File(outputFilePath))
+            val outputFile = new File(outputFilePath)
+            for (batch <- queryIterator) {
+                writeQueryBatchResults(batch, outputFile)
+            }
+            responseWriter.println("RESULT_FILE=" + outputFilePath)
+        }
+    }
+
+
+    /*
+    def act2(): Unit = {
+        val outputFilePath = config.getRequiredProperty("outputFilePath").get
+        //make sure output file does not exist
+        FileUtils.delete(new File(outputFilePath))
+
+
+        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
+        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
+        //dump first batch of results into the output file
+        var queryResult = session.query(soqlQuery)
+        var loadedRecordCount = queryResult.getRecords.length
+        val size = queryResult.getSize
+        if (loadedRecordCount > 0) {
+            val outputFile = new File(outputFilePath)
+            writeQueryBatchResults(queryResult.getRecords, outputFile)
+
+            while (!queryResult.isDone) {
+                logger.info("Loaded " + loadedRecordCount + " out of " + size)
+                queryResult = session.queryMore(queryResult.getQueryLocator)
+                writeQueryBatchResults(queryResult.getRecords, outputFile)
+                loadedRecordCount += queryResult.getRecords.length
+            }
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_FILE=" + outputFilePath)
+        } else {
+            //looks like this is just a count() query
+            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println("RESULT_SIZE=" + size)
+            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + size))
+        }
+
+    }
+    */
+
+    def writeQueryBatchResults(records: Array[com.sforce.soap.partner.sobject.SObject], outputFile: File): Unit = {
         config.getProperty("outputFormat") .getOrElse("pipe") match {
             case "json" => writeAsJsonLines(records, outputFile)
             case "plain" => writeAsPlainStrings(records, outputFile)
