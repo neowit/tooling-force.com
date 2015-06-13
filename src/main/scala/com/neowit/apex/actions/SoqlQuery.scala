@@ -609,3 +609,180 @@ class SoqlQuery extends ApexAction {
     }
 
 }
+
+object QueryResultJsonProtocol extends DefaultJsonProtocol {
+    implicit val queryResultFormat: JsonFormat[SoqlQueryRest.QueryResultJson] = lazyFormat(jsonFormat6(SoqlQueryRest.QueryResultJson))
+}
+
+class SoqlQueryRest extends ApexAction {
+
+    import SoqlQueryRest._
+    import QueryResultJsonProtocol._
+
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
+
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case "projectPath" => "--projectPath - full path to project folder"
+                case "queryFilePath" => "--queryFilePath - full path to file containing SOQL query to run"
+                case "responseFilePath" => "--responseFilePath - path to file where operation result will be reported"
+                case "api" => "--api=Partner|Tooling - type of API to make a query call"
+                case "outputFilePath" => "--outputFilePath - path to file where query result will be dumped in specified format"
+                case "outputFormat" => "--outputFormat [optional] - how query results will be formatted. Accepted values: 'json', 'pipe'(default), 'plain'(each field name/value on its own line)"
+                case _ => ""
+            }
+        }
+
+        override def getParamNames: List[String] = List("projectPath", "codeFile", "responseFilePath")
+
+        override def getSummary: String = "execute provided SOQL query and return results"
+
+        override def getName: String = "soqlQuery"
+    }
+    //this method should implement main logic of the action
+    override protected def act(): Unit = {
+        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
+        val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
+
+        val queryString = "q=" + soqlQuery.replaceAll(" ", "+")
+        val result = config.getProperty("api").getOrElse("Partner") match {
+            case "Partner" => session.getRestContentPartner("/query/", queryString)
+            case "Tooling" => session.getRestContentTooling("/query/", queryString)
+            case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+        }
+        result match {
+            case Some(doc) =>
+                println(doc)
+                val queryResult = parse(doc)
+                val queryIterator = new QueryBatchIterator(session, queryResult,
+                    (locator: String) => {
+                        val batchResult = config.getProperty("api").getOrElse("Partner") match {
+                            case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
+                            case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")
+                            case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+                        }
+                        batchResult match {
+                            case Some(batchDoc) => parse(batchDoc)
+                            case _ => throw new IllegalAccessError("Out of range")
+                        }
+                })
+
+                def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
+                    logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
+                }
+                queryIterator.setOnBatchComplete(onBatchComplete)
+                responseWriter.println("RESULT=SUCCESS")
+                responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
+
+                if (queryResult.totalSize < 1) {
+                    //looks like this is just a count() query
+                    responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryResult.totalSize))
+                } else {
+                    val outputFilePath = config.getRequiredProperty("outputFilePath").get
+                    //make sure output file does not exist
+                    FileUtils.delete(new File(outputFilePath))
+                    val outputFile = new File(outputFilePath)
+                    for (batch <- queryIterator) {
+                        writeQueryBatchResults(batch, outputFile)
+                    }
+
+                    responseWriter.println("RESULT_FILE=" + outputFilePath)
+                }
+            case None =>
+
+        }
+    }
+
+    private def parse(doc: String):QueryResultJson = {
+        val jsonAst = JsonParser(doc)
+        val queryResult = jsonAst.convertTo[QueryResultJson]
+
+        queryResult
+    }
+
+    def writeQueryBatchResults(records: List[JsObject], outputFile: File): Unit = {
+        config.getProperty("outputFormat").getOrElse("pipe") match {
+            //case "json" => writeAsJsonLines(records, outputFile)
+            case "plain" => writeAsPlainStrings(records, outputFile)
+            case "pipe" => writeAsPipeSeparatedLines(records, outputFile)
+            case x => throw new ShowHelpException(getHelp, "Invalid outputFormat: " + x)
+        }
+    }
+    private def writeAsPlainStrings(records: List[JsObject], outputFile: File): Unit = {
+        var i = 0
+        for (record <- records) {
+            for (field <- record.fields) {
+                val fName = field._1
+                if ("attributes" != fName) {
+                    val strValue = field._2
+                    FileUtils.writeFile(fName + ": " + strValue + "\n", outputFile, append = true)
+                    logger.debug("\n" + strValue)
+
+                }
+            }
+            FileUtils.writeFile("--------------" + "\n", outputFile, append = true)
+            logger.debug("\n" + "--------------")
+        }
+    }
+
+    private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File): Unit = {
+        //TODO implement
+        writeAsPlainStrings(records, outputFile)
+    }
+}
+
+
+
+object SoqlQueryRest {
+    case class QueryResultJson(size: Option[Int], totalSize: Int, done: Boolean, queryLocator: Option[String],
+                               entityTypeName: Option[String], records: List[JsObject])
+
+    class QueryBatchIterator(session: Session, queryResult: QueryResultJson, queryMoreFun: (String) => QueryResultJson) extends Iterator[List[JsObject]] {
+        private var queryResultInternal = queryResult
+        //private var onBatchCompleteFun:(Int, Int) => Unit = (0, 0) => Unit
+        private var onBatchCompleteFun = (totalRecordsLoaded: Int, batchNumber: Int) => {}
+        private var batchNumber = -1
+        private var totalRecordsLoaded = 0
+
+        override def hasNext: Boolean = !queryResultInternal.done || (size > 0 && batchNumber < 0)
+
+
+        override def isEmpty: Boolean = size < 1
+
+        override def next(): List[JsObject] = {
+            val records =
+                if (batchNumber < 0) {
+                    queryResultInternal.records
+                }  else if (queryResultInternal.done) {
+                    throw new IllegalAccessError("Out of range")
+                } else {
+                    queryResult.queryLocator match {
+                      case Some(locator) =>
+                          //query more
+                          queryResultInternal = queryMoreFun(locator)
+                          queryResultInternal.records
+                      case None => Nil
+                    }
+                }
+            batchNumber += 1
+            totalRecordsLoaded += records.length
+            //alert about batch completion
+            onBatchCompleteFun(totalRecordsLoaded, batchNumber)
+            records
+        }
+
+
+        override def size: Int = queryResult.totalSize
+        def getCurrentBatchSize: Int = queryResultInternal.records.length
+
+        /**
+         *
+         * @param fun: (totalRecordsLoaded: Int, batchNumber: Int) = {}
+         */
+        def setOnBatchComplete(fun: (Int, Int) => Unit): Unit = {
+            onBatchCompleteFun = fun
+        }
+        def getBatchNumber: Int = batchNumber
+    }
+}
