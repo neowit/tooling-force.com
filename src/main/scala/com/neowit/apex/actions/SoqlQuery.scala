@@ -755,14 +755,20 @@ object SoqlQueryRest {
     def getMaxWidthByColumn(records: List[ResultRecord]): Map[String, Int] = {
         var maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
         //find max column length for each column
-        for (record <- records) {
-            maxWidthByName ++= record.getColumnWidths.map{
-                case (fName, width) =>
-                    val maxWidth = maxWidthByName.get(fName) match {
-                        case Some(currWidth) => if (currWidth < width) width else currWidth
-                        case None => width
-                    }
-                    fName -> maxWidth
+        if (records.nonEmpty) {
+            //init with column names
+            val sampleRecord = records.head
+            maxWidthByName ++= sampleRecord.getFieldNames.map(fName => fName ->fName.length)
+            //process column values
+            for (record <- records) {
+                maxWidthByName ++= record.getColumnWidths.map{
+                    case (fName, width) =>
+                        val maxWidth = maxWidthByName.get(fName) match {
+                            case Some(currWidth) => if (currWidth < width) width else currWidth
+                            case None => width
+                        }
+                        fName -> maxWidth
+                }
             }
         }
         maxWidthByName.toMap
@@ -821,6 +827,8 @@ object SoqlQueryRest {
         def getBatchNumber: Int = batchNumber
     }
 
+    import QueryResultJsonProtocol._
+
     class ResultRecord(record: JsObject) {
         /**
          * @return - only Own field names, no related records included
@@ -842,9 +850,11 @@ object SoqlQueryRest {
         /**
          * @return - only child record-sets
          */
-        def getChildRecords: List[ResultRecord] = {
+        def getChildResultContainers: List[QueryResultJson] = {
             val jsObjects = record.fields.filter{case (name, value) => isChildRecord(name, value)}.values.map(_.asJsObject).toList
-            jsObjects.flatMap(obj => obj.fields("records").asInstanceOf[JsArray].elements.map(rec => new ResultRecord(rec.asJsObject)))
+            //jsObjects.flatMap(obj => obj.fields("records").asInstanceOf[JsArray].elements.map(rec => new ResultRecord(rec.asJsObject)))
+            jsObjects.map(_.convertTo[QueryResultJson])
+
         }
         def getColumnWidths: Map[String, Int] = {
             val widthByName = Map.newBuilder[String, Int]
@@ -863,27 +873,46 @@ object SoqlQueryRest {
                 case v => v.toString()
             }
         }
-        def toPipeDelimited(sizeByName: Map[String, Int]): List[String] = {
-            val mainLine = getOwnColumns.map{
-                case (fName, value) => value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")
+        def getHeader(fieldNames: List[String], maxWidthByName: Map[String, Int]): String = {
+            val header = fieldNames.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
+            header
+        }
+        def toPipeDelimited(sizeByName: Map[String, Int], shiftLeft:Int = 0): List[String] = {
+            val mainLine = "".padTo(shiftLeft, " ").mkString + getOwnColumns.map{
+                case (fName, value) =>
+                    value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")
             }.mkString("|")
 
             //process child records
             val childRecordsPipeDelimited = List.newBuilder[String]
-            val childRecords = getChildRecords
-            if (childRecords.nonEmpty) {
-                val maxWidthByName = getMaxWidthByColumn(childRecords)
-                //TODO add headers and object type
-                childRecordsPipeDelimited ++= childRecords.flatMap(_.toPipeDelimited(maxWidthByName))
+            val childContainers = getChildResultContainers
+            for (childContainer <- childContainers) {
+                val childRecords = childContainer.records.map(new ResultRecord(_))
+                if (childRecords.nonEmpty) {
+                    val maxWidthByName = getMaxWidthByColumn(childRecords)
+                    val sampleRecord = childRecords.head
+                    val relationshipName = sampleRecord.getAttribute("type").getOrElse("")
+                    val indentation = relationshipName + " => |"
+                    val shiftLeft = indentation.length
+                    val header = sampleRecord.getHeader(sampleRecord.getFieldNames, maxWidthByName)
+                    childRecordsPipeDelimited += (indentation + header)
+                    childRecordsPipeDelimited ++= childRecords.flatMap(_.toPipeDelimited(maxWidthByName, shiftLeft))
+                }
+
             }
             mainLine :: childRecordsPipeDelimited.result()
         }
+        private def getAttribute(name: String): Option[JsValue] = {
+            val attrs = record.fields("attributes")
+            if (attrs.asJsObject.fields.contains(name)) Some(attrs.asJsObject.fields(name)) else None
+
+        }
 
         private def isOwnColumn(fName: String, fValue: JsValue): Boolean = {
-            "attributes" != fName && !fValue.isInstanceOf[JsObject]
+            "attributes" != fName && null != fValue && "null" != fValue.toString() && !fValue.isInstanceOf[JsObject]
         }
         private def isChildRecord(fName: String, fValue: JsValue): Boolean = {
-            "attributes" != fName && fValue.isInstanceOf[JsObject]
+            "attributes" != fName && null != fValue && "null" != fValue.toString() && fValue.isInstanceOf[JsObject]
         }
     }
 }
