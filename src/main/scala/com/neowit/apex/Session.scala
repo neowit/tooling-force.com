@@ -19,7 +19,7 @@
 
 package com.neowit.apex
 
-import java.net.URL
+import java.net.{HttpURLConnection, URL}
 import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
 
@@ -31,6 +31,8 @@ import scala.concurrent._
 import collection.JavaConverters._
 import java.io._
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
+
+import scala.util.{Failure, Success, Try}
 
 /**
  * manages local data store related to specific project
@@ -477,7 +479,58 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         conn
     }
 
-    def withRetry(codeBlock: => Any) = {
+    /**
+     * @param connectorConfig - e.g. getToolingConnection.getConfig
+     * @param apiPath e.g. /tooling or blank for Partner API
+     * @param path - API specific path, e.g. "/query/" for /query/?q=...
+     * @param urlParameters - query string, e.g. "q=select+Id+from+User"
+     * @param httpHeaders - any extra HTTP headers
+     * @return
+     */
+    private def getRestContent(connectorConfig: com.sforce.ws.ConnectorConfig, apiPath: String,
+                               path: String, urlParameters: String = "",
+                               httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+                                  ): Try[String] = {
+        val endpointUrl = new URL(connectorConfig.getServiceEndpoint)
+        //get protocol and domain, e.g.:  https://na1.salesforce.com/
+        val domain = endpointUrl.getProtocol + "://" + endpointUrl.getHost + "/"
+
+        val queryStr:String = if ("" != urlParameters) "?" + urlParameters else ""
+        val url = domain + s"services/data/v${config.apiVersion}$apiPath" + path + queryStr
+        val conn = connectorConfig.createConnection(new URL(url), httpHeaders, true)
+        conn.setRequestProperty("Authorization", "Bearer " + getPartnerConnection.getSessionHeader.getSessionId)
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestMethod("GET")
+        conn.setDoOutput(true)
+        conn.setDoInput(true)
+        //conn.connect()
+        //conn.setReadTimeout(...)
+
+        //send request
+        val responseCode = conn.getResponseCode
+        if (200 == responseCode) {
+            val in = conn.getInputStream
+            val text = conn.getContentEncoding match {
+                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+            }
+            //TODO consider saving into file, as whole stream may not fit in RAM
+            in.close()
+            Success(text)
+        } else {
+            if (401 == responseCode) { //Unauthorized
+                throw new UnauthorizedConnectionException(conn)
+            } else {
+                logger.error(s"Request Failed - URL=$url")
+                logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
+                throw new ConnectionException(conn)
+            }
+        }
+    }
+    case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
+    case class UnauthorizedConnectionException(connection: HttpURLConnection) extends RuntimeException
+
+    private def withRetry(codeBlock: => Any) = {
         try {
             codeBlock
         } catch {
@@ -497,6 +550,32 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                 throw ex
         }
     }
+
+    /**
+     * use this for sending REST requests, as opposed to withRetry{} which is for SOAP requests
+     * @param codeBlock - unit of code to execute
+     * @return
+     */
+    private def withRetryRest(codeBlock: => Any) = {
+        try {
+            codeBlock
+        } catch {
+            case ex:UnauthorizedConnectionException =>
+                logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
+                logger.trace(ex)
+                reset()
+                //run once again
+                codeBlock
+            case ex: ConnectionException =>
+                logger.trace(ex)
+                reset()
+                //run once again
+                codeBlock
+            case ex:Throwable =>
+                throw ex
+        }
+    }
+
     def reset() {
         sessionProperties.remove("session")
         storeSessionData()
@@ -519,6 +598,24 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         getData("UserInfo")("UserId").asInstanceOf[String]
     }
     /***************** PartnerConnection ********************************************/
+    /**
+     * @param path - e.x. /sobjects/ApexLog/id/Body/
+     * @param urlParameters: param1=aaa&paramX=123...
+     * @return
+     */
+    def getRestContentPartner(path: String, urlParameters: String = "",
+                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
+        val text = withRetryRest {
+            val connectorConfig = getPartnerConnection.getConfig
+
+            getRestContent(connectorConfig,"", path, urlParameters, httpHeaders) match {
+                case Success(responseText) => responseText
+                case Failure(ex) => throw ex
+            }
+        }.asInstanceOf[String]
+        Some(text)
+    }
+
     def getServerTimestamp = {
         withRetry {
             getPartnerConnection.getServerTimestamp
@@ -652,6 +749,30 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     /***************** ToolingConnection ********************************************/
+
+    /**
+     * @param path - e.x. /sobjects/ApexLog/id/Body/
+     * @param urlParameters: param1=aaa&paramX=123...
+     * @return
+     */
+    def getRestContentTooling(path: String, urlParameters: String = "",
+                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
+        val text = withRetryRest {
+            val connectorConfig = getToolingConnection.getConfig
+            //convert this:
+            //  https://domain/services/Soap/T/33.0/00Dg0000006S2Wp
+            //to this:
+            //  https://domain/services/data/v33.0/tooling/sobjects/ApexLog/id/Body/
+            //val domainEndIndex = connectorConfig.getServiceEndpoint.indexOf("services/Soap/T")
+            //val domain = connectorConfig.getServiceEndpoint.substring(0, domainEndIndex)
+            getRestContent(connectorConfig, "/tooling", path, urlParameters, httpHeaders) match {
+                case Success(responseText) => responseText
+                case Failure(ex) => throw ex
+            }
+        }.asInstanceOf[String]
+        Some(text)
+    }
+
     def describeTooling:com.sforce.soap.tooling.DescribeGlobalResult = {
         val describeResult = withRetry {
             val conn = getToolingConnection
@@ -739,51 +860,6 @@ class Session(val basicConfig: BasicConfig) extends Logging {
 
         }.asInstanceOf[String]
         runTestsResult
-    }
-
-    /**
-     * @param path - e.x. /sobjects/ApexLog/id/Body/
-     * @param urlParameters: param1=aaa&paramX=123...
-     * @return
-     */
-    def getRestContentTooling(path: String, urlParameters: String = "",
-                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
-        val connectorConfig = getToolingConnection.getConfig
-        //convert this:
-        //  https://domain/services/Soap/T/33.0/00Dg0000006S2Wp
-        //to this:
-        //  https://domain/services/data/v33.0/tooling/sobjects/ApexLog/id/Body/
-        val domainEndIndex = connectorConfig.getServiceEndpoint.indexOf("services/Soap/T")
-        val domain = connectorConfig.getServiceEndpoint.substring(0, domainEndIndex)
-
-        val queryStr:String = if ("" != urlParameters) "?" + urlParameters else ""
-        val url = domain + s"services/data/v${config.apiVersion}/tooling" + path + queryStr
-        val conn = connectorConfig.createConnection(new URL(url), httpHeaders, true)
-        conn.setRequestProperty("Authorization", "Bearer " + getPartnerConnection.getSessionHeader.getSessionId)
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.setRequestMethod("GET")
-        conn.setDoOutput(true)
-        conn.setDoInput(true)
-        //conn.connect()
-        //conn.setReadTimeout(...)
-
-
-        //send request
-        val responseCode = conn.getResponseCode
-        if (200 == responseCode) {
-            val in = conn.getInputStream
-            val text = conn.getContentEncoding match {
-                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
-                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
-            }
-            //val res = io.Source.fromInputStream(in).mkString("")
-            in.close()
-            Some(text)
-        } else {
-            logger.error(s"Request Failed - URL=$url")
-            logger.error(s"Response Code: $responseCode")
-            None
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
