@@ -731,27 +731,14 @@ class SoqlQueryRest extends ApexAction {
 
     private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
 
-        //prepare headers
-        var maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
         //find max column length for each column
-        for (record <- records) {
-            val resultRecord = new ResultRecord(record)
-            maxWidthByName ++= resultRecord.getColumnWidths.map{
-                case (fName, width) =>
-                    val maxWidth = maxWidthByName.get(fName) match {
-                        case Some(currWidth) => if (currWidth < width) width else currWidth
-                        case None => width
-                    }
-                    fName -> maxWidth
-            }
-        }
-        //display everything
-        val maxWidthByNameMap = maxWidthByName.toMap
+        val resultRecords = records.map(new ResultRecord(_))
+        val maxWidthByName = getMaxWidthByColumn(resultRecords)
         //prepare header display string
         val header = maxWidthByName.keys.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
         val headerDivider = "".padTo(maxWidthByName.values.sum, "-").mkString("")
         //prepare rows
-        val rows = records.map(new ResultRecord(_).toPipeDelimited(maxWidthByNameMap))
+        val rows = records.flatMap(new ResultRecord(_).toPipeDelimited(maxWidthByName))
 
         val allLines = if (displayHeader) header :: headerDivider :: rows else rows
         FileUtils.writeFile(allLines.mkString("\n"), outputFile, append = true)
@@ -765,6 +752,21 @@ object SoqlQueryRest {
     case class QueryResultJson(size: Option[Int], totalSize: Int, done: Boolean, queryLocator: Option[String],
                                entityTypeName: Option[String], records: List[JsObject])
 
+    def getMaxWidthByColumn(records: List[ResultRecord]): Map[String, Int] = {
+        var maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
+        //find max column length for each column
+        for (record <- records) {
+            maxWidthByName ++= record.getColumnWidths.map{
+                case (fName, width) =>
+                    val maxWidth = maxWidthByName.get(fName) match {
+                        case Some(currWidth) => if (currWidth < width) width else currWidth
+                        case None => width
+                    }
+                    fName -> maxWidth
+            }
+        }
+        maxWidthByName.toMap
+    }
     /**
      *
      * @param session - Session
@@ -840,8 +842,9 @@ object SoqlQueryRest {
         /**
          * @return - only child record-sets
          */
-        def getChildRecords: List[JsObject] = {
-            record.fields.filter{case (name, value) => isChildRecord(name, value)}.values.map(_.asJsObject).toList
+        def getChildRecords: List[ResultRecord] = {
+            val jsObjects = record.fields.filter{case (name, value) => isChildRecord(name, value)}.values.map(_.asJsObject).toList
+            jsObjects.flatMap(obj => obj.fields("records").asInstanceOf[JsArray].elements.map(rec => new ResultRecord(rec.asJsObject)))
         }
         def getColumnWidths: Map[String, Int] = {
             val widthByName = Map.newBuilder[String, Int]
@@ -860,11 +863,20 @@ object SoqlQueryRest {
                 case v => v.toString()
             }
         }
-        def toPipeDelimited(sizeByName: Map[String, Int]): String = {
-            val columns = getOwnColumns.map{case (fName, value) => value.toString().padTo(sizeByName(fName), " ")}.toList
-            val str = getOwnColumns.map{case (fName, value) => value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")}.mkString("|")
-            //TODO here str is looking like: Vector(", 0, 0, 5, i, 0, 0, 0, 0, 0, 0, 1, W, m, L, 5, A, A, K, ")
-            str
+        def toPipeDelimited(sizeByName: Map[String, Int]): List[String] = {
+            val mainLine = getOwnColumns.map{
+                case (fName, value) => value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")
+            }.mkString("|")
+
+            //process child records
+            val childRecordsPipeDelimited = List.newBuilder[String]
+            val childRecords = getChildRecords
+            if (childRecords.nonEmpty) {
+                val maxWidthByName = getMaxWidthByColumn(childRecords)
+                //TODO add headers and object type
+                childRecordsPipeDelimited ++= childRecords.flatMap(_.toPipeDelimited(maxWidthByName))
+            }
+            mainLine :: childRecordsPipeDelimited.result()
         }
 
         private def isOwnColumn(fName: String, fValue: JsValue): Boolean = {
