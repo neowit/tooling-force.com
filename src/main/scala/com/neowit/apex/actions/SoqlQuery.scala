@@ -683,8 +683,11 @@ class SoqlQueryRest extends ApexAction {
                     //make sure output file does not exist
                     FileUtils.delete(new File(outputFilePath))
                     val outputFile = new File(outputFilePath)
+
+                    var displayHeader = true
                     for (batch <- queryIterator) {
-                        writeQueryBatchResults(batch, outputFile)
+                        writeQueryBatchResults(batch, outputFile, displayHeader)
+                        displayHeader = false
                     }
 
                     responseWriter.println("RESULT_FILE=" + outputFilePath)
@@ -701,11 +704,11 @@ class SoqlQueryRest extends ApexAction {
         queryResult
     }
 
-    def writeQueryBatchResults(records: List[JsObject], outputFile: File): Unit = {
+    def writeQueryBatchResults(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
         config.getProperty("outputFormat").getOrElse("pipe") match {
             //case "json" => writeAsJsonLines(records, outputFile)
             case "plain" => writeAsPlainStrings(records, outputFile)
-            case "pipe" => writeAsPipeSeparatedLines(records, outputFile)
+            case "pipe" => writeAsPipeSeparatedLines(records, outputFile, displayHeader)
             case x => throw new ShowHelpException(getHelp, "Invalid outputFormat: " + x)
         }
     }
@@ -726,9 +729,33 @@ class SoqlQueryRest extends ApexAction {
         }
     }
 
-    private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File): Unit = {
-        //TODO implement
-        writeAsPlainStrings(records, outputFile)
+    private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
+
+        //prepare headers
+        var maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
+        //find max column length for each column
+        for (record <- records) {
+            val resultRecord = new ResultRecord(record)
+            maxWidthByName ++= resultRecord.getColumnWidths.map{
+                case (fName, width) =>
+                    val maxWidth = maxWidthByName.get(fName) match {
+                        case Some(currWidth) => if (currWidth < width) width else currWidth
+                        case None => width
+                    }
+                    fName -> maxWidth
+            }
+        }
+        //display everything
+        val maxWidthByNameMap = maxWidthByName.toMap
+        //prepare header display string
+        val header = maxWidthByName.keys.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
+        val headerDivider = "".padTo(maxWidthByName.values.sum, "-").mkString("")
+        //prepare rows
+        val rows = records.map(new ResultRecord(_).toPipeDelimited(maxWidthByNameMap))
+
+        val allLines = if (displayHeader) header :: headerDivider :: rows else rows
+        FileUtils.writeFile(allLines.mkString("\n"), outputFile, append = true)
+        logger.debug(allLines.mkString("\n"))
     }
 }
 
@@ -738,6 +765,12 @@ object SoqlQueryRest {
     case class QueryResultJson(size: Option[Int], totalSize: Int, done: Boolean, queryLocator: Option[String],
                                entityTypeName: Option[String], records: List[JsObject])
 
+    /**
+     *
+     * @param session - Session
+     * @param queryResult - result of initial query
+     * @param queryMoreFun - function which does "query-more" call and accepts query-locator (query identifier)
+     */
     class QueryBatchIterator(session: Session, queryResult: QueryResultJson, queryMoreFun: (String) => QueryResultJson) extends Iterator[List[JsObject]] {
         private var queryResultInternal = queryResult
         //private var onBatchCompleteFun:(Int, Int) => Unit = (0, 0) => Unit
@@ -784,5 +817,61 @@ object SoqlQueryRest {
             onBatchCompleteFun = fun
         }
         def getBatchNumber: Int = batchNumber
+    }
+
+    class ResultRecord(record: JsObject) {
+        /**
+         * @return - only Own field names, no related records included
+         */
+        def getFieldNames: List[String] = {
+            val names = record.fields.filter{case (name, value) => isOwnColumn(name, value)}.keys.toList
+            names
+        }
+        /**
+         * @return - only Own field values, no related records included
+         */
+        def getFieldValues: List[JsValue] = {
+            val values = record.fields.filter{case (name, value) => isOwnColumn(name, value)}.values.toList
+            values
+        }
+        def getOwnColumns: List[(String, JsValue)] = {
+            record.fields.filter{case (name, value) => isOwnColumn(name, value)}.map{case (name, value) => (name, value)}.toList
+        }
+        /**
+         * @return - only child record-sets
+         */
+        def getChildRecords: List[JsObject] = {
+            record.fields.filter{case (name, value) => isChildRecord(name, value)}.values.map(_.asJsObject).toList
+        }
+        def getColumnWidths: Map[String, Int] = {
+            val widthByName = Map.newBuilder[String, Int]
+            for (fName <- getFieldNames) {
+                val fVal = record.fields(fName)
+                widthByName += fName -> fVal.compactPrint.length
+            }
+            widthByName.result()
+        }
+
+        def jsPrinter(value: JsValue): String = {
+            value match {
+                case v:JsString => v.value
+                case v:JsNumber => v.value.toString()
+                case v:JsBoolean => v.value.toString
+                case v => v.toString()
+            }
+        }
+        def toPipeDelimited(sizeByName: Map[String, Int]): String = {
+            val columns = getOwnColumns.map{case (fName, value) => value.toString().padTo(sizeByName(fName), " ")}.toList
+            val str = getOwnColumns.map{case (fName, value) => value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")}.mkString("|")
+            //TODO here str is looking like: Vector(", 0, 0, 5, i, 0, 0, 0, 0, 0, 0, 1, W, m, L, 5, A, A, K, ")
+            str
+        }
+
+        private def isOwnColumn(fName: String, fValue: JsValue): Boolean = {
+            "attributes" != fName && !fValue.isInstanceOf[JsObject]
+        }
+        private def isChildRecord(fName: String, fValue: JsValue): Boolean = {
+            "attributes" != fName && fValue.isInstanceOf[JsObject]
+        }
     }
 }
