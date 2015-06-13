@@ -49,7 +49,7 @@ object SoqlQuery {
         //private var onBatchCompleteFun:(Int, Int) => Unit = (0, 0) => Unit
         private var onBatchCompleteFun = (totalRecordsLoaded: Int, batchNumber: Int) => {}
         private var batchNumber = -1
-        private var totalRecordsLoaded = queryResult.getRecords.length
+        private var totalRecordsLoaded = 0
 
         override def hasNext: Boolean = !queryResultInternal.isDone || (size > 0 && batchNumber < 0)
 
