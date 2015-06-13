@@ -21,6 +21,7 @@ package com.neowit.apex
 
 import java.net.URL
 import java.security.MessageDigest
+import java.util.zip.GZIPInputStream
 
 import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
@@ -771,9 +772,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         val responseCode = conn.getResponseCode
         if (200 == responseCode) {
             val in = conn.getInputStream
-            val res = io.Source.fromInputStream(in).mkString("")
+            val text = conn.getContentEncoding match {
+                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+            }
+            //val res = io.Source.fromInputStream(in).mkString("")
             in.close()
-            Some(res)
+            Some(text)
         } else {
             logger.error(s"Request Failed - URL=$url")
             logger.error(s"Response Code: $responseCode")
