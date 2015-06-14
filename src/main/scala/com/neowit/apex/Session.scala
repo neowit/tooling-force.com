@@ -38,6 +38,9 @@ import scala.util.{Failure, Success, Try}
  * manages local data store related to specific project
  */
 object Session {
+    case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
+    case class UnauthorizedConnectionException(connection: HttpURLConnection) extends RuntimeException
+
     def apply(basicConfig: BasicConfig) = new Session(basicConfig)
 }
 
@@ -519,16 +522,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             Success(text)
         } else {
             if (401 == responseCode) { //Unauthorized
-                throw new UnauthorizedConnectionException(conn)
+                throw new Session.UnauthorizedConnectionException(conn)
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                throw new ConnectionException(conn)
+                throw new Session.ConnectionException(conn)
             }
         }
     }
-    case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
-    case class UnauthorizedConnectionException(connection: HttpURLConnection) extends RuntimeException
 
     private def withRetry(codeBlock: => Any) = {
         try {
@@ -560,13 +561,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         try {
             codeBlock
         } catch {
-            case ex:UnauthorizedConnectionException =>
+            case ex:Session.UnauthorizedConnectionException =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
                 reset()
                 //run once again
                 codeBlock
-            case ex: ConnectionException =>
+            case ex: Session.ConnectionException =>
                 logger.trace(ex)
                 reset()
                 //run once again

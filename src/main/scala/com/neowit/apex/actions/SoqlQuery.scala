@@ -5,6 +5,8 @@ import com.neowit.apex.Session
 import com.neowit.utils.{Logging, ResponseWriter, FileUtils}
 import com.sforce.ws.bind.XmlObject
 
+import scala.util.{Failure, Success, Try}
+
 //import collection.JavaConverters._
 import spray.json._
 import DefaultJsonProtocol._
@@ -654,53 +656,63 @@ class SoqlQueryRest extends ApexAction {
         val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
 
         val queryString = "q=" + soqlQuery.replaceAll(" ", "+")
-        val result = config.getProperty("api").getOrElse("Partner") match {
-            case "Partner" => session.getRestContentPartner("/query/", queryString)
-            case "Tooling" => session.getRestContentTooling("/query/", queryString)
-            case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+        val requestResult = config.getProperty("api").getOrElse("Partner") match {
+            case "Partner" => Try(session.getRestContentPartner("/query/", queryString))
+            case "Tooling" => Try(session.getRestContentTooling("/query/", queryString))
+            case x => Try(throw new ShowHelpException(getHelp, "Invalid API: " + x))
         }
-        result match {
-            case Some(doc) =>
-                val queryResult = parse(doc)
-                val queryIterator = new QueryBatchIterator(session, queryResult,
-                    (locator: String) => {
-                        val batchResult = config.getProperty("api").getOrElse("Partner") match {
-                            case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
-                            case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")
-                            case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+        requestResult match {
+            case Success(result) =>
+                result match {
+                    case Some(doc) =>
+                        val queryResult = parse(doc)
+                        val queryIterator = new QueryBatchIterator(session, queryResult,
+                            (locator: String) => {
+                                val batchResult = config.getProperty("api").getOrElse("Partner") match {
+                                    case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
+                                    case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")
+                                    case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+                                }
+                                batchResult match {
+                                    case Some(batchDoc) => parse(batchDoc)
+                                    case _ => throw new IllegalAccessError("Out of range")
+                                }
+                            })
+
+                        def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
+                            logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
                         }
-                        batchResult match {
-                            case Some(batchDoc) => parse(batchDoc)
-                            case _ => throw new IllegalAccessError("Out of range")
+                        queryIterator.setOnBatchComplete(onBatchComplete)
+                        responseWriter.println("RESULT=SUCCESS")
+                        responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
+
+                        if (queryResult.totalSize < 1) {
+                            //looks like this is just a count() query
+                            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryResult.totalSize))
+                        } else {
+                            val outputFilePath = config.getRequiredProperty("outputFilePath").get
+                            //make sure output file does not exist
+                            FileUtils.delete(new File(outputFilePath))
+                            val outputFile = new File(outputFilePath)
+
+                            var displayHeader = true
+                            for (batch <- queryIterator) {
+                                writeQueryBatchResults(batch, outputFile, displayHeader)
+                                displayHeader = false
+                            }
+
+                            responseWriter.println("RESULT_FILE=" + outputFilePath)
                         }
-                })
-
-                def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
-                    logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
+                    case None =>
+            }
+            case Failure(result) =>
+                responseWriter.println("RESULT=FAILURE")
+                result match {
+                    case ex: Session.ConnectionException if null != ex.connection =>
+                        responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
+                    case _ =>
+                        responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, result.getMessage))
                 }
-                queryIterator.setOnBatchComplete(onBatchComplete)
-                responseWriter.println("RESULT=SUCCESS")
-                responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
-
-                if (queryResult.totalSize < 1) {
-                    //looks like this is just a count() query
-                    responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryResult.totalSize))
-                } else {
-                    val outputFilePath = config.getRequiredProperty("outputFilePath").get
-                    //make sure output file does not exist
-                    FileUtils.delete(new File(outputFilePath))
-                    val outputFile = new File(outputFilePath)
-
-                    var displayHeader = true
-                    for (batch <- queryIterator) {
-                        writeQueryBatchResults(batch, outputFile, displayHeader)
-                        displayHeader = false
-                    }
-
-                    responseWriter.println("RESULT_FILE=" + outputFilePath)
-                }
-            case None =>
-
         }
     }
 
