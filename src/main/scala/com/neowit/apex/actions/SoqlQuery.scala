@@ -611,7 +611,7 @@ class SoqlQuery extends ApexAction {
 }
 
 object QueryResultJsonProtocol extends DefaultJsonProtocol {
-    implicit val queryResultFormat: JsonFormat[SoqlQueryRest.QueryResultJson] = lazyFormat(jsonFormat6(SoqlQueryRest.QueryResultJson))
+    implicit val queryResultFormat: JsonFormat[SoqlQueryRest.QueryResultJson] = lazyFormat(jsonFormat7(SoqlQueryRest.QueryResultJson))
 }
 
 class SoqlQueryRest extends ApexAction {
@@ -629,7 +629,15 @@ class SoqlQueryRest extends ApexAction {
                 case "responseFilePath" => "--responseFilePath - path to file where operation result will be reported"
                 case "api" => "--api=Partner|Tooling - type of API to make a query call"
                 case "outputFilePath" => "--outputFilePath - path to file where query result will be dumped in specified format"
-                case "outputFormat" => "--outputFormat [optional] - how query results will be formatted. Accepted values: 'json', 'pipe'(default), 'plain'(each field name/value on its own line)"
+                case "outputFormat" =>
+                    """--outputFormat [optional] - how query results will be formatted.
+                      |  Accepted values: 'json', 'pipe'(default), 'plain'
+                      |  - json: each record from main query is serialised into JSON and placed in its own line in the file
+                      |         Note: the resulting file is not valid JSON, but each of its lines is valid JSON
+                      |               this allows reading and de-serializing file 1 record at a time.
+                      |  - pipe: pretty printed version of query result
+                      |  - plain: each field name/value on its own line
+                      """.stripMargin
                 case _ => ""
             }
         }
@@ -653,7 +661,6 @@ class SoqlQueryRest extends ApexAction {
         }
         result match {
             case Some(doc) =>
-                println(doc)
                 val queryResult = parse(doc)
                 val queryIterator = new QueryBatchIterator(session, queryResult,
                     (locator: String) => {
@@ -706,11 +713,15 @@ class SoqlQueryRest extends ApexAction {
 
     def writeQueryBatchResults(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
         config.getProperty("outputFormat").getOrElse("pipe") match {
-            //case "json" => writeAsJsonLines(records, outputFile)
+            case "json" => writeAsJson(records, outputFile)
             case "plain" => writeAsPlainStrings(records, outputFile)
             case "pipe" => writeAsPipeSeparatedLines(records, outputFile, displayHeader)
-            case x => throw new ShowHelpException(getHelp, "Invalid outputFormat: " + x)
+            case x => throw new ShowHelpException(getHelp, "Unsupported outputFormat: " + x)
         }
+    }
+    private def writeAsJson(records: List[JsObject], outputFile: File): Unit = {
+        val lines = records.map(_.toJson)
+        FileUtils.writeFile(lines.mkString("\n"), outputFile, append = true)
     }
     private def writeAsPlainStrings(records: List[JsObject], outputFile: File): Unit = {
         var i = 0
@@ -736,20 +747,21 @@ class SoqlQueryRest extends ApexAction {
         val maxWidthByName = getMaxWidthByColumn(resultRecords)
         //prepare header display string
         val header = maxWidthByName.keys.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
-        val headerDivider = "".padTo(maxWidthByName.values.sum, "-").mkString("")
+        val headerDivider = "".padTo(maxWidthByName.values.sum, "=").mkString("")
         //prepare rows
         val rows = records.flatMap(new ResultRecord(_).toPipeDelimited(maxWidthByName))
 
         val allLines = if (displayHeader) header :: headerDivider :: rows else rows
-        FileUtils.writeFile(allLines.mkString("\n"), outputFile, append = true)
-        logger.debug(allLines.mkString("\n"))
+        FileUtils.writeFile(allLines.mkString("\n") + "\n", outputFile, append = true)
+        //logger.debug(allLines.mkString("\n"))
     }
 }
 
 
 
 object SoqlQueryRest {
-    case class QueryResultJson(size: Option[Int], totalSize: Int, done: Boolean, queryLocator: Option[String],
+    case class QueryResultJson(size: Option[Int], totalSize: Int, done: Boolean,
+                               queryLocator: Option[String], nextRecordsUrl: Option[String],
                                entityTypeName: Option[String], records: List[JsObject])
 
     def getMaxWidthByColumn(records: List[ResultRecord]): Map[String, Int] = {
@@ -798,12 +810,22 @@ object SoqlQueryRest {
                 }  else if (queryResultInternal.done) {
                     throw new IllegalAccessError("Out of range")
                 } else {
-                    queryResult.queryLocator match {
+                    queryResultInternal.queryLocator match {
                       case Some(locator) =>
                           //query more
                           queryResultInternal = queryMoreFun(locator)
                           queryResultInternal.records
-                      case None => Nil
+                      case None =>
+                          queryResultInternal.nextRecordsUrl match {
+                            case Some(nextRecordsUrl) =>
+                                //Tooling Api uses full path format, as opposed to locator only, like Partner API
+                                //convert from: "/services/data/v33.0/query/01gg000000JcuQQAAZ-124"
+                                //to: "01gg000000JcuQQAAZ-124"
+                                val locator = nextRecordsUrl.split("/").last
+                                queryResultInternal = queryMoreFun(locator)
+                                queryResultInternal.records
+                            case None => Nil
+                          }
                     }
                 }
             batchNumber += 1
@@ -886,9 +908,11 @@ object SoqlQueryRest {
             //process child records
             val childRecordsPipeDelimited = List.newBuilder[String]
             val childContainers = getChildResultContainers
+            var hasChildRecords = false
             for (childContainer <- childContainers) {
                 val childRecords = childContainer.records.map(new ResultRecord(_))
                 if (childRecords.nonEmpty) {
+                    hasChildRecords = true
                     val maxWidthByName = getMaxWidthByColumn(childRecords)
                     val sampleRecord = childRecords.head
                     val relationshipName = sampleRecord.getAttribute("type").getOrElse("")
@@ -898,7 +922,10 @@ object SoqlQueryRest {
                     childRecordsPipeDelimited += (indentation + header)
                     childRecordsPipeDelimited ++= childRecords.flatMap(_.toPipeDelimited(maxWidthByName, shiftLeft))
                 }
-
+            }
+            if (hasChildRecords) {
+                val divider = "".padTo(sizeByName.values.sum, "-").mkString("")
+                childRecordsPipeDelimited += divider
             }
             mainLine :: childRecordsPipeDelimited.result()
         }
