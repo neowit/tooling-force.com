@@ -754,11 +754,13 @@ class SoqlQueryRest extends ApexAction {
 
     private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
 
+        if (records.nonEmpty) {
         //find max column length for each column
         val resultRecords = records.map(new ResultRecord(_))
         val maxWidthByName = getMaxWidthByColumn(resultRecords)
         //prepare header display string
-        val header = maxWidthByName.keys.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
+            val sampleRecord = resultRecords.head
+            val header = sampleRecord.getFieldNames.map(fName => fName.padTo(maxWidthByName(fName), " ").mkString("")).mkString("|")
         val headerDivider = "".padTo(maxWidthByName.values.sum, "=").mkString("")
         //prepare rows
         val rows = records.flatMap(new ResultRecord(_).toPipeDelimited(maxWidthByName))
