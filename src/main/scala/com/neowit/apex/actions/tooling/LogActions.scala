@@ -3,8 +3,9 @@ package com.neowit.apex.actions.tooling
 import java.io.File
 
 import com.neowit.apex.Session
+import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ApexAction}
-import com.neowit.utils.{ZuluTime, ResponseWriter, ConfigValueException, FileUtils}
+import com.neowit.utils.{ResponseWriter, ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 
 import spray.json._
@@ -58,7 +59,6 @@ class ChangeLogLevels extends ApexAction {
 
         setupTrace(traceFlagMap, session, logger) match {
             case Success(traceFlagId) =>
-                //TODO generate response file
                 responseWriter.println("RESULT=SUCCESS")
             case Failure(e) =>
                 responseWriter.println("RESULT=FAILURE")
@@ -95,7 +95,16 @@ class ChangeLogLevels extends ApexAction {
         }
         traceFlagMap
     }
-    private def saveTraceFlagConfig(traceFlagMap: Map[String, String]) = {
+
+    /**
+     * traceFlagConfig={"ApexProfiling" : "Error", "Validation" : "Error", "Database" : "Error", "Workflow" : "Error",
+     *                  "ApexCode" : "Debug", "System" : "Error", "Visualforce" : "Error", "Callout" : "Debug"}
+
+     * @param tarceFlag
+     * @param traceFlagMap
+     */
+    private def saveTraceFlagConfig(tarceFlag: TraceFlag, traceFlagMap: Map[String, String]) = {
+        //TODO consider saving with Scope and TracedEntity taken into account
         session.setData("traceFlagConfig", traceFlagMap)
     }
 
@@ -103,43 +112,43 @@ class ChangeLogLevels extends ApexAction {
 
         logger.debug("Setup TraceFlag")
 
-        val flag: TraceFlag = new TraceFlag
+        val traceFlag: TraceFlag = new TraceFlag
         traceFlagMap.foreach{
-            case (logType, logLevel) => setLogLevelByType(logType, logLevel, flag)
+            case (logType, logLevel) => setLogLevelByType(logType, logLevel, traceFlag)
         }
 
         val calendar = session.getServerTimestamp.getTimestamp
         //set TTL for TraceFlag same as for Server
         calendar.add(java.util.Calendar.SECOND, session.getConfig.getProperty("timeoutSec").getOrElse("30").toInt)
 
-        flag.setExpirationDate(calendar)
+        traceFlag.setExpirationDate(calendar)
 
         config.getProperty("scope") match {
           case Some(x) if "user" == x =>
-              flag.setScopeId(session.getUserId)
+              traceFlag.setScopeId(session.getUserId)
           case _ =>
-              flag.setScopeId(null)
+              traceFlag.setScopeId(null)
         }
         getTracedEntityId match {
             case Success(entityId) =>
-                flag.setTracedEntityId(entityId)
+                traceFlag.setTracedEntityId(entityId)
             case Failure(e) =>
                 //messages += new ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage)
                 throw e
         }
         //check if trace for current scope/tracedEntity is already setup and expires too early, and delete it if one found
-        val queryIterator = SoqlQuery.getQueryIteratorTooling[TraceFlag](session,
+        val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
                                         s""" select Id from TraceFlag
-                                           |where TracedEntityId = '${flag.getTracedEntityId}' and ScopeId = '${flag.getScopeId}'
+                                           |where TracedEntityId = '${traceFlag.getTracedEntityId}' and ScopeId = '${traceFlag.getScopeId}'
                                            |""".stripMargin)
         if (queryIterator.hasNext) {
-            val recordIds = queryIterator.map(_.getId).toArray
+            val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
             session.deleteTooling(recordIds)
         }
 
-        val saveResults: Array[SaveResult] = session.createTooling(Array(flag))
+        val saveResults: Array[SaveResult] = session.createTooling(Array(traceFlag))
         if (saveResults.nonEmpty && saveResults.head.isSuccess) {
-            saveTraceFlagConfig(traceFlagMap)
+            saveTraceFlagConfig(traceFlag, traceFlagMap)
             Success(saveResults.head.getId)
         } else {
             val errors = saveResults.head.getErrors
@@ -162,23 +171,26 @@ class ChangeLogLevels extends ApexAction {
             case Some(x) =>
                 FileUtils.getExtension(x.toLowerCase) match {
                     case "trigger" =>
-                        val iterator = SoqlQuery.getQueryIteratorTooling[ApexTrigger](session, s"select Id from ApexTrigger where Name = '${FileUtils.removeExtension(x)}'")
+                        val iterator = SoqlQuery.getQueryIteratorTooling(session, s"select Id from ApexTrigger where Name = '${FileUtils.removeExtension(x)}'")
                         if (iterator.hasNext) {
-                            Success(iterator.next().getId)
+                            //TODO check if id is returned correctly
+                            Success(new ResultRecord(iterator.next()).getFieldAsString("Id").get)
                         } else {
                             throw new ConfigValueException(s"Trigger with name $x not found")
                         }
                     case "class" =>
-                        val iterator = SoqlQuery.getQueryIteratorTooling[ApexClass](session, s"select Id from ApexClass where Name = '${FileUtils.removeExtension(x)}'")
+                        val iterator = SoqlQuery.getQueryIteratorTooling(session, s"select Id from ApexClass where Name = '${FileUtils.removeExtension(x)}'")
                         if (iterator.hasNext) {
-                            Success(iterator.next().getId)
+                            //TODO check if id is returned correctly
+                            Success(new ResultRecord(iterator.next()).getFieldAsString("Id").get)
                         } else {
                             throw new ConfigValueException(s"Class with name $x not found")
                         }
                     case username =>
-                        val iterator = SoqlQuery.getQueryIteratorTooling[User](session, s"select Id from User where UserName = '$x'")
+                        val iterator = SoqlQuery.getQueryIteratorTooling(session, s"select Id from User where UserName = '$x'")
                         if (iterator.hasNext) {
-                            Success(iterator.next().getId)
+                            //TODO check if id is returned correctly
+                            Success(new ResultRecord(iterator.next()).getFieldAsString("Id").get)
                         } else {
                             throw new ConfigValueException(s"User with UserName $x not found")
                         }
@@ -211,5 +223,89 @@ class ChangeLogLevels extends ApexAction {
             case _ =>
         }
 
+    }
+}
+class ListLogs extends ApexAction {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
+
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "location" =>
+                """--location=Monitoring|SystemLog
+                   |  OPTIONAL, If not specified then logs for all locations are returned
+                   |  - Monitoring — Generated as part of debug log monitoring and visible to all administrators.
+                   |  These types of logs are maintained until the user or the system overwrites them.
+                   |  - SystemLog — Generated as part of system log monitoring and visible only to you.
+                   |  These types of logs are only maintained for 60 minutes or until the user clears them.
+                """.stripMargin
+            case "logUserName" =>
+                """--logUserName=username
+                  |  OPTIONAL, If not specified then defaults to current user
+                  |  Username of the user whose actions triggered the debug log or heap dump.
+                  |  e.g. --logUserName=admin@acme.com
+                  |
+                """.stripMargin
+            case "request" =>
+                """--request=API|Application
+                  |  OPTIONAL, If not specified then logs for all request types are returned
+                  |  - API — Request came from an API.
+                  |  - Application — Request came from the Salesforce user interface.
+                  |
+                """.stripMargin
+        }
+
+        override def getParamNames: List[String] = List("location", "logUserName", "request")
+
+        override def getSummary: String = "Setup TraceFlag that triggers an Apex debug log at the specified logging level"
+
+        override def getName: String = "changeLogLevels"
+    }
+
+    //this method should implement main logic of the action
+    override protected def act(): Unit = {
+
+        val conditions = List.newBuilder[String]
+        config.getProperty("location") match {
+            case Some(location) => conditions += s"Location = '$location'"
+            case _ =>
+        }
+        config.getProperty("logUserName") match {
+            case Some(userName) =>
+                val users = SoqlQuery.getQueryIteratorTooling(session, s"select Id from User where UserName = '$userName' limit 1")
+                if (users.nonEmpty) {
+                    val user = new ResultRecord(users.next())
+                    conditions += s"LogUserId = '${user.getFieldAsString("Id").get}'"
+                }
+            case _ =>
+        }
+        config.getProperty("request") match {
+            case Some(request) => conditions += s"Request = '$request'"
+            case _ =>
+        }
+        val conditionsList = conditions.result()
+        var query = "select Id, Application, DurationMilliseconds, Location, LogLength, LogUserId, Operation, Request, StartTime, Status from ApexLog"
+        if (conditionsList.nonEmpty) {
+            query += " where " + conditionsList.mkString(" and ")
+        }
+
+        val queryIterator = SoqlQuery.getQueryIteratorTooling(session, query )
+
+        responseWriter.println("RESULT=SUCCESS")
+        responseWriter.println("RESULT_SIZE=" + queryIterator.size)
+        if (queryIterator.isEmpty) {
+            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "No Logs available"))
+        } else {
+            val outputFilePath = config.getRequiredProperty("outputFilePath").get
+            //make sure output file does not exist
+            FileUtils.delete(new File(outputFilePath))
+            val outputFile = new File(outputFilePath)
+            for (batch <- queryIterator) {
+                //TODO
+                //writeResults(batch, outputFile)
+            }
+            responseWriter.println("RESULT_FILE=" + outputFilePath)
+        }
+
+        responseWriter.println("RESULT=SUCCESS")
     }
 }

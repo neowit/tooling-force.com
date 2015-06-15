@@ -1,7 +1,7 @@
 package com.neowit.apex.actions.tooling
 
 import com.neowit.apex._
-import com.neowit.apex.actions.SoqlQuery.{QueryResultTooling, QueryIterator}
+import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ActionError, DeployModified}
 import com.neowit.utils.{FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
@@ -165,12 +165,12 @@ class RunTests extends DeployModified{
         logger.debug("Run tests Asynchronous")
         val records = getTestClassNames match {
             case List("*") =>
-                SoqlQuery.queryAll("select Id from ApexClass where Status = 'Active' and NamespacePrefix = ''", session, logger)
+                SoqlQuery.getQueryIteratorTooling(session, "select Id from ApexClass where Status = 'Active' and NamespacePrefix = ''").map(new ResultRecord(_))
             case head :: tail =>
                 val classNames = (head :: tail).mkString("','")
-                SoqlQuery.queryAll(s"select Id from ApexClass where Name in ('$classNames')", session, logger)
+                SoqlQuery.getQueryIteratorTooling(session, s"select Id from ApexClass where Name in ('$classNames')").map(new ResultRecord(_))
         }
-        val classIds = records.map(_.getId)
+        val classIds = records.map(_.getFieldAsString("Id").get)
         val asyncJobId = session.runTestsAsyncTooling(classIds.toList)
         val loggerFunc = (record:ApexTestQueueItem) => {
             logger.info("Running Test(s): " + record.getStatus)
@@ -197,7 +197,8 @@ class RunTests extends DeployModified{
                 |where AsyncApexJobId = '${asyncApexJob.getId}'
             """.stripMargin
 
-        val queryIterator = SoqlQuery.getQueryIteratorTooling[com.sforce.soap.tooling.ApexTestResult](session, query)
+        //com.sforce.soap.tooling.ApexTestResult
+        val queryIterator = SoqlQuery.getQueryIteratorTooling(session, query).map(new ResultRecord(_))
         //val queryResult = session.queryTooling(query)
         if (queryIterator.isEmpty) {
             runTestResult.setNumFailures(0)
@@ -212,9 +213,9 @@ class RunTests extends DeployModified{
         val successes = Array.newBuilder[com.sforce.soap.tooling.RunTestSuccess]
         for(record <- iterator) {
 
-            val className = record.getApexClass.getName
-            val methodName = record.getMethodName
-            val outcome = record.getOutcome
+            val className = record.getFieldAsObject("ApexClass").get.getFieldAsString("Name").get
+            val methodName = record.getFieldAsString("MethodName").get
+            val outcome = record.getFieldAsString("Outcome").get
             logger.info(s"$className.$methodName => $outcome")
             //Pass, Failed, CompileFail, Skip
             outcome match {
@@ -225,12 +226,12 @@ class RunTests extends DeployModified{
                 case "Fail" =>
                     val failure = new RunTestFailure()
                     failure.setMethodName(methodName)
-                    failure.setMessage(record.getMessage)
+                    failure.setMessage(record.getFieldAsString("Message").get)
                     failures += failure
                 case "CompileFail" =>
                     val failure = new RunTestFailure()
                     failure.setMethodName(methodName)
-                    failure.setMessage(record.getMessage)
+                    failure.setMessage(record.getFieldAsString("Message").get)
                     failures += failure
                 case x => logger.debug("outcome: " + x)
             }
