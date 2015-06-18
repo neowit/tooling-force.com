@@ -107,8 +107,13 @@ class SoqlQuery extends ApexAction {
             case Failure(result) =>
                 responseWriter.println("RESULT=FAILURE")
                 result match {
-                    case ex: Session.ConnectionException if null != ex.connection =>
+                    case ex: Session.RestCallException if null != ex.connection =>
                         responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
+                        ex.getRestErrorCode match {
+                          case Some(errorCode) =>
+                              responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, errorCode + ": " + ex.getRestMessage.getOrElse("") ))
+                          case None =>
+                        }
                     case _ =>
                         responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, result.getMessage))
                 }

@@ -26,6 +26,7 @@ import java.util.zip.GZIPInputStream
 import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
+import spray.json._
 
 import scala.concurrent._
 import collection.JavaConverters._
@@ -38,7 +39,30 @@ import scala.util.{Failure, Success, Try}
  * manages local data store related to specific project
  */
 object Session {
+
     case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
+    case class RestCallException(connection: HttpURLConnection) extends RuntimeException {
+        val jsonAst = Try(io.Source.fromInputStream(connection.getErrorStream)("UTF-8").getLines().mkString("")) match {
+            case Success(responseDetails) => Try(responseDetails.parseJson) match {
+                case Success(_ast) => Some(_ast)
+                case _ => None
+            }
+            case _ => None
+        }
+        def getRestMessage: Option[String] = getRestResponseField("message")
+        def getRestErrorCode: Option[String] = getRestResponseField("errorCode")
+
+        private def getRestResponseField(fName: String): Option[String] = {
+            jsonAst match {
+                case Some(_ast) => Try(_ast.asInstanceOf[JsArray].elements.head.asJsObject().fields.getOrElse(fName, new JsString("")).asInstanceOf[JsString]) match {
+                    case Success(message) => Some(message.value)
+                    case _ => None
+                }
+                case None => None
+            }
+        }
+
+    }
     case class UnauthorizedConnectionException(connection: HttpURLConnection) extends RuntimeException
 
     def apply(basicConfig: BasicConfig) = new Session(basicConfig)
@@ -526,7 +550,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                throw new Session.ConnectionException(conn)
+                throw new Session.RestCallException(conn)
             }
         }
     }
