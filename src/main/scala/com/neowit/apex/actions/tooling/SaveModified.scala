@@ -146,7 +146,8 @@ class SaveModified extends DeployModified {
         for(extension <- filesByExtension.keys) {
             filesByExtension.get(extension) match {
               case Some(_files) =>
-                  saveFilesOfSingleType(_files, fileToToolingInstance, updateSessionDataOnSuccess)
+                  saveFilesOfSingleXmlType(_files, fileToToolingInstance,
+                                        (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
               case None =>
             }
         }
@@ -159,10 +160,11 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
      * @return
      */
-    private def saveFilesOfSingleType(files: List[File], sobjectInstanceCreator: (File) => SObject, updateSessionDataOnSuccess: Boolean): Boolean = {
+    private def saveFilesOfSingleXmlType(files: List[File], sobjectInstanceCreator: (File) => SObject,
+                                         sessionDataUpdater: (List[File]) => Unit, updateSessionDataOnSuccess: Boolean): Boolean = {
 
-        val sobjects = files.map(sobjectInstanceCreator(_))
-        val saveResults = session.updateTooling(sobjects.toArray)
+        val sObjects = files.map(sobjectInstanceCreator(_))
+        val saveResults = session.updateTooling(sObjects.toArray)
 
         val errorBuilderByFileIndex = Map.newBuilder[Int, com.sforce.soap.tooling.Error]
 
@@ -184,7 +186,8 @@ class SaveModified extends DeployModified {
         val successfulFiles = successfulFilesBuilder.result()
 
         if (updateSessionDataOnSuccess && successfulFiles.nonEmpty) {
-            updateFileModificationData(successfulFiles)
+            //updateFileModificationData(successfulFiles)
+            sessionDataUpdater(successfulFiles)
             session.storeSessionData()
 
             if (errorByFileIndex.isEmpty) {
@@ -234,10 +237,10 @@ class SaveModified extends DeployModified {
     /**
      * this method assumes that we know Ids of all files (ids should be already saved in session)
      */
-    def updateFileModificationData(files: List[File]): Unit = {
+    def updateFileModificationData(files: List[File], providedXmlType: Option[String] = None): Unit = {
         val modificationDataByFile = getFilesModificationData(files)
         for (f <- modificationDataByFile.keys) {
-            val xmlType = DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse("")
+            val xmlType = providedXmlType.getOrElse(DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse(""))
             modificationDataByFile.get(f) match {
                 case Some(data) =>
                     val key = session.getKeyByFile(f)
@@ -261,10 +264,11 @@ class SaveModified extends DeployModified {
                 resource
             case x => throw new RuntimeException("saveModified: Unsupported type " + x)
         }
+        //set object Id if available
         session.getData(file).get("Id") match {
             case Some(objectId:String) =>
                 sobject.setId(objectId)
-            case None =>
+            case _ =>
         }
         sobject
     }
@@ -277,99 +281,10 @@ class SaveModified extends DeployModified {
      * @return
      */
     private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
-
-        val members = files.map(AuraMember.getInstanceUpdate(_, session))
-        val saveResults = session.updateTooling(members.toArray)
-        //val saveResults = session.createTooling(members.toArray)
-
-        val errorBuilderByFileIndex = Map.newBuilder[Int, com.sforce.soap.tooling.Error]
-
-        var index = 0
-        val fileArray = files.toArray
-
-        //prepare list of files to load LastModifiedDate from SFDC
-        val successfulFilesBuilder = List.newBuilder[File]
-        for (saveResult <- saveResults) {
-            if (saveResult.isSuccess) {
-                successfulFilesBuilder += fileArray(index)
-            } else {
-                errorBuilderByFileIndex += index -> saveResult.getErrors.head
-            }
-            index += 1
-        }
-
-        val errorByFileIndex = errorBuilderByFileIndex.result()
-        val successfulFiles = successfulFilesBuilder.result()
-
-        if (updateSessionDataOnSuccess && successfulFiles.nonEmpty) {
-            updateAuraFileModificationData(successfulFiles)
-            session.storeSessionData()
-
-            if (errorByFileIndex.isEmpty) {
-                config.responseWriter.println("RESULT=SUCCESS")
-                config.responseWriter.println("FILE_COUNT=" + files.size)
-                if (!config.isCheckOnly) {
-                    config.responseWriter.startSection("SAVED FILES")
-                    files.foreach(f => config.responseWriter.println(f.getName))
-                    config.responseWriter.endSection("SAVED FILES")
-                }
-            }
-
-        }
-
-        //now process errors
-        if (errorByFileIndex.nonEmpty) {
-            logger.debug("Request failed")
-            responseWriter.println("RESULT=FAILURE")
-            config.responseWriter.startSection("ERROR LIST")
-            val problemType = "ERROR"
-            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-            responseWriter.println(componentFailureMessage)
-
-            for (index <- errorByFileIndex.keys) {
-                val file = fileArray(index)
-                val filePath = session.getRelativePath(file)
-                val error = errorByFileIndex(index)
-                var problem = error.getMessage
-                if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
-                    problem = s"Stored Id of ${file.getName} is no longer valid. " +
-                        "You may want to call 'refresh' to make sure there are no aura files deleted and re-created with new Ids. " +
-                        "Alternatively (to force deployment) - use 'deploy' instead of 'save' to force using Metadata API. " +
-                        s"Original error: $problem"
-                }
-                val statusCode = error.getStatusCode.toString
-                val fields = error.getFields
-                //display errors both as messages and as ERROR: lines
-                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
-                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
-            }
-            false
-        } else {
-            true
-        }
-
-    }
-
-    /**
-     * this method assumes that we know Ids of all files (ids should be already saved in session)
-     * @param auraFiles - only aura files expected here
-     */
-    def updateAuraFileModificationData(auraFiles: List[File]): Unit = {
-        val modificationDataByFile = getFilesModificationData(auraFiles)
-        for (f <- modificationDataByFile.keys) {
-            modificationDataByFile.get(f) match {
-                case Some(data) =>
-                    val key = session.getKeyByFile(f)
-                    val recordId = data("Id").toString
-                    val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
-                    val newData = MetadataType.getValueMap(config, f, AuraMember.XML_TYPE, Some(recordId), lastModifiedDate, fileMeta = None)
-                    val oldData = session.getData(key)
-                    session.setData(key, oldData ++ newData)
-                case None =>
-            }
-        }
-        //session.storeSessionData()
-
+        saveFilesOfSingleXmlType(files,
+                                (file: File) => AuraMember.getInstanceUpdate(file, session),
+                                (files: List[File]) => updateFileModificationData(files, Some(AuraMember.XML_TYPE)),
+                                updateSessionDataOnSuccess)
     }
 
     private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
