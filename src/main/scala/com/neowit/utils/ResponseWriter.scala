@@ -22,9 +22,12 @@ package com.neowit.utils
 import java.io.{FileOutputStream, OutputStream, File, PrintWriter}
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.util.parsing.json.JSONFormat.ValueFormatter
-import com.neowit.utils.ResponseWriter.{MessageType, MessageDetail, Message}
+import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
 object ResponseWriter {
+
+    def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.mapValues(value => if (null == value) "" else value)
+
     object Message {
         private var COUNTER = 0
         def getNextId() = {
@@ -35,13 +38,13 @@ object ResponseWriter {
     case class Message(msgType: MessageType, text: String, data: Map[String, Any] = Map()) {
         val id = Message.getNextId()
         def toJSONObject = {
-            val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ data
+            val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ensureNoNulls(data)
             JSONObject(msgData)
         }
     }
     case class MessageDetail(message: Message, data: Map[String, Any]) {
         def toJSONObject = {
-            val msgData = Map("messageId"-> message.id) ++ data
+            val msgData = Map("messageId"-> message.id) ++ ensureNoNulls(data)
             JSONObject(msgData)
         }
     }
@@ -128,7 +131,7 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
         messageDetails.foreach(println(_))
     }
     def println(prefix: String, data: Map[String, Any]): Unit = {
-        println(prefix + ": " + JSONObject(data).toString(ResponseWriter.defaultFormatter))
+        println(prefix + ": " + JSONObject(ResponseWriter.ensureNoNulls(data)).toString(ResponseWriter.defaultFormatter))
     }
     def println(data: Map[String, Any]): Unit = {
         println("", data)
