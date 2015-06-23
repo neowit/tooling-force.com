@@ -13,7 +13,9 @@ object ApexMember {
     val APEX_PAGE = "ApexPage"
     val APEX_TRIGGER = "ApexTrigger"
     val APEX_COMPONENT = "ApexComponent"
-    private val SUPPORTED_TYPES = Set[String](APEX_CLASS, APEX_PAGE, APEX_TRIGGER, APEX_COMPONENT)
+    val STATIC_RESOURCE = "StaticResource"
+    private val METADATA_CONTAINER_TYPES = Set[String](APEX_CLASS, APEX_PAGE, APEX_TRIGGER, APEX_COMPONENT)
+    private val SUPPORTED_TYPES = METADATA_CONTAINER_TYPES + STATIC_RESOURCE
 
     def getInstance(file: File, session: Session): ApexMember = {
         val member = DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
@@ -37,6 +39,13 @@ object ApexMember {
         member
     }
 
+    def isSupportedTypeWithMetadataContainer(file: File, session: Session): Boolean  = {
+        DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
+            case Some(xmlType) =>
+                METADATA_CONTAINER_TYPES.contains(xmlType)
+            case None => false
+        }
+    }
     def isSupportedType(file: File, session: Session): Boolean  = {
         DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
             case Some(xmlType) =>

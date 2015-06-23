@@ -144,6 +144,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     def getData(key: String): Map[String, Any] = {
         sessionProperties.getJsonData(key)
     }
+    def getData(file: File): Map[String, Any] = {
+        getData(getKeyByFile(file))
+    }
 
     def removeData(key: String) {
         sessionProperties.remove(key)
