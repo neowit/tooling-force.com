@@ -142,16 +142,12 @@ class SaveModified extends DeployModified {
      * @return - true if all files have been saved successfully
      */
     private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
-        val filesByExtension = files.groupBy(FileUtils.getExtension(_))
-        for(extension <- filesByExtension.keys) {
-            filesByExtension.get(extension) match {
-              case Some(_files) =>
-                  saveFilesOfSingleXmlType(_files, fileToToolingInstance,
-                                        (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
-              case None =>
-            }
+        val successByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
+            saveFilesOfSingleXmlType(files, fileToToolingInstance,
+                (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
         }
-        false
+        val hasFailure = successByExtension.exists{case (extension, res) => !res}
+        !hasFailure
     }
 
     /**
