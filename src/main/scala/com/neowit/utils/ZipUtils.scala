@@ -227,12 +227,10 @@ object ZipUtils extends Logging{
         (md5Hash, crc32Hash)
     }
 
-    /*
     def getBytes(zip: File) = {
         val fos = new FileInputStream(zip)
         val bos = new ByteArrayOutputStream()
         transfer(fos, bos)
         bos.toByteArray
     }
-    */
 }
