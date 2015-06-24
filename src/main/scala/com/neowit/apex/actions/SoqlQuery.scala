@@ -236,7 +236,12 @@ object SoqlQuery {
                     case (fName, width) =>
                         val maxWidth = maxWidthByName.get(fName) match {
                             case Some(currWidth) => if (currWidth < width) width else currWidth
-                            case None => width
+                            case None => //this may be a relationship column which has value = null
+                                //check if map contains values that start with <fName.>
+                                maxWidthByName.find{ case (n, v) => n.startsWith(fName + ".")} match {
+                                  case Some(v) => v._2
+                                  case None => width
+                                }
                         }
                         fName -> maxWidth
                 }
@@ -332,18 +337,41 @@ object SoqlQuery {
         }
     }
 
-
     class ResultRecord(record: JsObject) {
 
-        def getFieldAsString(fName: String): Option[String] = {
+        private def getFieldValue(fName: String): Option[JsValue] = {
             val fieldName = fName.toLowerCase
-            record.fields.find{
-                case (name, value) => isOwnColumn(name, value) && name.toLowerCase == fieldName
-            } match {
-              case Some(value) => Some(value._2.asInstanceOf[JsString].value)
+            if (fieldName.indexOf('.') >0) {
+                //Parent.Object.Value
+                val names = fieldName.split('.')
+                val relContainer = getFieldAsObject(names.head)
+                relContainer match {
+                  case Some(container) =>
+                      container.getFieldValue(names.drop(1).mkString("."))
+                  case None => None
+                }
+            } else {
+                record.fields.find {
+                    case (name, value) => isOwnColumn(name, value) && name.toLowerCase == fieldName
+                } match {
+                    case Some(value) => Some(value._2)
+                    case None => None
+                }
+            }
+        }
+        def getFieldAsString(fName: String): Option[String] = {
+            getFieldValue(fName) match {
+              case Some(value) => Some(value.asInstanceOf[JsString].value)
               case None => None
             }
         }
+        def getFieldAsNumber(fName: String): Option[BigDecimal] = {
+            getFieldValue(fName) match {
+                case Some(value) => Some(value.asInstanceOf[JsNumber].value)
+                case None => None
+            }
+        }
+
         def getFieldAsObject(fName: String): Option[ResultRecord] = {
             val fieldName = fName.toLowerCase
             record.fields.find{
@@ -354,35 +382,62 @@ object SoqlQuery {
             }
         }
         /**
-         * @return - only Own field names, no related records included
+         * @return - only single level field names, no related child records included
          */
         def getFieldNames: List[String] = {
-            val names = record.fields.filter{case (name, value) => isOwnColumn(name, value)}.keys.toList
-            names
+            val namesBuilder = List.newBuilder[String]
+            for (fName <- record.fields.keys) {
+                val fValue = record.fields(fName)
+                if (null== fValue || fValue == JsNull || isOwnColumn(fName, fValue)) {
+                    namesBuilder += fName
+                } else if (isParentRelationshipContainer(fName, fValue)) {
+                    //resolve relationship
+                    namesBuilder ++= traverseParentFieldNames(fName, fValue.asJsObject)
+                }
+            }
+            namesBuilder.result()
         }
+
         /**
-         * @return - only Own field values, no related records included
+         * descend into parent relationship record
+         * @param fName -  field name, e.g. Account
+         * @param fValue - parent values container, e.g.
+         * {
+         *       "attributes" : {
+         *           "type" : "Account",
+         *           "url" : "/services/data/v34.0/sobjects/Account/001000000000000"
+         *       },
+         *     "Name" : "Edge Communications",
+         *     "BillingStreet" : "some street name"
+         *  }
+         *
+         * @return Account.Name, Account.BillingStreet
          */
-        def getFieldValues: List[JsValue] = {
-            val values = record.fields.filter{case (name, value) => isOwnColumn(name, value)}.values.toList
-            values
+        private def traverseParentFieldNames(fName: String, fValue: JsObject): List[String] = {
+            new ResultRecord(fValue).getFieldNames.map(name => fName + "." + name)
         }
-        def getOwnColumns: List[(String, JsValue)] = {
-            record.fields.filter{case (name, value) => isOwnColumn(name, value)}.map{case (name, value) => (name, value)}.toList
-        }
+
         /**
          * @return - only child record-sets
          */
         def getChildResultContainers: List[QueryResultJson] = {
-            val jsObjects = record.fields.filter{case (name, value) => isChildRecord(name, value)}.values.map(_.asJsObject).toList
+            val jsObjects = record.fields.filter{case (name, value) => isChildRecordsContainer(name, value)}.values.map(_.asJsObject).toList
             //jsObjects.flatMap(obj => obj.fields("records").asInstanceOf[JsArray].elements.map(rec => new ResultRecord(rec.asJsObject)))
             jsObjects.map(_.convertTo[QueryResultJson])
+        }
 
+        /**
+         * Account.Name
+         * @return
+         */
+        def getRelationshipResultContainers: List[ResultRecord] = {
+            val relationshipRecords = record.fields.filter{case (name, value) => isParentRelationshipContainer(name, value)}.values.map(v => new ResultRecord(v.asJsObject)).toList
+            relationshipRecords
         }
         def getColumnWidths: Map[String, Int] = {
             val widthByName = Map.newBuilder[String, Int]
             for (fName <- getFieldNames) {
-                val fVal = record.fields(fName)
+                val fVal = new ResultRecord(record).getFieldValue(fName).getOrElse(new JsString(""))
                 widthByName += fName -> fVal.compactPrint.length
             }
             widthByName.result()
@@ -401,9 +456,8 @@ object SoqlQuery {
             header
         }
         def toPipeDelimited(sizeByName: Map[String, Int], shiftLeft:Int = 0): List[String] = {
-            val mainLine = "".padTo(shiftLeft, " ").mkString + getOwnColumns.map{
-                case (fName, value) =>
-                    value.toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")
+            val mainLine = "".padTo(shiftLeft, " ").mkString + getFieldNames.map{
+                fName => getFieldValue(fName).getOrElse(new JsString("")).toString(jsPrinter).padTo(sizeByName(fName), " ").mkString("")
             }.mkString("|")
 
             //process child records
@@ -439,8 +493,11 @@ object SoqlQuery {
         private def isOwnColumn(fName: String, fValue: JsValue): Boolean = {
             "attributes" != fName && null != fValue && "null" != fValue.toString() && !fValue.isInstanceOf[JsObject]
         }
-        private def isChildRecord(fName: String, fValue: JsValue): Boolean = {
-            "attributes" != fName && null != fValue && "null" != fValue.toString() && fValue.isInstanceOf[JsObject]
+        private def isChildRecordsContainer(fName: String, fValue: JsValue): Boolean = {
+            "attributes" != fName && null != fValue && "null" != fValue.toString() && fValue.isInstanceOf[JsObject] && fValue.asJsObject.getFields("totalSize").nonEmpty
+        }
+        private def isParentRelationshipContainer(fName: String, fValue: JsValue): Boolean = {
+            "attributes" != fName && null != fValue && "null" != fValue.toString() && fValue.isInstanceOf[JsObject] && fValue.asJsObject.getFields("totalSize").isEmpty
         }
     }
 }
