@@ -6,6 +6,7 @@ import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ActionError, DeployModifi
 import com.neowit.utils.{FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
 import com.sforce.soap.tooling.{RunTestFailure, ApexTestQueueItem, AsyncApexJob}
+import spray.json.JsNumber
 
 object RunTests {
 
@@ -241,11 +242,56 @@ class RunTests extends DeployModified{
         runTestResult.setNumFailures(runTestResult.getFailures.length)
         runTestResult.setSuccesses(successes.result())
         runTestResult.setNumTestsRun(runTestResult.getNumFailures + runTestResult.getSuccesses.length)
+        runTestResult.setCodeCoverage(getCoverageResult)
+        //runTestResult.set
         runTestResult
     }
 
+    private def getCoverageResult: Array[com.sforce.soap.tooling.CodeCoverageResult] = {
+        import com.sforce.soap.tooling._
+        //load only results for classes covered by the test
+        val query =
+            s""" SELECT ApexClassorTriggerId, ApexClassorTrigger.Name, NumLinesCovered, NumLinesUncovered,
+               | Coverage
+               | FROM ApexCodeCoverageAggregate
+               | where NumLinesCovered > 0""".stripMargin
+        val coverageResultBuilder = Array.newBuilder[CodeCoverageResult]
+        //have to use REST query instead of typed ApexCodeCoverageAggregate because wsc v34.0 has a bug and
+        // can not deserialise coverage field value
+        for (jsRecord <- SoqlQuery.getQueryIteratorTooling(session, query)) {
+            val record = new ResultRecord(jsRecord)
+
+            val res = new com.sforce.soap.tooling.CodeCoverageResult
+
+            val coverage = record.getFieldAsObject("Coverage").get
+            coverage.getFieldAsArray("uncoveredLines") match {
+              case Some(x) =>
+                  val locations = x.elements.map{l =>
+                      val loc = new CodeLocation()
+                      loc.setLine(l.asInstanceOf[JsNumber].value.toInt)
+                      loc}.toArray
+                  res.setLocationsNotCovered(locations)
+              case None =>
+            }
+            val numLinesCovered = record.getFieldAsNumber("NumLinesCovered").getOrElse(BigDecimal(0)).intValue()
+            val numLinesUncovered = record.getFieldAsNumber("NumLinesUncovered").getOrElse(BigDecimal(0)).intValue()
+            res.setNumLocations(numLinesCovered + numLinesUncovered)
+            res.setNumLocationsNotCovered(numLinesUncovered)
+
+            res.setName(record.getFieldAsString("ApexClassorTrigger.Name").getOrElse(""))
+            record.getFieldAsString("ApexClassorTriggerId") match {
+              case Some(classId) => res.setId(classId)
+              case None =>
+            }
+
+            coverageResultBuilder += res
+        }
+        coverageResultBuilder.result()
+    }
+
     private val ONE_SECOND = 1000
-    private def waitAsyncJob(asyncJobId: String, progressReporter: (String, Set[String]) => Set[String]): Option[AsyncApexJob] = {
+    private def waitAsyncJob(asyncJobId: String, progressReporter: (String, Long, Set[String]) => Set[String]): Option[AsyncApexJob] = {
+        val startMills = System.currentTimeMillis
         val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
         val FINAL_STATUSES = Set("Aborted", "Completed", "Failed")
         val query = s"SELECT ApexClassId,ExtendedStatus,Id,ParentJobId,Status FROM AsyncApexJob where Id = '$asyncJobId'"
@@ -260,7 +306,7 @@ class RunTests extends DeployModified{
             if (isDone) {
                 return Some(record)
             }
-            doneClassIds ++= progressReporter(asyncJobId, doneClassIds.toSet)
+            doneClassIds ++= progressReporter(asyncJobId, startMills, doneClassIds.toSet)
             Thread.sleep(waitTimeMilliSecs)
         }
         None
@@ -269,10 +315,11 @@ class RunTests extends DeployModified{
     /**
      *
      * @param asyncJobId - Id of AsyncApexJob
+     * @param startTimeMills - when process started (value returned by System.currentTimeMillis)
      * @param ignoreClassIds - Id of classes for which we do not need to report status
      * @return set of Done class Ids
      */
-    private def reportTestProgress(asyncJobId: String, ignoreClassIds: Set[String]): Set[String] = {
+    private def reportTestProgress(asyncJobId: String, startTimeMills: Long, ignoreClassIds: Set[String]): Set[String] = {
         val FINAL_STATUSES = Set("Aborted", "Completed", "Failed")
         val query =
             s"""SELECT ApexClassId, ApexClass.Name, ExtendedStatus, Id, ParentJobId, Status
@@ -289,10 +336,11 @@ class RunTests extends DeployModified{
             val className = queueItem.getApexClass.getName
             val extendedStatus = queueItem.getExtendedStatus
             val status = queueItem.getStatus
+            val timeElapsed = (System.currentTimeMillis - startTimeMills) / 1000
             if (null != extendedStatus) {
-                logger.info(s"$className => $extendedStatus")
+                logger.info(s"$className => $extendedStatus, time elapsed: $timeElapsed sec")
             } else {
-                logger.info(s"$className => $status")
+                logger.info(s"$className => $status, time elapsed: $timeElapsed sec")
             }
             if (FINAL_STATUSES.contains(status)) {
                 doneClassIds += classId

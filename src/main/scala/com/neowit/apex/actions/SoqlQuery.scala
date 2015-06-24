@@ -371,6 +371,12 @@ object SoqlQuery {
                 case None => None
             }
         }
+        def getFieldAsArray(fName: String): Option[JsArray] = {
+            getFieldValue(fName) match {
+                case Some(value) => Some(value.asInstanceOf[JsArray])
+                case None => None
+            }
+        }
 
         def getFieldAsObject(fName: String): Option[ResultRecord] = {
             val fieldName = fName.toLowerCase
