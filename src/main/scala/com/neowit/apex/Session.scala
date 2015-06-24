@@ -21,7 +21,7 @@ package com.neowit.apex
 
 import java.net.{HttpURLConnection, URL}
 import java.security.MessageDigest
-import java.util.zip.GZIPInputStream
+import java.util.zip.{GZIPOutputStream, GZIPInputStream}
 
 import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
 import com.sforce.soap.partner.PartnerConnection
@@ -557,6 +557,63 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             }
         }
     }
+    /**
+     * @param connectorConfig - e.g. getToolingConnection.getConfig
+     * @param apiPath e.g. /tooling or blank for Partner API
+     * @param path - API specific path, e.g. "/query/" for /query/?q=...
+     * @param jsonBody - {"key1" : "value", ...}
+     * @param httpHeaders - any extra HTTP headers
+     * @return
+     */
+    private def postRestContent(connectorConfig: com.sforce.ws.ConnectorConfig, apiPath: String,
+                               path: String, jsonBody: String,
+                               httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+                                  ): Try[JsValue] = {
+
+        //import spray.json._
+
+
+
+
+        val endpointUrl = new URL(connectorConfig.getServiceEndpoint)
+        //get protocol and domain, e.g.:  https://na1.salesforce.com/
+        val domain = endpointUrl.getProtocol + "://" + endpointUrl.getHost + "/"
+
+        val url = domain + s"services/data/v${config.apiVersion}$apiPath" + path
+        val conn = connectorConfig.createConnection(new URL(url), httpHeaders, true)
+        conn.setRequestProperty("Authorization", "Bearer " + getPartnerConnection.getSessionHeader.getSessionId)
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestMethod("POST")
+        conn.setDoOutput(true)
+        conn.setDoInput(true)
+        conn.connect()
+        val wr = new OutputStreamWriter(new GZIPOutputStream(conn.getOutputStream))
+        wr.write(jsonBody)
+        wr.flush()
+        wr.close()
+        //conn.setReadTimeout(...)
+
+        //send request
+        val responseCode = conn.getResponseCode
+        if (200 == responseCode) {
+            val in = conn.getInputStream
+            val text = conn.getContentEncoding match {
+                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+            }
+
+            in.close()
+            Success(text.parseJson)
+        } else {
+            if (401 == responseCode) { //Unauthorized
+                throw new Session.UnauthorizedConnectionException(conn)
+            } else {
+                logger.error(s"Request Failed - URL=$url")
+                logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
+                throw new Session.RestCallException(conn)
+            }
+        }
+    }
 
     private def withRetry(codeBlock: => Any) = {
         try {
@@ -787,12 +844,6 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                               httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
         val text = withRetryRest {
             val connectorConfig = getToolingConnection.getConfig
-            //convert this:
-            //  https://domain/services/Soap/T/33.0/00Dg0000006S2Wp
-            //to this:
-            //  https://domain/services/data/v33.0/tooling/sobjects/ApexLog/id/Body/
-            //val domainEndIndex = connectorConfig.getServiceEndpoint.indexOf("services/Soap/T")
-            //val domain = connectorConfig.getServiceEndpoint.substring(0, domainEndIndex)
             getRestContent(connectorConfig, "/tooling", path, urlParameters, httpHeaders) match {
                 case Success(responseText) => responseText
                 case Failure(ex) => throw ex
@@ -800,7 +851,22 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }.asInstanceOf[String]
         Some(text)
     }
-
+    /**
+     * @param path - e.x. /sobjects/ApexLog/id/Body/
+     * @param jsonBody - {"key1" : "value", ...}
+     * @return
+     */
+    def postRestContentTooling(path: String, jsonBody: String,
+                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[JsValue] = {
+        val jsonAst = withRetryRest {
+            val connectorConfig = getToolingConnection.getConfig
+            postRestContent(connectorConfig, "/tooling", path, jsonBody, httpHeaders) match {
+                case Success(responseText) => responseText
+                case Failure(ex) => throw ex
+            }
+        }.asInstanceOf[JsValue]
+        Some(jsonAst)
+    }
     def describeTooling:com.sforce.soap.tooling.DescribeGlobalResult = {
         val describeResult = withRetry {
             val conn = getToolingConnection
@@ -884,6 +950,16 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         val runTestsResult = withRetry {
             val conn = getToolingConnection
             val res = conn.runTestsAsynchronous(classIds.mkString(","))
+            res
+
+        }.asInstanceOf[String]
+        runTestsResult
+    }
+
+    def runTestsAsyncTooling(classIds: String):(String) = {
+        val runTestsResult = withRetry {
+            val conn = getToolingConnection
+            val res = conn.runTestsAsynchronous(classIds)
             res
 
         }.asInstanceOf[String]
