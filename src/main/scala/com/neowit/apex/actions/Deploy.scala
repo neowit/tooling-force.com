@@ -231,7 +231,7 @@ class DeployModified extends Deploy {
         */
 
         val checkOnly = config.isCheckOnly
-        val testMethodsByClassName: Map[String, Set[String]] = getTestMethodsByClassName(allFilesToDeploySet)
+        val testMethodsByClassName: Map[String, Set[String]] = ApexTestUtils.getTestMethodsByClassName(config.getProperty("testsToRun"))
         val isRunningTests = testMethodsByClassName.nonEmpty
 
         //make sure that test class is part of deployment if user set specific methods to run
@@ -523,44 +523,6 @@ class DeployModified extends Deploy {
             logger.debug("File list is empty, nothing to check for Conflicts with Remote")
             false
         }
-    }
-
-    /**
-     * --testsToRun="comma separated list of class.method names",
-     *      e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
-     *
-     *      class/method can be specified in two forms
-     *      - ClassName.<methodName> -  means specific method of specific class
-     *      - ClassName -  means *all* test methodsToKeep of specific class
-     *      Special case: *  - means "run all Local tests in the Org (exclude Packaged classes) "
-     * @return if user passed any classes to run tests via "testsToRun" the return them here
-     */
-    private def getTestMethodsByClassName(files: Set[File]): Map[String, Set[String]] = {
-        var methodsByClassName = Map[String, Set[String]]()
-        config.getProperty("testsToRun") match {
-            case Some(x) if "*" == x =>
-                methodsByClassName += "*" -> Set[String]()
-
-            case Some(x) if !x.isEmpty =>
-                for (classAndMethodStr <- x.split(","); if !classAndMethodStr.isEmpty) {
-                    val classAndMethod = classAndMethodStr.split("\\.")
-                    val className = classAndMethod(0).trim
-                    if (className.isEmpty) {
-                        throw new ActionError("invalid --testsToRun: " + x)
-                    }
-                    if (classAndMethod.size > 1) {
-                        val methodName = classAndMethod(1).trim
-                        if (methodName.isEmpty) {
-                            throw new ActionError("invalid --testsToRun: " + x)
-                        }
-                        methodsByClassName = addToMap(methodsByClassName, className, methodName)
-                    } else {
-                        methodsByClassName += className -> Set[String]()
-                    }
-                }
-            case _ => Map[String, Set[String]]()
-        }
-        methodsByClassName
     }
 
     /**

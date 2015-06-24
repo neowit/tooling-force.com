@@ -2,7 +2,7 @@ package com.neowit.apex
 
 import java.io.{PrintWriter, File}
 
-import com.neowit.apex.actions.DescribeMetadata
+import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 import com.neowit.utils.{Config, FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
@@ -134,5 +134,51 @@ object ApexTestUtils {
             case _ =>
         }
         coverageFile
+    }
+    /**
+     * --testsToRun="comma separated list of class.method names",
+     *      e.g. "ControllerTest.myTest1, ControllerTest.myTest2, HandlerTest1.someTest, Test3.anotherTest1"
+     *
+     *      class/method can be specified in two forms
+     *      - ClassName.<methodName> -  means specific method of specific class
+     *      - ClassName -  means *all* test methodsToKeep of specific class
+     *      Special case: *  - means "run all Local tests in the Org (exclude Packaged classes) "
+     * @return if user passed any classes to run tests via "testsToRun" the return them here
+     */
+    def getTestMethodsByClassName(testsToRunStr: Option[String]): Map[String, Set[String]] = {
+        var methodsByClassName = Map[String, Set[String]]()
+        testsToRunStr match {
+            case Some(x) if "*" == x =>
+                methodsByClassName += "*" -> Set[String]()
+
+            case Some(x) if !x.isEmpty =>
+                for (classAndMethodStr <- x.split(","); if !classAndMethodStr.isEmpty) {
+                    val classAndMethod = classAndMethodStr.split("\\.")
+                    val className = classAndMethod(0).trim
+                    if (className.isEmpty) {
+                        throw new ActionError("invalid --testsToRun: " + x)
+                    }
+                    if (classAndMethod.size > 1) {
+                        val methodName = classAndMethod(1).trim
+                        if (methodName.isEmpty) {
+                            throw new ActionError("invalid --testsToRun: " + x)
+                        }
+                        methodsByClassName = addToMap(methodsByClassName, className, methodName)
+                    } else {
+                        methodsByClassName += className -> Set[String]()
+                    }
+                }
+            case _ => Map[String, Set[String]]()
+        }
+        methodsByClassName
+    }
+
+    private def addToMap(originalMap: Map[String, Set[String]], key: String, value: String): Map[String, Set[String]] = {
+        originalMap.get(key)  match {
+            case Some(list) =>
+                val newList: Set[String] = list + value
+                originalMap ++ Map(key -> newList)
+            case None => originalMap ++ Map(key -> Set(value))
+        }
     }
 }
