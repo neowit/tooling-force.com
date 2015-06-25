@@ -5,7 +5,7 @@ import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.{SoqlQuery, ActionHelp, DeployModified}
 import com.neowit.utils.{FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
-import com.sforce.soap.tooling.{RunTestFailure, ApexTestQueueItem, AsyncApexJob}
+import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 
@@ -13,8 +13,8 @@ object RunTests {
 
     class RunTestResultTooling(sourceTestResult: com.sforce.soap.tooling.RunTestsResult) extends RunTestsResult {
         override def getCodeCoverage: Array[CodeCoverageResult] = sourceTestResult.getCodeCoverage.map(new CodeCoverageResultTooling(_))
-
         override def getCodeCoverageWarnings: Array[CodeCoverageWarning] = sourceTestResult.getCodeCoverageWarnings.map(new CodeCoverageWarningTooling(_))
+        override def getFailures: Array[com.neowit.apex.RunTestFailure] = sourceTestResult.getFailures.map(new RunTestFailure(_))
     }
 
     class CodeCoverageResultTooling(sourceCoverageResult: com.sforce.soap.tooling.CodeCoverageResult) extends CodeCoverageResult {
@@ -35,6 +35,20 @@ object RunTests {
         override def getName: String = source.getName
 
         override def getMessage: String = source.getMessage
+    }
+
+    class RunTestFailure(source: com.sforce.soap.tooling.RunTestFailure) extends com.neowit.apex.RunTestFailure {
+        override def getId: String = source.getId
+
+        override def getType: String = source.getType
+
+        override def getMessage: String = source.getMessage
+
+        override def getStackTrace: String = source.getStackTrace
+
+        override def getName: String = source.getName
+
+        override def getMethodName: String = source.getMethodName
     }
 
 }
@@ -112,11 +126,13 @@ class RunTests extends DeployModified{
         } else {
             responseWriter.println("RESULT=FAILURE")
         }
-        ApexTestUtils.processCodeCoverage(new RunTests.RunTestResultTooling(runTestsResult), session, responseWriter) match {
+        val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
+        ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, responseWriter) match {
             case Some(coverageFile) =>
                 responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
             case _ =>
         }
+        ApexTestUtils.processTestResult(toolingRunTestResult, session, responseWriter)
 
         if ("None" != session.getConfig.logLevel) {
             ToolingUtils.getLastLogId(session) match {
@@ -216,7 +232,7 @@ class RunTests extends DeployModified{
 
         val iterator = queryIterator
 
-        val failures = Array.newBuilder[com.sforce.soap.tooling.RunTestFailure]
+        //val failures = Array.newBuilder[com.sforce.soap.tooling.RunTestFailure]
         val successes = Array.newBuilder[com.sforce.soap.tooling.RunTestSuccess]
         for(record <- iterator) {
 
@@ -230,29 +246,38 @@ class RunTests extends DeployModified{
                     val success = new com.sforce.soap.tooling.RunTestSuccess()
                     success.setMethodName(methodName)
                     successes += success
-                case "Fail" =>
-                    val failure = new RunTestFailure()
-                    failure.setMethodName(methodName)
-                    failure.setMessage(record.getFieldAsString("Message").get)
-                    failures += failure
-                case "CompileFail" =>
-                    val failure = new RunTestFailure()
-                    failure.setMethodName(methodName)
-                    failure.setMessage(record.getFieldAsString("Message").get)
-                    failures += failure
                 case x => logger.debug("outcome: " + x)
             }
 
         }
-        runTestResult.setFailures(failures.result())
+        runTestResult.setFailures(getTestRunFailures(asyncApexJob.getId))
         runTestResult.setNumFailures(runTestResult.getFailures.length)
         runTestResult.setSuccesses(successes.result())
         runTestResult.setNumTestsRun(runTestResult.getNumFailures + runTestResult.getSuccesses.length)
         runTestResult.setCodeCoverage(getCoverageResult)
-        //runTestResult.set
+
         runTestResult
     }
 
+    private def getTestRunFailures(asyncJobId: String): Array[com.sforce.soap.tooling.RunTestFailure] = {
+        val failures = Array.newBuilder[com.sforce.soap.tooling.RunTestFailure]
+        val soql =
+            s"""select ApexClassId, ApexClass.Name, ApexLogId, AsyncApexJobId, Message, MethodName, Outcome, StackTrace, TestTimestamp
+               | from ApexTestResult where AsyncApexJobId = '$asyncJobId' and Outcome in ('Fail', 'CompileFail')""".stripMargin
+        for (result <- SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.ApexTestResult](session, session.queryTooling(soql))) {
+            val failure = new com.sforce.soap.tooling.RunTestFailure
+            failure.setId(result.getApexClassId)
+            failure.setName(result.getApexClass.getFullName)
+            failure.setMessage(result.getMessage)
+            failure.setMethodName(result.getMethodName)
+            //result.getSystemModstamp returns NPE
+            //failure.setTime(result.getSystemModstamp.getTimeInMillis - result.getTestTimestamp.getTimeInMillis)
+            failure.setStackTrace(result.getStackTrace)
+            failure.setType("Class") //all tests are in Classes
+            failures += failure
+        }
+        failures.result()
+    }
     private def getCoverageResult: Array[com.sforce.soap.tooling.CodeCoverageResult] = {
         import com.sforce.soap.tooling._
         //load only results for classes covered by the test
