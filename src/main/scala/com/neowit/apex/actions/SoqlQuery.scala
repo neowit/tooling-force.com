@@ -204,12 +204,12 @@ object SoqlQuery {
         }
     }
 
-    def getQueryIteratorTyped(session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[com.sforce.soap.tooling.SObject] = {
+    def getQueryIteratorTyped[A](session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[A] = {
         import com.sforce.soap.tooling._
 
-        def queryMore(queryResult: com.sforce.soap.tooling.QueryResult, records: Array[SObject]): Iterator[SObject] = {
+        def queryMore(queryResult: com.sforce.soap.tooling.QueryResult, records: Array[SObject]): Iterator[A] = {
             if (queryResult.isDone) {
-                records.toIterator
+                records.map(_.asInstanceOf[A]).toIterator
             } else {
                 val _queryResult = session.queryMoreTooling(queryResult.getQueryLocator)
                 queryMore(_queryResult, records ++ _queryResult.getRecords)
