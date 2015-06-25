@@ -1,6 +1,6 @@
 package com.neowit.apex.actions
 
-import com.neowit.apex.actions.RunTests.RunTestResultMetadata
+import com.neowit.apex.actions.Deploy.RunTestResultMetadata
 import com.neowit.apex.actions.tooling.AuraMember
 import com.neowit.apex._
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
@@ -10,83 +10,14 @@ import com.sforce.soap.metadata._
 import scala.collection.mutable
 import scala.util.matching.Regex
 
-abstract class Deploy extends ApexAction {
-
-    //* ... line 155, column 41 ....
-    private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
-    //Class.Test1: line 19, column 1
-    val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
-    //Class.Test1.prepareData: line 13, column 1
-    val TypeFileMethodLineColumnRegex = """.*(Class|Trigger)\.(\w*)\.(\w*).*line (\d+), column (\d+).*""".r
-
-    /**
-     * try to parse line and column number from error message looking like so
-     * ... line 155, column 41: ....
-     * @param errorMessage - message returned by deploy operation
-     * @return
-     */
-    protected def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
-
-        val pair = try {
-            val LineColumnRegex(line, column) = errorMessage
-            Some((line.toInt, column.toInt))
-        } catch {
-            case _:Throwable => None
-        }
-
-        pair
-    }
-    /**
-     *
-     * @param traceLine -
-     *                  Class.Test1.prepareData: line 13, column 1
-     *                  Class.Test1: line 19, column 1
-     * @return (typeName, fileName, methodName, line, column)
-     */
-    protected def parseStackTraceLine(traceLine: String): Option[(String, String, String, Int, Int )] = {
-
-        //Class.Test1.prepareData: line 13, column 1
-        //val (typeName, fileName, methodName, line, column) =
-        try {
-            val TypeFileMethodLineColumnRegex(_typeName, _fileName, _methodName, _line, _column) = traceLine
-            Some((_typeName, _fileName, _methodName, _line.toInt, _column.toInt))
-        } catch {
-            case _:scala.MatchError =>
-                //Class.Test1: line 19, column 1
-                try {
-                    val TypeFileLineColumnRegex(_typeName, _fileName, _line, _column) = traceLine
-                    Some((_typeName, _fileName, "", _line.toInt, _column.toInt))
-                } catch {
-                    case _:scala.MatchError =>
-                    //... line 155, column 41: ....
-                        parseLineColumn(traceLine)  match {
-                          case Some((_line, _column)) => Some(("", "", "", _line, _column))
-                          case None => None
-                        }
-                    case _:Throwable => None
-                }
-            case _:Throwable => None
-        }
-    }
-
-    /**
-     * depending on the target of deployment and flags like "checkOnly" & "updateSessionDataOnSuccess" we may or may not
-     * need to update session data after successful deployment
-     @return
-     */
-    def isUpdateSessionDataOnSuccess: Boolean = {
-        val callingAnotherOrg = session.callingAnotherOrg
-        val updateSessionDataOnSuccess = !config.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
-        updateSessionDataOnSuccess
-    }
-}
-
-object RunTests {
+object Deploy {
 
     class RunTestResultMetadata(sourceTestResult: com.sforce.soap.metadata.RunTestsResult) extends com.neowit.apex.RunTestsResult {
         override def getCodeCoverage: Array[com.neowit.apex.CodeCoverageResult] = sourceTestResult.getCodeCoverage.map(new CodeCoverageResultMetadata(_))
 
         override def getCodeCoverageWarnings: Array[com.neowit.apex.CodeCoverageWarning] = sourceTestResult.getCodeCoverageWarnings.map(new CodeCoverageWarningMetadata(_))
+
+        override def getFailures: Array[com.neowit.apex.RunTestFailure] = sourceTestResult.getFailures.map(new RunTestFailure(_))
     }
 
     class CodeCoverageResultMetadata(sourceCoverageResult: com.sforce.soap.metadata.CodeCoverageResult) extends com.neowit.apex.CodeCoverageResult {
@@ -109,7 +40,80 @@ object RunTests {
         override def getMessage: String = source.getMessage
     }
 
+    class RunTestFailure(source: com.sforce.soap.metadata.RunTestFailure) extends com.neowit.apex.RunTestFailure {
+        override def getId: String = source.getId
+
+        override def getType: String = source.getType
+
+        override def getMessage: String = source.getMessage
+
+        override def getStackTrace: String = source.getStackTrace
+
+        override def getName: String = source.getName
+
+        override def getMethodName: String = source.getMethodName
+    }
+
+    //* ... line 155, column 41 ....
+    private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
+
+    /**
+     * try to parse line and column number from error message looking like so
+     * ... line 155, column 41: ....
+     * @param errorMessage - message returned by deploy operation
+     * @return
+     */
+    def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
+
+        val pair = try {
+            val LineColumnRegex(line, column) = errorMessage
+            Some((line.toInt, column.toInt))
+        } catch {
+            case _:Throwable => None
+        }
+
+        pair
+    }
+    /**
+     * @return (line, column, relativeFilePath)
+     */
+    def getMessageData(session: Session, problem: String, typeName: String, fileName: String,
+                       metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
+        val suffix = typeName match {
+            case "Class" => "cls"
+            case "Trigger" => "trigger"
+            case _ => ""
+        }
+        val (line, column) = Deploy.parseLineColumn(problem) match {
+            case Some((_line, _column)) => (_line, _column)
+            case None => (-1, -1)
+        }
+        val filePath =  if (!suffix.isEmpty) session.getRelativeFilePath(fileName, suffix) match {
+            case Some(_filePath) => _filePath
+            case _ => ""
+        }
+        else ""
+
+        (line, column, filePath)
+
+    }
+
 }
+
+abstract class Deploy extends ApexAction {
+
+    /**
+     * depending on the target of deployment and flags like "checkOnly" & "updateSessionDataOnSuccess" we may or may not
+     * need to update session data after successful deployment
+     @return
+     */
+    def isUpdateSessionDataOnSuccess: Boolean = {
+        val callingAnotherOrg = session.callingAnotherOrg
+        val updateSessionDataOnSuccess = !config.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+        updateSessionDataOnSuccess
+    }
+}
+
 
 /**
  * 'deployModified' action grabs all modified files and sends deploy() File-Based call
@@ -160,7 +164,7 @@ class DeployModified extends Deploy {
     }
 
     def act() {
-        val hasTestsToRun = None != config.getProperty("testsToRun")
+        val hasTestsToRun = config.getProperty("testsToRun").isDefined
         val modifiedFiles = getFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml")
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
@@ -283,7 +287,7 @@ class DeployModified extends Deploy {
             if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
                 responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
             }
-            ApexTestUtils.processCodeCoverage(new RunTestResultMetadata(runTestResult), session, responseWriter) match {
+            ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session, responseWriter) match {
                 case Some(coverageFile) =>
                     responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
                 case _ =>
@@ -381,29 +385,6 @@ class DeployModified extends Deploy {
     }
 
     private def writeDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Unit = {
-        /**
-         * @return (line, column, relativeFilePath)
-         */
-        def getMessageData(problem: String, typeName: String, fileName: String,
-                           metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
-            val suffix = typeName match {
-                case "Class" => "cls"
-                case "Trigger" => "trigger"
-                case _ => ""
-            }
-            val (line, column) = parseLineColumn(problem) match {
-                case Some((_line, _column)) => (_line, _column)
-                case None => (-1, -1)
-            }
-            val filePath =  if (!suffix.isEmpty) session.getRelativeFilePath(fileName, suffix) match {
-                case Some(_filePath) => _filePath
-                case _ => ""
-            }
-            else ""
-
-            (line, column, filePath)
-
-        }
 
         if (null != deployDetails) {
             responseWriter.startSection("ERROR LIST")
@@ -427,58 +408,11 @@ class DeployModified extends Deploy {
                 responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
             }
             //process test successes and failures
-            val runTestResult = deployDetails.getRunTestResult
-            val metadataByXmlName = DescribeMetadata.getMap(session)
-
-
-            val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
-            if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
-                responseWriter.println(testFailureMessage)
+            val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
+            if (isRunningTests) {
+                ApexTestUtils.processTestResult(runTestResult, session, responseWriter)
             }
-            if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
-                responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
-            }
-            for ( failureMessage <- runTestResult.getFailures) {
-
-                val problem = failureMessage.getMessage
-                //val className = failureMessage.getName
-                //now parse stack trace
-                val stackTrace = failureMessage.getStackTrace
-                if (null != stackTrace) {
-                    //each line is separated by '\n'
-                    var showProblem = true
-                    for (traceLine <- stackTrace.split("\n")) {
-                        //Class.Test1.prepareData: line 13, column 1
-                        parseStackTraceLine(traceLine) match {
-                            case Some((typeName, fileName, methodName, line, column)) =>
-                                val (_line, _column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
-                                val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
-                                val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
-                                responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
-                                if (showProblem) {
-                                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                                }
-                            case None => //failed to parse anything meaningful, fall back to simple message
-                                responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
-                                if (showProblem) {
-                                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
-                                }
-                        }
-                        showProblem = false
-                    }
-                } else { //no stack trace, try to parse cine/column/filePath from error message
-                val typeName = failureMessage.getType
-                    val fileName = failureMessage.getName
-                    val (line, column, filePath) = getMessageData(problem, typeName, fileName, metadataByXmlName)
-                    responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                    responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                }
-
-                //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-            }
-            responseWriter.endSection("ERROR LIST")
-
-            val coverageReportFile = ApexTestUtils.processCodeCoverage(new RunTestResultMetadata(runTestResult), session, responseWriter)
+            val coverageReportFile = ApexTestUtils.processCodeCoverage(runTestResult, session, responseWriter)
             coverageReportFile match {
                 case Some(coverageFile) =>
                     responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
