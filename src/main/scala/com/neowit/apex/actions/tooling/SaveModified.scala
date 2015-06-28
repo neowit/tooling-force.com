@@ -285,6 +285,7 @@ class SaveModified extends DeployModified {
 
     private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
         logger.debug("Deploying with Metadata Container")
+        var allSuccess = true
         withMetadataContainer(session) { container =>
             val membersMap = (for(f <- files) yield {
                 val member = ApexMember.getInstance(f, session)
@@ -324,7 +325,7 @@ class SaveModified extends DeployModified {
                                 }
                                 attempts += 1
                             }
-                            processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
+                            allSuccess &= processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
                         }
                     } else {
                         throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
@@ -336,8 +337,9 @@ class SaveModified extends DeployModified {
 
 
         }
+
         session.storeSessionData()
-        true
+        allSuccess
     }
 
     /**
@@ -440,7 +442,7 @@ class SaveModified extends DeployModified {
         }
     }
 
-    private def processSaveResult(request: ContainerAsyncRequest, membersMap: Map[ApexMember, File], updateSessionDataOnSuccess: Boolean) {
+    private def processSaveResult(request: ContainerAsyncRequest, membersMap: Map[ApexMember, File], updateSessionDataOnSuccess: Boolean): Boolean = {
 
         request.getState match {
             case "Completed" =>
@@ -472,6 +474,7 @@ class SaveModified extends DeployModified {
                     membersMap.values.foreach(f => config.responseWriter.println(f.getName))
                     config.responseWriter.endSection("SAVED FILES")
                 }
+                true
 
             case "Failed" =>
                 logger.debug("Request failed")
@@ -510,6 +513,7 @@ class SaveModified extends DeployModified {
                         responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                         responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
+                    false
                 } else {
                     //general error
                     //display errors both as messages and as ERROR: lines
@@ -523,6 +527,7 @@ class SaveModified extends DeployModified {
                     responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
                     responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
                 }
+                false
 
             case state =>
                 logger.error("Request Failed with status: " + state)
