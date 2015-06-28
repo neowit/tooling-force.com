@@ -122,7 +122,7 @@ class RunTests extends DeployModified{
         val runTestsResult = runTests()
         if (0 == runTestsResult.getNumFailures) {
             responseWriter.println("RESULT=SUCCESS")
-            responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            //responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
         } else {
             responseWriter.println("RESULT=FAILURE")
         }
@@ -149,9 +149,7 @@ class RunTests extends DeployModified{
     }
 
     private def runTests(): com.sforce.soap.tooling.RunTestsResult = {
-        //TODO uncomment
-        //val isAsync = config.getProperty("async").getOrElse("false").toBoolean
-        val isAsync = true
+        val isAsync = config.getProperty("async").getOrElse("false").toBoolean
         if (isAsync) {
             runTestsAsynchronous()
         } else {
