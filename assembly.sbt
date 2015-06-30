@@ -10,6 +10,8 @@ mainClass in assembly := Some("com.neowit.apex.Runner")
 mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
   {
     case x if x.endsWith(".java") => MergeStrategy.discard
+    case "commands.txt" => MergeStrategy.discard
+    case x if x.endsWith(".g4") => MergeStrategy.discard
     case x => old(x)
   }
 }
