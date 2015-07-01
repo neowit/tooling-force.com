@@ -114,7 +114,8 @@ class CodeCompletions extends FunSuite {
         assert(lineNumber > 0, "could not find line number by marker: " + config.lineMarker)
 
         val extraParams = Array[String]("--column=" + config.column, "--line=" + lineNumber)
-        Runner.main(commandLineParams ++ extraParams)
+        val runner = new Executor()
+        runner.execute(commandLineParams ++ extraParams)
         //validate result
         val lines = FileUtils.readFile(responseFile).getLines().toArray[String]
 
@@ -133,7 +134,7 @@ class CodeCompletions extends FunSuite {
         //println(lines.mkString("\n"))
         //"check that all expected items  found")
         val diff = expectedItemsList.toSet.--(completionResult.matchingItemsSet)
-        assert(diff.size == 0, "Found less items than expected, Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
+        assert(diff.isEmpty, "Found less items than expected, Scenario: " + config.lineMarker + "; \nMissing item(s): " + diff.mkString(", "))
 
         //check that minimum expected number of items found
         assert(config.itemsCountMin <= completionResult.itemsTotal, "Scenario: " + config.lineMarker + s"; \nExpected ${config.itemsCountMin } items, actual ${completionResult.itemsTotal} " )
