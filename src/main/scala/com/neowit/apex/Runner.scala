@@ -27,14 +27,16 @@ import ExecutionContext.Implicits.global
 object Runner extends Logging {
     def main(args: Array[String]) {
         val runner = new Executor()
-        runner.execute(args)
+        val exitCode = runner.execute(args)
+        sys.exit(exitCode)
     }
 }
 
 class Executor extends Logging {
     val basicConfig = new BasicConfig()
 
-    def execute(args: Array[String]) {
+    def execute(args: Array[String]): Int = {
+        var exitCode = 1
         if (args.isEmpty) {
             help()
         } else {
@@ -43,6 +45,7 @@ class Executor extends Logging {
                 basicConfig.load(args.toList)
                 run()
                 isGoodConfig = true
+                exitCode = 0
             } catch {
                 case ex: InvalidCommandLineException => basicConfig.help()
                 case ex: ShowHelpException =>
@@ -91,6 +94,7 @@ class Executor extends Logging {
                 }
             }
         }
+        exitCode
     }
 
     private def run () {
