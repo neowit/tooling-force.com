@@ -1,7 +1,10 @@
 package com.neowit.apex.actions.tooling
 
+import java.io.File
+
 import com.neowit.apex._
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
+import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
 import com.neowit.apex.actions.{SoqlQuery, ActionHelp, DeployModified}
 import com.neowit.utils.{FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
@@ -9,7 +12,11 @@ import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 
+import scala.util.{Failure, Success}
+
 object RunTests {
+
+    class TestResultWithJobId(val sourceTestResult: com.sforce.soap.tooling.RunTestsResult, val asyncJobId: Option[String], val useLastLog: Boolean = false )
 
     class RunTestResultTooling(sourceTestResult: com.sforce.soap.tooling.RunTestsResult) extends RunTestsResult {
         override def getCodeCoverage: Array[CodeCoverageResult] = sourceTestResult.getCodeCoverage.map(new CodeCoverageResultTooling(_))
@@ -79,14 +86,23 @@ class RunTests extends DeployModified{
             case "async" =>
                 """--async=true|false (defaults to false) - if true then use runTestsAsynchronous.
                    |      Running tests asynchronously allows methods runTestsAsynchronous() to process in parallel, cutting down your test run times.
+                   |      in --async mode you can specify individual test methods
+                   |      e.g. --testsToRun="ControllerTest.method1,ControllerTest.myTest2,Test3"
+                """.stripMargin
+            case "traceFlagConfig" =>
+                """--traceFlagConfig=/full/path/to/traceflag.conf - OPTIONAL
+                  |  traceflag.conf must contain a JSON object with "type":"value" pairs.
+                  |  All log types [ApexCode, ApexProfiling, ... Workflow] must be specified.
+                  |  File content format is as follows:
+                  |  "{"ApexCode": "Debug", "ApexProfiling": "Error", "Callout": "Error", "Database": "Error", "System": "Error", "Validation": "Error", "Visualforce": "Error", "Workflow": "Error"}"
                 """.stripMargin
         }
 
-        override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun", "reportCoverage")
+        override def getParamNames: List[String] = List("ignoreConflicts", "async", "testsToRun", "reportCoverage", "traceFlagConfig")
 
-        override def getSummary: String = "Deploy modified files and (if requested) run tests"
+        override def getSummary: String = "Run tests using Tooling API"
 
-        override def getName: String = "deployModified"
+        override def getName: String = "runTestsTooling"
     }
     override def act(): Unit = {
 
@@ -104,25 +120,21 @@ class RunTests extends DeployModified{
 
             }
         }
-        //val traceId = ToolingUtils.setupTrace(session, logger)
 
-        /*
-        val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
-
-        getTestClassNames match {
-            case List("*") =>
-                runTestsRequest.setAllTests(true)
-            case head :: tail =>
-                runTestsRequest.setClasses((head :: tail).toArray[String])
+        val traceIdOpt = config.getProperty("traceFlagConfig") match {
+          case Some(filePath) =>
+              ChangeLogLevels.setupTraceFlag(Some(filePath), session, logger, Some("user"), session.getUserId) match {
+                  case Success(traceId) => Some(traceId)
+                  case Failure(ex) => logger.error(ex)
+                      None
+              }
+          case None => None
         }
-        logger.debug("Run tests")
-        val runTestsResult = session.runTestsTooling(runTestsRequest)
-        */
 
-        val runTestsResult = runTests()
+        val runTestsResultWithJobId = runTests()
+        val runTestsResult = runTestsResultWithJobId.sourceTestResult
         if (0 == runTestsResult.getNumFailures) {
             responseWriter.println("RESULT=SUCCESS")
-            //responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
         } else {
             responseWriter.println("RESULT=FAILURE")
         }
@@ -134,26 +146,43 @@ class RunTests extends DeployModified{
         }
         ApexTestUtils.processTestResult(toolingRunTestResult, session, responseWriter)
 
-        if ("None" != session.getConfig.logLevel) {
-            ToolingUtils.getLastLogId(session) match {
-                case Some(logId) =>
-                    val log = ToolingUtils.getLog(session, logId)
-                    if (!log.isEmpty) {
-                        val logFile = config.getLogFile
-                        FileUtils.writeFile(log, logFile)
-                        responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
-                    }
-                case None =>
+        if (traceIdOpt.isDefined) {
+            //retrieve log files
+            runTestsResultWithJobId.asyncJobId match {
+              case Some(jobId) =>
+                  val logIdByClassName = getLogIds(jobId)
+                  val logFileByClassName = getLogFileByClassName(logIdByClassName)
+                  val logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
+                  responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
+              case None => //test was run in Synchronous mode
+                  if (runTestsResultWithJobId.useLastLog) {
+                      LogActions.getLastLogId(session) match {
+                          case Some(logId) =>
+                              val log = LogActions.getLog(session, logId)
+                              if (!log.isEmpty) {
+                                  val logFile = config.getLogFile
+                                  FileUtils.writeFile(log, logFile)
+                                  responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                              }
+                          case None =>
+                      }
+                  }
             }
+        }
+        //clean-up, remove trace flag we set before the start of the test
+        traceIdOpt match {
+          case Some(traceId) =>
+              ChangeLogLevels.deleteTraceFlag(traceId, session, logger)
+          case None =>
         }
     }
 
-    private def runTests(): com.sforce.soap.tooling.RunTestsResult = {
+    private def runTests(): RunTests.TestResultWithJobId = {
         val isAsync = config.getProperty("async").getOrElse("false").toBoolean
         if (isAsync) {
             runTestsAsynchronous()
         } else {
-           runTestsSynchronous()
+           new RunTests.TestResultWithJobId(runTestsSynchronous(), None, useLastLog = true)
         }
 
     }
@@ -177,7 +206,7 @@ class RunTests extends DeployModified{
      * LastProcessed,LastProcessedOffset,MethodName,NumberOfErrors,ParentJobId,Status,TotalJobItems FROM AsyncApexJob
      * @return
      */
-    private def runTestsAsynchronous(): com.sforce.soap.tooling.RunTestsResult = {
+    private def runTestsAsynchronous(): RunTests.TestResultWithJobId = {
         logger.info("Run tests Asynchronous")
         val records = getTestClassNames match {
             case List("*") =>
@@ -186,27 +215,60 @@ class RunTests extends DeployModified{
                 val classNames = (head :: tail).mkString("','")
                 SoqlQuery.getQueryIteratorTooling(session, s"select Id, Name from ApexClass where Name in ('$classNames')").map(new ResultRecord(_))
         }
-        val classIds = records.map(_.getFieldAsString("Id").get)
+        //val classIds = records.map(_.getFieldAsString("Id").get)
         //val asyncJobId = session.runTestsAsyncTooling(classIds.toList)
+
         val methodsToClassJson = getTestClassMethodJson(records.map(r => r.getFieldAsString("Name").get -> r.getFieldAsString("Id").get).toMap)
+
         session.postRestContentTooling("/runTestsAsynchronous/", methodsToClassJson) match {
           case Some(jsonAst) =>
               val asyncJobId = jsonAst.asInstanceOf[JsString].value
               waitAsyncJob(asyncJobId, reportTestProgress) match {
                   case Some(asyncApexJob) if "Completed" == asyncApexJob.getStatus=>
-                      generateRunTestResult(asyncApexJob)
+                      new TestResultWithJobId(generateRunTestResult(asyncApexJob), Some(asyncJobId))
 
                   case Some(asyncApexJob) =>
                       //TODO - job is aborted or failed
-                      new com.sforce.soap.tooling.RunTestsResult()
+                      new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
                   case None =>
-                      new com.sforce.soap.tooling.RunTestsResult()
+                      new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
               }
 
           case None =>
-              new com.sforce.soap.tooling.RunTestsResult()
+              new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
         }
         //val asyncJobId = session.postRestContentTooling("/runTestsAsynchronous/", Map("classids" -> classIds.mkString(","))).get
+    }
+    private def getLogIds(asyncApexJobId: String): Map[String, String] = {
+        val query =
+            s"""select ApexClass.Name, ApexClassId, ApexLogId, Message, MethodName, Outcome, QueueItemId, StackTrace, TestTimestamp
+               |from ApexTestResult
+               |where AsyncApexJobId = '$asyncApexJobId'
+            """.stripMargin
+
+        val queryIterator = SoqlQuery.getQueryIteratorTooling(session, query).map(new ResultRecord(_))
+        val logIdByClassName = queryIterator.
+                map(r => r.getFieldAsString("ApexClass.Name") -> r.getFieldAsString("ApexLogId")).
+                filterNot(pair => pair._1.isEmpty || pair._2.isEmpty).
+                map(pair => pair._1.get -> pair._2.get).toMap
+        logIdByClassName
+    }
+
+    private def getLogFileByClassName(logIdByClassName: Map[String, String] ): Map[String, File] = {
+        val x = logIdByClassName.par.map{
+            case (className, logId) =>
+                val logText = LogActions.getLog(session, logId)
+                if (logText.nonEmpty) {
+                    val tempFile = FileUtils.createTempFile(className, ".log")
+                    FileUtils.writeFile(logText, tempFile)
+                    className -> Some(tempFile)
+                } else {
+                    className -> None
+                }
+        }.filterNot(_._2.isEmpty).mapValues(_.get)
+
+        //convert back to sequential
+        x.seq.toMap
     }
 
     private def generateRunTestResult(asyncApexJob: AsyncApexJob): com.sforce.soap.tooling.RunTestsResult = {

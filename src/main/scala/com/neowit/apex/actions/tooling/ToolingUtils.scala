@@ -35,25 +35,5 @@ object ToolingUtils {
         !canNotUseTooling
     }
 
-    def getLog(session:Session, logId: String): String = {
-        session.getRestContentTooling("/sobjects/ApexLog/"+logId+"/Body/", "") match {
-          case Some(log) => log
-          case None => ""
-        }
 
-    }
-
-    /**
-     * retireve content of Last log for current User
-     */
-    def getLastLogId(session:Session): Option[String] = {
-        val userId = session.getUserId
-        val queryResult = session.queryTooling("select Id from ApexLog where LogUserId = '" + userId + "' and Request = 'API' order by StartTime Desc limit 1")
-        val records = queryResult.getRecords
-        if (records.nonEmpty) {
-            Some(records.head.getId)
-        } else {
-            None
-        }
-    }
 }
