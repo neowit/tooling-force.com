@@ -189,17 +189,18 @@ class ChangeLogLevels extends ApexAction {
               traceFlag.setScopeId(null)
         }
         traceFlag.setTracedEntityId(tracedEntityId)
-        /*
+
         //check if trace for current scope/tracedEntity is already setup and expires too early, and delete it if one found
+        val scopeIdCond = if (null == traceFlag.getScopeId) null else "'" + traceFlag.getScopeId+ "'"
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
                                         s""" select Id from TraceFlag
-                                           |where TracedEntityId = '${traceFlag.getTracedEntityId}' and ScopeId = '${traceFlag.getScopeId}'
+                                           |where TracedEntityId = '${traceFlag.getTracedEntityId}' and ScopeId = $scopeIdCond
                                            |""".stripMargin)
         if (queryIterator.hasNext) {
             val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
             session.deleteTooling(recordIds)
         }
-        */
+
 
         val saveResults: Array[SaveResult] = session.createTooling(Array(traceFlag))
         if (saveResults.nonEmpty && saveResults.head.isSuccess) {
