@@ -553,7 +553,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                throw new Session.RestCallException(conn)
+                val ex = new Session.RestCallException(conn)
+                logger.error(s"REST Response Code: ${ex.getRestErrorCode}, REST Response Message: ${ex.getRestMessage}")
+                Failure(ex)
             }
         }
     }
@@ -610,7 +612,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                throw new Session.RestCallException(conn)
+                val ex = new Session.RestCallException(conn)
+                logger.error(s"REST Response Code: ${ex.getRestErrorCode}, REST Response Message: ${ex.getRestMessage}")
+                Failure(ex)
             }
         }
     }
