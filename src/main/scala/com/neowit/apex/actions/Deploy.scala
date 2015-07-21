@@ -266,7 +266,8 @@ class DeployModified extends Deploy {
                 deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
             }
         } else {
-            deployOptions.setTestLevel(TestLevel.NoTestRun)
+            //this fails in Prod, so if no test classes to run provided assume nothing needs to be done
+            //deployOptions.setTestLevel(TestLevel.NoTestRun)
         }
 
         deployOptions.setCheckOnly(checkOnly)
