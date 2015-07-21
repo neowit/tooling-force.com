@@ -114,7 +114,7 @@ class RunTests extends DeployModified{
                 if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)) {
                     responseWriter.println("RESULT=FAILURE")
                     responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                    responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Save/Deploy modified first"))
+                    responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
                     return
                 }
 
@@ -450,19 +450,32 @@ class RunTests extends DeployModified{
     private def getTestClassNames: List[String] = {
         ApexTestUtils.getTestMethodsByClassName(config.getProperty("testsToRun")).keys.toList
     }
+
+    /**
+     *
+     * @param classIdByName - map of Class Ids by Class name
+     * @return JSON for runTestsAsynchronous
+     *         [{
+     *          "classId" : "<classId 1>",
+     *          "testMethods" : ["testMethod1","testMethod2","testMethod3"] },{
+     *          "classId" : "<classId 2>",
+     *          "testMethods" : ["testMethod1","testMethod2"]
+     *          }];
+     */
     private def getTestClassMethodJson(classIdByName: Map[String, String]): String = {
 
-        val methodsByClassMap = ApexTestUtils.getTestMethodsByClassName(config.getProperty("testsToRun"))
+        val methodsByClassNameMap = ApexTestUtils.getTestMethodsByClassName(config.getProperty("testsToRun"))
 
-        val methodsByClass = methodsByClassMap.map{
-            case (name, methods) =>
-                classIdByName.get(name) match {
-                  case Some(classId) =>
-                      val _methodsByClass = if (methods.isEmpty) Map("classId" -> classId.toJson) else Map("classId" -> classId.toJson, "testMethods" -> methods.toList.toJson)
-                      _methodsByClass
-                  case None => Map[String, JsValue]()
-                }
-        }.filterNot(_.isEmpty)
+        val methodsByClass = classIdByName.map {
+            case (className, classId) =>
+                val _methodsByClass =
+                    methodsByClassNameMap.get(className) match {
+                        case Some(methodSet) if methodSet.nonEmpty =>
+                            Map("classId" -> classId.toJson, "testMethods" -> methodSet.toList.toJson)
+                        case _ => Map("classId" -> classId.toJson)
+                    }
+                _methodsByClass
+        }
         val jsonStr = Map("tests" -> methodsByClass).toJson.compactPrint
         jsonStr
     }
