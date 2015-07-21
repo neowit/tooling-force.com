@@ -131,43 +131,54 @@ class RunTests extends DeployModified{
           case None => None
         }
 
-        val runTestsResultWithJobId = runTests()
-        val runTestsResult = runTestsResultWithJobId.sourceTestResult
-        if (0 == runTestsResult.getNumFailures) {
-            responseWriter.println("RESULT=SUCCESS")
-        } else {
-            responseWriter.println("RESULT=FAILURE")
-        }
-        val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
-        ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, responseWriter) match {
-            case Some(coverageFile) =>
-                responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-            case _ =>
-        }
-        ApexTestUtils.processTestResult(toolingRunTestResult, session, responseWriter)
-
-        if (traceIdOpt.isDefined) {
-            //retrieve log files
-            runTestsResultWithJobId.asyncJobId match {
-              case Some(jobId) =>
-                  val logIdByClassName = getLogIds(jobId)
-                  val logFileByClassName = getLogFileByClassName(logIdByClassName)
-                  val logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
-                  responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
-              case None => //test was run in Synchronous mode
-                  if (runTestsResultWithJobId.useLastLog) {
-                      LogActions.getLastLogId(session) match {
-                          case Some(logId) =>
-                              val log = LogActions.getLog(session, logId)
-                              if (!log.isEmpty) {
-                                  val logFile = config.getLogFile
-                                  FileUtils.writeFile(log, logFile)
-                                  responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
-                              }
-                          case None =>
-                      }
-                  }
+        try {
+            val runTestsResultWithJobId = runTests()
+            val runTestsResult = runTestsResultWithJobId.sourceTestResult
+            if (0 == runTestsResult.getNumFailures) {
+                responseWriter.println("RESULT=SUCCESS")
+            } else {
+                responseWriter.println("RESULT=FAILURE")
             }
+            val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
+            ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, responseWriter) match {
+                case Some(coverageFile) =>
+                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                case _ =>
+            }
+            ApexTestUtils.processTestResult(toolingRunTestResult, session, responseWriter)
+
+            if (traceIdOpt.isDefined) {
+                //retrieve log files
+                runTestsResultWithJobId.asyncJobId match {
+                    case Some(jobId) =>
+                        val logIdByClassName = getLogIds(jobId)
+                        val logFileByClassName = getLogFileByClassName(logIdByClassName)
+                        val logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
+                        responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
+                    case None => //test was run in Synchronous mode
+                        if (runTestsResultWithJobId.useLastLog) {
+                            LogActions.getLastLogId(session) match {
+                                case Some(logId) =>
+                                    val log = LogActions.getLog(session, logId)
+                                    if (!log.isEmpty) {
+                                        val logFile = config.getLogFile
+                                        FileUtils.writeFile(log, logFile)
+                                        responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                                    }
+                                case None =>
+                            }
+                        }
+                }
+            }
+        } catch {
+            case ex: Session.RestCallException =>
+                ex.getRestErrorCode match {
+                    case Some(code) if "ALREADY_IN_PROCESS" == code =>
+                        responseWriter.println("RESULT=FAILURE")
+                        responseWriter.println(new Message(ResponseWriter.ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                    case None =>
+                        throw ex
+                }
         }
         //clean-up, remove trace flag we set before the start of the test
         traceIdOpt match {
