@@ -979,9 +979,8 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         var attempts = 0
         var lastReportTime = System.currentTimeMillis()
 
-        val includeZip = true
-        var retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, includeZip)
-        while (!retrieveResult.isDone) {
+        var retrieveResult: com.sforce.soap.metadata.RetrieveResult = null
+        do {
             val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
             blocking {
                 Thread.sleep(waitTimeMilliSecs)
@@ -994,7 +993,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                 logger.trace("waiting result, poll #" + attempts)
             }
             attempts += 1
-            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, includeZip)
+            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, false)
             if (!retrieveResult.isDone && ((attempts +1) > MAX_NUM_POLL_REQUESTS)) {
                 throw new Exception("Request timed out.  If this is a large set " +
                     "of metadata components, check that the time allowed " +
@@ -1002,9 +1001,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             }
 
             logger.debug("Status is: " + retrieveResult.getStatus.toString)
-        }
+
+        } while (!retrieveResult.isDone)
+
         if (!retrieveResult.isSuccess) {
             throw new Exception(retrieveResult.getStatus + " msg:" + retrieveResult.getMessages.mkString("\n"))
+        } else {
+            //finally retrieve ZIP
+            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true)
         }
         retrieveResult
     }
@@ -1016,12 +1020,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         var lastReportTime = System.currentTimeMillis()
         val oldMessages = scala.collection.mutable.Set[String]()
 
-        var deployResult =  connection.checkDeployStatus(asyncResult.getId, false)
-        while (!deployResult.isDone) {
-            val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
+        var deployResult:com.sforce.soap.metadata.DeployResult = null
+        var fetchDetails = false
+
+        do {
             blocking {
                 Thread.sleep(waitTimeMilliSecs)
             }
+            val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
             //report only once every 3 seconds
             if (reportAttempt) {
                 logger.info("waiting result, poll #" + attempts)
@@ -1030,7 +1036,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                 logger.trace("waiting result, poll #" + attempts)
             }
             attempts += 1
-            val fetchDetails = attempts % 3 == 0
+            fetchDetails = attempts % 3 == 0
             deployResult =  connection.checkDeployStatus(asyncResult.getId, fetchDetails)
             // Fetch in-progress details once for every 3 polls
             if (fetchDetails) {
@@ -1045,6 +1051,11 @@ class Session(val basicConfig: BasicConfig) extends Logging {
 
 
             logger.debug("Status is: " + deployResult.getStatus.toString)
+        } while (!deployResult.isDone)
+
+        if (!fetchDetails) {
+            // Get the final result with details if we didn't do it in the last attempt.
+            deployResult =  connection.checkDeployStatus(asyncResult.getId, true)
         }
 
         if (!deployResult.isSuccess && null != deployResult.getErrorStatusCode ) {

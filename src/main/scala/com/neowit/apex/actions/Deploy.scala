@@ -140,7 +140,7 @@ class DeployModified extends Deploy {
             case "checkOnly" => "--checkOnly=true|false (defaults to false) - if true then test deployment but do not make actual changes in the Org"
             case "reportCoverage" =>
                 """--reportCoverage=true|false (defaults to false) - if true then generate code coverage file
-                  |Note: makes sence only when --testsToRun is also specified
+                  |Note: makes sense only when --testsToRun is also specified
                 """.stripMargin
             case
                 "testsToRun" =>
@@ -266,7 +266,7 @@ class DeployModified extends Deploy {
                 deployOptions.setRunTests(testMethodsByClassName.keys.toArray)
             }
         } else {
-            //this fails in Prod, so if no test classes to run provided assume nothing needs to be done
+            //this fails in Prod, so if no test classes to run provided then assume nothing needs to be done
             //deployOptions.setTestLevel(TestLevel.NoTestRun)
         }
 
@@ -287,6 +287,9 @@ class DeployModified extends Deploy {
             val runTestResult = deployDetails.getRunTestResult
             if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
                 responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            }
+            if (isRunningTests && (null != runTestResult) && runTestResult.getTotalTime > 0 ) {
+                logger.info(s"total cumulative time spent running tests: ${runTestResult.getTotalTime}")
             }
             ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session, responseWriter) match {
                 case Some(coverageFile) =>
