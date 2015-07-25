@@ -36,28 +36,28 @@ object Connection extends Logging {
             case Some(s) => Some(s)
             case None => appConfig.getProperty("http.proxyUser")
         }
-        if (None != proxyUsername )
+        if (proxyUsername.isDefined )
             config.setProxyUsername(proxyUsername.get)
 
         val proxyPassword = appConfig.getProperty("http.proxyPassword")
-        if (None != proxyPassword )
+        if (proxyPassword.isDefined )
             config.setProxyPassword(proxyPassword.get)
 
-        if (None != proxyHost && None != proxyPort) {
+        if (proxyHost.isDefined && proxyPort.isDefined) {
             config.setProxy(proxyHost.get, proxyPort.get.toInt)
             logger.debug("Proxy: " + proxyHost + ":" + proxyPort)
         }
 
         val ntlmDomain = appConfig.getProperty("http.ntlmDomain")
-        if (None != ntlmDomain )
+        if (ntlmDomain.isDefined )
             config.setNtlmDomain(ntlmDomain.get)
 
         val connectionTimeoutSecs = appConfig.getProperty("http.connectionTimeoutSecs")
-        if (None != connectionTimeoutSecs )
+        if (connectionTimeoutSecs.isDefined )
             config.setConnectionTimeout(connectionTimeoutSecs.get.toInt * 1000)
 
         val readTimeoutSecs = appConfig.getProperty("http.readTimeoutSecs")
-        if (None != readTimeoutSecs )
+        if (readTimeoutSecs.isDefined )
             config.setReadTimeout(readTimeoutSecs.get.toInt * 1000)
 
 
@@ -99,7 +99,7 @@ object Connection extends Logging {
 
     /**
      * create brand new connection
-     * @param appConfig
+     * @param appConfig - user defined config
      * @return
      */
     def createMetadataConnection(appConfig: Config):com.sforce.soap.metadata.MetadataConnection = {
@@ -110,8 +110,8 @@ object Connection extends Logging {
 
     /**
      * initialise MetadataConnection based on existing PartnerConnection
-     * @param appConfig
-     * @param partnerConnection
+     * @param appConfig - user defined config
+     * @param partnerConnection - existing PartnerConnection
      * @return
      */
     def getMetadataConnection(appConfig: Config,
@@ -137,7 +137,7 @@ object Connection extends Logging {
 
     /**
      * create brand new connection
-     * @param appConfig
+     * @param appConfig - user defined config
      * @return
      */
     def createToolingConnection(appConfig: Config):com.sforce.soap.tooling.ToolingConnection = {
@@ -148,8 +148,8 @@ object Connection extends Logging {
 
     /**
      * initialise tooling Connection based on existing PartnerConnection
-     * @param appConfig
-     * @param partnerConnection
+     * @param appConfig - user defined config
+     * @param partnerConnection - existing PartnerConnection
      * @return
      */
     def getToolingConnection(appConfig: Config,
@@ -175,7 +175,7 @@ object Connection extends Logging {
 
     /**
      * create brand new connection
-     * @param appConfig
+     * @param appConfig - user defined config
      * @return
      */
     def createApexConnection(appConfig: Config):com.sforce.soap.apex.SoapConnection = {
@@ -186,8 +186,8 @@ object Connection extends Logging {
 
     /**
      * initialise apex Connection based on existing PartnerConnection
-     * @param appConfig
-     * @param partnerConnection
+     * @param appConfig - user defined config
+     * @param partnerConnection - existing PartnerConnection
      * @return
      */
     def getApexConnection(appConfig: Config,
