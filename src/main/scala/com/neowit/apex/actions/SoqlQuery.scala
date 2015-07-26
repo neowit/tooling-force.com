@@ -43,7 +43,7 @@ class SoqlQuery extends ApexAction {
             }
         }
 
-        override def getParamNames: List[String] = List("projectPath", "codeFile", "responseFilePath")
+        override def getParamNames: List[String] = List("projectPath", "codeFile", "responseFilePath", "api", "outputFilePath", "outputFormat")
 
         override def getSummary: String = "execute provided SOQL query and return results"
 

@@ -98,7 +98,7 @@ class RunTests extends DeployModified{
                 """.stripMargin
         }
 
-        override def getParamNames: List[String] = List("ignoreConflicts", "async", "testsToRun", "reportCoverage", "traceFlagConfig")
+        override def getParamNames: List[String] = List("async", "testsToRun", "reportCoverage", "traceFlagConfig")
 
         override def getSummary: String = "Run tests using Tooling API"
 
