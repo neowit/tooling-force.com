@@ -54,9 +54,14 @@ When connection requires proxy it can be passed as java -D params or as tooling-
 ## Building tooling-force.com
 
  - make sure you have [sbt](http://www.scala-sbt.org/) installed.
+ - make sure you have [Antlr4](http://www.antlr.org) installed.
+ 
+ ```    
+ git clone git@github.com:neowit/tooling-force.com.git 
+ ```
+ 
  - Generate partner-api, apex-api, metadata-api and tooling-api jars using instructions from [Force.com Web Service Connector (WSC)](https://github.com/forcedotcom/wsc)
  - rename and place generated files under lib folder such as the file structure looks like this (assuming API v32.0)
-
 <pre>
 	lib/
 	----apex-wsdl-32.0.jar
@@ -70,8 +75,21 @@ When connection requires proxy it can be passed as java -D params or as tooling-
 	assembly.sbt
 	build.sbt
 </pre>
-    git clone git@github.com:neowit/tooling-force.com.git
+
+
+ - make sure line `test in assembly := {}` in `assembly.sbt` is *not* commented out. If it is then tests will run and your build will fail (this is due to some tests dependent on a specific structure of the Org against which tests are run)
+
+```
+	cd tooling-force.com/src/main/java
+	antlr4 -o ./com/neowit/apex/parser/antlr Apexcode.g4
+	antlr4 -o ./com/neowit/apex/parser/antlr Soql.g4
+	cd ../../../
     sbt assembly
+```
+Note - the end result will be .jar file which does NOT contain scala runtime. In order to run that jar you will need to either run it from you IDE (with scala runtime specified) or use scala directly, e.g.:  
+```
+$ scala tooling-force.com-assembly-0.1-SNAPSHOT.jar
+```
 
 ##CREDITS                                                     
 
