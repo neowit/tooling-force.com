@@ -55,6 +55,7 @@ When connection requires proxy it can be passed as java -D params or as tooling-
 
  - make sure you have [sbt](http://www.scala-sbt.org/) installed.
  - make sure you have [Antlr4](http://www.antlr.org) installed.
+ - scala version: 2.10
  
  ```    
  git clone git@github.com:neowit/tooling-force.com.git 
