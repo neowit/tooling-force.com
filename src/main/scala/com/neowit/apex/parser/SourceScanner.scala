@@ -44,10 +44,10 @@ class SourceScanner (files: List[File]) extends Logging {
                 } catch {
                     case ex:Exception =>
                         logger.error("Failed to parse file: " + file.getName, ex)
-                        logger.error(ex.getStackTraceString)
+                        logger.error(ex.getStackTrace)
                         println("Failed to parse file: " + file.getName)
                         println(ex)
-                        println(ex.getStackTraceString)
+                        println(ex.getStackTrace)
                 }
             }
         }

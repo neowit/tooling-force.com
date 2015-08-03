@@ -82,9 +82,9 @@ class Executor extends Logging {
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     logger.error(ex)
-                    logger.error(ex.getStackTraceString)
+                    logger.error(ex.getStackTrace)
                     System.out.println(ex)
-                    System.out.println(ex.getStackTraceString)
+                    System.out.println(ex.getStackTrace)
                     basicConfig.responseWriter.println("RESULT=FAILURE")
                     basicConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
