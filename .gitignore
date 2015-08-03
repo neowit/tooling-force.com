@@ -1,0 +1,5 @@
+!src/main/java/*.g4
+src/main/java/
+.DS_Store
+lib/
+target/

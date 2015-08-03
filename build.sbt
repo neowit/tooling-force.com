@@ -4,10 +4,10 @@ name := "tooling-force.com"
 
 version := "0.1-SNAPSHOT"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.7"
 
 scalacOptions ++= Seq(
-  "-deprecation", 
+  "-deprecation",
   "-encoding", "UTF-8",
   "-feature", 
   "-unchecked",
@@ -21,8 +21,10 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   "commons-logging" %  "commons-logging" % "1.1.3",
-  "org.scalatest" %  "scalatest_2.10" % "2.0" % "test",
-  "com.typesafe.akka" % "akka-actor_2.10" % "2.2-M1"
+  "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test",
+  "com.typesafe.akka" % "akka-actor_2.10" % "2.2-M1",
+  "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
+  "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4"
 )
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.0"
