@@ -413,7 +413,7 @@ class DeployModified extends Deploy {
             }
             //process test successes and failures
             val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
-            if (isRunningTests) {
+            if (isRunningTests || (null != deployDetails.getRunTestResult && deployDetails.getRunTestResult.getFailures.nonEmpty) ) {
                 ApexTestUtils.processTestResult(runTestResult, session, responseWriter)
             }
             val coverageReportFile = ApexTestUtils.processCodeCoverage(runTestResult, session, responseWriter)
