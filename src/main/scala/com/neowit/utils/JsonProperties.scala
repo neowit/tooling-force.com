@@ -19,8 +19,10 @@
 
 package com.neowit.utils
 
-import scala.util.parsing.json.{JSON, JSONObject}
-
+//import scala.util.parsing.json.{JSON, JSONObject}
+import spray.json._
+import DefaultJsonProtocol._
+import com.neowit.utils.JsonUtils._
 /**
  * this is not TRUE JSON properties
  * this class allows values in two formats
@@ -35,7 +37,8 @@ trait JsonProperties extends OptionProperties {
      * @param data - map of values to save
      */
     def setJsonData(key: String, data: Data) {
-        this.setProperty(key, JSONObject(data).toString())
+        //this.setProperty(key, JSONObject(data).toString())
+        this.setProperty(key, data.toJson.compactPrint)
     }
     /**
      * retrieve key/value pairs for given object name from session file
@@ -59,24 +62,16 @@ trait JsonProperties extends OptionProperties {
         }
     }
 
-    // Enforce conversion of numbers to Long as opposed to default = Double Global override
-    val myNumberConversionFunc = {input : String => BigDecimal(input)}
-
     private def valueToDataMap(s: String): Data = {
-        val originalConversionFunc = JSON.globalNumberParser
-        // Enforce conversion of numbers to Long as opposed to default = Double Global override
-        JSON.globalNumberParser = myNumberConversionFunc
-        val res = JSON.parseFull(s) match {
-            case Some(m)  => m
-            case _ => Map()
-        }
-        JSON.globalNumberParser = originalConversionFunc
-        res.asInstanceOf[Data]
+        val o = s.parseJson
+        val v = AnyJsonFormat.read(o)
+        v.asInstanceOf[Data]
     }
 
     def getKeyById(id: String):Option[String] = {
         getKeyByValue("Id", id)
     }
+
     def setField(key: String, propName:String, value: Any) {
         val x = getJsonData(key)
         setJsonData(key, x ++ Map(propName -> value))

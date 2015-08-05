@@ -6,7 +6,9 @@ import com.neowit.apex.actions.{Deploy, ActionError, DescribeMetadata}
 import com.neowit.utils.{Config, FileUtils, ResponseWriter}
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
 
-import scala.util.parsing.json.{JSONArray, JSONObject}
+import spray.json._
+import DefaultJsonProtocol._
+import com.neowit.utils.JsonUtils._
 
 
 trait RunTestsResult {
@@ -103,16 +105,15 @@ object ApexTestUtils {
                                 case None => None
                             }
                     }
-
                     filePath match {
                         case Some(relPath) =>
                             val locations = List.newBuilder[Int]
                             for (codeLocation <- coverageResult.getLocationsNotCovered) {
                                 locations += codeLocation.getLine
                             }
-                            val coverageJSON = JSONObject(Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
+                            val coverageJSON = Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
                                 "linesNotCoveredNum" -> coverageResult.getNumLocationsNotCovered,
-                                "linesNotCovered" -> JSONArray(locations.result())))
+                                "linesNotCovered" -> locations.result().toJson ).toJson
                             // end result looks like so:
                             // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
                             writer.println(coverageJSON.toString(ResponseWriter.defaultFormatter))
