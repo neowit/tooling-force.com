@@ -21,7 +21,7 @@ package com.neowit.apex
 
 import com.sforce.soap.partner.sobject.SObject
 import com.neowit.utils.{FileUtils, Config, ZuluTime, Logging}
-import java.util.{Calendar, TimeZone}
+import java.util.Calendar
 import java.io.File
 import com.sforce.soap.metadata.{DeployResult, DeployMessage}
 
@@ -54,7 +54,7 @@ object MetadataType extends Logging {
 
     def getValueMap(deployResult: DeployResult, message: DeployMessage, xmlType: String, localMills: Long, md5Hash: String, crc32: Long,
                     metaMills: Long, metaMd5Hash: String, metaCRC32: Long):Map[String, Any] = {
-        val id = if (null == message.getId) None else Some(message.getId)
+        val id = Option(message.getId)
         getValueMap(message.getFullName, xmlType, id, deployResult.getLastModifiedDate, localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
     }
 
