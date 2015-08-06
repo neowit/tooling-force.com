@@ -116,7 +116,7 @@ object ApexTestUtils {
                                 "linesNotCovered" -> locations.result().toJson ).toJson
                             // end result looks like so:
                             // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
-                            writer.println(coverageJSON.toString(ResponseWriter.defaultFormatter))
+                            writer.println(coverageJSON.compactPrint)
                         case None =>
                     }
                 case None =>

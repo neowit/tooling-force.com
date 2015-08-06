@@ -5,9 +5,12 @@ import com.sforce.soap.metadata.{ListMetadataQuery, DescribeMetadataObject}
 import com.neowit.apex.Session
 import scala.collection.mutable
 import java.io.{PrintWriter, File}
-import com.neowit.utils.{ResponseWriter, FileUtils}
-import scala.util.parsing.json.{JSONArray, JSONObject, JSON}
+import com.neowit.utils.FileUtils
 import scala.util.{Failure, Success, Try}
+
+import spray.json._
+import DefaultJsonProtocol._
+import com.neowit.utils.JsonUtils._
 
 object DescribeMetadata {
     private var describeMetadataObjectMap:Map[String, DescribeMetadataObject] = Map()
@@ -125,13 +128,18 @@ object DescribeMetadata {
         None
     }
 }
-
 /**
- * 'decribeMetadata' action saves result of describeMetadata call in JSON format
+ * 'describeMetadata' action saves result of describeMetadata call in JSON format
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
 class DescribeMetadata extends ApexAction {
+
+    case class MetadataTypeJSON(XMLName: String, HasMetaFile: Boolean, Suffix: String, ChildObjects: List[String], DirName: String, InFolder: Boolean)
+
+    object MetadataDescriptionJsonProtocol extends DefaultJsonProtocol {
+        implicit val singleMetadataTypeFormat: JsonFormat[MetadataTypeJSON] = lazyFormat(jsonFormat6(MetadataTypeJSON))
+    }
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -153,24 +161,18 @@ class DescribeMetadata extends ApexAction {
 
         for (line <- FileUtils.readFile(config.storedDescribeMetadataResultFile).getLines()) {
             //JSON.parseFull(line)
-            JSON.parseRaw(line)  match {
-                case Some(json) =>
-                    val data = json.asInstanceOf[JSONObject].obj
-                    val descrObj = new DescribeMetadataObject()
-                    descrObj.setDirectoryName(data.getOrElse("DirName", "").asInstanceOf[String])
-                    descrObj.setInFolder(data.getOrElse("InFolder", false).asInstanceOf[Boolean])
-                    descrObj.setMetaFile(data.getOrElse("HasMetaFile", false).asInstanceOf[Boolean])
-                    descrObj.setSuffix(data.getOrElse("Suffix", "").asInstanceOf[String])
-                    val xmlName = data.getOrElse("XMLName", "").asInstanceOf[String]
-                    descrObj.setXmlName(xmlName)
-                    val xmlNames = data.getOrElse("ChildObjects", new JSONArray(List())).asInstanceOf[JSONArray]
-                    descrObj.setChildXmlNames(xmlNames.list.asInstanceOf[List[String]].toArray)
+            val jsonAst = JsonParser(line)
+            val data = jsonAst.convertTo[MetadataTypeJSON](MetadataDescriptionJsonProtocol.singleMetadataTypeFormat)
+            val descrObj = new DescribeMetadataObject()
+            descrObj.setDirectoryName(data.DirName)
+            descrObj.setInFolder(data.InFolder)
+            descrObj.setMetaFile(data.HasMetaFile)
+            descrObj.setSuffix(data.Suffix)
+            descrObj.setXmlName(data.XMLName)
+            val xmlNames = data.ChildObjects
+            descrObj.setChildXmlNames(xmlNames.toArray)
 
-                    describeMetadataObjectMap += xmlName -> descrObj
-                case None =>
-                    logger.error("Failed to parse line: \n" + line)
-            }
-
+            describeMetadataObjectMap += data.XMLName -> descrObj
         }
         describeMetadataObjectMap.toMap
     }
@@ -192,14 +194,14 @@ class DescribeMetadata extends ApexAction {
                     describeMetadataObjectMap.get(xmlName) match {
                         case Some(_describeObject) =>
                             val data = Map(
-                                "ChildObjects" -> JSONArray(_describeObject.getChildXmlNames.toList),
+                                "ChildObjects" -> _describeObject.getChildXmlNames.toJson,
                                 "DirName" -> _describeObject.getDirectoryName,
                                 "InFolder" -> _describeObject.isInFolder,
                                 "HasMetaFile" -> _describeObject.getMetaFile,
                                 "Suffix" -> (if (null != _describeObject.getSuffix) _describeObject.getSuffix else "\"\""),
                                 "XMLName" -> _describeObject.getXmlName
                             )
-                            linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
+                            linesBuf += data.toJson.compactPrint
                         case None =>
                     }
                 }
@@ -296,7 +298,7 @@ class ListMetadata extends ApexAction {
                     logger.trace("key is null for v=" + v)
                 case (key: String, values: Set[String]) =>
                     logger.trace("key=" + key)
-                    val line = JSONObject(Map(key -> JSONArray(values.toList))).toString(ResponseWriter.defaultFormatter)
+                    val line = Map(key -> values.toList.toJson).toJson.compactPrint
                     writer.println(line)
             }
             writer.close()
