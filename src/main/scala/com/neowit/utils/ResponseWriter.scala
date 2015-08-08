@@ -20,9 +20,11 @@
 package com.neowit.utils
 
 import java.io.{FileOutputStream, OutputStream, File, PrintWriter}
-import scala.util.parsing.json.{JSONArray, JSONObject}
-import scala.util.parsing.json.JSONFormat.ValueFormatter
 import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
+
+import spray.json._
+import DefaultJsonProtocol._
+import com.neowit.utils.JsonUtils._
 
 object ResponseWriter {
 
@@ -39,19 +41,19 @@ object ResponseWriter {
         val id = Message.getNextId()
         def toJSONObject = {
             val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ensureNoNulls(data)
-            JSONObject(msgData)
+            msgData.toJson.asJsObject
         }
     }
     case class MessageDetail(message: Message, data: Map[String, Any]) {
         def toJSONObject = {
             val msgData = Map("messageId"-> message.id) ++ ensureNoNulls(data)
-            JSONObject(msgData)
+            msgData.toJson.asJsObject
         }
     }
 
     trait MessageType {
         def getTypeString: String
-        override def toString: String = "\"" + getTypeString+ "\""
+        override def toString: String = getTypeString
     }
     case object INFO extends MessageType {
         def getTypeString: String = "INFO"
@@ -69,16 +71,6 @@ object ResponseWriter {
         def getTypeString: String = msgType
     }
 
-    val defaultFormatter : ValueFormatter = (x : Any) => x match {
-        case s : String => "\"" + escapeString(s) + "\""
-        case jo : JSONObject => jo.toString(defaultFormatter)
-        case ja : JSONArray =>
-            val res = ja.toString(defaultFormatter)
-            //sometimes scala adds comma at the end of the array, make sure it does not happen
-            res.replace(", ]", "]")
-        case other if null != other => other.toString
-        case other => "" //all unhandled cases, like null, etc
-    }
     /**
      * slightly modified version of JSONFormat.quoteString
      * @param s - string to check and escape if required
@@ -122,16 +114,16 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
         logger.debug(p1)
     }
     def println(msg: Message): Unit = {
-        println(s"MESSAGE: " + msg.toJSONObject.toString(ResponseWriter.defaultFormatter))
+        println(s"MESSAGE: " + msg.toJSONObject.compactPrint)
     }
     def println(messageDetail: MessageDetail): Unit = {
-        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.toString(ResponseWriter.defaultFormatter))
+        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.compactPrint)
     }
     def println(messageDetails: List[MessageDetail]): Unit = {
         messageDetails.foreach(println(_))
     }
     def println(prefix: String, data: Map[String, Any]): Unit = {
-        println(prefix + ": " + JSONObject(ResponseWriter.ensureNoNulls(data)).toString(ResponseWriter.defaultFormatter))
+        println(prefix + ": " + ResponseWriter.ensureNoNulls(data).toJson.compactPrint)
     }
     def println(data: Map[String, Any]): Unit = {
         println("", data)
