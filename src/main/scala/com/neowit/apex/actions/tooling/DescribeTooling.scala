@@ -4,10 +4,13 @@ import com.sforce.soap.tooling.DescribeGlobalSObjectResult
 import scala.collection.mutable
 import com.neowit.apex.Session
 import scala.util.{Failure, Success, Try}
-import scala.util.parsing.json.{JSON, JSONObject, JSONArray}
-import com.neowit.utils.{FileUtils, BasicConfig, ResponseWriter}
+import com.neowit.utils.FileUtils
 import java.io.{PrintWriter, File}
 import com.neowit.apex.actions.{ActionHelp, ApexAction}
+
+import spray.json._
+import DefaultJsonProtocol._
+import com.neowit.utils.JsonUtils._
 
 object DescribeTooling {
     private var describeToolingObjectMap:Map[String, DescribeGlobalSObjectResult] = Map()
@@ -33,6 +36,13 @@ object DescribeTooling {
 }
 
 class DescribeTooling extends ApexAction {
+    case class ToolingTypeJSON(isActivateable: Option[Boolean], isCustom: Option[Boolean], isCustomSetting: Option[Boolean],
+                               isQueryable: Option[Boolean], keyPrefix: Option[String], name: Option[String])
+
+    object ToolingDescriptionJsonProtocol extends DefaultJsonProtocol {
+        implicit val singleToolingTypeFormat: JsonFormat[ToolingTypeJSON] = lazyFormat(jsonFormat6(ToolingTypeJSON))
+    }
+
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -64,7 +74,23 @@ class DescribeTooling extends ApexAction {
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
 
         for (line <- FileUtils.readFile(config.storedDescribeToolingResultFile).getLines()) {
-            //JSON.parseFull(line)
+            Try(JsonParser(line)) match {
+                case Success(jsonAst) =>
+                    val data = jsonAst.convertTo[ToolingTypeJSON](ToolingDescriptionJsonProtocol.singleToolingTypeFormat)
+                    val descrObj = new DescribeGlobalSObjectResult()
+                    descrObj.setActivateable(data.isActivateable.getOrElse(false))
+                    descrObj.setCustom(data.isCustom.getOrElse(false))
+                    descrObj.setCustomSetting(data.isCustomSetting.getOrElse(false))
+                    descrObj.setQueryable(data.isQueryable.getOrElse(false))
+                    descrObj.setKeyPrefix(data.keyPrefix.getOrElse(""))
+                    val name = data.name.getOrElse("")
+                    descrObj.setName(name)
+
+                    describeMetadataObjectMap += name -> descrObj
+                case Failure(e) =>
+                    logger.error("Failed to parse line: \n" + line + "\n " + e.getMessage)
+            }
+            /*
             JSON.parseRaw(line)  match {
                 case Some(json) =>
                     val data = json.asInstanceOf[JSONObject].obj
@@ -81,6 +107,7 @@ class DescribeTooling extends ApexAction {
                 case None =>
                     logger.error("Failed to parse line: \n" + line)
             }
+            */
 
         }
         describeMetadataObjectMap.toMap
@@ -104,7 +131,8 @@ class DescribeTooling extends ApexAction {
                                 "keyPrefix" -> (if (null == _describeObject.getKeyPrefix) "" else _describeObject.getKeyPrefix),
                                 "name" -> _describeObject.getName
                             )
-                            linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
+                            //linesBuf += JSONObject(data).toString(ResponseWriter.defaultFormatter)
+                            linesBuf += data.toJson.compactPrint
                         case None =>
                     }
                 }
