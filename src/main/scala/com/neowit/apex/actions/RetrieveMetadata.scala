@@ -9,7 +9,9 @@ import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveReques
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
-import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
+
+import spray.json._
+import DefaultJsonProtocol._
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
@@ -64,7 +66,7 @@ abstract class RetrieveMetadata extends ApexAction {
      */
     private def cleanSessionKeys(extraSrcFoldersToLookIn: List[File]): Unit = {
         val keysToDelete = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn).map(session.getKeyByRelativeFilePath(_))
-        keysToDelete.map(session.removeData(_))
+        keysToDelete.foreach(session.removeData(_))
     }
 
     /**
@@ -222,7 +224,7 @@ class ListConflicting extends RetrieveMetadata {
     }
 
     def getFilesNewerOnRemote(files: List[File]): Option[List[Map[String, Any]]] = {
-        val filesWithoutPackageXml = files.filterNot(_.getName == "package.xml").toList
+        val filesWithoutPackageXml = files.filterNot(_.getName == "package.xml")
         if (filesWithoutPackageXml.isEmpty) {
             Option(filesWithoutPackageXml.map(f => Map("file" -> f)))
         } else {
@@ -499,7 +501,7 @@ class BulkRetrieve extends RetrieveMetadata {
         if (errors.isEmpty) {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + JSONObject(fileCountByType).toString(ResponseWriter.defaultFormatter))
+            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + fileCountByType.toJson.compactPrint)
         } else {
             config.responseWriter.println("RESULT=FAILURE")
             errors.foreach(responseWriter.println(_))
@@ -528,18 +530,19 @@ class BulkRetrieve extends RetrieveMetadata {
 
         } else if (isJSONFormat) {
             for (line <- FileUtils.readFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
-                JSON.parseRaw(line)  match {
-                    case Some(json) =>
-                        val data = json.asInstanceOf[JSONObject].obj
-                        val typeName = data("XMLName").asInstanceOf[String]
-                        val members = data("members").asInstanceOf[JSONArray].list.asInstanceOf[List[String]]
-                        membersByXmlName += typeName -> members
+                Try(line.parseJson) match {
+                    case Success(jsonAst) =>
+                        val data = jsonAst.asJsObject.fields
+                        val typeName = JsonUtils.AnyJsonFormat.read(data.getOrElse("XMLName", JsString(""))).asInstanceOf[String]
+                        val members = JsonUtils.AnyJsonFormat.read(data.getOrElse("members", JsArray())).asInstanceOf[Vector[String]].toList
 
-                    case None =>
+                        if (typeName.nonEmpty) {
+                            membersByXmlName += typeName -> members
+                        }
+                        membersByXmlName
+                    case Failure(e) =>
                         errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: '" + line + "'. Make sure you specified correct '--typesFileFormat' value")
                 }
-
-
             }
         } else {
             //folder/file format
