@@ -72,11 +72,11 @@ object MetaXml {
 
         val members =
             for (typeNode <- NodeIterator(document.getElementsByTagName("types"))) yield {
-                val typeName = NodeIterator(typeNode.getChildNodes).find(n => null != n && n.getNodeName == "name") match {
+                val typeName = NodeIterator(typeNode.getChildNodes).find(n => n.getNodeName == "name") match {
                     case Some(node) => node.getTextContent
                     case None => ""
                 }
-                val members = NodeIterator(typeNode.getChildNodes).filter(n => null != n && n.getNodeName == "members").toList
+                val members = NodeIterator(typeNode.getChildNodes).filter(n => n.getNodeName == "members").toList
                 val ptm = new PackageTypeMembers()
                 ptm.setName(typeName)
                 ptm.setMembers(members.map(_.getTextContent).toArray)
@@ -227,20 +227,26 @@ object NodeIterator {
 class NodeIterator(nodes: NodeList) extends Iterator[org.w3c.dom.Node] {
 
     private var index = 0
-    override def hasNext: Boolean = nodes.getLength > index
+    private var nextNode = _next()
 
+    override def hasNext: Boolean = null != nextNode
+
+    private def _next(): Node = {
+        nextNode =  if (nodes.getLength > index) {
+                        index += 1
+                        nodes.item(index - 1)
+                    } else
+                        null
+
+        while (null != nextNode && nextNode.getNodeType != Node.ELEMENT_NODE && hasNext) {
+            nextNode = nodes.item(index)
+            index += 1
+        }
+        nextNode
+    }
     override def next(): Node = {
-        var node = nodes.item(index)
-
-        while (null != node && node.getNodeType != Node.ELEMENT_NODE && hasNext) {
-            index += 1
-            node = nodes.item(index)
-        }
-        if (null != node && Node.ELEMENT_NODE == node.getNodeType) {
-            index += 1
-            node
-        } else {
-            null
-        }
+        val node = nextNode
+        nextNode = _next()
+        node
     }
 }

@@ -60,8 +60,8 @@ class MetaXmlTest extends FunSuite {
 
         val foundTypes = List.newBuilder[String]
         for (_type <- typesIterator) {
-            val members = NodeIterator(_type.getChildNodes).filter(n => null != n && n.getNodeName == "members").toList
-            val typeName = NodeIterator(_type.getChildNodes).find(n => null != n && n.getNodeName == "name") match {
+            val members = NodeIterator(_type.getChildNodes).filter(n => n.getNodeName == "members").toList
+            val typeName = NodeIterator(_type.getChildNodes).find(n => n.getNodeName == "name") match {
                 case Some(node) => node.getTextContent
                 case None => ""
             }
