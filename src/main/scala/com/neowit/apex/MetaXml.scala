@@ -148,27 +148,7 @@ object MetaXml {
 
     }
 
-    /**
-     * change status "active" to "inactive" in provided -meta.xml file in order to disable specific
-     * trigger and prepare for removal
-     * @param metaXmlFile - -meta.xml file
-     * @return Option(metaXmlFile) if success or None if could not disable
-     */
-    def disableTrigger(metaXmlFile: File): Unit = {
-        def updateStatus( node : Node, newStatus: String ) : Node = {
-            def updateElements( seq : Seq[Node]) : Seq[Node] =
-                for( subNode <- seq ) yield updateStatus( subNode, newStatus )
 
-            node match {
-                case <ApexTrigger>{ ch @ _* }</ApexTrigger> => <ApexTrigger>{ updateElements( ch ) }</ApexTrigger>
-                case <status>{ contents }</status> => <status>{newStatus}</status>
-                case other @ _ => other
-            }
-        }
-        val metaXml = xml.XML.loadFile(metaXmlFile)
-        updateStatus(metaXml, "Inactive")
-        scala.xml.XML.save(metaXmlFile.getAbsolutePath, metaXml, enc = "UTF-8" )
-    }
 }
 
 class MetaXml(config: Config) {
