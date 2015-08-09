@@ -107,7 +107,9 @@ object AuraMember {
                 val _package = metaXml.createPackage(config.apiVersion, Map(AuraMember.BUNDLE_XML_TYPE -> auraBundleNames.toList))
                 val packageXml = metaXml.packageToXml(_package)
                 val tempFilePath = FileUtils.getTempFilePath("package", "xml")
-                FileUtils.writeFile(packageXml, tempFilePath)
+                val file = new File(tempFilePath)
+                FileUtils.writeFile(packageXml, file)
+                file
             }
         }
         bulkRetrieve.load[BulkRetrieve](session)

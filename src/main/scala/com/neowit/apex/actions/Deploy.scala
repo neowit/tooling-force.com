@@ -1016,10 +1016,12 @@ class DeployDestructive extends Deploy {
         //place destructiveChanges.xml and package.xml in this temp folder
         val destructivePackage = getDestructiveChangesPackage(componentPaths)
         val destructiveXml = metaXml.packageToXml(destructivePackage)
-        scala.xml.XML.save(new File(tempDir, "destructiveChanges.xml").getAbsolutePath, destructiveXml, enc = "UTF-8", xmlDecl = true )
+        FileUtils.writeFile(destructiveXml, new File(tempDir, "destructiveChanges.xml"))
+        //scala.xml.XML.save(new File(tempDir, "destructiveChanges.xml").getAbsolutePath, destructiveXml, enc = "UTF-8", xmlDecl = true )
 
         val packageXml = metaXml.packageToXml(getEmptyPackage)
-        scala.xml.XML.save(new File(tempDir, "package.xml").getAbsolutePath, packageXml, enc = "UTF-8" )
+        FileUtils.writeFile(packageXml, new File(tempDir, "package.xml"))
+        //scala.xml.XML.save(new File(tempDir, "package.xml").getAbsolutePath, packageXml, enc = "UTF-8" )
         tempDir
     }
     /**

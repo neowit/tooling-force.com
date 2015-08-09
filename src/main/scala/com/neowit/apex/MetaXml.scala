@@ -21,10 +21,9 @@ package com.neowit.apex
 
 import com.sforce.soap.metadata.PackageTypeMembers
 import com.neowit.utils.{FileUtils, Config}
-import java.io.File
+import java.io.{FileInputStream, InputStream, File}
 
 import scala.util.Try
-import scala.xml.Node
 
 class InvalidProjectStructure(msg: String)  extends Error(msg: String)
 
@@ -53,9 +52,12 @@ object MetaXml {
      * @return
      */
     def getPackage(packageXmlFile: File): com.sforce.soap.metadata.Package = {
-        val _package = new com.sforce.soap.metadata.Package()
-        val packageXml = xml.XML.loadFile(packageXmlFile)
+        getPackage(new FileInputStream(packageXmlFile))
+    }
 
+    def getPackage(packageXmlFileStream: InputStream): com.sforce.soap.metadata.Package = {
+        val packageXml = xml.XML.load(packageXmlFileStream)
+        val _package = new com.sforce.soap.metadata.Package()
         val apiVersion =(packageXml \ "version").text
         _package.setVersion(apiVersion)
 
@@ -148,7 +150,22 @@ object MetaXml {
 
     }
 
-
+    def packageToXml(_package: com.sforce.soap.metadata.Package): String = {
+        val newLine = System.lineSeparator()
+        val xmlStringBuilder = new StringBuilder()
+        xmlStringBuilder.append("""<Package xmlns="http://soap.sforce.com/2006/04/metadata">""" + newLine)
+        for (typeMember <- _package.getTypes) {
+            xmlStringBuilder.append("    <types>" + newLine)
+            for (member <- typeMember.getMembers) {
+                xmlStringBuilder.append(s"        <members>$member</members>" + newLine)
+            }
+            xmlStringBuilder.append(s"        <name>${typeMember.getName}</name>" + newLine)
+            xmlStringBuilder.append("    </types>" + newLine)
+        }
+        xmlStringBuilder.append(s"    <version>${_package.getVersion}</version>" + newLine)
+        xmlStringBuilder.append("</Package>")
+        xmlStringBuilder.toString()
+    }
 }
 
 class MetaXml(config: Config) {
@@ -194,22 +211,7 @@ class MetaXml(config: Config) {
     }
 
     //scala.xml.XML.save("therm1.xml", node)
-    def packageToXml(_package: com.sforce.soap.metadata.Package): scala.xml.Elem = {
-        val packageXml =
-                <Package xmlns="http://soap.sforce.com/2006/04/metadata">
-                {
-                    for (typeMember <- _package.getTypes) yield {
-                        <types>
-                            {for (member <- typeMember.getMembers) yield
-                            <members>{member}</members>
-                            }
-                            <name>{typeMember.getName}</name>
-                        </types>
-                    }
-                }
-                    <version>{_package.getVersion}</version>
-                </Package>
-
-        packageXml
+    def packageToXml(_package: com.sforce.soap.metadata.Package): String = {
+        MetaXml.packageToXml(_package)
     }
 }

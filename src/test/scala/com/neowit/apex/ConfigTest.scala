@@ -22,7 +22,7 @@ package com.neowit.apex
 import org.scalatest.{FunSuite, PrivateMethodTester}
 import java.io.{File, FileWriter, FileNotFoundException}
 import java.util.Properties
-import java.lang.IllegalArgumentException
+
 import com.neowit.utils.{BasicConfig, Config, OptionProperties, InvalidCommandLineException}
 
 class ConfigTest extends FunSuite with PrivateMethodTester {
