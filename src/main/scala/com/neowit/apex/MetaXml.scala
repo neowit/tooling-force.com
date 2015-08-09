@@ -23,6 +23,8 @@ import com.sforce.soap.metadata.PackageTypeMembers
 import com.neowit.utils.{FileUtils, Config}
 import java.io.{FileInputStream, InputStream, File}
 
+import org.w3c.dom.{Node, NodeList}
+
 import scala.util.Try
 
 class InvalidProjectStructure(msg: String)  extends Error(msg: String)
@@ -56,25 +58,28 @@ object MetaXml {
     }
 
     def getPackage(packageXmlFileStream: InputStream): com.sforce.soap.metadata.Package = {
-        val packageXml = xml.XML.load(packageXmlFileStream)
+
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+        val docBuilder = factory.newDocumentBuilder()
+        val document = docBuilder.parse(packageXmlFileStream)
+        document.getDocumentElement.normalize()
+
+        val versionElems = document.getElementsByTagName("version")
+        val apiVersion = versionElems.item(0).getTextContent
+
         val _package = new com.sforce.soap.metadata.Package()
-        val apiVersion =(packageXml \ "version").text
         _package.setVersion(apiVersion)
 
         val members =
-            for (typeNode <- (packageXml  \ "types")) yield {
-                val name = (typeNode \ "name").text
-                val currMembers = (typeNode \ "members") match {
-                    case n if n.isInstanceOf[xml.Node] =>
-                        Array(n.asInstanceOf[xml.Node].text)
-
-                    case n if n.isInstanceOf[xml.NodeSeq] =>
-                        n.asInstanceOf[xml.NodeSeq].map(_.text).toArray
-
+            for (typeNode <- NodeIterator(document.getElementsByTagName("types"))) yield {
+                val typeName = NodeIterator(typeNode.getChildNodes).find(n => null != n && n.getNodeName == "name") match {
+                    case Some(node) => node.getTextContent
+                    case None => ""
                 }
+                val members = NodeIterator(typeNode.getChildNodes).filter(n => null != n && n.getNodeName == "members").toList
                 val ptm = new PackageTypeMembers()
-                ptm.setName(name)
-                ptm.setMembers(currMembers)
+                ptm.setName(typeName)
+                ptm.setMembers(members.map(_.getTextContent).toArray)
                 ptm
             }
 
@@ -151,7 +156,7 @@ object MetaXml {
     }
 
     def packageToXml(_package: com.sforce.soap.metadata.Package): String = {
-        val newLine = System.lineSeparator()
+        val newLine = System.getProperty("line.separator")
         val xmlStringBuilder = new StringBuilder()
         xmlStringBuilder.append("""<Package xmlns="http://soap.sforce.com/2006/04/metadata">""" + newLine)
         for (typeMember <- _package.getTypes) {
@@ -213,5 +218,29 @@ class MetaXml(config: Config) {
     //scala.xml.XML.save("therm1.xml", node)
     def packageToXml(_package: com.sforce.soap.metadata.Package): String = {
         MetaXml.packageToXml(_package)
+    }
+}
+
+object NodeIterator {
+    def apply(nodes: NodeList): NodeIterator = new NodeIterator(nodes)
+}
+class NodeIterator(nodes: NodeList) extends Iterator[org.w3c.dom.Node] {
+
+    private var index = 0
+    override def hasNext: Boolean = nodes.getLength > index
+
+    override def next(): Node = {
+        var node = nodes.item(index)
+
+        while (null != node && node.getNodeType != Node.ELEMENT_NODE && hasNext) {
+            index += 1
+            node = nodes.item(index)
+        }
+        if (null != node && Node.ELEMENT_NODE == node.getNodeType) {
+            index += 1
+            node
+        } else {
+            null
+        }
     }
 }

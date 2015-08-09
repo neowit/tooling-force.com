@@ -1,9 +1,8 @@
 package com.neowit.apex
 
 import com.neowit.utils.FileUtils
-import com.sun.xml.internal.ws.util.xml.NodeListIterator
+
 import org.scalatest.FunSuite
-import org.w3c.dom.{Node, NodeList}
 
 
 class MetaXmlTest extends FunSuite {
@@ -57,16 +56,16 @@ class MetaXmlTest extends FunSuite {
 
         val allTypes = Set("ApexClass", "ApexPage", "ApexComponent", "ApexTrigger", "CustomLabels", "DataCategoryGroup",
             "Scontrol", "StaticResource")
-        //check that ApexComponent has all relevant members
         val typesIterator = new NodeIterator(testDocument.getElementsByTagName("types"))
 
         val foundTypes = List.newBuilder[String]
         for (_type <- typesIterator) {
-            val members = new NodeIterator(_type.getChildNodes).filter(n => null != n && n.getNodeName == "members").toList
-            val typeName = new NodeIterator(_type.getChildNodes).find(n => null != n && n.getNodeName == "name") match {
+            val members = NodeIterator(_type.getChildNodes).filter(n => null != n && n.getNodeName == "members").toList
+            val typeName = NodeIterator(_type.getChildNodes).find(n => null != n && n.getNodeName == "name") match {
                 case Some(node) => node.getTextContent
                 case None => ""
             }
+            //check that ApexComponent has all relevant members
             if ("ApexComponent" == typeName) {
                 assert(members.exists(_.getTextContent == "MyComponent1"), "Expected to find MyComponent1")
                 assert(members.exists(_.getTextContent == "MyComponent2"), "Expected to find MyComponent2")
@@ -77,28 +76,6 @@ class MetaXmlTest extends FunSuite {
         val foundTypesSet = foundTypes.result().toSet
         val diff = allTypes -- foundTypesSet
         assert(diff.isEmpty, "No all expected types found in package.xml. Missing types: " + diff.mkString(", "))
-    }
-
-
-    class NodeIterator(nodes: NodeList) extends Iterator[org.w3c.dom.Node] {
-
-        private var index = 0
-        override def hasNext: Boolean = nodes.getLength > index
-
-        override def next(): Node = {
-            var node = nodes.item(index)
-
-            while (null != node && node.getNodeType != Node.ELEMENT_NODE && hasNext) {
-                index += 1
-                node = nodes.item(index)
-            }
-            if (null != node && Node.ELEMENT_NODE == node.getNodeType) {
-                index += 1
-                node
-            } else {
-                null
-            }
-        }
     }
 
 }

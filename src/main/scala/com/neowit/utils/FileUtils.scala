@@ -230,11 +230,6 @@ object FileUtils {
         }
     }
 
-    def writeFile(xmlBody: scala.xml.Elem, filePath: String): File = {
-        scala.xml.XML.save(filePath, xmlBody, enc = "UTF-8" )
-        new File(filePath)
-    }
-
     val UTF_8 = scala.io.Codec("UTF-8")
 
     def readFile(file: File): scala.io.BufferedSource = {
