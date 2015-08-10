@@ -144,7 +144,7 @@ trait AnonymousMember {
                         this match {
                             case m: Member =>
                                 println("failed to add member of parent: " + m.getIdentity)
-                                println(ex.getStackTraceString)
+                                println(ex.getStackTrace)
                             case _ =>
                                 println("failed to add member of parent")
                         }

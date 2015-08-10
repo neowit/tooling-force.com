@@ -4,8 +4,7 @@ import java.io.{PrintWriter, StringWriter, File}
 
 import com.neowit.utils.FileUtils
 
-import scala.util.{Failure, Success, Try}
-import scala.xml.Node
+import scala.util.{Failure, Success}
 
 class UnsupportedApexTypeException(msg: String) extends UnsupportedOperationException(msg)
 /**
