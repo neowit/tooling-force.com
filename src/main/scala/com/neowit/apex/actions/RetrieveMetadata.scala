@@ -797,19 +797,21 @@ class DiffWithRemote extends RetrieveMetadata {
                 FileUtils.normalizePath(file.getAbsolutePath).replaceAllLiterally(remoteSrcFolder.getParentFile.getAbsolutePath + "/", ""), file
             )).toMap
 
-        //list files where remote version has different size compared to local version
+        //list files where remote version has different size or crc32 compared to local version
         //Modified Files
         for(relPath <- existingFileByRelativePath.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
             bulkRetrieveResult.getFileProps(relPath) match {
               case Some(props) =>
                   //val key = props.getFileName
-                  val localFile = existingFileByRelativePath.get(relPath)
-                  val remoteFile = remoteFilesByRelativePaths.get(relPath)
-                  if (localFile.isDefined && remoteFile.isDefined) {
-                      val sizeLocal = localFile.map(_.length())
-                      val sizeRemote = remoteFile.map(_.length())
-                      if (sizeLocal != sizeRemote) {
-                          report.addConflictingFiles(relPath, localFile.get, remoteFile.get, props)
+                  val localFileOpt = existingFileByRelativePath.get(relPath)
+                  val remoteFileOpt = remoteFilesByRelativePaths.get(relPath)
+                  if (localFileOpt.isDefined && remoteFileOpt.isDefined) {
+                      val localFile = localFileOpt.get
+                      val remoteFile = remoteFileOpt.get
+                      val sizeLocal = localFile.length()
+                      val sizeRemote = remoteFile.length()
+                      if (sizeLocal != sizeRemote || FileUtils.getCRC32Hash(localFile) != FileUtils.getCRC32Hash(remoteFile)) {
+                          report.addConflictingFiles(relPath, localFile, remoteFile, props)
                       }
                   }
               case None =>
