@@ -100,15 +100,17 @@ class Executor extends Logging {
     private def run () {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
         val start = System.currentTimeMillis
-        //report usage if allowed
-        val usage = new UsageReporter(basicConfig)
-        val usageFuture = Future {
-            usage.report()
-        }
+        if (basicConfig.getProperty("help").isEmpty) {
+            //report usage if allowed
+            val usage = new UsageReporter(basicConfig)
+            val usageFuture = Future {
+                usage.report()
+            }
 
-        ActionFactory.getAction(basicConfig, basicConfig.action) match {
-            case Some(action) => action.execute()
-            case None =>
+            ActionFactory.getAction(basicConfig, basicConfig.action) match {
+                case Some(action) => action.execute()
+                case None =>
+            }
         }
 
         //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
