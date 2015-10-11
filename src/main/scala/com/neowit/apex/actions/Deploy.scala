@@ -112,6 +112,32 @@ abstract class Deploy extends ApexAction {
         val updateSessionDataOnSuccess = !config.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
         updateSessionDataOnSuccess
     }
+
+    /**
+     * load deploy options from user defined configuration
+     * as usual configuration params can be set in one of 3 ways:
+     * 1. command line: ... --deployOptions.allowMissingFiles=true --deployOptions.autoUpdatePackage=false ...
+     * 2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
+     * 3. config.properties file:
+     *
+     *      # this is a config file with SFDC Org access details
+     *      sf.username = ...
+     *      sf.password = ...
+     *      deployOptions.allowMissingFiles = true
+     *      deployOptions.autoUpdatePackage = true
+     *
+     * @param deployOptions - instance of Metadata DeployOptions
+     */
+    protected def loadDeployOptionsFromConfig(deployOptions: DeployOptions): Unit = {
+        config.getProperty("deployOptions.allowMissingFiles").foreach(opt => deployOptions.setAllowMissingFiles(opt.toBoolean))
+        config.getProperty("deployOptions.autoUpdatePackage").foreach(opt => deployOptions.setAutoUpdatePackage(opt.toBoolean))
+        config.getProperty("deployOptions.checkOnly").foreach(opt => deployOptions.setCheckOnly(opt.toBoolean))
+        config.getProperty("deployOptions.ignoreWarnings").foreach(opt => deployOptions.setIgnoreWarnings(opt.toBoolean))
+        config.getProperty("deployOptions.performRetrieve").foreach(opt => deployOptions.setPerformRetrieve(opt.toBoolean))
+        config.getProperty("deployOptions.purgeOnDelete").foreach(opt => deployOptions.setPurgeOnDelete(opt.toBoolean))
+        config.getProperty("deployOptions.rollbackOnError").foreach(opt => deployOptions.setRollbackOnError(opt.toBoolean))
+    }
+
 }
 
 
@@ -158,7 +184,22 @@ class DeployModified extends Deploy {
 
         override def getParamNames: List[String] = List("ignoreConflicts", "checkOnly", "testsToRun", "reportCoverage")
 
-        override def getSummary: String = "Deploy modified files and (if requested) run tests"
+        override def getSummary: String =
+            """Deploy modified files and (if requested) run tests
+              |
+              |Note - this command supports user defined Metadata API DeployOptions
+              |     As usual configuration params can be set in one of 3 ways:
+              |     1. command line: ... --deployOptions.allowMissingFiles=true --deployOptions.autoUpdatePackage=false ...
+              |     2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
+              |     3. config.properties file:
+              |
+              |          # this is a config file with SFDC Org access details
+              |          sf.username = ...
+              |          sf.password = ...
+              |          deployOptions.allowMissingFiles = true
+              |          deployOptions.autoUpdatePackage = true
+              |
+            """.stripMargin
 
         override def getName: String = "deployModified"
     }
@@ -269,6 +310,9 @@ class DeployModified extends Deploy {
             //this fails in Prod, so if no test classes to run provided then assume nothing needs to be done
             //deployOptions.setTestLevel(TestLevel.NoTestRun)
         }
+
+        //top-up DeployOptions from user defined configuration
+        loadDeployOptionsFromConfig(deployOptions)
 
         deployOptions.setCheckOnly(checkOnly)
 
@@ -927,6 +971,19 @@ class DeployDestructive extends Deploy {
             s"""action attempts to remove specified metadata components from SFDC
               |Note: removal of individual members (e.g. custom field) is not supported by this command.
               |With $getName you can delete a Class or Custom Object, but not specific field of custom object.
+              |
+              |Note - this command supports user defined Metadata API DeployOptions
+              |     As usual configuration params can be set in one of 3 ways:
+              |     1. command line: ... --deployOptions.allowMissingFiles=true --deployOptions.autoUpdatePackage=false ...
+              |     2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
+              |     3. config.properties file:
+              |
+              |          # this is a config file with SFDC Org access details
+              |          sf.username = ...
+              |          sf.password = ...
+              |          deployOptions.allowMissingFiles = true
+              |          deployOptions.autoUpdatePackage = true
+              |
             """.stripMargin
 
         override def getName: String = "deleteMetadata"
@@ -946,6 +1003,10 @@ class DeployDestructive extends Deploy {
             deployOptions.setPerformRetrieve(false)
             deployOptions.setAllowMissingFiles(false)
             deployOptions.setRollbackOnError(true)
+
+            //top-up DeployOptions from user defined configuration
+            loadDeployOptionsFromConfig(deployOptions)
+
             val checkOnly = config.isCheckOnly
             deployOptions.setCheckOnly(checkOnly)
 
@@ -1010,6 +1071,7 @@ class DeployDestructive extends Deploy {
         }
 
     }
+
     def generateDeploymentDir(componentPaths: List[String]): File = {
         val tempDir = FileUtils.createTempDir(config)
         val metaXml = new MetaXml(config)
