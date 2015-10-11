@@ -1,6 +1,7 @@
 package com.neowit.apex.actions
 
 import java.io.File
+import java.net.URLEncoder
 import com.neowit.apex.Session
 import com.neowit.utils.{ResponseWriter, FileUtils}
 
@@ -54,7 +55,7 @@ class SoqlQuery extends ApexAction {
         val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
         val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
 
-        val queryString = "q=" + soqlQuery.replaceAll(" ", "+")
+        val queryString = "q=" + URLEncoder.encode(soqlQuery, "UTF-8")
         val requestResult = config.getProperty("api").getOrElse("Partner") match {
             case "Partner" => Try(session.getRestContentPartner("/query/", queryString))
             case "Tooling" => Try(session.getRestContentTooling("/query/", queryString))
