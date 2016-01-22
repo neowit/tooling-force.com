@@ -335,6 +335,8 @@ literal
     |   StringLiteral
     |   BooleanLiteral
     |   'null'
+    // have to define Trigger.new as a special case of literal, otherwise parser "thinks" it is inner creator (instance.new)
+    |   TRIGGER_NEW
     ;
 
 // ANNOTATIONS
@@ -581,7 +583,6 @@ primary
     |   'void' '.' 'class'
     |   nonWildcardTypeArguments (explicitGenericInvocationSuffix | 'this' arguments)
     |   SoqlLiteral
-    |   TRIGGER_NEW
     ;
 
 creator
