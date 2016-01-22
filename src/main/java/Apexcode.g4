@@ -581,6 +581,7 @@ primary
     |   'void' '.' 'class'
     |   nonWildcardTypeArguments (explicitGenericInvocationSuffix | 'this' arguments)
     |   SoqlLiteral
+    |   TRIGGER_NEW
     ;
 
 creator
@@ -726,7 +727,8 @@ DB_UPSERT     : 'upsert';
 DB_UPDATE     : 'update';
 DB_DELETE     : 'delete';
 DB_UNDELETE   : 'undelete';
-TESTMETHOD   : 'testMethod';
+TESTMETHOD    : 'testMethod';
+TRIGGER_NEW   : 'Trigger.new' | 'trigger.new';
 
 
 // §3.10.1 Integer Literals
