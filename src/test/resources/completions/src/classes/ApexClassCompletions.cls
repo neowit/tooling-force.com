@@ -142,6 +142,8 @@ public with sharing class ApexClassCompletions {
 	 * #END
 	 */
 	static void testOtherInterfaceInstanceRef() {
+        //check that reference to Trigger.new does not throw parser off
+        final List<Account> accs = Trigger.new;
 		final MyInterface cls;
 		cls.; //testOtherInterfaceInstanceRef
 
