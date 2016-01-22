@@ -240,6 +240,7 @@ relationshipPath
 
 expression
     :   primary
+    |   primary '[' expression ']'
 	|	expression '.' expression
 	;
 
