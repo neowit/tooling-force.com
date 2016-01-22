@@ -143,3 +143,8 @@ SELECT Name, Location__c
 FROM Warehouse__c 
 WHERE DISTANCE(Location__c, GEOLOCATION(37.775,-122.418), 'mi') < 20 
 --#END
+
+--#START: collection reference
+select Id from Contact
+where Id = :contacts[2].Id and Status__c = 'Inactive' 
+--#END
