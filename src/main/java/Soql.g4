@@ -152,6 +152,7 @@ conditionExpression
 	|	NOT fieldItem simpleOperator expression
 	|	fieldItem specialOperator '(' primary (',' primary)* ')'
 	|	fieldItem bindOperator expression
+    |   '(' whereConditionExpressions ')'
 	;
 	
 whenExpression

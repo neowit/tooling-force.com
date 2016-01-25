@@ -148,3 +148,13 @@ WHERE DISTANCE(Location__c, GEOLOCATION(37.775,-122.418), 'mi') < 20
 select Id from Contact
 where Id = :contacts[2].Id and Status__c = 'Inactive' 
 --#END
+
+--#START: where in parens
+select Id from Contact
+                    where 
+                    (Id = :contacts[1].Id and Status__c = 'Inactive') 
+                    or (Id = :contacts[2].Id and (Status__c = 'Active' or Status__c = 'Other') ) 
+                    or Parent_Contact__c = :contactId 
+                    or ( Id <> :contactId and Status__c = 'Active2' )
+                    order by Parent_Contact__r.LastName
+--#END
