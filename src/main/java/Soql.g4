@@ -105,7 +105,7 @@ typeOfExpression
 	;
 
 objectType
-	:	Identifier
+	:	Identifier alias?
 	;
 
 usingStatement
@@ -191,8 +191,8 @@ bindOperator
 
 fieldItem
 	:	fieldName
-	|	aggregateFunction
-	|	displayFunction
+	|	aggregateFunction alias?
+	|	displayFunction alias?
 	;
 
 relationshipItem
@@ -230,6 +230,10 @@ geolocationFunction
 			(IntegerLiteral | FloatingPointLiteral)  
 		')'
 	;
+
+alias
+    :   Identifier
+    ;
 
 fieldName
 	:	Identifier ('.' Identifier)*
