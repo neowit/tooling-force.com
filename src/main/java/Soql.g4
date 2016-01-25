@@ -134,9 +134,7 @@ whereConditionExpression
 	;
 
 whereConditionExpressionSimple
-	:	fieldItem IN ':' expression
-	|	distanceFunction simpleOperator expression
-	|	conditionExpression
+	:	conditionExpression
 	;
 
 whereConditionExpressionWithSubquery
@@ -149,9 +147,11 @@ whereSubquery
 
 conditionExpression
 	:	fieldItem (simpleOperator | likeOperator) expression
+    |   fieldItem NOT? IN ':' expression
 	|	NOT fieldItem simpleOperator expression
 	|	fieldItem specialOperator '(' primary (',' primary)* ')'
 	|	fieldItem bindOperator expression
+	|	distanceFunction simpleOperator expression
     |   '(' whereConditionExpressions ')'
 	;
 	
