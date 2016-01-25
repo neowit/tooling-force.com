@@ -8,7 +8,7 @@ import com.neowit.utils.FileUtils
 import org.antlr.v4.runtime._
 import org.scalatest.FunSuite
 
-class SoqlGrammar extends FunSuite{
+class SoqlGrammarTest extends FunSuite{
 
     val is = getClass.getClassLoader.getResource("paths.properties").openStream()
     val paths = new Properties()

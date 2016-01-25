@@ -12,7 +12,7 @@ import scala.util.{Failure, Try, Success}
 
 //import DefaultJsonProtocol._
 
-class CodeCompletions extends FunSuite {
+class CodeCompletionsTest extends FunSuite {
 
     val is = getClass.getClassLoader.getResource("paths.properties").openStream()
     val paths = new Properties()
