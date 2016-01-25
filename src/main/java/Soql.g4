@@ -212,7 +212,9 @@ aggregateFunction
 displayFunction
 	:	TO_LABEL '(' fieldName ')'
 	|	CONVERT_CURRENCY '(' fieldName ')'
+	|	FORMAT '(' fieldName ')'
 	|	dateFunction
+    |   distanceFunction
 	;
 
 distanceFunction
@@ -311,6 +313,7 @@ END			: E N D;
 EXCLUDES	: E X C L U D E S;
 FIRST		: F I R S T;
 FOR			: F O R;
+FORMAT      : F O R M A T;
 FROM        : F R O M;
 GROUP		: G R O U P;
 HAVING		: H A V I N G;
