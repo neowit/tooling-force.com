@@ -272,7 +272,7 @@ type
 
 classOrInterfaceType
     :   Identifier typeArguments? ('.' Identifier typeArguments? )*
-    |   'set' typeArguments // 'set <' has to be defined explisitly, otherwise it clashes with 'set' of property setter
+    |   'set' typeArguments // 'set <' has to be defined explicitly, otherwise it clashes with 'set' of property setter
     ;
 
 primitiveType
