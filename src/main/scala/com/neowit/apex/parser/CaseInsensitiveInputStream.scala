@@ -5,6 +5,10 @@ import java.io.{InputStreamReader, InputStream, Reader}
 
 import org.antlr.v4.runtime.{IntStream, ANTLRInputStream}
 
+/**
+  * NOTE - in order for this CaseInsensitiveInputStream to work all constants
+  *        in .g4 grammar must be either *lower* case or *dual-case*
+  */
 class CaseInsensitiveInputStream(r: Reader, initialSize: Int, readChunkSize: Int)
     extends ANTLRInputStream(r, initialSize, readChunkSize) {
 

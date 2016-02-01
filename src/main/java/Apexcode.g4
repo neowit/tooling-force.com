@@ -515,7 +515,7 @@ constantExpression
     ;
 
 apexDbExpressionLong
-    :   'Database' '.' (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
+    :   DATABASE '.' (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
     ;
 	
 apexDbExpressionShort
@@ -720,16 +720,17 @@ WHILE         : 'while';
 // Apexcode specific
 GLOBAL	      : 'global';
 WEBSERVICE    : 'webservice';
-APEX_WITH_SHARING :    'with sharing';
-APEX_WITHOUT_SHARING : 'without sharing';
+APEX_WITH_SHARING :    'with' 'sharing';
+APEX_WITHOUT_SHARING : 'without' 'sharing';
 SELECT        : 'select';
+DATABASE      : [dD][aA][tT][aA][bB][aA][sS][eE];
 DB_INSERT     : 'insert';
 DB_UPSERT     : 'upsert';
 DB_UPDATE     : 'update';
 DB_DELETE     : 'delete';
 DB_UNDELETE   : 'undelete';
 TESTMETHOD    : 'testMethod';
-TRIGGER_NEW   : 'Trigger.new' | 'trigger.new';
+TRIGGER_NEW   : 'trigger' '.' 'new';
 
 
 // §3.10.1 Integer Literals
