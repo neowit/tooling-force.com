@@ -709,8 +709,8 @@ WEBSERVICE    : 'webservice';
 APEX_WITH_SHARING :    'with' 'sharing';
 APEX_WITHOUT_SHARING : 'without' 'sharing';
 SELECT        : 'select';
-TESTMETHOD    : 'testMethod';
-TRIGGER_NEW   : 'trigger' '.' 'new';
+TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
+TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' 'new';
 
 
 // §3.10.1 Integer Literals
