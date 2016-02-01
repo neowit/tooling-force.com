@@ -438,7 +438,6 @@ statement
     |   ';'
     |   statementExpression ';'
     |   Identifier ':' statement
-    |   apexDbExpression ';'
     ;
 
 propertyBlock
@@ -514,19 +513,6 @@ constantExpression
     :   expression
     ;
 
-apexDbExpressionLong
-    :   DATABASE '.' (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) parExpression
-    ;
-	
-apexDbExpressionShort
-    :   (DB_INSERT | DB_UPSERT | DB_UPDATE | DB_DELETE | DB_UNDELETE) expression
-    ;
-
-
-apexDbExpression
-	: apexDbExpressionLong
-	| apexDbExpressionShort
-	;
 	
 expression
     :   primary
@@ -723,12 +709,6 @@ WEBSERVICE    : 'webservice';
 APEX_WITH_SHARING :    'with' 'sharing';
 APEX_WITHOUT_SHARING : 'without' 'sharing';
 SELECT        : 'select';
-DATABASE      : [dD][aA][tT][aA][bB][aA][sS][eE];
-DB_INSERT     : 'insert';
-DB_UPSERT     : 'upsert';
-DB_UPDATE     : 'update';
-DB_DELETE     : 'delete';
-DB_UNDELETE   : 'undelete';
 TESTMETHOD    : 'testMethod';
 TRIGGER_NEW   : 'trigger' '.' 'new';
 
