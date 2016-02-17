@@ -711,7 +711,7 @@ GLOBAL	      : 'global';
 WEBSERVICE    : 'webservice';
 SELECT        : 'select';
 TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
-TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' 'new';
+TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' ([nN][eE][wW]|[nN][eE][wW][mM][aA][pP]);
 
 
 // §3.10.1 Integer Literals
