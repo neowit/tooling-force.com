@@ -589,6 +589,11 @@ LetterOrDigit : [a-zA-Z0-9$_];
 WS  :  [ \t\r\n\u000C]+ -> skip
     ;
 
+COMMENT
+    :   '/*' .*? '*/' -> skip
+    ;
+
+
 // characters
 
 fragment A : [aA];
