@@ -279,14 +279,7 @@ classOrInterfaceType
     ;
 
 primitiveType
-    :   'boolean'
-    |   'char'
-    |   'byte'
-    |   'short'
-    |   'int'
-    |   'long'
-    |   'float'
-    |   'double'
+    :   'there_are_no_primitives_in_apex'
     ;
 
 typeArguments
@@ -659,7 +652,6 @@ fragment SelectRestNoInnerBrackets
 // §3.9 Keywords
 
 ABSTRACT      : 'abstract';
-BOOLEAN       : 'boolean';
 BREAK         : 'break';
 BYTE          : 'byte';
 CATCH         : 'catch';
@@ -669,7 +661,6 @@ CONST         : 'const';
 CONTINUE      : 'continue';
 DEFAULT       : 'default';
 DO            : 'do';
-DOUBLE        : 'double';
 ELSE          : 'else';
 ENUM          : 'enum';
 EXTENDS       : 'extends';
