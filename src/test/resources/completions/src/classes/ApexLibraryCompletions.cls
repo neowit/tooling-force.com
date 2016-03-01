@@ -57,6 +57,22 @@ public with sharing class ApexClassCompletions {
 	/**
 	 * #START
 		{
+		"lineMarker": "testStaticBoolean",
+		"column": 11,
+		"itemsCountMin": 1,
+		"signatureMustNotContain": ["abbreviate(Integer maxWidth)", "abbreviate(Integer maxWidth, Integer offset)", "capitalize", "center", "charAt", "compareTo", "equals"],
+		"signatureContains" : ["valueOf"]
+		}
+	 * #END
+	 */
+	@isTest public void testStaticString () {
+		Boolean.;//testStaticBoolean
+		
+	}
+
+	/**
+	 * #START
+		{
 		"lineMarker": "testStaticStringWithPrefix",
 		"column": 12,
 		"itemsCountMin": 1,
