@@ -32,7 +32,7 @@ Also supported a "project like" mode - where relevant metadata about deployments
 
 ## System requirements
 
-[Java](http://java.com/download) JDK/JRE, Version 7 or greater
+[Java](http://java.com/download) JDK/JRE, Version 8 or greater
 
 ## Installation
 
