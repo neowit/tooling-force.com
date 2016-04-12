@@ -950,25 +950,25 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         runTestsResult
     }
 
-    def runTestsAsyncTooling(classIds: List[String]):(String) = {
-        val runTestsResult = withRetry {
-            val conn = getToolingConnection
-            val res = conn.runTestsAsynchronous(classIds.mkString(","))
-            res
-
-        }.asInstanceOf[String]
-        runTestsResult
-    }
-
-    def runTestsAsyncTooling(classIds: String):(String) = {
-        val runTestsResult = withRetry {
-            val conn = getToolingConnection
-            val res = conn.runTestsAsynchronous(classIds)
-            res
-
-        }.asInstanceOf[String]
-        runTestsResult
-    }
+//    def runTestsAsyncTooling(classIds: List[String]):(String) = {
+//        val runTestsResult = withRetry {
+//            val conn = getToolingConnection
+//            val res = conn.runTestsAsynchronous(classIds.mkString(","))
+//            res
+//
+//        }.asInstanceOf[String]
+//        runTestsResult
+//    }
+//
+//    def runTestsAsyncTooling(classIds: String):(String) = {
+//        val runTestsResult = withRetry {
+//            val conn = getToolingConnection
+//            val res = conn.runTestsAsynchronous(classIds)
+//            res
+//
+//        }.asInstanceOf[String]
+//        runTestsResult
+//    }
 
     ////////////////////////////////////////////////////////////////////////////////////
     private val ONE_SECOND = 1000
