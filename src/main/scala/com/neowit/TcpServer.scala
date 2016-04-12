@@ -57,7 +57,7 @@ object TcpServer {
     val system = ActorSystem("TcpServerSystem")
     var isShutdownReceived = false
     def shutdown() {
-        system.shutdown()
+        system.terminate()
         println("shutdown ActorSystem")
     }
 }
