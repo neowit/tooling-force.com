@@ -194,7 +194,7 @@ regardless of whether it is also specified in config file or not
 }
 
 class Config(val basicConfig: BasicConfig) extends Logging{
-    val apiVersion:Double = 34.0
+    val apiVersion:Double = 36.0
 
     //make BasicConfig methods available in Config
     def load(arglist: List[String]) { basicConfig.load(arglist)}

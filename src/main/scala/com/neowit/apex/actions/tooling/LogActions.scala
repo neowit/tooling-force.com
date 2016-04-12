@@ -4,12 +4,10 @@ import java.io.File
 
 import com.neowit.apex.Session
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
-import com.neowit.apex.actions.{SoqlQuery, ActionHelp, ApexAction}
-import com.neowit.utils.{ResponseWriter, ConfigValueException, FileUtils}
+import com.neowit.apex.actions.{ActionHelp, ApexAction, SoqlQuery}
+import com.neowit.utils.{ConfigValueException, FileUtils, ResponseWriter}
 import com.sforce.soap.tooling._
-
 import spray.json._
-import DefaultJsonProtocol._
 
 import scala.util.{Failure, Success, Try}
 
@@ -40,22 +38,22 @@ object LogActions {
 
 object ChangeLogLevels {
     /**
-     * - To set up a log for a specific user, set ScopeId to null and TracedEntityId to the ID of the user.
+     * - To set up a log for a specific user, set TracedEntityId to the ID of the user.
      *   This option can only be configured for a user, not an Apex class or Apex trigger.
      *
-     * - To configure logging levels for system logs (visible only to you), set ScopeId to user and TracedEntityId
+     * - To configure logging levels for system logs (visible only to you), set TracedEntityId
      *   to the ID of the logged-in user.
      *
-     * - To set up a system log (visible only to you) for a specific Apex class or trigger, set ScopeId to user
-     *   and TracedEntityId to the ID of the Apex class or trigger.
+     * - To set up a system log (visible only to you) for a specific Apex class or trigger, set
+      *  TracedEntityId to the ID of the Apex class or trigger.
      *
      * @param traceFlagConfigPath - Option[path to temp file with trace flag json]
      * @return trace flag Id
      */
     def setupTraceFlag(traceFlagConfigPath: Option[String], session: Session, logger: com.neowit.utils.Logging,
-                       scope: Option[String], tracedEntityId: String): Try[String] = {
+                       logType: Option[String], tracedEntityId: String): Try[String] = {
         val action = new ChangeLogLevels().load[ChangeLogLevels](session)
-        action.setupTrace(loadTraceFlagConfig(traceFlagConfigPath, session), session, logger, scope, tracedEntityId)
+        action.setupTrace(loadTraceFlagConfig(traceFlagConfigPath, session), session, logger, logType, tracedEntityId)
     }
     def deleteTraceFlag(traceFlagId: String, session: Session, logger: com.neowit.utils.Logging): Unit = {
         session.deleteTooling(traceFlagId)
@@ -102,11 +100,11 @@ class ChangeLogLevels extends ApexAction {
                   |  File content format is as follows:
                   |  "{"ApexCode": "Debug", "ApexProfiling": "Error", "Callout": "Error", "Database": "Error", "System": "Error", "Validation": "Error", "Visualforce": "Error", "Workflow": "Error"}"
                 """.stripMargin
-            case "scope" =>
-                """--scope=user|<empty>
-                  |  This parameter is Optional
-                  |  see TraceFlag.ScopeId in Tooling API documentation
-                  |  e.g. --scope=user
+            case "logType" =>
+                """--logType=CLASS_TRACING|DEVELOPER_LOG|USER_DEBUG
+                  |  This parameter is Optional, if not provided then 'DEVELOPER_LOG' is used
+                  |  see TraceFlag.LogType in Tooling API documentation
+                  |  e.g. --logType=DEVELOPER_LOG
                 """.stripMargin
             case "tracedEntity" =>
                 """--tracedEntity=username|classname|triggername|<empty>
@@ -121,7 +119,7 @@ class ChangeLogLevels extends ApexAction {
                 """.stripMargin
         }
 
-        override def getParamNames: List[String] = List("traceFlagConfig", "scope", "tracedEntity")
+        override def getParamNames: List[String] = List("traceFlagConfig", "logType", "tracedEntity")
 
         override def getSummary: String = "Setup TraceFlag that triggers an Apex debug log at the specified logging level"
 
@@ -139,7 +137,7 @@ class ChangeLogLevels extends ApexAction {
                 //messages += new ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage)
                 throw e
         }
-        setupTrace(traceFlagMap, session, logger, config.getProperty("scope"), tracedEntityId) match {
+        setupTrace(traceFlagMap, session, logger, config.getProperty("logType"), tracedEntityId) match {
             case Success(traceFlagId) =>
                 responseWriter.println("RESULT=SUCCESS")
             case Failure(e) =>
@@ -158,22 +156,55 @@ class ChangeLogLevels extends ApexAction {
      * traceFlagConfig={"ApexProfiling" : "Error", "Validation" : "Error", "Database" : "Error", "Workflow" : "Error",
      *                  "ApexCode" : "Debug", "System" : "Error", "Visualforce" : "Error", "Callout" : "Debug"}
 
-     * @param tarceFlag
-     * @param traceFlagMap
+     * @param traceFlag flag to save - not currently used
+     * @param traceFlagMap flag config
      */
-    private def saveTraceFlagConfig(tarceFlag: TraceFlag, traceFlagMap: Map[String, String]) = {
-        //TODO consider saving with Scope and TracedEntity taken into account
+    private def saveTraceFlagConfig(traceFlag: TraceFlag, traceFlagMap: Map[String, String]) = {
+        //TODO consider saving with TracedEntity taken into account
         session.setData("traceFlagConfig", traceFlagMap)
+    }
+    private val DEBUG_LEVEL_DEVELOPER_NAME = "TOOLING_FORCE_DOT_COM"
+
+    def createDebugLevel(traceFlagMap: Map[String, String]): Try[String] = {
+        logger.debug("Setup DebugLevel")
+        val debugLevel = new DebugLevel with DebugLevelLike
+        debugLevel.setDeveloperName(DEBUG_LEVEL_DEVELOPER_NAME)
+        debugLevel.setMasterLabel(DEBUG_LEVEL_DEVELOPER_NAME)
+        traceFlagMap.foreach{
+            case (logLevelType, logLevel) => setLogLevelByType(logLevelType, logLevel, debugLevel)
+        }
+        val saveResults: Array[SaveResult] = session.createTooling(Array(debugLevel))
+        if (saveResults.nonEmpty && saveResults.head.isSuccess) {
+            //saveTraceFlagConfig(traceFlag, traceFlagMap)
+            Success(saveResults.head.getId)
+        } else {
+            val errors = saveResults.head.getErrors
+            if (null != errors && errors.nonEmpty) {
+                    logger.error("Failed to setup TraceFlag: " + errors.head.getMessage)
+                    Failure( new RuntimeException("Failed to setup DebugLevel: " + errors.head.getMessage) )
+            }
+            Failure( new RuntimeException("Failed to setup DebugLevel. Unknown error") )
+        }
+    }
+
+    def getDebugLevelId: Option[String] = {
+        val queryResult = session.queryTooling(s"select Id from DebugLevel where DeveloperName = '$DEBUG_LEVEL_DEVELOPER_NAME'")
+        val records = queryResult.getRecords
+        if (records.nonEmpty) {
+            Some(records.head.getId)
+        } else {
+            None
+        }
     }
 
     def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.neowit.utils.Logging,
-                   scope: Option[String], tracedEntityId: String): Try[String] = {
+                   logType: Option[String], tracedEntityId: String): Try[String] = {
 
         logger.debug("Setup TraceFlag")
 
-        val traceFlag: TraceFlag = new TraceFlag
+        val traceFlag = new TraceFlag with DebugLevelLike
         traceFlagMap.foreach{
-            case (logType, logLevel) => setLogLevelByType(logType, logLevel, traceFlag)
+            case (logLevelType, logLevel) => setLogLevelByType(logLevelType, logLevel, traceFlag)
         }
 
         val calendar = session.getServerTimestamp.getTimestamp
@@ -182,19 +213,19 @@ class ChangeLogLevels extends ApexAction {
 
         traceFlag.setExpirationDate(calendar)
 
-        scope match {
-          case Some(x) if "user" == x =>
-              traceFlag.setScopeId(session.getUserId)
-          case _ =>
-              traceFlag.setScopeId(null)
-        }
         traceFlag.setTracedEntityId(tracedEntityId)
+        traceFlag.setLogType(logType.getOrElse("DEVELOPER_LOG"))
 
-        //check if trace for current scope/tracedEntity is already setup and expires too early, and delete it if one found
-        val scopeIdCond = if (null == traceFlag.getScopeId) null else "'" + traceFlag.getScopeId+ "'"
+        getDebugLevelId match {
+            case Some(debugLevelId) => traceFlag.setDebugLevelId(debugLevelId)
+            case None =>
+                createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
+        }
+
+        //check if trace for current tracedEntity is already setup and expires too early, and delete it if one found
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
                                         s""" select Id from TraceFlag
-                                           |where TracedEntityId = '${traceFlag.getTracedEntityId}' and ScopeId = $scopeIdCond
+                                           |where TracedEntityId = '${traceFlag.getTracedEntityId}'
                                            |""".stripMargin)
         if (queryIterator.hasNext) {
             val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
@@ -257,7 +288,18 @@ class ChangeLogLevels extends ApexAction {
                 Success(session.getUserId)
         }
     }
-    private def setLogLevelByType(logType: String, logLevel: String, traceFlag: TraceFlag) = {
+
+    trait DebugLevelLike {
+        def setApexCode(level: String)
+        def setApexProfiling(level: String)
+        def setCallout(level: String)
+        def setDatabase(level: String)
+        def setSystem(level: String)
+        def setValidation(level: String)
+        def setVisualforce(level: String)
+        def setWorkflow(level: String)
+    }
+    private def setLogLevelByType(logType: String, logLevel: String, traceFlag: DebugLevelLike) = {
         //default - DB & Apex = Debug
         logType match {
             case "ApexCode" =>

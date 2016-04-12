@@ -123,7 +123,7 @@ class RunTests extends DeployModified{
 
         val traceIdOpt = config.getProperty("traceFlagConfig") match {
           case Some(filePath) =>
-              ChangeLogLevels.setupTraceFlag(Some(filePath), session, logger, Some("user"), session.getUserId) match {
+              ChangeLogLevels.setupTraceFlag(Some(filePath), session, logger, Some("DEVELOPER_LOG"), session.getUserId) match {
                   case Success(traceId) => Some(traceId)
                   case Failure(ex) => logger.error(ex)
                       None
