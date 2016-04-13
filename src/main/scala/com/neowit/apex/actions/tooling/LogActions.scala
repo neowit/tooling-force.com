@@ -78,7 +78,7 @@ class ChangeLogLevels extends ApexAction {
                 """.stripMargin
             case "logType" =>
                 """--logType=CLASS_TRACING|DEVELOPER_LOG|USER_DEBUG
-                  |  This parameter is Optional, if not provided then 'DEVELOPER_LOG' is used
+                  |  This parameter is Optional, if not provided then 'USER_DEBUG' is used
                   |  see TraceFlag.LogType in Tooling API documentation
                   |  e.g. --logType=DEVELOPER_LOG
                 """.stripMargin
@@ -190,13 +190,14 @@ class ChangeLogLevels extends ApexAction {
         traceFlag.setExpirationDate(calendar)
 
         traceFlag.setTracedEntityId(tracedEntityId)
-        traceFlag.setLogType(logType.getOrElse("DEVELOPER_LOG"))
+        traceFlag.setLogType(logType.getOrElse("USER_DEBUG"))
 
         getDebugLevelId match {
-            case Some(debugLevelId) => traceFlag.setDebugLevelId(debugLevelId)
+            case Some(debugLevelId) => //traceFlag.setDebugLevelId(debugLevelId)
+                session.deleteTooling(debugLevelId)
             case None =>
-                createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
         }
+        createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
 
         //check if trace for current tracedEntity is already setup and expires too early, and delete it if one found
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
