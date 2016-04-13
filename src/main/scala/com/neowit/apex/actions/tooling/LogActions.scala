@@ -2,12 +2,11 @@ package com.neowit.apex.actions.tooling
 
 import java.io.File
 
-import com.neowit.apex.Session
+import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.{ActionHelp, ApexAction, SoqlQuery}
 import com.neowit.utils.{ConfigValueException, FileUtils, ResponseWriter}
 import com.sforce.soap.tooling._
-import spray.json._
 
 import scala.util.{Failure, Success, Try}
 
@@ -60,33 +59,10 @@ object ChangeLogLevels {
     }
 
     private def loadTraceFlagConfig(traceFlagConfigPath: Option[String], session: Session): Map[String, String] = {
-        val traceFlagMap: Map[String, String] = traceFlagConfigPath match {
-            case Some(logConfigPath) =>
-                val f = new File(logConfigPath)
-                if (f.canRead) {
-                    val jsonStr = FileUtils.readFile(f).getLines().mkString("")
-                    val jsonAst = JsonParser(jsonStr)
-                    val pairs = jsonAst.asJsObject.fields.map {
-                        case (key, jsVal:JsString) => key -> jsVal.value
-                        case (key, jsVal) =>
-                            //this case should never be used, but have it here to make compiler happy
-                            key -> jsVal.toString()
-                    }
-                    pairs
-                } else {
-                    throw new ConfigValueException("Trace Flag Config file is readable. Path: " + logConfigPath)
-                }
-            case None =>
-                val data = session.getData("traceFlagConfig")
-                if (data.nonEmpty) {
-                    data.map{case (key, str) => key -> str.toString}
-                } else {
-                    Map("ApexCode" -> "Debug", "ApexProfiling"-> "Error", "Callout"-> "Error", "Database"-> "Error", "System"-> "Error", "Validation"-> "Error", "Visualforce"-> "Error", "Workflow"-> "Error")
-
-                }
-        }
-        traceFlagMap
+        val defaultMap = Map("ApexCode" -> "Debug", "ApexProfiling"-> "Error", "Callout"-> "Error", "Database"-> "Error", "System"-> "Error", "Validation"-> "Error", "Visualforce"-> "Error", "Workflow"-> "Error")
+        LogUtils.loadDebugConfig(traceFlagConfigPath, session, "traceFlagConfig", defaultMap)
     }
+
 
 }
 class ChangeLogLevels extends ApexAction {

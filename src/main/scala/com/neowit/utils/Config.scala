@@ -20,7 +20,7 @@
 package com.neowit.utils
 
 import java.util.Properties
-import java.io.{OutputStream, FileWriter, File}
+import java.io.{File, FileWriter, OutputStream}
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -291,10 +291,16 @@ class Config(val basicConfig: BasicConfig) extends Logging{
 
     }
 
+    @deprecated("use debuggingHeaderConfig related logic", "0.3.6.0")
     lazy val logLevel = getProperty("logLevel") match {
         case Some(x) => Set("None", "Debugonly", "Db", "Profiling", "Callout", "Detail").contains(x)
             x
         case None => "None"
+    }
+
+    lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
+        case Some(path) => Option(path)
+        case None => None
     }
 
     /**

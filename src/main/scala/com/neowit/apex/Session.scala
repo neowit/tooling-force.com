@@ -21,9 +21,9 @@ package com.neowit.apex
 
 import java.net.{HttpURLConnection, URL}
 import java.security.MessageDigest
-import java.util.zip.{GZIPOutputStream, GZIPInputStream}
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
-import com.neowit.utils.{BasicConfig, FileUtils, Logging, Config}
+import com.neowit.utils.{BasicConfig, Config, FileUtils, Logging}
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 import spray.json._
@@ -31,6 +31,9 @@ import spray.json._
 import scala.concurrent._
 import collection.JavaConverters._
 import java.io._
+
+import com.neowit.apex.actions.tooling.ChangeLogLevels
+import com.neowit.apex.LogUtils.{MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 
 import scala.util.{Failure, Success, Try}
@@ -450,7 +453,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             case None => Connection.getMetadataConnection(config, getPartnerConnection)
         }
         val debugHeader = new DebuggingHeader_element()
-        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        val classInfoProvider = new MetadataLogInfoCreatorProvider
+        val logLevelInfos = LogUtils.getDebugHeaderLogInfos(config.debuggingHeaderConfigPath, this, classInfoProvider)
+        debugHeader.setCategories(logLevelInfos)
+
         conn.__setDebuggingHeader(debugHeader)
 
         connectionMetadata = Some(conn)
@@ -464,7 +470,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             case None => Connection.getToolingConnection(config, getPartnerConnection)
         }
         val debugHeader = new DebuggingHeader_element()
-        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        val classInfoProvider = new ToolingLogInfoCreatorProvider
+        val logLevelInfos = LogUtils.getDebugHeaderLogInfos(config.debuggingHeaderConfigPath, this, classInfoProvider)
+        debugHeader.setCategories(logLevelInfos)
         conn.__setDebuggingHeader(debugHeader)
 
         connectionTooling = Some(conn)
