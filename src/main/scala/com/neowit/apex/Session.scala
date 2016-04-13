@@ -927,9 +927,12 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     def runTestsTooling(runTestsRequest: com.sforce.soap.tooling.RunTestsRequest ):(com.sforce.soap.tooling.RunTestsResult) = {
+        //var log = ""
         val runTestsResult = withRetry {
             val conn = getToolingConnection
             val res = conn.runTests(runTestsRequest)
+            //API v36 - conn.getDebuggingInfo is always returned as null, regardless of  connection.__setDebuggingHeader settings
+            //log = if (null != conn.getDebuggingInfo) conn.getDebuggingInfo.getDebugLog else ""
             res
 
         }.asInstanceOf[com.sforce.soap.tooling.RunTestsResult]

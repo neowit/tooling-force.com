@@ -183,15 +183,10 @@ class ChangeLogLevels extends ApexAction {
             case (logLevelType, logLevel) => setLogLevelByType(logLevelType, logLevel, traceFlag)
         }
 
-        val calendar = session.getServerTimestamp.getTimestamp
-        //set TTL for TraceFlag same as for Server
-        calendar.add(java.util.Calendar.SECOND, session.getConfig.getProperty("timeoutSec").getOrElse("30").toInt)
-
-        traceFlag.setExpirationDate(calendar)
-
         traceFlag.setTracedEntityId(tracedEntityId)
         traceFlag.setLogType(logType.getOrElse("USER_DEBUG"))
 
+        //TODO - figure out if there is a way to set TraceFlag without debugLevelId
         getDebugLevelId match {
             case Some(debugLevelId) => //traceFlag.setDebugLevelId(debugLevelId)
                 session.deleteTooling(debugLevelId)
@@ -209,6 +204,11 @@ class ChangeLogLevels extends ApexAction {
             session.deleteTooling(recordIds)
         }
 
+        val calendar = session.getServerTimestamp.getTimestamp
+        //set TTL for TraceFlag same as for Server
+        calendar.add(java.util.Calendar.SECOND, session.getConfig.getProperty("timeoutSec").getOrElse("30").toInt)
+
+        traceFlag.setExpirationDate(calendar)
 
         val saveResults: Array[SaveResult] = session.createTooling(Array(traceFlag))
         if (saveResults.nonEmpty && saveResults.head.isSuccess) {
