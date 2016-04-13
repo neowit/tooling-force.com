@@ -32,8 +32,7 @@ import scala.concurrent._
 import collection.JavaConverters._
 import java.io._
 
-import com.neowit.apex.actions.tooling.ChangeLogLevels
-import com.neowit.apex.LogUtils.{MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
+import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 
 import scala.util.{Failure, Success, Try}
@@ -487,31 +486,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }
         connectionApex = Some(conn)
 
-        /*
-        val infoAll = new LogInfo()
-        infoAll.setCategory(LogCategory.All)
-        infoAll.setLevel(LogCategoryLevel.Finest)
-
-        val infoApex = new LogInfo()
-        infoApex.setCategory(LogCategory.Apex_code)
-        infoApex.setLevel(LogCategoryLevel.Finest)
-
-        val infoProfiling = new LogInfo()
-        infoProfiling.setCategory(LogCategory.Apex_profiling)
-        infoProfiling.setLevel(LogCategoryLevel.Finest)
-
-        val infoDB = new LogInfo()
-        infoDB.setCategory(LogCategory.Db)
-        infoDB.setLevel(LogCategoryLevel.Finest)
-
-        conn.setDebuggingHeader(Array(infoAll, infoApex, infoProfiling, infoDB), LogType.Detail)
-        //conn.setDebuggingHeader(Array(), LogType.Detail)
-        */
-
-
         val debugHeader = new DebuggingHeader_element()
-        //debugHeader.setCategories(Array(infoAll, infoApex, infoProfiling, infoDB))
-        debugHeader.setDebugLevel(LogType.valueOf(config.logLevel))
+        val classInfoProvider = new ApexLogInfoCreatorProvider
+        val logLevelInfos = LogUtils.getDebugHeaderLogInfos(config.debuggingHeaderConfigPath, this, classInfoProvider)
+        debugHeader.setCategories(logLevelInfos)
         conn.__setDebuggingHeader(debugHeader)
 
         conn

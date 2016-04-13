@@ -75,6 +75,25 @@ object LogUtils {
             }
         }
     }
+
+    class ApexLogInfoCreatorProvider extends LogInfoCreatorProvider[com.sforce.soap.apex.LogInfo] {
+        import com.sforce.soap.apex._
+
+        def logInfoCreator(category: String, level: String): Option[com.sforce.soap.apex.LogInfo] = {
+
+            val logInfo = new LogInfo
+            val logCategory = LogCategory.valueOf(category)
+            val logLevel = LogCategoryLevel.valueOf(level)
+            if (null!= logCategory && null != logLevel) {
+                logInfo.setCategory(logCategory)
+                logInfo.setLevel(logLevel)
+                Option(logInfo)
+            } else {
+                None
+            }
+        }
+    }
+
     def getDebugHeaderLogInfos[A](configPath: Option[String],
 
                                   session: Session,
