@@ -179,14 +179,17 @@ class ChangeLogLevels extends ApexAction {
         logger.debug("Setup TraceFlag")
 
         val traceFlag = new TraceFlag with DebugLevelLike
-        traceFlagMap.foreach{
-            case (logLevelType, logLevel) => setLogLevelByType(logLevelType, logLevel, traceFlag)
-        }
+        //as of Winter 16 there is no way to create TraceFlag without DebugLevelId
+        // debug level values set on DebugLevel (e.g. Apexcode=DEBUG, ApexProfiling=INFO, etc) override those set on Trace Flag
+        // in other words, as of Winter 16 debug levels set on TraceFlag are no longer relevant, only those set on DebugLevel record are.
+        // so 3 lines below are no longer needed
+        //traceFlagMap.foreach{
+        //    case (logLevelType, logLevel) => setLogLevelByType(logLevelType, logLevel, traceFlag)
+        //}
 
         traceFlag.setTracedEntityId(tracedEntityId)
         traceFlag.setLogType(logType.getOrElse("USER_DEBUG"))
 
-        //TODO - figure out if there is a way to set TraceFlag without debugLevelId
         getDebugLevelId match {
             case Some(debugLevelId) => //traceFlag.setDebugLevelId(debugLevelId)
                 session.deleteTooling(debugLevelId)
