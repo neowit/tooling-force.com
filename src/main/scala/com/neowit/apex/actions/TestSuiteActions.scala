@@ -1,9 +1,13 @@
 package com.neowit.apex.actions
 
+import java.io.File
+
 import com.neowit.apex.Session
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
-import com.neowit.utils.ResponseWriter
-import com.sforce.soap.tooling.{ApexTestSuite, TestSuiteMembership}
+import com.neowit.utils.{FileUtils, ResponseWriter}
+import com.sforce.soap.tooling.{ApexClass, ApexTestSuite, TestSuiteMembership}
+
+import spray.json._
 
 import scala.util.{Failure, Success, Try}
 
@@ -11,16 +15,30 @@ import scala.util.{Failure, Success, Try}
   * Author: Andrey Gavrikov (westbrook)
   * Date: 14/04/2016
   */
-class TestSuiteActions extends ApexAction{
+trait TestSuiteProtocol extends DefaultJsonProtocol {
+    case class TestSuite(name: String, id: String, classes: List[ApexClass])
+
+    implicit object ApexClassJsonFormat extends RootJsonFormat[ApexClass] {
+        def write(c: ApexClass) =
+            Map("Name" -> c.getName.toJson, "Id" -> c.getId.toJson).toJson
+
+        def read(value: JsValue) = value match {
+            case _ => deserializationError("ApexClass deserialisation is NOT supported")
+        }
+    }
+    implicit val TestSuiteJsonFormat = jsonFormat3(TestSuite)
+}
+
+class TestSuiteActions extends ApexAction with TestSuiteProtocol{
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
         override def getParamDescription(paramName: String): String = paramName match {
-            case "testSuiteManage" =>
-                """--testSuiteManage=action-name
+            case "testSuiteAction" =>
+                """--testSuiteAction=action-name
                   |  Manage test suite using suite name provided by 'testSuiteName' parameter
                   |  Supported Actions:
-                  |  - create, delete, update
+                  |  - create, delete, update, dump, dumpNames
                 """.stripMargin
             case "testSuiteName" =>
                 """--testSuiteName=test-suite-name
@@ -32,13 +50,18 @@ class TestSuiteActions extends ApexAction{
                   |  If 'testSuiteAction' is specified then this parameter is REQUIRED.
                   |  e.g. --testSuiteClassNames=MyClass1,MyClass2,MyClass1Test
                 """.stripMargin
+            case "dumpToFile" =>
+                """--dumpToFile=/path/to/file.js
+                  |  If 'testSuiteAction' is 'dump' or 'dumpNames' then this parameter is required.
+                  |  Dump of current Test Suite structure or just Test Suite Names will bo saved in specified file
+                """.stripMargin
         }
 
-        override def getParamNames: List[String] = List("testSuiteAction", "testSuiteName", "testSuiteClassNames")
+        override def getParamNames: List[String] = List("testSuiteAction", "testSuiteName", "testSuiteClassNames", "dumpToFile")
 
         override def getSummary: String = "Create|Update|Delete test suite by name"
 
-        override def getName: String = "testSuite"
+        override def getName: String = "testSuiteManage"
     }
 
     //this method should implement main logic of the action
@@ -68,6 +91,8 @@ class TestSuiteActions extends ApexAction{
                                 }
                         }
                 }
+            case Some("dump") => dump(session)
+            case Some("dumpNames") => dump(session, namesOnly = true)
             case _ =>
                 Failure(new IllegalArgumentException("Invalid config for 'testSuiteAction'"))
 
@@ -75,12 +100,68 @@ class TestSuiteActions extends ApexAction{
 
         actionResult match {
             case Success(_res) =>
+                responseWriter.println("RESULT=SUCCESS")
             case Failure(ex) =>
                 responseWriter.println("RESULT=FAILURE")
                 responseWriter.println(ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
         }
     }
 
+    private def dump(session: Session, namesOnly: Boolean = false): Try[String] = {
+        session.config.getProperty("dumpToFile") match {
+            case Some(filePath) =>
+                //val testSuites = TestSuiteActions.getTestSuiteList(session)
+                //val testSuiteIds = testSuites.map(_.getId)
+                val classesBySuite = getTestSuiteClassesByTestSuite(session)
+                val text = if (namesOnly){
+                    classesBySuite.keys.toList.sorted.toJson.compactPrint
+                } else {
+                    classesBySuite.toJson.compactPrint
+                }
+                Try(FileUtils.writeFile(text, new File(filePath), append = false)) match {
+                    case Success(_) =>
+                        Success(filePath)
+                    case Failure(ex) => Failure(ex)
+                }
+            case None =>
+                Failure(new IllegalArgumentException("Invalid config for 'testSuiteAction=dump', missing parameter 'dumpToFile' "))
+        }
+    }
+
+    /**
+      * @return map("testSuiteId" -> List(classId1, classId2, classId3, ...))
+      */
+
+    private def getTestSuiteClassesByTestSuite(session: Session): Map[String, TestSuite] = {
+        val soql = s"select Id, ApexClass.Id, ApexTestSuite.Id, ApexClass.Name, ApexTestSuite.TestSuiteName from TestSuiteMembership"
+        val memberships = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.TestSuiteMembership](session, session.queryTooling(soql))
+        val mapBuilder = Map.newBuilder[TestSuite, List[ApexClass]]
+
+        val testSuitePerClass =
+            memberships.map{membership =>
+                val apexClass = membership.getApexClass
+                val apexTestSuite = membership.getApexTestSuite
+
+                val testSuite = TestSuite(name = apexTestSuite.getTestSuiteName, id = apexTestSuite.getId, List(apexClass))
+                testSuite
+            }.toList
+
+        val testSuitesByName = testSuitePerClass.groupBy(_.name)
+        // convert:  Map[TestSuite.name, List[TestSuite]]
+        // to Map[String, TestSuite] by accumulating all TestSuite.classes by TestSuite.Name
+        testSuitesByName.values
+            .filter(_.nonEmpty)
+            .map{suits =>
+                val suite = suits.head
+                // now put classes from current suits into suite
+                val classes = suits.flatMap(_.classes)
+                suite.copy(classes = classes)
+            }.map(ts => ts.name -> ts).toMap
+    }
+
+//    private def toJson(classesBySuite: Map[ApexTestSuite, List[ApexClass]]): JsValue = {
+//        classesBySuite.toJson
+//    }
     private def create(testSuiteName: String, session: Session): Try[String] = {
         session.config.getProperty("testSuiteClassNames") match {
             case Some(classNamesStr) =>
@@ -174,6 +255,16 @@ object TestSuiteActions {
             records.map(sobject => (sobject.getField("TestSuiteName").toString.toLowerCase, sobject.getId)).toMap
         } else {
             Map.empty
+        }
+    }
+    def getTestSuiteList(session: Session): List[ApexTestSuite] = {
+        val soql = s"select Id, TestSuiteName from ApexTestSuite"
+        val iterator = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.ApexTestSuite](session, session.queryTooling(soql))
+        if (iterator.nonEmpty) {
+            //records.map(sobject => sobject.asInstanceOf[ApexTestSuite]).toList
+            iterator.toList
+        } else {
+            List.empty[ApexTestSuite]
         }
 
     }
