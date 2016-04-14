@@ -737,6 +737,30 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         describeResult
     }
 
+//    def create(objects: Array[com.sforce.soap.partner.sobject.SObject]):Array[com.sforce.soap.partner.SaveResult] = {
+//        val saveResult = withRetry {
+//            val conn = getPartnerConnection
+//            conn.create(objects)
+//        }.asInstanceOf[Array[com.sforce.soap.partner.SaveResult]]
+//        saveResult
+//    }
+//    def update(objects: Array[com.sforce.soap.partner.sobject.SObject]):Array[com.sforce.soap.partner.SaveResult] = {
+//        val saveResult = withRetry {
+//            val conn = getPartnerConnection
+//            conn.update(objects)
+//        }.asInstanceOf[Array[com.sforce.soap.partner.SaveResult]]
+//        saveResult
+//    }
+//    def delete(ids: Array[String]):Array[com.sforce.soap.partner.DeleteResult] = {
+//        val deleteResult = withRetry {
+//            val conn = getPartnerConnection
+//            conn.delete(ids)
+//        }.asInstanceOf[Array[com.sforce.soap.partner.DeleteResult]]
+//        deleteResult
+//    }
+//    def delete(id: String):Array[com.sforce.soap.partner.DeleteResult] = {
+//        delete(Array(id))
+//    }
     /***************** MetadataConnection ********************************************/
     def retrieve(retrieveRequest: RetrieveRequest ):RetrieveResult = {
         val retrieveResult = withRetry {
@@ -880,6 +904,14 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         saveResult
     }
 
+    def upsertTooling(fieldName: String, objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+        val saveResult = withRetry {
+            val conn = getToolingConnection
+            conn.upsert(fieldName, objects)
+        }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
+        saveResult
+    }
+
     def deleteTooling(ids: Array[String]):Array[com.sforce.soap.tooling.DeleteResult] = {
         val deleteResult = withRetry {
             val conn = getToolingConnection
@@ -949,15 +981,15 @@ class Session(val basicConfig: BasicConfig) extends Logging {
 //        runTestsResult
 //    }
 //
-//    def runTestsAsyncTooling(classIds: String):(String) = {
-//        val runTestsResult = withRetry {
-//            val conn = getToolingConnection
-//            val res = conn.runTestsAsynchronous(classIds)
-//            res
-//
-//        }.asInstanceOf[String]
-//        runTestsResult
-//    }
+    def runTestsAsyncTooling(classIds: String, testSuiteIds: String, maxFailedTests: Int):(String) = {
+        val runTestsResult = withRetry {
+            val conn = getToolingConnection
+            val res = conn.runTestsAsynchronous(classIds, testSuiteIds,  maxFailedTests)
+            res
+
+        }.asInstanceOf[String]
+        runTestsResult
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////
     private val ONE_SECOND = 1000
