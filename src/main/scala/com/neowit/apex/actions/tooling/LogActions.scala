@@ -163,14 +163,30 @@ class ChangeLogLevels extends ApexAction {
         }
     }
 
-    def getDebugLevelId: Option[String] = {
-        val queryResult = session.queryTooling(s"select Id from DebugLevel where DeveloperName = '$DEBUG_LEVEL_DEVELOPER_NAME'")
+    def getDebugLevel: Option[DebugLevel] = {
+        val queryResult = session.queryTooling(s"select Id, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow from DebugLevel where DeveloperName = '$DEBUG_LEVEL_DEVELOPER_NAME'")
         val records = queryResult.getRecords
         if (records.nonEmpty) {
-            Some(records.head.getId)
+            Some(records.head.asInstanceOf[DebugLevel])
         } else {
             None
         }
+    }
+
+    private def isSameConfig(debugLevel: DebugLevel, traceFlagMap: Map[String, String]): Boolean = {
+        def check(mapName: String, dbValue: String): Boolean = {
+            val dbValueNotNull = if (null == dbValue) "" else dbValue
+            traceFlagMap.getOrElse(mapName, "").toLowerCase == dbValueNotNull.toLowerCase
+        }
+        //ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow
+        check("ApexCode", debugLevel.getApexCode) &&
+            check("ApexProfiling", debugLevel.getApexProfiling) &&
+            check("Callout", debugLevel.getCallout) &&
+            check("Database", debugLevel.getDatabase) &&
+            check("System", debugLevel.getSystem) &&
+            check("Validation", debugLevel.getValidation) &&
+            check("Visualforce", debugLevel.getVisualforce) &&
+            check("Workflow", debugLevel.getWorkflow)
     }
 
     def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.neowit.utils.Logging,
@@ -190,12 +206,17 @@ class ChangeLogLevels extends ApexAction {
         traceFlag.setTracedEntityId(tracedEntityId)
         traceFlag.setLogType(logType.getOrElse("USER_DEBUG"))
 
-        getDebugLevelId match {
-            case Some(debugLevelId) => //traceFlag.setDebugLevelId(debugLevelId)
-                session.deleteTooling(debugLevelId)
-            case None =>
+        getDebugLevel match {
+            case Some(debugLevel) if isSameConfig(debugLevel, traceFlagMap) =>
+                // this is same config we need, no need to create DebugLevel again
+                traceFlag.setDebugLevelId(debugLevel.getId)
+            case Some(debugLevel) if !isSameConfig(debugLevel, traceFlagMap) =>
+                // debug level exists but its config does not match traceFlagMap
+                session.deleteTooling(debugLevel.getId)
+                createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
+            case None => // no debug level exists, create one
+                createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
         }
-        createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
 
         //check if trace for current tracedEntity is already setup and expires too early, and delete it if one found
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
