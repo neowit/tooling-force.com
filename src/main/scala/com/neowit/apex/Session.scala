@@ -904,11 +904,11 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         saveResult
     }
 
-    def upsertTooling(fieldName: String, objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+    def upsertTooling(fieldName: String, objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.UpsertResult] = {
         val saveResult = withRetry {
             val conn = getToolingConnection
             conn.upsert(fieldName, objects)
-        }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
+        }.asInstanceOf[Array[com.sforce.soap.tooling.UpsertResult]]
         saveResult
     }
 

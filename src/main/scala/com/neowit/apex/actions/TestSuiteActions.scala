@@ -38,7 +38,7 @@ class TestSuiteActions extends ApexAction with TestSuiteProtocol{
                 """--testSuiteAction=action-name
                   |  Manage test suite using suite name provided by 'testSuiteName' parameter
                   |  Supported Actions:
-                  |  - create, delete, update, dump, dumpNames
+                  |  - create, delete, addClasses, removeClasses, dump, dumpNames
                 """.stripMargin
             case "testSuiteName" =>
                 """--testSuiteName=test-suite-name
@@ -68,7 +68,7 @@ class TestSuiteActions extends ApexAction with TestSuiteProtocol{
     override protected def act(): Unit = {
         val actionResult =
         config.getProperty("testSuiteAction") match {
-            case Some(action) if Set("create", "update", "delete").contains(action.toLowerCase) =>
+            case Some(action) if Set("create", "addclasses", "removeclasses", "delete").contains(action.toLowerCase) =>
                 config.getProperty("testSuiteName") match {
                     case None => Failure(new IllegalArgumentException("Invalid config for 'testSuiteAction': testSuiteName is required"))
                     case Some(testSuiteName) =>
@@ -181,7 +181,7 @@ class TestSuiteActions extends ApexAction with TestSuiteProtocol{
                         addClasses(testSuiteId, classNamesStr.split(",").toList, session).map(_ => testSuiteId)
                 }
 
-            case _ => Failure(new IllegalArgumentException("Missing or invalid 'testSuiteClassName' parameter") )
+            case _ => Failure(new IllegalArgumentException("Missing or invalid 'testSuiteClassNames' parameter") )
         }
     }
 
@@ -194,7 +194,8 @@ class TestSuiteActions extends ApexAction with TestSuiteProtocol{
                 testSuiteMember.setApexClassId(classId)
                 testSuiteMember
             }
-        val saveResults = session.upsertTooling("ApexClassId", testSuiteMembers.toArray)
+//        val saveResults = session.upsertTooling("ApexClassId", testSuiteMembers.toArray)
+        val saveResults = session.createTooling(testSuiteMembers.toArray)
         saveResults.filterNot(_.isSuccess).toList match {
             case errorResults @ head :: tail =>
                 Failure(new Throwable(head.getErrors.mkString("\n")))
@@ -231,9 +232,12 @@ class TestSuiteActions extends ApexAction with TestSuiteProtocol{
             .toMap
     }
 
-    private def delete(testSuiteNames: List[String], session: Session): Array[com.sforce.soap.tooling.DeleteResult] = {
+    private def delete(testSuiteNames: List[String], session: Session): Try[String] = {
         val idsToDelete = TestSuiteActions.getTestSuiteIdByName(testSuiteNames, session).values.toArray
-        session.deleteTooling(idsToDelete)
+        session.deleteTooling(idsToDelete).find(!_.getSuccess) match {
+            case Some(errorResult) => Failure(new RuntimeException(errorResult.getErrors.map(_.getMessage).mkString("; ")))
+            case None => Success(idsToDelete.length.toString)
+        }
     }
 
     private def getTestSuiteIdByName(testSuiteName: String, session: Session): Option[String] = {
