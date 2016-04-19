@@ -441,12 +441,12 @@ propertyBlock
 	;
 
 getter
- : 'get' (';' | methodBody)
- ;
+    : 'get' (';' | methodBody)
+    ;
 
 setter
- : 'set' (';' | methodBody)
- ;
+    : 'set' (';' | methodBody)
+    ;
 
 
 catchClause
@@ -491,6 +491,9 @@ forUpdate
     :   expressionList
     ;
 
+db_shortcut_expression
+    :   (DB_UPDATE | DB_UPSERT | DB_DELETE | DB_INSERT) expression;
+
 // EXPRESSIONS
 
 parExpression
@@ -503,6 +506,7 @@ expressionList
 
 statementExpression
     :   expression
+    |   db_shortcut_expression
     ;
 
 constantExpression
@@ -703,6 +707,10 @@ WEBSERVICE    : 'webservice';
 SELECT        : 'select';
 TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
 TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' ([nN][eE][wW]|[nN][eE][wW][mM][aA][pP]);
+DB_UPDATE     : U P D A T E WS;
+DB_UPSERT     : U P S E R T WS;
+DB_DELETE     : D E L E T E WS;
+DB_INSERT     : I N S E R T WS;
 
 
 // §3.10.1 Integer Literals
@@ -1069,4 +1077,34 @@ COMMENT
 LINE_COMMENT
     :   '//' ~[\r\n]* -> skip
     ;
+
+// characters
+
+fragment A : [aA];
+fragment B : [bB];
+fragment C : [cC];
+fragment D : [dD];
+fragment E : [eE];
+fragment F : [fF];
+fragment G : [gG];
+fragment H : [hH];
+fragment I : [iI];
+fragment J : [jJ];
+fragment K : [kK];
+fragment L : [lL];
+fragment M : [mM];
+fragment N : [nN];
+fragment O : [oO];
+fragment P : [pP];
+fragment Q : [qQ];
+fragment R : [rR];
+fragment S : [sS];
+fragment T : [tT];
+fragment U : [uU];
+fragment V : [vV];
+fragment W : [wW];
+fragment X : [xX];
+fragment Y : [yY];
+fragment Z : [zZ];
+fragment SPACE : ' ';
 
