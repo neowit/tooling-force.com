@@ -492,7 +492,7 @@ forUpdate
     ;
 
 db_shortcut_expression
-    :   (DB_UPDATE | DB_UPSERT | DB_DELETE | DB_INSERT) expression;
+    :   (DB_UPDATE | DB_UPSERT | DB_DELETE | DB_INSERT | DB_UNDELETE) expression;
 
 // EXPRESSIONS
 
@@ -711,6 +711,7 @@ DB_UPDATE     : U P D A T E WS;
 DB_UPSERT     : U P S E R T WS;
 DB_DELETE     : D E L E T E WS;
 DB_INSERT     : I N S E R T WS;
+DB_UNDELETE   : U N D E L E T E WS;
 
 
 // §3.10.1 Integer Literals
