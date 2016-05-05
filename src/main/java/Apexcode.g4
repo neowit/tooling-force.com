@@ -579,7 +579,7 @@ creator
 createdName
     :   Identifier typeArgumentsOrDiamond? ('.' Identifier typeArgumentsOrDiamond?)*
     |   primitiveType
-    |   'set' typeArgumentsOrDiamond // 'set <' has to be defined explisitly, otherwise it clashes with 'set' of property setter
+    |   'set' typeArgumentsOrDiamond // 'set <' has to be defined explicitly, otherwise it clashes with 'set' of property setter
     ;
 
 innerCreator
