@@ -645,6 +645,7 @@ SoqlLiteral
 	
 fragment SelectRestAllowingInnerBrackets
 	:  '[' ~']' .*? ']'
+	|  '[' ']'  // e.g. [ select ... where field in :new String[] {...} ]
 	|	~'[' .*?
 	;
 
