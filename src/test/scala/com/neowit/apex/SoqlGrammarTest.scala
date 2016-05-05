@@ -28,7 +28,7 @@ class SoqlGrammarTest extends FunSuite{
 
         val lines = FileUtils.readFile(soqlFilePath).getLines().toArray[String]
         var i = 0
-        while (i < lines.size) {
+        while (i < lines.length) {
             val line = lines(i)
             var soqlLines: String = ""
             if (line.contains("--#START: ")) {
