@@ -249,6 +249,7 @@ expression
     :   primary
     |   primary '[' expression ']'
 	|	expression '.' expression
+    |   innerCreator
 	;
 
 primary
@@ -292,7 +293,26 @@ dateLiteral
 	| THIS_FISCAL_YEAR | LAST_FISCAL_YEAR | NEXT_FISCAL_YEAR | NEXT_N_FISCAL_YEARS_N | LAST_N_FISCAL_YEARS_N 
 	;
 
+innerCreator
+    : NEW type typeArgumentsOrDiamond? '{' expression (',' expression)* '}'
+    ;
 
+type
+    :   Identifier ('[' ']')*
+    ;
+
+typeArguments
+    :   '<' typeArgument (',' typeArgument)* '>'
+    ;
+
+typeArgument
+    :   type
+    ;
+
+typeArgumentsOrDiamond
+    :   '<' '>'
+    |   typeArguments
+    ;
 
 // LEXER
 
@@ -345,6 +365,9 @@ VIEWSTAT	: V I E W S T A T;
 WHEN		: W H E N;
 WHERE       : W H E R E;
 WITH		: W I T H;
+
+// Apex Keywords
+NEW         : N E W;   
 
 // Date Function Literals
 CALENDAR_MONTH		: C A L E N D A R '_' M O N T H;

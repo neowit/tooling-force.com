@@ -158,3 +158,13 @@ select Id from Contact
                     or ( Id <> :contactId and Status__c = 'Active2' )
                     order by Parent_Contact__r.LastName
 --#END
+
+--#START: empty brackets inside query
+select Id, Account.Name from Opportunity where Id in: new Id[] {opp1.Id, opp2.Id}
+--#END
+
+--#START: inner creator inside query
+select Id, Account.Name from Opportunity where Id in: new Set<Id> {opp1.Id, opp2.Id}
+--#END
+
+
