@@ -100,10 +100,19 @@ class TcpServer (port: Int, timeoutMillis: Int){
 class CommandParser extends Actor {
     def processCommand(socket: Socket) {
 
-        val out = new PrintWriter(socket.getOutputStream, true) //use to communicate back to the client
+        //val out = new PrintWriter(socket.getOutputStream, true) //use to communicate back to the client
         //val in = new BufferedReader(new InputStreamReader(socket.getInputStream))
         println("Client connected from " + socket.getInetAddress + ":" + socket.getPort)
         //parse command
+        val line = new BufferedReader(new InputStreamReader(socket.getInputStream)).readLine()
+        val processorActor = TcpServer.system.actorOf(Props[CommandProcessor])
+        line match {
+            case "ping" => processorActor ! new Ping(socket)
+            case "shutdown" => processorActor ! new Shutdown(socket)
+            case _ => processorActor ! new Command(socket, line)
+        }
+
+        /*
         //io.Source.fromInputStream(socket.getInputStream).getLines().foreach(str => println("line=" + str))
         val inputLines = io.Source.fromInputStream(socket.getInputStream).getLines().toList
         if (inputLines.nonEmpty) {
@@ -114,6 +123,7 @@ class CommandParser extends Actor {
                 case _ => processorActor ! new Command(socket, inputLines(0))
             }
         }
+        */
         //parser actor is no longer needed, stop it
         context.stop(self)
     }
@@ -134,7 +144,6 @@ class CommandProcessor extends Actor {
 
     /**
      * must be called as the very last call of current Actor, when everything is done
-     * @param socket
      */
     def done(socket: Socket) {
         println("Disconnect " + socket.getInetAddress + ":" + socket.getPort)
@@ -143,7 +152,6 @@ class CommandProcessor extends Actor {
     }
     /**
      * ping command checks if server is On and keeps it alive (i.e. resets accept() timeout)
-     * @param socket
      */
     def ping(socket: Socket) {
         val out = new PrintWriter(socket.getOutputStream, true)
@@ -164,8 +172,7 @@ class CommandProcessor extends Actor {
     }
     /**
      * generic command
-     * @param socket
-     * @param commandLine
+     * @param commandLine - command line to run
      */
     def processCommand(socket: Socket, commandLine: String) {
         println("received command: " + commandLine)
@@ -173,7 +180,7 @@ class CommandProcessor extends Actor {
         val commandLineArgs:Array[String] = commandLine match {
             case x if !x.isEmpty =>
               //command line looks like: --key2="value 1" --key2=value2 --key3="value 33"
-              val args1 = x.trim.toString.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
+              val args1 = x.trim.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
               //args1: Array("--key2="value 1"", "--key2=value2", "--key3='value 33'")
               //need to get rid of quotes around values with spaces
               args1.map(s => {
