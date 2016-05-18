@@ -309,7 +309,7 @@ class ListConflicting extends RetrieveMetadata {
                 } else {
                     config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
                 }
-                fileProps.isEmpty
+                //fileProps.isEmpty
             case None =>
         }
 
@@ -564,8 +564,8 @@ class BulkRetrieve extends RetrieveMetadata {
                         namesByDir.getOrElse(dirName, Nil) match {
                             case _fileNames if _fileNames.nonEmpty && Nil != _fileNames =>
 
-                                val objNames = _fileNames.map(_.drop(dirName.size + 1)).map(
-                                    name => if (name.endsWith(extension)) name.dropRight(extension.size) else name
+                                val objNames = _fileNames.map(_.drop(dirName.length + 1)).map(
+                                    name => if (name.endsWith(extension)) name.dropRight(extension.length) else name
                                 )
                                 membersByXmlName += describeObject.getXmlName -> objNames
 

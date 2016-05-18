@@ -254,7 +254,7 @@ class DeployModified extends Deploy {
                                     if sourceFile.exists()) yield sourceFile
 
         //for every file that is part of aura bundle, include all files in that bundle
-        val auraFiles = files.map(getAllFilesInAuraBundle(_)).flatten.toSet.toList
+        val auraFiles = files.flatMap(getAllFilesInAuraBundle(_)).distinct
 
         var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles).toSet
 
@@ -1195,7 +1195,7 @@ class DeployModifiedDestructive extends DeployModified {
     }
 
     override def act() {
-        val hasTestsToRun = None != config.getProperty("testsToRun")
+        val hasTestsToRun = config.getProperty("testsToRun").nonEmpty
         val listModified = new ListModified().load[ListModified](session)
         val modifiedFiles = listModified.getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml")
