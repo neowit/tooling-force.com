@@ -486,7 +486,6 @@ class DeployModified extends Deploy {
     protected def hasConflicts(files: List[File]): Boolean = {
         if (files.nonEmpty) {
             logger.info("Check Conflicts with Remote")
-            val checker = new ListConflicting().load[ListConflicting](session)
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
@@ -494,6 +493,7 @@ class DeployModified extends Deploy {
 
                         val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
                         responseWriter.println(msg)
+                        val checker = new ListConflicting().load[ListConflicting](session)
                         checker.generateConflictMessageDetails(conflictingFiles, msg).
                             foreach{detail => responseWriter.println(detail)}
                         responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))

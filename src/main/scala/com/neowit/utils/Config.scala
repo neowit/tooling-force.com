@@ -39,8 +39,11 @@ class ConfigValueException(msg:String) extends IllegalArgumentException(msg: Str
 class BasicConfig extends Logging {
     private var out: OutputStream = Console.out
     def setOutputStream(out: OutputStream) { this.out = out}
-    def getResponseWriter = new ResponseWriter(this.out)
-    lazy val responseWriter= getResponseWriter
+
+    private var providedResponseWriter: Option[ResponseWriter] =  None
+    private val internalResponseWriter =  new ResponseWriter(this.out)
+    def setResponseWriter(writer: ResponseWriter) = this.providedResponseWriter = Option(writer)
+    lazy val getResponseWriter= providedResponseWriter.getOrElse(internalResponseWriter)
 
     def isUnix = {
         val os = System.getProperty("os.name").toLowerCase
@@ -327,7 +330,7 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         path
     }
 
-    private lazy val responseFile = {
+    private val responseFile = {
         val path = getRequiredProperty("responseFilePath").get
         val f = new File(path)
         if (!f.exists()) {
@@ -336,5 +339,6 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         f
     }
 
-    lazy val responseWriter= new ResponseWriter(responseFile)
+    val responseWriter = new ResponseWriter(responseFile)
+    basicConfig.setResponseWriter(responseWriter)
 }

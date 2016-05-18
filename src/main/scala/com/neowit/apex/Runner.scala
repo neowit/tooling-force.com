@@ -50,7 +50,7 @@ class Executor extends Logging {
                 case ex: InvalidCommandLineException => basicConfig.help()
                 case ex: ShowHelpException =>
                     if (ex.message.nonEmpty) {
-                        basicConfig.responseWriter.println(ex.message)
+                        basicConfig.getResponseWriter.println(ex.message)
                         logger.error(ex.message)
                     }
                     help(ex.help)
@@ -69,15 +69,16 @@ class Executor extends Logging {
                     }
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
-                    basicConfig.responseWriter.println("RESULT=FAILURE")
+                    val _responseWriter = basicConfig.getResponseWriter//e.responseWriterOpt.getOrElse(basicConfig.getResponseWriter)
+                    _responseWriter.println("RESULT=FAILURE")
                     for (msg <- messages) {
-                        basicConfig.responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
+                        _responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    basicConfig.responseWriter.println("RESULT=FAILURE")
-                    basicConfig.responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.getResponseWriter.println("RESULT=FAILURE")
+                    basicConfig.getResponseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
@@ -85,12 +86,12 @@ class Executor extends Logging {
                     logger.error(ex.getStackTrace)
                     System.out.println(ex)
                     System.out.println(ex.getStackTrace)
-                    basicConfig.responseWriter.println("RESULT=FAILURE")
-                    basicConfig.responseWriter.println("ERROR", Map("text" -> ex.getMessage))
+                    basicConfig.getResponseWriter.println("RESULT=FAILURE")
+                    basicConfig.getResponseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
-                    basicConfig.responseWriter.close()
+                    basicConfig.getResponseWriter.close()
                 }
             }
         }
