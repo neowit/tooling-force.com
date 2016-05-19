@@ -70,6 +70,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
         withFile { (file, writer) =>
             val props = new java.util.Properties()
             props.setProperty("sf.username", "aaa@bb.cc")
+            props.setProperty("responseFilePath", "/tmp/test.txt")
             props.store(writer, "")
 
             appConfig.load(List("--config=" + file.getAbsolutePath))

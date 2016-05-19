@@ -200,7 +200,10 @@ class Config(val basicConfig: BasicConfig) extends Logging{
     val apiVersion:Double = 36.0
 
     //make BasicConfig methods available in Config
-    def load(arglist: List[String]) { basicConfig.load(arglist)}
+    def load(arglist: List[String]) {
+        basicConfig.load(arglist)
+        basicConfig.setResponseWriter(responseWriter)
+    }
     def isUnix = basicConfig.isUnix
     def getProperty(key:String):Option[String] = basicConfig.getProperty(key)
     def getRequiredProperty(key: String): Option[String] =  basicConfig.getRequiredProperty(key)
@@ -330,7 +333,7 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         path
     }
 
-    private val responseFile = {
+    private lazy val responseFile = {
         val path = getRequiredProperty("responseFilePath").get
         val f = new File(path)
         if (!f.exists()) {
@@ -339,6 +342,6 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         f
     }
 
-    val responseWriter = new ResponseWriter(responseFile)
-    basicConfig.setResponseWriter(responseWriter)
+    lazy val responseWriter = new ResponseWriter(responseFile)
+
 }
