@@ -49,6 +49,17 @@ class SaveModified extends DeployModified {
         }
     }
 
+    private def queryMetadataContainerIdByName(session: Session): Option[String] = {
+
+        val queryResult = session.queryTooling(s"select Id from MetadataContainer where Name = '${getMetadataContainerName(session)}'")
+        val records = queryResult.getRecords
+        if (records.nonEmpty) {
+            Option(records.head.getId)
+        } else {
+            None
+        }
+    }
+
     def getExistingMetadataContainer(session: Session): Option[MetadataContainer] = {
         session.getData("MetadataContainer")  match {
             case data: Map[String, _] if "" != data.getOrElse("Id", "").asInstanceOf[String] =>
@@ -74,26 +85,44 @@ class SaveModified extends DeployModified {
                 //and try again
                 codeBlock(getMetadataContainer(session))
         } finally {
-            deleteMetadataContainer(session)
+            //deleteMetadataContainer(session) //TODO - UNCOMMENT
         }
     }
-    def getMetadataContainer(session: Session): MetadataContainer = {
+
+    private def getMetadataContainerName(session: Session): String = CONTAINER_PREFIX + session.getUserId.drop(3) //reduce length to fit in 32 characters
+
+    def getMetadataContainer(session: Session, noRetry: Boolean = false): MetadataContainer = {
         val container = getExistingMetadataContainer(session)  match {
             case Some(_container) => _container
             case None =>
                 val newContainer = new MetadataContainer()
-                newContainer.setName(CONTAINER_PREFIX + session.getUserId.drop(3))//reduce length to fit in 32 characters
-            val containerSaveResults: Array[SaveResult] = session.createTooling(Array(newContainer))
+                newContainer.setName(getMetadataContainerName(session))
+                val containerSaveResults: Array[SaveResult] = session.createTooling(Array(newContainer))
                 if (containerSaveResults.head.isSuccess) {
                     newContainer.setId(containerSaveResults.head.getId)
                     session.setData("MetadataContainer", Map("Name" -> newContainer.getName, "Id" -> newContainer.getId))
                     session.storeSessionData()
                     logger.debug("Created new MetadataContainer; Id=" + newContainer.getName + " - Id=" + newContainer.getId)
+                    newContainer
                 } else {
-                    val msg = "Failed to create Metadata Container. " + containerSaveResults.head.getErrors.head.getMessage
-                    throw new IllegalStateException(msg)
+                    val error = containerSaveResults.head.getErrors.head
+                    if ( !noRetry && StatusCode.DUPLICATE_VALUE == error.getStatusCode ) {
+                        logger.debug("Id of Existing MetadataContainer was not recorded in the session; Will delete the container and try again")
+                        // looks like container with this name already exists, let's update session with its Id
+                        queryMetadataContainerIdByName(session) match {
+                            case Some(containerId) =>
+                                session.setData("MetadataContainer", Map("Name" -> newContainer.getName, "Id" -> containerId))
+                                session.storeSessionData()
+                                deleteMetadataContainer(session)
+                            case None =>
+                        }
+                        // try one last time
+                        getMetadataContainer(session, noRetry = true)
+                    } else {
+                        val msg = "Failed to create Metadata Container. " + error.getMessage
+                        throw new IllegalStateException(msg)
+                    }
                 }
-                newContainer
         }
         container
     }
@@ -362,7 +391,7 @@ class SaveModified extends DeployModified {
                         case None => None
                     }
                 }
-                val res = dataOrNone.filter(_ != None).map(_.get)
+                val res = dataOrNone.filter(_.isDefined).map(_.get)
                 if (res.isEmpty) None else Some(res)
             case Failure(e) =>
                 // looks like we can not query some of the components being deployed/saved using SOQL
@@ -395,7 +424,7 @@ class SaveModified extends DeployModified {
         //now convert ParIterable of maps into a single map
         val dataByFile = dataByFileCol.foldLeft(Map[File, Map[String, Any]] ())(_ ++ _)
 
-        dataByFile.toMap
+        dataByFile
     }
 
     /**
