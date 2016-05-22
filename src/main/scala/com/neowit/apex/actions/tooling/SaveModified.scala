@@ -166,6 +166,7 @@ class SaveModified extends DeployModified {
     /**
      * some file types supported by Tooling API do not require MetadataContainer, so we save them in parallel
      * in separate requests
+     *
      * @param files - files to save with Tooling API
      * @param updateSessionDataOnSuccess - if session data needs to be updated at the end of successful save
      * @return - true if all files have been saved successfully
@@ -374,6 +375,7 @@ class SaveModified extends DeployModified {
     /**
      * when using Tooling try to avoid Metadata.retrieve() as it may be quite slow
      * this method will override its parent in ApexDeploy and uses simple query() calls to load LastModifiedDate
+     *
      * @param files - list of files to check for conflicts
      * @return
      */
@@ -402,6 +404,7 @@ class SaveModified extends DeployModified {
     }
     /**
      * find remote modification Date + ById for all provided files
+     *
      * @param files - list of files to retrieve data for
      * @return
      */
@@ -429,6 +432,7 @@ class SaveModified extends DeployModified {
 
     /**
      * retrieve modification data for single XML Type
+     *
      * @param xmlType, e.g. ApexClass
      * @param filesOfSameType - all files MUST be of the same XML Type
      * @return
@@ -521,22 +525,7 @@ class SaveModified extends DeployModified {
                         val line = deployMessage.getLineNumber
                         val column = deployMessage.getColumnNumber
                         val problem = deployMessage.getProblem
-                        val fName = deployMessage.getFileName match {
-                            case null => null
-                            case x =>
-                                //workaround for Tooling API bug - getFileName() returns file label instead of file name
-                                //replace all non letter/digit with underscore and make sure that
-                                //- it does not contain two consecutive underscores
-                                //- does not end with underscore
-                                x.replaceAll("[^a-zA-Z0-9]", "_").replaceAll("(_)\\1+", "$1").replaceAll("_*$", "")
-                        }//getFileName ?
-                        val xmlType = deployMessage.getComponentType
-                        val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
-                        val extension = describeMetadataResult.getSuffix
-                        val filePath =  if (!extension.isEmpty) session.getRelativeFilePath(fName, extension) match {
-                            case Some(_filePath) => _filePath
-                            case _ => ""
-                        }
+                        val filePath =  getFilePath(deployMessage).getOrElse("")
 
                         val problemType = "CompileError"
                         responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
@@ -562,6 +551,35 @@ class SaveModified extends DeployModified {
                 logger.error("Request Failed with status: " + state)
                 throw new IllegalStateException("Failed to send Async Request. Status= " + state)
         }
+    }
+
+    private val FullPathWithFileNamePattern = """(.*)/(\w*)\.(\w*)$""".r
+
+    /**
+      * try to detect relative file path based on DeployMessage data
+      * @param deployMessage - deploy data for single file
+      * @return
+      */
+    private def getFilePath(deployMessage: DeployMessage): Option[String] = {
+        deployMessage.getFileName match { // classes/MyClass.cls
+            case FullPathWithFileNamePattern(path, name, extension) if !extension.isEmpty =>
+                session.getRelativeFilePath(name, extension)
+            case _ => // try to resolve file name from file label
+                val fName = deployMessage.getFullName match {
+                    case null => null
+                    case x =>
+                        //workaround for Tooling API (v34) bug - getFileName() returns file label instead of file name
+                        //replace all non letter/digit with underscore and make sure that
+                        //- it does not contain two consecutive underscores
+                        //- does not end with underscore
+                        x.replaceAll("[^a-zA-Z0-9]", "_").replaceAll("(_)\\1+", "$1").replaceAll("_*$", "")
+                }
+                val xmlType = deployMessage.getComponentType
+                val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
+                val extension = describeMetadataResult.getSuffix
+                session.getRelativeFilePath(fName, extension)
+        }
+
     }
 }
 
