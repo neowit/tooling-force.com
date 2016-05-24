@@ -15,7 +15,7 @@ trait ApexModelJsonProtocol extends DefaultJsonProtocol {
 
 object ApexModel {
 
-    private val NAMESPACES = List("ApexPages", "Approval", "Auth", "Database", "Dom", "Flow", "KbManagement", "Messaging", "QuickAction", "Reports", "Schema", "System" )
+    private val NAMESPACES = List("Apex", "ApexPages", "applauncher", "Approval", "Auth", "cache", "Canvas", "ChatterAnswers", "ConnectApi", "Database", "Datacloud", "dom", "Flow", "KbManagement", "Messaging", "Process", "QuickAction", "reports", "Schema", "Search", "Site", "Support", "System", "TerritoryMgmt", "TxnSecurity", "UserProvisioning" )
 
     private val memberByNamespace: Map[String, ApexModelMember] = load()
 
