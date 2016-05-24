@@ -42,10 +42,10 @@ class ServerStart  extends AsyncAction {
                 case "port" => "--port - Port number, e.g. 8888"
                 case "timeoutSec" =>
                     """--timeoutSec - Number of seconds the server will wait for new connections.
-                  |Once last command is completed and if no new connections is established within 'timeoutMillis'
-                  |the server will shut itself down""".stripMargin
-            case _ => ""
-        }
+                      |Once last command is completed and if no new connections is established within 'timeoutMillis'
+                      |the server will shut itself down""".stripMargin
+                case _ => ""
+            }
         }
     }
 
