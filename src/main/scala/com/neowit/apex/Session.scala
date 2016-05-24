@@ -855,12 +855,19 @@ class Session(val basicConfig: BasicConfig) extends Logging {
      * @return
      */
     def getRestContentTooling(path: String, urlParameters: String = "",
-                              httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()): Option[String] = {
+                              httpHeaders: Map[String, String] = Map.empty): Option[String] = {
+
         val text = withRetryRest {
             val connectorConfig = getToolingConnection.getConfig
-            getRestContent(connectorConfig, "/tooling", path, urlParameters, httpHeaders) match {
+            val javaMapOfHeaders = new java.util.HashMap[String,String]
+            httpHeaders.map{
+                case (key, value) => javaMapOfHeaders.put(key, value)
+            }
+
+            getRestContent(connectorConfig, "/tooling", path, urlParameters, httpHeaders = javaMapOfHeaders) match {
                 case Success(responseText) => responseText
-                case Failure(ex) => throw ex
+                case Failure(ex) =>
+                    throw ex
             }
         }.asInstanceOf[String]
         Some(text)
