@@ -19,7 +19,7 @@ object ApexModel {
 
     private val memberByNamespace: Map[String, ApexModelMember] = load()
 
-    def load(): Map[String, ApexModelMember] = {
+    private def load(): Map[String, ApexModelMember] = {
         val memberByNamespace = Map.newBuilder[String, ApexModelMember]
         for (namespace <- NAMESPACES) {
             memberByNamespace += (namespace.toLowerCase -> new ApexNamespace(namespace))
