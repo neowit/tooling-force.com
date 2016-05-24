@@ -4,7 +4,7 @@ import com.neowit.apex.parser.{BuiltInMethodMember, Member}
 //import scala.collection.JavaConversions._
 import spray.json._
 
-object ApexModelJsonProtocol extends DefaultJsonProtocol {
+trait ApexModelJsonProtocol extends DefaultJsonProtocol {
     implicit val apexTypeFormat: JsonFormat[ApexType] = lazyFormat(jsonFormat(ApexType, "name", "superType", "enums", "methods", "tag", "ctors", "fqn"))
     implicit val apexMethodFormat: JsonFormat[ApexMethod] = lazyFormat(jsonFormat(ApexMethod, "s", "n", "v", "p", "h", "r", "d"))
     implicit val apexEnumFormat: JsonFormat[ApexEnumMember] = lazyFormat(jsonFormat(ApexEnumMember, "name", "enumConstants", "tag", "fqn"))
@@ -83,9 +83,7 @@ object ApexModel {
 }
 
 
-class ApexNamespace(name: String) extends GenericNamespace(name) {
-
-    import ApexModelJsonProtocol._
+class ApexNamespace(name: String) extends GenericNamespace(name) with ApexModelJsonProtocol {
 
     override def getIdentity: String = name
 

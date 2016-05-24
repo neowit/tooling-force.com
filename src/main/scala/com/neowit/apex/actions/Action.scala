@@ -52,7 +52,8 @@ object ActionFactory {
         "soqlQuery" -> "SoqlQuery",
         "changeLogLevels" -> "com.neowit.apex.actions.tooling.ChangeLogLevels",
         "testSuiteManage" -> "TestSuiteActions",
-        "checkSyntax" -> "CheckSyntax"
+        "checkSyntax" -> "CheckSyntax",
+        "downloadApexModel" -> "com.neowit.apex.actions.tooling.DownloadApexModel"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 
