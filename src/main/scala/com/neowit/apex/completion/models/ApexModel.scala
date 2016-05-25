@@ -272,6 +272,8 @@ case class ApexEnumMember(name: String, enumConstants: List[ApexEnumConstantMemb
             addChild(enumConstant)
         }
         addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
+        addChild(new BuiltInMethodMember(this, "equals", "equals", "Boolean", List("Object obj"))) //add default equals() method of enum
+        addChild(new BuiltInMethodMember(this, "hashCode", "hashCode", "Integer")) //add default equals() method of enum
     }
 }
 
