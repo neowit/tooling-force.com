@@ -129,7 +129,7 @@ class ApexNamespace(name: String) extends GenericNamespace(name) with ApexModelJ
             loadFile("hand-made/System_ApexPages", overwriteChildren = true)
         } else if ("ApexPages" == name) {
             //add ApexPages.Severity
-            loadFile("hand-made/ApexPages_Severity")
+            loadFile("hand-made/ApexPages_Severity", overwriteChildren = true)
         }
     }
 
