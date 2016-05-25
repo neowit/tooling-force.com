@@ -171,7 +171,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "completeList",
 		"column": 7,
 		"itemsCountMin": 17,
-		"signatureContains": ["addAll(List fromList)", "addAll(Set fromSet)", "add(", "clear", "clone", "get", "sort"],
+		"signatureContains": ["addAll(List elements)", "addAll(Set elements)", "add(", "clear", "clone", "get", "sort"],
 		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate"]
 		}
 	 * #END
@@ -204,7 +204,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "completeSet",
 		"column": 8,
 		"itemsCountMin": 17,
-		"signatureContains": ["addAll(List<Object> fromList)", "addAll(Set<Object> fromSet)", "add(", "clear", "Set<Object> clone", "removeAll"],
+		"signatureContains": ["addAll(List elements)", "addAll(Set elements)", "add(", "clear", "containsAll(Set elements)", "removeAll"],
 		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate", "get", "sort"]
 		}
 	 * #END
@@ -220,7 +220,7 @@ public with sharing class ApexClassCompletions {
 		"lineMarker": "completeSetLowerCase",
 		"column": 8,
 		"itemsCountMin": 17,
-		"signatureContains": ["addAll(List<Object> fromList)", "addAll(Set<Object> fromSet)", "add(", "clear", "Set<Object> clone", "removeAll"],
+		"signatureContains": ["addAll(List elements)", "addAll(Set elements)", "add(", "clear", "containsAll(Set elements)", "removeAll"],
 		"signatureMustNotContain" : ["escapeSingleQuotes", "format", "valueOf", "abbreviate", "get", "sort"]
 		}
 	 * #END
