@@ -152,37 +152,45 @@ class RefreshMetadata extends RetrieveMetadata {
     }
 
     def act() {
-        //first check if we have modified files
-        val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
-        val modifiedFileChecker = new ListModified().load[ListModified](session)
-        val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
+        try {
+            //first check if we have modified files
+            val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
+            val modifiedFileChecker = new ListModified().load[ListModified](session)
+            val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
 
-        if (modifiedFiles.isEmpty) {
-            val retrieveRequest = new RetrieveRequest()
-            retrieveRequest.setApiVersion(config.apiVersion)
-            setUpackaged(retrieveRequest)
-            Try(session.retrieve(retrieveRequest)) match {
-                case Success(retrieveResult) =>
-                    updateFromRetrieve(retrieveResult)
-                case Failure(err) =>
-                    err match {
-                        case e: RetrieveError =>
-                            err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                                case messages if null != messages && messages.nonEmpty=>
-                                    responseWriter.println("RESULT=FAILURE")
-                                    for(msg <- messages) {
-                                        responseWriter.println(msg.getFileName + ": " + msg.getProblem)
-                                    }
-                                case _ =>
-                            }
-                        case _ => throw err
-                    }
+            if (modifiedFiles.isEmpty) {
+                val retrieveRequest = new RetrieveRequest()
+                retrieveRequest.setApiVersion(config.apiVersion)
+                setUpackaged(retrieveRequest)
+                Try(session.retrieve(retrieveRequest)) match {
+                    case Success(retrieveResult) =>
+                        updateFromRetrieve(retrieveResult)
+                    case Failure(err) =>
+                        err match {
+                            case e: RetrieveError =>
+                                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                    case messages if null != messages && messages.nonEmpty=>
+                                        responseWriter.println("RESULT=FAILURE")
+                                        for(msg <- messages) {
+                                            responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                        }
+                                    case _ =>
+                                }
+                            case _ =>
+                                throw err
+                        }
+                }
+            } else {
+                responseWriter.println("RESULT=FAILURE")
+                responseWriter.println(new Message(ResponseWriter.DEBUG,
+                    "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+                modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN)
             }
-        } else {
-            responseWriter.println("RESULT=FAILURE")
-            responseWriter.println(new Message(ResponseWriter.DEBUG,
-                "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
-            modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN)
+        } catch {
+            case ex:Throwable =>
+                println(ex)
+                responseWriter.println("RESULT=FAILURE")
+                responseWriter.println(new Message(ResponseWriter.ERROR, ex.toString))
         }
     }
     /**
