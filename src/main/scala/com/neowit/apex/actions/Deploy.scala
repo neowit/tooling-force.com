@@ -400,7 +400,14 @@ class DeployModified extends Deploy {
             if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
                 //process bundle definition
                 //for aura bundles Metadata API deploy() reports only bundle name, not individual files
+                // process bundle dir
                 processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
+                // process individual files
+                FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
+                    .filter(AuraMember.isSupportedType)
+                    .foreach(file =>
+                        processOneFile(file, successMessage, AuraMember.XML_TYPE)
+                    )
             } else {
                 if (f.exists() && !f.isDirectory) {
                     val xmlType = describeByDir.get(f.getParentFile.getName) match {
