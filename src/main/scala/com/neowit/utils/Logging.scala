@@ -19,8 +19,13 @@
 
 package com.neowit.utils
 
+import java.util.concurrent.TimeUnit
+
 import org.apache.commons.logging.impl.SimpleLog
 import org.apache.commons.logging.{Log, LogFactory}
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 /**
  * a simple "logger".
  * Used to conserve .jar size
@@ -48,8 +53,26 @@ trait Logging {
     def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
     def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
 
+    def isInfoEnabled: Boolean = log.isInfoEnabled
 
     def logger = this
+}
+object Logging {
+    def repeating(logger: Logging, codeBlock: => Any, msg: Any,
+                 countOpt: Option[Int] = None,
+                 repeatDuration: scala.concurrent.duration.FiniteDuration = Duration(3, TimeUnit.SECONDS) )
+                (implicit scheduler: akka.actor.Scheduler): Unit = {
+        if (logger.isInfoEnabled) {
+            val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), repeatDuration){
+                logger.info(msg)
+            }
+            try {
+                codeBlock
+            } finally {
+                cancellable.cancel()
+            }
+        }
+    }
 }
 
 /**

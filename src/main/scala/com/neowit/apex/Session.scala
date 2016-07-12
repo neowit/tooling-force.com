@@ -32,6 +32,7 @@ import scala.concurrent._
 import collection.JavaConverters._
 import java.io._
 
+import com.neowit.TcpServer
 import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 
@@ -1036,7 +1037,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             throw new Exception(retrieveResult.getStatus + " msg:" + retrieveResult.getMessages.mkString("\n"))
         } else {
             //finally retrieve ZIP
-            retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true)
+            Logging.repeating(logger,
+                { retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true) },
+                "retrieving Metadata ZIP ..." )(TcpServer.system.scheduler)
+            //retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true)
         }
         retrieveResult
     }
