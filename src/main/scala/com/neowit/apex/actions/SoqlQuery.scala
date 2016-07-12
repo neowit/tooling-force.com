@@ -86,8 +86,8 @@ class SoqlQuery extends ApexAction {
                         responseWriter.println("RESULT=SUCCESS")
                         responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
 
-                        if (queryResult.totalSize < 1) {
-                            //looks like this is just a count() query
+                        if (queryResult.totalSize < 1 || queryResult.records.isEmpty) {
+                            //looks like there are no results or this is just a count() query
                             responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryResult.totalSize))
                         } else {
                             val outputFilePath = config.getRequiredProperty("outputFilePath").get
