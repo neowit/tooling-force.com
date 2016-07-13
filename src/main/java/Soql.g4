@@ -190,9 +190,9 @@ bindOperator
 	;
 
 fieldItem
-	:	fieldName
-	|	aggregateFunction alias?
+	:	aggregateFunction alias?
 	|	displayFunction alias?
+	|	fieldName
 	;
 
 relationshipItem
@@ -209,10 +209,19 @@ aggregateFunction
 	|	SUM '(' fieldName ')'
 	;
 
+convertCurrencyFunction
+    :  CONVERT_CURRENCY '(' fieldName ')'
+    ;
+
+convertTimezoneFunction
+    :  CONVERT_TIMEZONE '(' fieldName ')'
+    ;
+
 displayFunction
 	:	TO_LABEL '(' fieldName ')'
-	|	CONVERT_CURRENCY '(' fieldName ')'
-	|	FORMAT '(' fieldName ')'
+	|	FORMAT '(' ( aggregateFunction | convertCurrencyFunction | fieldName ) ')'
+	|	convertCurrencyFunction
+	|	convertTimezoneFunction
 	|	dateFunction
     |   distanceFunction
 	;
@@ -274,7 +283,7 @@ literal
 
 dateFunction
 	: dateFunctionLiteral '(' fieldName ')'
-	| dateFunctionLiteral '(' CONVERTTIMEZONE '(' fieldName ')' ')'
+	| dateFunctionLiteral '(' CONVERT_TIMEZONE '(' fieldName ')' ')'
 	;
 	
 dateFunctionLiteral
@@ -316,13 +325,13 @@ typeArgumentsOrDiamond
 
 // LEXER
 
-// §3.9 Keywords
+// Keywords
 
 ASC			: A S C;
 AVG			: A V G;
 BY			: B Y;
 CATEGORY	: C A T E G O R Y;
-CONVERT_CURRENCY : C O N V E R T ' _' C U R R E N C Y;
+CONVERT_CURRENCY : C O N V E R T C U R R E N C Y;
 COUNT		: C O U N T;
 COUNT_DISTINCT	: C O U N T '_' D I S T I N C T;
 CUBE		: C U B E;
@@ -425,7 +434,7 @@ NEXT_N_FISCAL_YEARS_N :	N E X T '_' N '_' F I S C A L '_' Y E A R S ':' DecimalI
 LAST_N_FISCAL_YEARS_N :	L A S T '_' N '_' F I S C A L '_' Y E A R S ':' DecimalIntegerLiteral;
 
 // Timezone Conversion Literal (only used inside Date Function Literals)
-CONVERTTIMEZONE : C O N V E R T T I M E Z O N E;
+CONVERT_TIMEZONE : C O N V E R T T I M E Z O N E;
 
 // Geolocation Literals
 DISTANCE : D I S T A N C E;
@@ -568,7 +577,7 @@ SEMI            : ';';
 COMMA           : ',';
 DOT             : '.';
 
-// §3.12 Operators
+// Operators
 
 ASSIGN          : '=';
 GT              : '>';
