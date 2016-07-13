@@ -1037,7 +1037,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             throw new Exception(retrieveResult.getStatus + " msg:" + retrieveResult.getMessages.mkString("\n"))
         } else {
             //finally retrieve ZIP
-            Logging.repeating(logger,
+            Logging.repeatingInfo(logger,
                 { retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true) },
                 "retrieving Metadata ZIP ..." )(TcpServer.system.scheduler)
             //retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true)

@@ -57,13 +57,22 @@ trait Logging {
 
     def logger = this
 }
+
 object Logging {
-    def repeating(logger: Logging, codeBlock: => Any, msg: Any,
-                 countOpt: Option[Int] = None,
-                 repeatDuration: scala.concurrent.duration.FiniteDuration = Duration(3, TimeUnit.SECONDS) )
-                (implicit scheduler: akka.actor.Scheduler): Unit = {
+
+    /**
+      * repeatedly log same message to display progress of long running/blocking operation
+      * @param logger - logger to use
+      * @param codeBlock - keep logging provided msg while codeBlock is running
+      * @param msg - message to log
+      * @param repeatEveryNSec - how frequently to log new message, in seconds
+      * @param scheduler - scheduler to use
+      */
+    def repeatingInfo(logger: Logging, codeBlock: => Any, msg: Any,
+                      repeatEveryNSec: Int = 3 )
+                     (implicit scheduler: akka.actor.Scheduler): Unit = {
         if (logger.isInfoEnabled) {
-            val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), repeatDuration){
+            val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
                 logger.info(msg)
             }
             try {
