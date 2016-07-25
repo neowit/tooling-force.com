@@ -594,7 +594,7 @@ arrayCreatorRest
     ;
 
 mapCreatorRest
-    :   '{' ( Identifier | expression ) '=>' ( literal | expression ) (',' (Identifier | expression) '=>' ( literal | expression ) )* '}'
+    :   '{' ( ( literal | expression ) '=>' ( literal | expression ) (',' (literal | expression) '=>' ( literal | expression ) )* )? '}'
     ;
 
 setCreatorRest
