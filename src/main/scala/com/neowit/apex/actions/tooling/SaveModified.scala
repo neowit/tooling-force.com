@@ -2,15 +2,17 @@ package com.neowit.apex.actions.tooling
 
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
+
 import com.neowit.apex.actions._
 import com.sforce.soap.tooling._
 import com.neowit.utils.ResponseWriter.Message
-import com.neowit.utils.{ZipUtils, FileUtils, ZuluTime, ResponseWriter}
+import com.neowit.utils.{FileUtils, ResponseWriter, ZipUtils, ZuluTime}
+
 import scala.concurrent._
 import com.neowit.utils.ResponseWriter.MessageDetail
 import com.sforce.ws.bind.XmlObject
 
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
  * SaveModified tries to leverage ToolingApi and works only in Dev Orgs and Sandboxes
@@ -250,13 +252,39 @@ class SaveModified extends DeployModified {
                 }
                 val statusCode = error.getStatusCode.toString
                 val fields = error.getFields
+                //val (line, column) = parseLineColFromAuraError(error.getMessage)
+                val errorMap =
+                    Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")) ++
+                        (parseLineColFromAuraError(error) match {
+                        case Some((line, column)) => Map("line" -> line, "column" -> column)
+                        case None => Map.empty
+                        })
                 //display errors both as messages and as ERROR: lines
-                responseWriter.println("ERROR", Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")))
-                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+                responseWriter.println("ERROR", errorMap)
+                responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
             }
             false
         } else {
             true
+        }
+    }
+
+    // extract error (line, column) from aura error
+    // (?s) ensures than .* also matches new-lines
+    private val AURA_ERROR_POSITION_EXTRACTOR_REGEX = """(?s).*\[(\d+),\s?(\d+)\].*""".r
+    /**
+      * extract [line, column] from aura error which may look like so:
+      *  - 0abcd0000000e1d: org.auraframework.util.json.JsonStreamReader$JsonStreamParseException: Expected ':', found '}' [73, 1]
+      * or like so:
+      *  - markup://c:SomeComponentName:27,13: ParseError at [row,col]:[28,13]\nMessage: ...
+      *
+      * @param error - instance of error extracted from SaveResult
+      * @return
+      */
+    private def parseLineColFromAuraError(error: com.sforce.soap.tooling.Error): Option[(Int, Int)] = {
+        error.getMessage match {
+            case AURA_ERROR_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
+            case _ => None
         }
     }
 
