@@ -131,6 +131,11 @@ abstract class ApexAction extends AsyncAction {
     }
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _session = Some(Session(basicConfig))
+        if (null != responseWriter) {
+            // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
+            // give Runner a chance to write into expected `--responseFile`
+            basicConfig.setResponseWriter(responseWriter)
+        }
         this.asInstanceOf[T]
     }
     override def load[T <:Action](existingSession: Session): T = {
