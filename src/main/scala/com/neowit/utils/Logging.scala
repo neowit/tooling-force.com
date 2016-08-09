@@ -19,6 +19,7 @@
 
 package com.neowit.utils
 
+import java.io.PrintStream
 import java.util.concurrent.TimeUnit
 
 import org.apache.commons.logging.impl.SimpleLog
@@ -65,15 +66,25 @@ object Logging {
       * @param logger - logger to use
       * @param codeBlock - keep logging provided msg while codeBlock is running
       * @param msg - message to log
+      * @param out - output stream to use for log output
+      *            have to specify one explicitly because working on a different thread
       * @param repeatEveryNSec - how frequently to log new message, in seconds
       * @param scheduler - scheduler to use
       */
-    def repeatingInfo(logger: Logging, codeBlock: => Any, msg: Any,
+    def repeatingInfo(logger: Logging, codeBlock: => Any, msg: Any, out: PrintStream,
                       repeatEveryNSec: Int = 3 )
                      (implicit scheduler: akka.actor.Scheduler): Unit = {
+        val startTime = System.currentTimeMillis()
         if (logger.isInfoEnabled) {
             val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
-                logger.info(msg)
+                scala.Console.withOut(out) {
+                    val diff = (System.currentTimeMillis - startTime) / 1000
+                    if (diff > 0) {
+                        logger.info(msg + s" # elapsed: ${diff}s")
+                    } else {
+                        logger.info(msg)
+                    }
+                }
             }
             try {
                 codeBlock

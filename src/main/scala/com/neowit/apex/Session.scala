@@ -1036,7 +1036,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             //finally retrieve ZIP
             Logging.repeatingInfo(logger,
                 { retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true) },
-                "retrieving Metadata ZIP ..." )(TcpServer.system.scheduler)
+                "retrieving Metadata ZIP ...", scala.Console.out )(TcpServer.system.scheduler)
             //retrieveResult =  connection.checkRetrieveStatus(asyncResult.getId, true)
         }
         retrieveResult
