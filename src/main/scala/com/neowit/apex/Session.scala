@@ -353,9 +353,6 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     //on refresh takes no longer than this number of seconds
     private val SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC = if (config.isUnix) 0 else 1000 * 3
 
-    //if .cls and .cls-meta.xml file time differs by this number of seconds (or less) we consider time equal
-    private val FILE_TO_META_TIME_DIFF_TOLERANCE_SEC = 1000
-
     /**
      * NOTE: this method does not check if provided file is a valid apex project file
      * @return true if file does not exist in session.properties or its hash does not match
@@ -536,11 +533,11 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             Success(text)
         } else {
             if (401 == responseCode) { //Unauthorized
-                throw new Session.UnauthorizedConnectionException(conn)
+                throw Session.UnauthorizedConnectionException(conn)
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                val ex = new Session.RestCallException(conn)
+                val ex = Session.RestCallException(conn)
                 logger.error(s"REST Response Code: ${ex.getRestErrorCode}, REST Response Message: ${ex.getRestMessage}")
                 Failure(ex)
             }
@@ -595,11 +592,11 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             Success(text.parseJson)
         } else {
             if (401 == responseCode) { //Unauthorized
-                throw new Session.UnauthorizedConnectionException(conn)
+                throw Session.UnauthorizedConnectionException(conn)
             } else {
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
-                val ex = new Session.RestCallException(conn)
+                val ex = Session.RestCallException(conn)
                 logger.error(s"REST Response Code: ${ex.getRestErrorCode}, REST Response Message: ${ex.getRestMessage}")
                 Failure(ex)
             }
