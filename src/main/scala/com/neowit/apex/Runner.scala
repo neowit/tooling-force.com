@@ -19,8 +19,11 @@
 
 package com.neowit.apex
 
+import java.io.{PrintWriter, StringWriter}
+
 import com.neowit.utils._
-import com.neowit.apex.actions.{ActionHelp, ShowHelpException, RetrieveError, ActionFactory}
+import com.neowit.apex.actions.{ActionFactory, ActionHelp, RetrieveError, ShowHelpException}
+
 import scala.concurrent.{ExecutionContext, Future}
 import ExecutionContext.Implicits.global
 
@@ -82,10 +85,16 @@ class Executor extends Logging {
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
+                    val sw = new StringWriter
+                    ex.printStackTrace(new PrintWriter(sw))
+                    val stackTraceStr = sw.toString
+                    // dump exception information to log
                     logger.error(ex)
-                    logger.error(ex.getStackTrace)
-                    System.out.println(ex)
-                    System.out.println(ex.getStackTrace)
+                    logger.error(stackTraceStr)
+                    // dump exception information to System.out
+                    System.out.println(stackTraceStr)
+                    //ex.printStackTrace(System.out)
+
                     basicConfig.getResponseWriter.println("RESULT=FAILURE")
                     basicConfig.getResponseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
