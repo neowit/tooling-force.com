@@ -59,7 +59,7 @@ class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMembe
     }
 
     def getChildRelationship(identity: String): Option[com.sforce.soap.partner.ChildRelationship] = {
-        getChildRelationships.find(_.getRelationshipName.toLowerCase == identity.toLowerCase)
+        getChildRelationships.filter(null != _.getRelationshipName).find(_.getRelationshipName.toLowerCase == identity.toLowerCase)
     }
 
     protected def getSession = session
