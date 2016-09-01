@@ -2,11 +2,12 @@ package com.neowit.apex.actions.tooling
 
 import java.io.File
 
+import com.neowit.TcpServer
 import com.neowit.apex._
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
 import com.neowit.apex.actions.{ActionHelp, DeployModified, SoqlQuery, TestSuiteActions}
-import com.neowit.utils.{FileUtils, ResponseWriter}
+import com.neowit.utils.{FileUtils, Logging, ResponseWriter}
 import com.neowit.utils.ResponseWriter.Message
 import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
@@ -222,8 +223,12 @@ class RunTests extends DeployModified{
                 runTestsRequest.setClasses((head :: tail).toArray[String])
             case _ => // no classes provided
         }
-        logger.info("Run tests Synchronous")
-        val runTestsResult = session.runTestsTooling(runTestsRequest)
+        //logger.info("Run tests Synchronous")
+        //val runTestsResult = session.runTestsTooling(runTestsRequest)
+        var runTestsResult: com.sforce.soap.tooling.RunTestsResult = null
+        Logging.repeatingInfo(logger,
+            { runTestsResult = session.runTestsTooling(runTestsRequest) },
+            "Run tests Synchronous ...", scala.Console.out )(TcpServer.system.scheduler)
         runTestsResult
     }
 
