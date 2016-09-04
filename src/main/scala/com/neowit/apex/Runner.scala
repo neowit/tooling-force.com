@@ -109,8 +109,8 @@ class Executor extends Logging {
 
     private def run () {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
-        val start = System.currentTimeMillis
         if (basicConfig.getProperty("help").isEmpty) {
+            val start = System.currentTimeMillis
             //report usage if allowed
             val usage = new UsageReporter(basicConfig)
             val usageFuture = Future {
@@ -121,13 +121,15 @@ class Executor extends Logging {
                 case Some(action) => action.execute()
                 case None =>
             }
+            //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
+            //scala.concurrent.Await.result(usageFuture, Duration.Inf)
+            val diff = System.currentTimeMillis - start
+            logger.info("# Time taken: " + diff / 1000.0 +  "s")
+        } else {
+            // looks like --help=<action> has been requested
+            // force help display for specified <action>
+            throw new MissingRequiredConfigParameterException("")
         }
-
-        //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
-        //scala.concurrent.Await.result(usageFuture, Duration.Inf)
-        val diff = System.currentTimeMillis - start
-        logger.info("# Time taken: " + diff / 1000.0 +  "s")
-
     }
 
     def help(actionName: String): Unit = {
@@ -157,9 +159,9 @@ class Executor extends Logging {
 
     def help() {
         basicConfig.help()
-        System.out.println("Available Actions")
+        System.out.println("Available Actions:")
         for (actionName <- ActionFactory.getActionNames) {
-            System.out.println("    --" + actionName + " see --help=" + actionName)
+            System.out.println("    - " + actionName + ", see --help=" + actionName)
         }
     }
 }
