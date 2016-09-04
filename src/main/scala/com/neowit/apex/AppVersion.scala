@@ -1,14 +1,14 @@
 package com.neowit.apex
 
-import com.neowit.apex.actions.{ActionHelp, ApexAction}
+import com.neowit.apex.actions.{ActionHelp, ApexActionWithoutSession}
 import com.neowit.utils.ResponseWriter
-import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
+import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
     val VERSION = "0.3.6.3"
 }
-class AppVersion extends ApexAction {
+class AppVersion extends ApexActionWithoutSession {
     override def act(): Unit = {
         /*
         val p = getClass.getPackage
@@ -29,7 +29,7 @@ class AppVersion extends ApexAction {
 
 
     override def getHelp: ActionHelp = new ActionHelp {
-        override def getParamNames: List[String] = List()
+        override def getParamNames: List[String] = List("responseFilePath")
 
         override def getSummary: String = "return version of tooling-force.com"
 
@@ -37,7 +37,10 @@ class AppVersion extends ApexAction {
 
         override def getExample: String = ""
 
-        override def getParamDescription(paramName: String): String = ""
+        override def getParamDescription(paramName: String): String = paramName match {
+            case "responseFilePath" => "--responseFilePath - path to file where operation result will be reported"
+            case x => s"Parameter '$x' is not supported for this action"
+        }
 
     }
 

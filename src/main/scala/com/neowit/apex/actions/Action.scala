@@ -171,6 +171,11 @@ abstract class ApexAction extends AsyncAction {
     }
 }
 
+abstract class ApexActionWithoutSession extends ApexAction {
+    // make sure session does not get touched and does not try to load session specific config params (e.g. projectPath)
+    protected override def finalise(): Unit = {}
+}
+
 class ShowHelpException(val help: ActionHelp, val message: String = "") extends IllegalStateException
 
 trait ActionHelp {
