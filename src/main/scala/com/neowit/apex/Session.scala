@@ -82,7 +82,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
 
     val config = new Config(basicConfig)
 
-    private val sessionProperties = config.lastSessionProps
+    private lazy val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
     private var connectionTooling:Option[com.sforce.soap.tooling.ToolingConnection] = None

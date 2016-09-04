@@ -221,7 +221,7 @@ class Config(val basicConfig: BasicConfig) extends Logging{
     }
 
 
-    //path to folder where all cached metadata (session Id, las update dates, etc) stored
+    //path to folder where all cached metadata (session Id, last update dates, etc) stored
     lazy val sessionFolder = {
         val path = getProperty("sessionFolderPath").getOrElse[String](new File(projectPath, ".vim-force.com").getAbsolutePath)
         val dir = new File(path)

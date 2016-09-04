@@ -9,8 +9,6 @@ import scala.util.{Failure, Success, Try}
 
 //import collection.JavaConverters._
 import spray.json._
-import DefaultJsonProtocol._
-
 
 object QueryResultJsonProtocol extends DefaultJsonProtocol {
     implicit val queryResultFormat: JsonFormat[SoqlQuery.QueryResultJson] = lazyFormat(jsonFormat7(SoqlQuery.QueryResultJson))
