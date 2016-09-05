@@ -1,6 +1,6 @@
 package com.neowit.apex
 
-import com.neowit.apex.actions.{ActionHelp, ApexActionWithoutSession}
+import com.neowit.apex.actions.{ActionHelp, ApexActionWithoutProject}
 import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
 
@@ -8,7 +8,7 @@ object AppVersion {
     val APP_NAME = "tooling-force.com"
     val VERSION = "0.3.6.3"
 }
-class AppVersion extends ApexActionWithoutSession {
+class AppVersion extends ApexActionWithoutProject {
     override def act(): Unit = {
         /*
         val p = getClass.getPackage

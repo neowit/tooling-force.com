@@ -171,8 +171,19 @@ abstract class ApexAction extends AsyncAction {
     }
 }
 
-abstract class ApexActionWithoutSession extends ApexAction {
-    // make sure session does not get touched and does not try to load session specific config params (e.g. projectPath)
+abstract class ApexActionWithoutProject extends ApexAction {
+    override def load[T <:Action](basicConfig: BasicConfig): T = {
+        // fake "projectPath"
+        val tempDir = FileUtils.createTempDir("temp")
+        basicConfig.setProperty("projectPath", tempDir.getAbsolutePath)
+        try {
+
+            super.load(basicConfig)
+        } finally {
+            tempDir.delete()
+        }
+    }
+    // make sure session does not get touched
     protected override def finalise(): Unit = {}
 }
 
