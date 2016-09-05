@@ -322,6 +322,9 @@ class ListConflicting extends RetrieveMetadata {
         }
 
     }
+    protected override def finalise(): Unit = {
+        // do nothing. This action should not attempt to store session data as it is not supposed to change session
+    }
 }
 
 /**

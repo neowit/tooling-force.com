@@ -33,6 +33,10 @@ class CheckSyntax extends ApexAction {
         override def getName: String = "checkSyntax"
     }
 
+    protected override def finalise(): Unit = {
+        // do nothing. This action should not attempt to store session data as it is not supposed to change session
+    }
+
     override protected def act(): Unit = {
         val config = session.getConfig
 
@@ -59,6 +63,7 @@ class CheckSyntax extends ApexAction {
 
             }
         }
+
     }
 
     class SyntaxErrorListener extends BaseErrorListener {
