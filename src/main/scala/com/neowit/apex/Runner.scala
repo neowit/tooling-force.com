@@ -52,6 +52,7 @@ class Executor extends Logging {
             } catch {
                 case ex: InvalidCommandLineException => basicConfig.help()
                 case ex: ShowHelpException =>
+                    /* uncomment to display actual stack trace
                     val sw = new StringWriter
                     ex.printStackTrace(new PrintWriter(sw))
                     val stackTraceStr = sw.toString
@@ -60,6 +61,7 @@ class Executor extends Logging {
                     logger.error(stackTraceStr)
                     // dump exception information to System.out
                     System.out.println(stackTraceStr)
+                    */
                     if (ex.message.nonEmpty) {
                         basicConfig.getResponseWriter.println(ex.message)
                         logger.error(ex.message)
