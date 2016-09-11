@@ -20,10 +20,11 @@
 package com.neowit.apex
 
 import com.sforce.soap.partner.sobject.SObject
-import com.neowit.utils.{FileUtils, Config, ZuluTime, Logging}
+import com.neowit.utils._
 import java.util.Calendar
 import java.io.File
-import com.sforce.soap.metadata.{DeployResult, DeployMessage}
+
+import com.sforce.soap.metadata.{DeployMessage, DeployResult}
 
 /*
 case class SessionDataEntry(xmlType: String, name: String, lastModifiedDate: java.util.Calendar,
@@ -58,7 +59,7 @@ object MetadataType extends Logging {
         getValueMap(message.getFullName, xmlType, id, deployResult.getLastModifiedDate, localMills, md5Hash, crc32, metaMills, metaMd5Hash, metaCRC32)
     }
 
-    def getValueMap(config: Config, file: File, xmlType: String, id: Option[String], lastModifiedDate: Calendar, fileMeta: Option[File] ):Map[String, Any] = {
+    def getValueMap(config: ConfigWithReadOnlySession, file: File, xmlType: String, id: Option[String], lastModifiedDate: Calendar, fileMeta: Option[File] ):Map[String, Any] = {
         val calculateMD5 = config.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
 

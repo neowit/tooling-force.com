@@ -3,7 +3,7 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.parser.SourceScanner
-import com.neowit.utils.{FileUtils, BasicConfig}
+import com.neowit.utils.FileUtils
 
 object SourceScannerCache {
     val scannerByProject = Map.newBuilder[File, SourceScanner]
@@ -17,7 +17,7 @@ object SourceScannerCache {
 
 }
 
-class ScanSource extends ApexAction {
+class ScanSource extends ApexActionWithReadOnlySession {
     val APEX_EXTENSIONS = Set("cls", "trigger")
 
     override def act(): Unit = {

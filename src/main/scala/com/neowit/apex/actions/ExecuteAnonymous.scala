@@ -9,7 +9,7 @@ import com.neowit.utils.FileUtils
  * --codeFile=/path/to/file with apex code to execute
  * --logFile=/path/to/file where log shall be stored
  */
-class ExecuteAnonymous extends ApexAction {
+class ExecuteAnonymous extends ApexActionWithReadOnlySession {
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -59,8 +59,5 @@ class ExecuteAnonymous extends ApexAction {
             FileUtils.writeFile(log, logFile)
             responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
-    }
-    protected override def finalise(): Unit = {
-        // do nothing. This action should not attempt to store session data as it is not supposed to change session
     }
 }

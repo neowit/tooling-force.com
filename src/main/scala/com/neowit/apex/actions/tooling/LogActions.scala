@@ -4,7 +4,7 @@ import java.io.File
 
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
-import com.neowit.apex.actions.{ActionHelp, ApexAction, SoqlQuery}
+import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession, SoqlQuery}
 import com.neowit.utils.{ConfigValueException, FileUtils, ResponseWriter}
 import com.sforce.soap.tooling._
 
@@ -65,7 +65,7 @@ object ChangeLogLevels {
 
 
 }
-class ChangeLogLevels extends ApexAction {
+class ChangeLogLevels extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
         override def getParamDescription(paramName: String): String = paramName match {
@@ -324,7 +324,7 @@ class ChangeLogLevels extends ApexAction {
 
     }
 }
-class ListLogs extends ApexAction {
+class ListLogs extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 

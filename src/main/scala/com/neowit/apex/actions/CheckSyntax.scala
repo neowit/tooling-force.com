@@ -8,7 +8,7 @@ import org.antlr.v4.runtime._
 /**
   * 'checkSyntax' action runs apexcode parser against specified file and reports syntax errors
   */
-class CheckSyntax extends ApexAction {
+class CheckSyntax extends ApexActionWithReadOnlySession {
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -31,10 +31,6 @@ class CheckSyntax extends ApexAction {
         override def getSummary: String = "list syntax errors found in apex file"
 
         override def getName: String = "checkSyntax"
-    }
-
-    protected override def finalise(): Unit = {
-        // do nothing. This action should not attempt to store session data as it is not supposed to change session
     }
 
     override protected def act(): Unit = {

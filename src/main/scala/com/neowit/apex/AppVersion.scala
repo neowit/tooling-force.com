@@ -1,6 +1,6 @@
 package com.neowit.apex
 
-import com.neowit.apex.actions.{ActionHelp, ApexActionWithoutProject}
+import com.neowit.apex.actions.{ActionHelp, ApexAction}
 import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
 
@@ -8,7 +8,7 @@ object AppVersion {
     val APP_NAME = "tooling-force.com"
     val VERSION = "0.3.6.3"
 }
-class AppVersion extends ApexActionWithoutProject {
+class AppVersion extends ApexAction {
     override def act(): Unit = {
         /*
         val p = getClass.getPackage
@@ -20,10 +20,10 @@ class AppVersion extends ApexActionWithoutProject {
         config.responseWriter.println(versionMessage)
         val mb = 1024*1024
         val runtime = Runtime.getRuntime
-        responseWriter.println(new MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Used Memory: ${(runtime.totalMemory - runtime.freeMemory) / mb} MB")))
-        responseWriter.println(new MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Free Memory: ${runtime.freeMemory / mb} MB")))
-        responseWriter.println(new MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Total Memory: ${runtime.totalMemory / mb} MB")))
-        responseWriter.println(new MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Max Memory: ${runtime.maxMemory / mb} MB")))
+        responseWriter.println( MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Used Memory: ${(runtime.totalMemory - runtime.freeMemory) / mb} MB")))
+        responseWriter.println( MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Free Memory: ${runtime.freeMemory / mb} MB")))
+        responseWriter.println( MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Total Memory: ${runtime.totalMemory / mb} MB")))
+        responseWriter.println( MessageDetail(versionMessage, Map("type" -> "DEBUG", "text" -> s"Max Memory: ${runtime.maxMemory / mb} MB")))
         logger.debug("version: " + AppVersion.VERSION)
     }
 

@@ -15,7 +15,7 @@ import DefaultJsonProtocol._
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
-abstract class RetrieveMetadata extends ApexAction {
+abstract class RetrieveMetadata extends ApexActionWithWritableSession {
 
     def setUpackaged(retrieveRequest: RetrieveRequest) {
         val metaXml = new MetaXml(session.getConfig)
@@ -44,7 +44,7 @@ abstract class RetrieveMetadata extends ApexAction {
                 //check if all errors we have are about missing files
                 val messagesOtherThanMissingFiles = messages.filterNot(isMissingFileError(_))
                 if (reportMissing || messagesOtherThanMissingFiles.nonEmpty) {
-                    throw new RetrieveError(retrieveResult)
+                    throw RetrieveError(retrieveResult)
                 }
             case _ =>
         }
@@ -85,7 +85,7 @@ abstract class RetrieveMetadata extends ApexAction {
         } finally {
             out.close()
         }
-        val calculateMD5 = config.useMD5Hash
+        val calculateMD5 = getSessionConfig.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
 
         val propertyByFilePath = new collection.mutable.HashMap[String,  com.sforce.soap.metadata.FileProperties]()
@@ -213,6 +213,8 @@ class RefreshMetadata extends RetrieveMetadata {
  */
 class ListConflicting extends RetrieveMetadata {
 
+    override def isSessionReadOnly: Boolean = false
+
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -299,7 +301,7 @@ class ListConflicting extends RetrieveMetadata {
                     case None => ""
                 }
                 //config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text)))
-                new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text))
+                MessageDetail(msg, Map("filePath" -> filePath, "text" -> text))
             }
         )
     }
@@ -321,9 +323,6 @@ class ListConflicting extends RetrieveMetadata {
             case None =>
         }
 
-    }
-    protected override def finalise(): Unit = {
-        // do nothing. This action should not attempt to store session data as it is not supposed to change session
     }
 }
 
@@ -477,7 +476,7 @@ class BulkRetrieve extends RetrieveMetadata {
         retrieveResult.getMessages match {
             case messages if null != messages && messages.nonEmpty=>
                 //check if there are errors
-                throw new RetrieveError(retrieveResult)
+                throw RetrieveError(retrieveResult)
             case _ =>
         }
         retrieveResult
@@ -674,6 +673,8 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
  */
 class DiffWithRemote extends RetrieveMetadata {
 
+    override def isSessionReadOnly: Boolean = false
+
     private val superActionHelp = new BulkRetrieve().getHelp
     override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
         override def getExample: String =
@@ -779,7 +780,7 @@ class DiffWithRemote extends RetrieveMetadata {
             case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")
         }
     }
-    protected def getLocalFiles: List[File] =  getFilePaths(config.srcDir)
+    protected def getLocalFiles: List[File] =  getFilePaths(getSessionConfig.srcDir)
 
     protected def getRemoteFiles(remoteSrcFolder: File): List[File] = getFilePaths(remoteSrcFolder)
     /**
@@ -880,7 +881,7 @@ class DiffWithRemote extends RetrieveMetadata {
                                 " => Modified By: " + props.getLastModifiedByName +
                                 "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                 s"; Local size: $sizeLocal; remote size: $sizeRemote"
-                            responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                            responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
                         case None =>
                     }
                 }
@@ -897,7 +898,7 @@ class DiffWithRemote extends RetrieveMetadata {
                           val text = localFile.getName +
                               " => exists locally but missing on remote"
                           val echoText = localFile.getName
-                          responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
+                          responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
                       case None =>
                     }
                 }
@@ -917,7 +918,7 @@ class DiffWithRemote extends RetrieveMetadata {
                                       " => Modified By: " + props.getLastModifiedByName +
                                       "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                       s"; remote size: $sizeRemote"
-                                  responseWriter.println(new MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                                  responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
                               case None =>
                           }
                       case None =>

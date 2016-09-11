@@ -23,7 +23,7 @@ import java.net.{HttpURLConnection, URL}
 import java.security.MessageDigest
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
-import com.neowit.utils.{BasicConfig, Config, FileUtils, Logging}
+import com.neowit.utils._
 import com.sforce.soap.partner.PartnerConnection
 import com.sforce.soap.metadata._
 import spray.json._
@@ -68,7 +68,7 @@ object Session {
     }
     case class UnauthorizedConnectionException(connection: HttpURLConnection) extends RuntimeException
 
-    def apply(basicConfig: BasicConfig) = new Session(basicConfig)
+    def apply(basicConfig: BasicConfig, isReadOnly: Boolean = true) = new Session(basicConfig, isReadOnly)
 }
 
 /**
@@ -78,9 +78,9 @@ object Session {
  *
  * @param basicConfig - main application config
  */
-class Session(val basicConfig: BasicConfig) extends Logging {
+class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends Logging {
 
-    val config = new Config(basicConfig)
+    val config = new ConfigWithSession(basicConfig)
 
     private val sessionProperties = config.lastSessionProps
     private var connectionPartner:Option[PartnerConnection] = None
@@ -91,12 +91,16 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     //when user wants to work with files from one org and deploy them in another org we can not use stored session
     lazy val callingAnotherOrg:Boolean = config.getProperty("callingAnotherOrg").getOrElse("false").toBoolean
 
-    def getConfig = config
+    def getConfig: ConfigWithSession = config
 
 
-    def storeSessionData() {
+    def storeSessionData(allowWrite: Boolean = false) {
+        if (isReadOnly && !allowWrite) {
+            throw new IllegalAccessError("Attempted to write in Read/Only session")
+        }
         config.storeSessionProps()
     }
+
     def getSavedConnectionData :(Option[String], Option[String])= {
 
         val emptySession = (None, None)
@@ -127,7 +131,10 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         p1.isInstanceOf[Session] && this.getHash == p1.asInstanceOf[Session].getHash
     }
 
-    def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig) {
+    def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig, allowWrite: Boolean = false) {
+        if (isReadOnly && !allowWrite) {
+            throw new IllegalAccessError("Attempted to write in Read/Only session")
+        }
         if (!callingAnotherOrg) {
             sessionProperties.setJsonData("session", Map(
                             "sessionId" -> connectionConfig.getSessionId,
@@ -139,9 +146,12 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             sessionProperties.remove("session")
             sessionProperties.remove("UserInfo")
         }
-        storeSessionData()
+        storeSessionData(allowWrite)
     }
     def setData(key: String, data: Map[String, Any]) = {
+        if (isReadOnly) {
+            throw new IllegalAccessError("Attempted to modify Read/Only session")
+        }
         sessionProperties.setJsonData(key, data)
     }
     def getData(key: String): Map[String, Any] = {
@@ -152,6 +162,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
     }
 
     def removeData(key: String) {
+        if (isReadOnly) {
+            throw new IllegalAccessError("Attempted to modify Read/Only session")
+        }
         sessionProperties.remove(key)
     }
 
@@ -162,6 +175,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
      * @return - original values of cleaned entries before reset
      */
     def resetData(keepKeys: Set[String]): Map[String, Any] = {
+        if (isReadOnly) {
+            throw new IllegalAccessError("Attempted to modify Read/Only session")
+        }
         val oldValues = Map.newBuilder[String, Any]
         for (key <- getFileKeysInSession) {
             if (!keepKeys.contains(key)) {
@@ -434,7 +450,7 @@ class Session(val basicConfig: BasicConfig) extends Logging {
                   case _ =>
                       //login explicitly
                       val _conn = Connection.createPartnerConnection(config)
-                      storeConnectionData(_conn.getConfig)
+                      storeConnectionData(_conn.getConfig, allowWrite = true)
                       _conn
               }
 
@@ -610,13 +626,13 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             case ex:com.sforce.ws.SoapFaultException if "INVALID_SESSION_ID" == ex.getFaultCode.getLocalPart =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
-                reset()
+                reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex:com.sforce.ws.ConnectionException =>
                 //sometimes WSC library returns ConnectionException instead of SoapFaultException when session is invalid
                 logger.trace(ex)
-                reset()
+                reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex:Throwable =>
@@ -636,12 +652,12 @@ class Session(val basicConfig: BasicConfig) extends Logging {
             case ex:Session.UnauthorizedConnectionException =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
-                reset()
+                reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex: Session.ConnectionException =>
                 logger.trace(ex)
-                reset()
+                reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex:Throwable =>
@@ -649,9 +665,9 @@ class Session(val basicConfig: BasicConfig) extends Logging {
         }
     }
 
-    def reset() {
+    def reset(allowWrite: Boolean = false) {
         sessionProperties.remove("session")
-        storeSessionData()
+        storeSessionData(allowWrite)
         connectionPartner = None
         connectionMetadata = None
         connectionTooling = None

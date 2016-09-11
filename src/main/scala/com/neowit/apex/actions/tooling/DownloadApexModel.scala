@@ -4,7 +4,7 @@ import java.io.File
 import java.nio.file.{Files, Path}
 
 import com.neowit.apex.Session
-import com.neowit.apex.actions.{ActionHelp, ApexAction}
+import com.neowit.apex.actions.{ActionHelp, ApexAction, ApexActionWithReadOnlySession}
 import com.neowit.apex.completion.models.{ApexModelJsonProtocol, ApexType}
 import com.neowit.utils.{FileUtils, Logging}
 import spray.json._
@@ -13,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Author: Andrey Gavrikov
   */
-class DownloadApexModel extends ApexAction with StandardApexModelJson with ApexModelJsonProtocol with Logging {
+class DownloadApexModel extends ApexActionWithReadOnlySession with StandardApexModelJson with ApexModelJsonProtocol with Logging {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 

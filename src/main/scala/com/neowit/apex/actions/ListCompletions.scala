@@ -5,7 +5,7 @@ import java.io.File
 import com.neowit.apex.completion.AutoComplete
 import com.neowit.apex.parser.{ApexTree, Member}
 
-class ListCompletions extends ApexAction {
+class ListCompletions extends ApexActionWithReadOnlySession {
 
     override def act(): Unit = {
         val config = session.getConfig
@@ -75,7 +75,4 @@ class ListCompletions extends ApexAction {
         override def getName: String = "listCompletions"
     }
 
-    protected override def finalise(): Unit = {
-        // do nothing. This action should not attempt to store session data as it is not supposed to change session
-    }
 }

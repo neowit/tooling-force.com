@@ -221,7 +221,7 @@ class SaveModified extends DeployModified {
             if (errorByFileIndex.isEmpty) {
                 config.responseWriter.println("RESULT=SUCCESS")
                 config.responseWriter.println("FILE_COUNT=" + files.size)
-                if (!config.isCheckOnly) {
+                if (!getSessionConfig.isCheckOnly) {
                     config.responseWriter.startSection("SAVED FILES")
                     files.foreach(f => config.responseWriter.println(f.getName))
                     config.responseWriter.endSection("SAVED FILES")
@@ -300,7 +300,7 @@ class SaveModified extends DeployModified {
                     val key = session.getKeyByFile(f)
                     val recordId = data("Id").toString
                     val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
-                    val newData = MetadataType.getValueMap(config, f, xmlType, Some(recordId), lastModifiedDate, fileMeta = None)
+                    val newData = MetadataType.getValueMap(getSessionConfig, f, xmlType, Some(recordId), lastModifiedDate, fileMeta = None)
                     val oldData = session.getData(key)
                     session.setData(key, oldData ++ newData)
                 case None =>
@@ -517,7 +517,7 @@ class SaveModified extends DeployModified {
                             case Some(data) =>
                                 val key = session.getKeyByFile(f)
                                 val lastModifiedDate = ZuluTime.deserialize(data("Remote-LastModifiedDateStr").toString)
-                                val newData = MetadataType.getValueMap(config, f, member.xmlType, Some(member.getContentEntityId), lastModifiedDate, fileMeta = None)
+                                val newData = MetadataType.getValueMap(getSessionConfig, f, member.xmlType, Some(member.getContentEntityId), lastModifiedDate, fileMeta = None)
                                 val oldData = session.getData(key)
                                 session.setData(key, oldData ++ newData)
                             case None =>
@@ -530,7 +530,7 @@ class SaveModified extends DeployModified {
 
                 config.responseWriter.println("RESULT=SUCCESS")
                 config.responseWriter.println("FILE_COUNT=" + membersMap.size)
-                if (!config.isCheckOnly) {
+                if (!getSessionConfig.isCheckOnly) {
                     config.responseWriter.startSection("SAVED FILES")
                     membersMap.values.foreach(f => config.responseWriter.println(f.getName))
                     config.responseWriter.endSection("SAVED FILES")
@@ -557,7 +557,7 @@ class SaveModified extends DeployModified {
 
                         val problemType = "CompileError"
                         responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                        responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                        responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
                     false
                 } else {
@@ -571,7 +571,7 @@ class SaveModified extends DeployModified {
                         case s => s
                     }
                     responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
-                    responseWriter.println(new MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
+                    responseWriter.println(MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
                 }
                 false
 
@@ -603,7 +603,7 @@ class SaveModified extends DeployModified {
                         x.replaceAll("[^a-zA-Z0-9]", "_").replaceAll("(_)\\1+", "$1").replaceAll("_*$", "")
                 }
                 val xmlType = deployMessage.getComponentType
-                val describeMetadataResult = DescribeMetadata.getMap(session).get(xmlType).get
+                val describeMetadataResult = DescribeMetadata.getMap(session)(xmlType)
                 val extension = describeMetadataResult.getSuffix
                 session.getRelativeFilePath(fName, extension)
         }

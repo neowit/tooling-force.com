@@ -133,7 +133,7 @@ object DescribeMetadata {
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
-class DescribeMetadata extends ApexAction {
+class DescribeMetadata extends ApexActionWithReadOnlySession {
 
     case class MetadataTypeJSON(XMLName: String, HasMetaFile: Boolean, Suffix: String, ChildObjects: List[String], DirName: String, InFolder: Boolean)
 
@@ -155,11 +155,12 @@ class DescribeMetadata extends ApexAction {
         override def getName: String = "describeMetadata"
     }
 
+
     def loadFromFile: Map[String, DescribeMetadataObject] = {
 
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeMetadataObject]
 
-        for (line <- FileUtils.readFile(config.storedDescribeMetadataResultFile).getLines()) {
+        for (line <- FileUtils.readFile(storedDescribeMetadataResultFile).getLines()) {
             //JSON.parseFull(line)
             val jsonAst = JsonParser(line)
             val data = jsonAst.convertTo[MetadataTypeJSON](MetadataDescriptionJsonProtocol.singleMetadataTypeFormat)
@@ -183,6 +184,16 @@ class DescribeMetadata extends ApexAction {
         writer.close()
     }
 
+    /**
+      * Local copy of Describe Metadata result
+      */
+    private lazy val storedDescribeMetadataResultFile:File  = {
+        val file = new File(getSessionConfig.sessionFolder, "describeMetadata-result.js")
+        if (!file.exists) {
+            file.createNewFile()
+        }
+        file
+    }
     def loadFromRemote: Map[String, DescribeMetadataObject] = {
         Try(session.describeMetadata(config.apiVersion)) match {
             case Success(describeResult) =>
@@ -205,12 +216,12 @@ class DescribeMetadata extends ApexAction {
                         case None =>
                     }
                 }
-                storeDescribeResult(config.storedDescribeMetadataResultFile, linesBuf.iterator)
+                storeDescribeResult(storedDescribeMetadataResultFile, linesBuf.iterator)
                 //check if user requested alternative response location
-                config.getProperty("allMetaTypesFilePath") match {
+                config.getRequiredProperty("allMetaTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
-                        if (userDefinedFile != config.storedDescribeMetadataResultFile) {
+                        if (userDefinedFile != storedDescribeMetadataResultFile) {
                             storeDescribeResult(userDefinedFile, linesBuf.iterator)
 
                         }
@@ -221,12 +232,13 @@ class DescribeMetadata extends ApexAction {
             case Failure(thrown) => throw thrown
         }
     }
+    def getOutputFilePath = config.getRequiredProperty("allMetaTypesFilePath")
 
     def act() {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("RESULT_FILE=" + config.storedDescribeMetadataResultFile.getAbsolutePath)
+        responseWriter.println("RESULT_FILE=" + getOutputFilePath)
         responseWriter.println("FILE_COUNT=" + resMap.size)
     }
 }
@@ -238,7 +250,7 @@ class DescribeMetadata extends ApexAction {
  * Extra command line params:
  * --specificTypes=/path/to/file with types list
  */
-class ListMetadata extends ApexAction {
+class ListMetadata extends ApexActionWithWritableSession {
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""

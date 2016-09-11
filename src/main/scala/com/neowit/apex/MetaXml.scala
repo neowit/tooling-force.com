@@ -20,8 +20,8 @@
 package com.neowit.apex
 
 import com.sforce.soap.metadata.PackageTypeMembers
-import com.neowit.utils.{FileUtils, Config}
-import java.io.{FileInputStream, InputStream, File}
+import com.neowit.utils.{Config, ConfigWithSfdcProject, FileUtils}
+import java.io.{File, FileInputStream, InputStream}
 
 import org.w3c.dom.{Node, NodeList}
 
@@ -173,7 +173,7 @@ object MetaXml {
     }
 }
 
-class MetaXml(config: Config) {
+class MetaXml(config: ConfigWithSfdcProject) {
     //parse package
     def getPackage: com.sforce.soap.metadata.Package = {
         val packageFile = getPackageXml

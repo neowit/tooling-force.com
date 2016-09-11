@@ -100,7 +100,7 @@ object Deploy {
 
 }
 
-abstract class Deploy extends ApexAction {
+abstract class Deploy extends ApexActionWithWritableSession {
 
     /**
      * depending on the target of deployment and flags like "checkOnly" & "updateSessionDataOnSuccess" we may or may not
@@ -109,7 +109,7 @@ abstract class Deploy extends ApexAction {
      */
     def isUpdateSessionDataOnSuccess: Boolean = {
         val callingAnotherOrg = session.callingAnotherOrg
-        val updateSessionDataOnSuccess = !config.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
+        val updateSessionDataOnSuccess = !getSessionConfig.isCheckOnly && !callingAnotherOrg || config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
         updateSessionDataOnSuccess
     }
 
@@ -258,7 +258,7 @@ class DeployModified extends Deploy {
 
         var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles).toSet
 
-        val packageXml = new MetaXml(config)
+        val packageXml = new MetaXml(getProjectConfig)
         val packageXmlFile = packageXml.getPackageXml
         if (!allFilesToDeploySet.contains(packageXmlFile)) {
             //deployment always must contain packageXml file
@@ -275,7 +275,7 @@ class DeployModified extends Deploy {
         //end DEBUG
         */
 
-        val checkOnly = config.isCheckOnly
+        val checkOnly = getSessionConfig.isCheckOnly
         val testMethodsByClassName: Map[String, Set[String]] = ApexTestUtils.getTestMethodsByClassName(config.getProperty("testsToRun"))
         val isRunningTests = testMethodsByClassName.nonEmpty
 
@@ -366,7 +366,7 @@ class DeployModified extends Deploy {
     //update session data for successful files
     private def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult, auraFiles: List[File]): Unit = {
         val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
-        val calculateMD5 = config.useMD5Hash
+        val calculateMD5 = getSessionConfig.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
 
         def processOneFile(f: File, successMessage: com.sforce.soap.metadata.DeployMessage, xmlType: String): Unit = {
@@ -396,7 +396,7 @@ class DeployModified extends Deploy {
 
         for ( successMessage <- deployDetails.getComponentSuccesses) {
             val relativePath = successMessage.getFileName
-            val f = new File(config.projectDir, relativePath)
+            val f = new File(getProjectConfig.projectDir, relativePath)
             if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
                 //process bundle definition
                 //for aura bundles Metadata API deploy() reports only bundle name, not individual files
@@ -520,7 +520,7 @@ class DeployModified extends Deploy {
     private def disableNotNeededTests(classFile: File, testMethodsByClassName: Map[String, Set[String]]): File = {
         testMethodsByClassName.get(FileUtils.removeExtension(classFile)) match {
             case Some(methodsSet) if methodsSet.nonEmpty =>
-                if (!config.isCheckOnly) {
+                if (!getSessionConfig.isCheckOnly) {
                     throw new ActionError("Single method test is experimental and only supported in --checkOnly=true mode.")
                 }
                 disableNotNeededTests(classFile, methodsSet)
@@ -745,7 +745,7 @@ class DeployAllDestructive extends DeployAll {
             val deployDestructiveAction = new DeployDestructive {
                 override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
                 override def isUpdateSessionDataOnSuccess: Boolean = {
-                    val updateSessionDataOnSuccess = !config.isCheckOnly && !session.callingAnotherOrg
+                    val updateSessionDataOnSuccess = !getSessionConfig.isCheckOnly && !session.callingAnotherOrg
                     updateSessionDataOnSuccess
                 }
             }
@@ -858,7 +858,7 @@ class DeploySpecificFiles extends DeployModified {
 /**
  * list modified files (compared to their stored session data)
  */
-class ListModified extends ApexAction {
+class ListModified extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -878,7 +878,7 @@ class ListModified extends ApexAction {
 
         //logger.debug("packageXmlData=" + packageXmlData)
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
-        val allFiles  = FileUtils.listFiles(config.srcDir).filter(
+        val allFiles  = FileUtils.listFiles(getProjectConfig.srcDir).filter(
             //remove all non apex files
             file => DescribeMetadata.isValidApexFile(session, file)
         ).toSet
@@ -891,7 +891,7 @@ class ListModified extends ApexAction {
         val msg = new Message(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
         responseWriter.println(msg)
         for(f <- modifiedFiles) {
-            responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            responseWriter.println(MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
         }
         responseWriter.println("HAS_MODIFIED_FILES=true")
         responseWriter.startSection("MODIFIED FILE LIST")
@@ -906,7 +906,7 @@ class ListModified extends ApexAction {
         val msg = new Message(messageType, "Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
         responseWriter.println(msg)
         for(f <- deletedFiles) {
-            responseWriter.println(new MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
+            responseWriter.println(MessageDetail(msg, Map("filePath" -> f.getAbsolutePath, "text" -> session.getRelativePath(f))))
         }
         responseWriter.println("HAS_DELETED_FILES=true")
         responseWriter.startSection("DELETED FILE LIST")
@@ -919,7 +919,7 @@ class ListModified extends ApexAction {
 
     def act() {
         val modifiedFiles = getModifiedFiles
-        val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(config.projectDir, _))
+        val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(getProjectConfig.projectDir, _))
 
         responseWriter.println("RESULT=SUCCESS")
         responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
@@ -1014,7 +1014,7 @@ class DeployDestructive extends Deploy {
             //top-up DeployOptions from user defined configuration
             loadDeployOptionsFromConfig(deployOptions)
 
-            val checkOnly = config.isCheckOnly
+            val checkOnly = getSessionConfig.isCheckOnly
             deployOptions.setCheckOnly(checkOnly)
 
             val tempDir = generateDeploymentDir(components)
@@ -1081,7 +1081,7 @@ class DeployDestructive extends Deploy {
 
     def generateDeploymentDir(componentPaths: List[String]): File = {
         val tempDir = FileUtils.createTempDir(config)
-        val metaXml = new MetaXml(config)
+        val metaXml = new MetaXml(getProjectConfig)
         //place destructiveChanges.xml and package.xml in this temp folder
         val destructivePackage = getDestructiveChangesPackage(componentPaths)
         val destructiveXml = metaXml.packageToXml(destructivePackage)
@@ -1242,7 +1242,7 @@ class DeployModifiedDestructive extends DeployModified {
             val deployDestructiveAction = new DeployDestructive {
                 override def getSpecificComponentsFilePath: String = componentsToDeleteFile.getAbsolutePath
                 override def isUpdateSessionDataOnSuccess: Boolean = {
-                    val updateSessionDataOnSuccess = !config.isCheckOnly && !session.callingAnotherOrg
+                    val updateSessionDataOnSuccess = !getSessionConfig.isCheckOnly && !session.callingAnotherOrg
                     updateSessionDataOnSuccess
                 }
             }

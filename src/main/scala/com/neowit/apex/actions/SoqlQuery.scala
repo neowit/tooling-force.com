@@ -14,7 +14,7 @@ object QueryResultJsonProtocol extends DefaultJsonProtocol {
     implicit val queryResultFormat: JsonFormat[SoqlQuery.QueryResultJson] = lazyFormat(jsonFormat7(SoqlQuery.QueryResultJson))
 }
 
-class SoqlQuery extends ApexAction {
+class SoqlQuery extends ApexActionWithReadOnlySession {
 
     import SoqlQuery._
     import QueryResultJsonProtocol._
@@ -166,9 +166,6 @@ class SoqlQuery extends ApexAction {
             FileUtils.writeFile(allLines.mkString("\n") + "\n", outputFile, append = true)
             //logger.debug(allLines.mkString("\n"))
         }
-    }
-    protected override def finalise(): Unit = {
-        // do nothing. This action should not attempt to store session data as it is not supposed to change session
     }
 }
 

@@ -123,14 +123,10 @@ abstract class AsyncAction extends Action {
 }
 
 abstract class ApexAction extends AsyncAction {
+    private var _config: Option[Config] = None
 
-    protected var _session: Option[Session] = None
-    protected def session: Session = _session match {
-        case Some(s) => s //return existing session
-        case None => throw new ShowHelpException(getHelp)
-    }
     override def load[T <:Action](basicConfig: BasicConfig): T = {
-        _session = Some(Session(basicConfig))
+        _config = Some(new Config(basicConfig))
         if (null != responseWriter) {
             // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
             // give Runner a chance to write into expected `--responseFile`
@@ -138,17 +134,12 @@ abstract class ApexAction extends AsyncAction {
         }
         this.asInstanceOf[T]
     }
-    override def load[T <:Action](existingSession: Session): T = {
-        _session = Some(existingSession)
-        this.asInstanceOf[T]
-    }
-    protected override def finalise(): Unit = {
-        //make sure that session data is saved to disk
-        session.storeSessionData()
+    //need to def (as opposed to val) to stop from failing when called for help() display without session
+    def config:Config = _config match {
+        case Some(loadedConfig) => loadedConfig
+        case None => throw new IllegalAccessError("call load(basicConfig) first")
     }
 
-    //need to def (as opposed to val) to stop from failing when called for help() display without session
-    def config:Config = session.getConfig
     private var _providedResponseWriter: Option[ResponseWriter] = None
 
     /**
@@ -169,8 +160,73 @@ abstract class ApexAction extends AsyncAction {
             case None => originalMap ++ Map(key -> Set(value))
         }
     }
+
+    protected override def finalise(): Unit = { }
+}
+abstract class ApexActionWithProject extends ApexAction {
+    private var _config: Option[ConfigWithSfdcProject] = None
+
+    //need to def (as opposed to val) to stop from failing when called for help() display without session
+    override def config:Config = getProjectConfig
+
+    def getProjectConfig: ConfigWithSfdcProject = _config match {
+        case Some(loadedConfig) => loadedConfig
+        case None => throw new IllegalAccessError("call load(basicConfig) first")
+    }
+    override def load[T <:Action](basicConfig: BasicConfig): T = {
+        _config = Some(new ConfigWithSfdcProject(basicConfig))
+        if (null != responseWriter) {
+            // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
+            // give Runner a chance to write into expected `--responseFile`
+            basicConfig.setResponseWriter(responseWriter)
+        }
+        this.asInstanceOf[T]
+    }
 }
 
+abstract class ApexActionWithReadOnlySession extends ApexActionWithProject {
+    protected var _session: Option[Session] = None
+    protected def session: Session = _session match {
+        case Some(s) => s //return existing session
+        case None => throw new ShowHelpException(getHelp)
+    }
+    override def load[T <:Action](basicConfig: BasicConfig): T = {
+        _session = Some(Session(basicConfig, isSessionReadOnly))
+        if (null != responseWriter) {
+            // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
+            // give Runner a chance to write into expected `--responseFile`
+            basicConfig.setResponseWriter(responseWriter)
+        }
+        this.asInstanceOf[T]
+    }
+    override def load[T <:Action](existingSession: Session): T = {
+        _session = Some(existingSession)
+        this.asInstanceOf[T]
+    }
+
+    //need to def (as opposed to val) to stop from failing when called for help() display without session
+    override def config:Config = getSessionConfig
+
+    def getSessionConfig: ConfigWithReadOnlySession = session.getConfig
+
+    override def getProjectConfig: ConfigWithSfdcProject = getSessionConfig
+
+    def isSessionReadOnly: Boolean = true
+}
+
+abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySession {
+
+    protected override def finalise(): Unit = {
+        if (isSessionReadOnly) {
+            //make sure that session data is saved to disk
+            session.storeSessionData()
+        }
+    }
+
+    override def isSessionReadOnly: Boolean = false
+}
+
+/*
 abstract class ApexActionWithoutProject extends ApexAction {
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         // fake "projectPath"
@@ -186,6 +242,7 @@ abstract class ApexActionWithoutProject extends ApexAction {
     // make sure session does not get touched
     protected override def finalise(): Unit = {}
 }
+*/
 
 class ShowHelpException(val help: ActionHelp, val message: String = "") extends IllegalStateException
 

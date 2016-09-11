@@ -197,6 +197,7 @@ regardless of whether it is also specified in config file or not
 }
 
 class Config(val basicConfig: BasicConfig) extends Logging{
+
     val apiVersion:Double = 36.0
 
     //make BasicConfig methods available in Config
@@ -210,6 +211,49 @@ class Config(val basicConfig: BasicConfig) extends Logging{
     lazy val action = basicConfig.action
     //END BasicConfig methods
 
+    //tempFolderPath - optional - if specified then use this folder instead of system generated
+    lazy val tempFolderPath =  getProperty("tempFolderPath")
+
+
+    def getLogFile: File = {
+        getProperty("logFile") match {
+            case Some(logPath) =>
+                new File(logPath)
+            case None => FileUtils.createTempFile("apex-", ".log")
+        }
+
+    }
+
+    /*
+    @deprecated("use debuggingHeaderConfig related logic", "0.3.6.0")
+    lazy val logLevel = getProperty("logLevel") match {
+        case Some(x) => Set("None", "Debugonly", "Db", "Profiling", "Callout", "Detail").contains(x)
+            x
+        case None => "None"
+    }
+    */
+
+    lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
+        case Some(path) => Option(path)
+        case None => None
+    }
+
+
+    private lazy val responseFile = {
+        val path = getRequiredProperty("responseFilePath").get
+        val f = new File(path)
+        if (!f.exists()) {
+            f.createNewFile()
+        }
+        f
+    }
+
+    lazy val responseWriter = new ResponseWriter(responseFile)
+
+}
+
+class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Config(basicConfig) {
+
     lazy val username = getRequiredProperty("sf.username").get
     lazy val password = getRequiredProperty("sf.password").get
     lazy val soapEndpoint = {
@@ -220,6 +264,51 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         }
     }
 
+    lazy val projectPath = getRequiredProperty("projectPath").get
+    lazy val projectDir = new File(getRequiredProperty("projectPath").get)
+    /* path to src folder */
+    lazy val srcPath = srcDir.getAbsolutePath
+    lazy val srcDir = {
+        val fSrc = new File(projectPath, "src")
+        if (!fSrc.isDirectory || !fSrc.canRead) {
+            throw new ConfigValueException("failed to detect 'src' folder in path:" + projectPath)
+        }
+        fSrc
+
+    }
+
+    /*
+     * generates specified folders nested in the main outputFolder
+     */
+    def mkdirs(dirName: String) = {
+        val path = srcDir + File.separator + dirName
+        //check that folder exists
+        val f = new File(path)
+        if (!f.isDirectory) {
+            if (!f.mkdirs())
+                throw new RuntimeException("Failed to create folder: " + path)
+        }
+
+        path
+    }
+
+}
+
+class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends ConfigWithSfdcProject(basicConfig) {
+
+    lazy val isCheckOnly = getProperty("checkOnly") match {
+        case Some(x) => "true" == x
+        case None => false
+    }
+
+    /**
+      * by default CRC32 hash is used to detect file changes
+      * but command line option --preferMD5=true can force MD5
+      */
+    lazy val useMD5Hash = getProperty("preferMD5")match {
+        case Some(x) => "true" == x
+        case None => false
+    }
 
     //path to folder where all cached metadata (session Id, last update dates, etc) stored
     lazy val sessionFolder = {
@@ -240,108 +329,12 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         props.load(FileUtils.readFile(file).bufferedReader())
         props
     }
+}
+
+class ConfigWithSession(override val basicConfig: BasicConfig) extends ConfigWithReadOnlySession(basicConfig) {
     def storeSessionProps() {
         val writer = new FileWriter(new File(sessionFolder, "session.properties"))
         lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
         writer.close()
     }
-
-    /**
-     * Local copy of Describe Metadata result
-     */
-    lazy val storedDescribeMetadataResultFile:File  = {
-        val file = new File(sessionFolder, "describeMetadata-result.js")
-        if (!file.exists) {
-            file.createNewFile()
-        }
-        file
-    }
-
-    /**
-     * Local copy of Tooling Describe Global result
-     */
-    lazy val storedDescribeToolingResultFile:File  = {
-        val file = new File(sessionFolder, "describeTooling-result.js")
-        if (!file.exists) {
-            file.createNewFile()
-        }
-        file
-    }
-
-    lazy val projectPath = getRequiredProperty("projectPath").get
-    lazy val projectDir = new File(getRequiredProperty("projectPath").get)
-    /* path to src folder */
-    lazy val srcPath = srcDir.getAbsolutePath
-    lazy val srcDir = {
-        val fSrc = new File(projectPath, "src")
-        if (!fSrc.isDirectory || !fSrc.canRead) {
-            throw new ConfigValueException("failed to detect 'src' folder in path:" + projectPath)
-        }
-        fSrc
-
-    }
-    //tempFolderPath - optional - if specified then use this folder instead of system generated
-    lazy val tempFolderPath =  getProperty("tempFolderPath")
-
-    lazy val isCheckOnly = getProperty("checkOnly") match {
-      case Some(x) => "true" == x
-      case None => false
-    }
-
-    def getLogFile: File = {
-        getProperty("logFile") match {
-            case Some(logPath) =>
-                new File(logPath)
-            case None => FileUtils.createTempFile("apex-", ".log")
-        }
-
-    }
-
-    @deprecated("use debuggingHeaderConfig related logic", "0.3.6.0")
-    lazy val logLevel = getProperty("logLevel") match {
-        case Some(x) => Set("None", "Debugonly", "Db", "Profiling", "Callout", "Detail").contains(x)
-            x
-        case None => "None"
-    }
-
-    lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
-        case Some(path) => Option(path)
-        case None => None
-    }
-
-    /**
-     * by default CRC32 hash is used to detect file changes
-     * but command line option --preferMD5=true can force MD5
-     */
-    lazy val useMD5Hash = getProperty("preferMD5")match {
-        case Some(x) => "true" == x
-        case None => false
-    }
-
-    /*
-     * generates specified folders nested in the main outputFolder
-     */
-    def mkdirs(dirName: String) = {
-        val path = srcDir + File.separator + dirName
-        //check that folder exists
-        val f = new File(path)
-        if (!f.isDirectory) {
-            if (!f.mkdirs())
-                throw new RuntimeException("Failed to create folder: " + path)
-        }
-
-        path
-    }
-
-    private lazy val responseFile = {
-        val path = getRequiredProperty("responseFilePath").get
-        val f = new File(path)
-        if (!f.exists()) {
-            f.createNewFile()
-        }
-        f
-    }
-
-    lazy val responseWriter = new ResponseWriter(responseFile)
-
 }

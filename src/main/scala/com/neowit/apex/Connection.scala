@@ -19,7 +19,7 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{BasicConfig, Config, Logging}
+import com.neowit.utils.{BasicConfig, Config, ConfigWithSfdcProject, Logging}
 
 object Connection extends Logging {
     val CLIENT_NAME = AppVersion.APP_NAME + "/" + AppVersion.VERSION
@@ -64,7 +64,7 @@ object Connection extends Logging {
         config
     }
 
-    private def getConnectionConfig (appConfig: Config) = {
+    private def getConnectionConfig (appConfig: ConfigWithSfdcProject) = {
         val config = initConnectorConfig(appConfig.basicConfig)
         config.setUsername(appConfig.username)
         config.setPassword(appConfig.password)
@@ -83,13 +83,13 @@ object Connection extends Logging {
         connection.__setCallOptions(callOptions)
         connection
     }
-    def createPartnerConnection(appConfig: Config):com.sforce.soap.partner.PartnerConnection = {
+    def createPartnerConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.partner.PartnerConnection = {
         logger.debug("Creating NEW Partner Connection")
         val connectionConfig = getConnectionConfig(appConfig)
         setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig))
 
     }
-    def getPartnerConnection(appConfig: Config, sessionId: String, serviceEndpoint: String):com.sforce.soap.partner.PartnerConnection = {
+    def getPartnerConnection(appConfig: ConfigWithSfdcProject, sessionId: String, serviceEndpoint: String):com.sforce.soap.partner.PartnerConnection = {
         val connectionConfig = getConnectionConfig(appConfig)
         connectionConfig.setSessionId(sessionId)
         connectionConfig.setServiceEndpoint(serviceEndpoint)
@@ -102,7 +102,7 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
-    def createMetadataConnection(appConfig: Config):com.sforce.soap.metadata.MetadataConnection = {
+    def createMetadataConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.metadata.MetadataConnection = {
         logger.debug("Creating NEW Metadata Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getMetadataConnection(appConfig, partnerConnection)
@@ -114,7 +114,7 @@ object Connection extends Logging {
      * @param partnerConnection - existing PartnerConnection
      * @return
      */
-    def getMetadataConnection(appConfig: Config,
+    def getMetadataConnection(appConfig: ConfigWithSfdcProject,
                               partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.metadata.MetadataConnection = {
         val partnerConnectionConfig = partnerConnection.getConfig
 
@@ -140,7 +140,7 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
-    def createToolingConnection(appConfig: Config):com.sforce.soap.tooling.ToolingConnection = {
+    def createToolingConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.tooling.ToolingConnection = {
         logger.debug("Creating NEW Tooling Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getToolingConnection(appConfig, partnerConnection)
@@ -152,7 +152,7 @@ object Connection extends Logging {
      * @param partnerConnection - existing PartnerConnection
      * @return
      */
-    def getToolingConnection(appConfig: Config,
+    def getToolingConnection(appConfig: ConfigWithSfdcProject,
                               partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.tooling.ToolingConnection = {
         val partnerConnectionConfig = partnerConnection.getConfig
 
@@ -178,7 +178,7 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
-    def createApexConnection(appConfig: Config):com.sforce.soap.apex.SoapConnection = {
+    def createApexConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.apex.SoapConnection = {
         logger.debug("Creating NEW Apex Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getApexConnection(appConfig, partnerConnection)
@@ -190,7 +190,7 @@ object Connection extends Logging {
      * @param partnerConnection - existing PartnerConnection
      * @return
      */
-    def getApexConnection(appConfig: Config,
+    def getApexConnection(appConfig: ConfigWithSfdcProject,
                              partnerConnection: com.sforce.soap.partner.PartnerConnection):com.sforce.soap.apex.SoapConnection = {
         val partnerConnectionConfig = partnerConnection.getConfig
 

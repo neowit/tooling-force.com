@@ -1,13 +1,15 @@
 package com.neowit.apex.actions.tooling
 
 import com.sforce.soap.tooling.DescribeGlobalSObjectResult
+
 import scala.collection.mutable
 import com.neowit.apex.Session
+
 import scala.util.{Failure, Success, Try}
 import com.neowit.utils.FileUtils
-import java.io.{PrintWriter, File}
-import com.neowit.apex.actions.{ActionHelp, ApexAction}
+import java.io.{File, PrintWriter}
 
+import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession}
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
@@ -35,7 +37,7 @@ object DescribeTooling {
     }
 }
 
-class DescribeTooling extends ApexAction {
+class DescribeTooling extends ApexActionWithReadOnlySession {
     case class ToolingTypeJSON(isActivateable: Option[Boolean], isCustom: Option[Boolean], isCustomSetting: Option[Boolean],
                                isQueryable: Option[Boolean], keyPrefix: Option[String], name: Option[String])
 
@@ -57,11 +59,13 @@ class DescribeTooling extends ApexAction {
         override def getName: String = "DescribeTooling"
     }
 
+    def getOutputFilePath = config.getRequiredProperty("allToolingTypesFilePath")
+
     def act() {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("RESULT_FILE=" + config.storedDescribeMetadataResultFile.getAbsolutePath)
+        responseWriter.println("RESULT_FILE=" + getOutputFilePath)
         responseWriter.println("FILE_COUNT=" + resMap.size)
     }
 
@@ -73,7 +77,8 @@ class DescribeTooling extends ApexAction {
     def loadFromFile: Map[String, DescribeGlobalSObjectResult] = {
         val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
 
-        for (line <- FileUtils.readFile(config.storedDescribeToolingResultFile).getLines()) {
+
+        for (line <- FileUtils.readFile(storedDescribeToolingResultFile).getLines()) {
             Try(JsonParser(line)) match {
                 case Success(jsonAst) =>
                     val data = jsonAst.convertTo[ToolingTypeJSON](ToolingDescriptionJsonProtocol.singleToolingTypeFormat)
@@ -109,9 +114,20 @@ class DescribeTooling extends ApexAction {
             }
             */
 
-        }
+         }
         describeMetadataObjectMap.toMap
     }
+    /**
+      * Local copy of Tooling Describe Global result
+      */
+    private lazy val storedDescribeToolingResultFile:File  = {
+        val file = new File(getSessionConfig.sessionFolder, "describeTooling-result.js")
+        if (!file.exists) {
+            file.createNewFile()
+        }
+        file
+    }
+
     def loadFromRemote: Map[String, DescribeGlobalSObjectResult] = {
         Try(session.describeTooling) match {
             case Success(describeResult) =>
@@ -136,12 +152,12 @@ class DescribeTooling extends ApexAction {
                         case None =>
                     }
                 }
-                storeDescribeResult(config.storedDescribeToolingResultFile, linesBuf.iterator)
+                storeDescribeResult(storedDescribeToolingResultFile, linesBuf.iterator)
                 //check if user requested alternative response location
                 config.getProperty("allToolingTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
-                        if (userDefinedFile != config.storedDescribeToolingResultFile) {
+                        if (userDefinedFile != storedDescribeToolingResultFile) {
                             storeDescribeResult(userDefinedFile, linesBuf.iterator)
 
                         }

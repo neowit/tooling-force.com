@@ -29,7 +29,7 @@ trait TestSuiteProtocol extends DefaultJsonProtocol {
     implicit val TestSuiteJsonFormat = jsonFormat3(TestSuite)
 }
 
-class TestSuiteActions extends ApexAction with TestSuiteProtocol{
+class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProtocol{
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
