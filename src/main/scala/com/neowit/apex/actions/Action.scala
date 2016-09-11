@@ -214,7 +214,33 @@ abstract class ApexActionWithReadOnlySession extends ApexActionWithProject {
     def isSessionReadOnly: Boolean = true
 }
 
+object ApexActionWithWritableSession {
+    private var _currentAction: Option[ApexActionWithWritableSession] = None
+    def lockSession(action: ApexActionWithWritableSession):Unit = {
+        _currentAction = Option(action)
+    }
+    def unLockSession(action: ApexActionWithWritableSession):Unit = {
+        _currentAction = None
+    }
+    def isSessionLocked: Boolean = _currentAction.isDefined
+}
 abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySession {
+
+    override def execute(): Unit = {
+        // make sure we do not have another action which can modify session already in progress
+        if (!ApexActionWithWritableSession.isSessionLocked) {
+            try {
+                ApexActionWithWritableSession.lockSession(this)
+                super.execute()
+            } finally {
+                ApexActionWithWritableSession.unLockSession(this)
+            }
+        } else {
+            //responseWriter.println("RESULT=FAILURE")
+            //responseWriter.println(new Message(ResponseWriter.ERROR, "Session is locked. Another action is already in progress. Please wait for that action to complete..."))
+            responseWriter.error("Session is locked. Another action is already in progress. Please wait for that action to complete...")
+        }
+    }
 
     protected override def finalise(): Unit = {
         if (isSessionReadOnly) {
