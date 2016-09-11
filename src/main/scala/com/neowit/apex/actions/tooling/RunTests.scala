@@ -177,7 +177,7 @@ class RunTests extends DeployModified{
                                 case Some(logId) =>
                                     val log = LogActions.getLog(session, logId)
                                     if (!log.isEmpty) {
-                                        val logFile = config.getLogFile
+                                        val logFile = getProjectConfig.getLogFile
                                         FileUtils.writeFile(log, logFile)
                                         responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
                                     }

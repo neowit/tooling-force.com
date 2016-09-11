@@ -215,15 +215,6 @@ class Config(val basicConfig: BasicConfig) extends Logging{
     lazy val tempFolderPath =  getProperty("tempFolderPath")
 
 
-    def getLogFile: File = {
-        getProperty("logFile") match {
-            case Some(logPath) =>
-                new File(logPath)
-            case None => FileUtils.createTempFile("apex-", ".log")
-        }
-
-    }
-
     /*
     @deprecated("use debuggingHeaderConfig related logic", "0.3.6.0")
     lazy val logLevel = getProperty("logLevel") match {
@@ -232,12 +223,6 @@ class Config(val basicConfig: BasicConfig) extends Logging{
         case None => "None"
     }
     */
-
-    lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
-        case Some(path) => Option(path)
-        case None => None
-    }
-
 
     private lazy val responseFile = {
         val path = getRequiredProperty("responseFilePath").get
@@ -292,6 +277,19 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
         path
     }
 
+    lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
+        case Some(path) => Option(path)
+        case None => None
+    }
+
+    def getLogFile: File = {
+        getProperty("logFile") match {
+            case Some(logPath) =>
+                new File(logPath)
+            case None => FileUtils.createTempFile("apex-", ".log")
+        }
+
+    }
 }
 
 class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends ConfigWithSfdcProject(basicConfig) {

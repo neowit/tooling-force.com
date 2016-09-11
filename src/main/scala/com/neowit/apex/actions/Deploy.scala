@@ -355,7 +355,7 @@ class DeployModified extends Deploy {
             success = true
         }
         if (!log.isEmpty) {
-            val logFile = config.getLogFile
+            val logFile = getProjectConfig.getLogFile
             FileUtils.writeFile(log, logFile)
             responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
         }
