@@ -22,6 +22,7 @@ package com.neowit.apex.actions
 import com.neowit.utils._
 import com.neowit.apex._
 
+import scala.collection.mutable
 
 class ActionError(msg: String) extends Error(msg: String)
 class UnsupportedActionError(msg: String) extends ActionError(msg: String)
@@ -215,20 +216,23 @@ abstract class ApexActionWithReadOnlySession extends ApexActionWithProject {
 }
 
 object ApexActionWithWritableSession {
-    private var _currentAction: Option[ApexActionWithWritableSession] = None
+    private val _currentActionByProject = new mutable.HashMap[String, ApexActionWithWritableSession]()
+
+    private def getKey(action: ApexActionWithWritableSession): String = action.getProjectConfig.projectDir.getAbsolutePath
+
     def lockSession(action: ApexActionWithWritableSession):Unit = {
-        _currentAction = Option(action)
+        _currentActionByProject += getKey(action) -> action
     }
     def unLockSession(action: ApexActionWithWritableSession):Unit = {
-        _currentAction = None
+        _currentActionByProject -= getKey(action)
     }
-    def isSessionLocked: Boolean = _currentAction.isDefined
+    def isSessionLocked(action: ApexActionWithWritableSession): Boolean = _currentActionByProject.contains(getKey(action))
 }
 abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySession {
 
     override def execute(): Unit = {
-        // make sure we do not have another action which can modify session already in progress
-        if (!ApexActionWithWritableSession.isSessionLocked) {
+        // make sure we do not have another action (which can modify the session of given project) already in progress
+        if (!ApexActionWithWritableSession.isSessionLocked(this)) {
             try {
                 ApexActionWithWritableSession.lockSession(this)
                 super.execute()
