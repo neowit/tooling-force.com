@@ -576,8 +576,11 @@ class SaveModified extends DeployModified {
                 false
 
             case state =>
-                logger.error("Request Failed with status: " + state)
-                throw new IllegalStateException("Failed to send Async Request. Status= " + state)
+                responseWriter.println("RESULT=FAILURE")
+                val msg = s"Async Request Failed with status: '$state'. Message: ${request.getErrorMsg}"
+                logger.error(msg)
+                responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))
+                false
         }
     }
 
