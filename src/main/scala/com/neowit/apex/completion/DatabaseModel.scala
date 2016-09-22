@@ -5,10 +5,10 @@ import com.neowit.apex.Session
 import com.neowit.apex.completion.models.ApexModel
 import com.neowit.apex.parser.Member
 import com.neowit.utils.Logging
-
 import akka.actor.Actor
 import akka.actor.Props
 import com.sforce.soap.partner.FieldType
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
@@ -42,17 +42,26 @@ class DatabaseModel(session: Session) {
         val _memberBySobjectType = Map.newBuilder[String, DatabaseModelMember]
         val _sObjectMembers = List.newBuilder[DatabaseModelMember]
         val describeGlobalResult = session.describeGlobal
+        val knownApiNames = new collection.mutable.HashSet[String]()
 
-        for (describeGlobalSObjectResult <- describeGlobalResult.getSobjects) {
+        // sort result such as types without namespace go first
+        val sobjectsSortedByNoNamespaceFirst =
+                describeGlobalResult.getSobjects.sortWith((left, right) => hasNamespacePrefix(left.getName) - hasNamespacePrefix(right.getName) < 0)
+
+        for (describeGlobalSObjectResult <- sobjectsSortedByNoNamespaceFirst) {
             val sObjectApiName = describeGlobalSObjectResult.getName
             val sObjectMember = new SObjectMember(sObjectApiName, session)
 
-            _memberBySobjectType += sObjectApiName.toLowerCase -> sObjectMember
+            val sObjectApiNameLowerCase = sObjectApiName.toLowerCase
+            _memberBySobjectType += sObjectApiNameLowerCase -> sObjectMember
             _sObjectMembers += sObjectMember
+            knownApiNames += sObjectApiNameLowerCase
 
-            val withoutNamespace = stripNamespace(sObjectApiName)
-            if (sObjectApiName != withoutNamespace) {
-                _memberBySobjectType += withoutNamespace.toLowerCase -> sObjectMember
+            // store by name without Namespace, but *only* if this name has not already been registered
+            // by similarly named object which does not have a Namespace
+            val withoutNamespace = stripNamespace(sObjectApiNameLowerCase)
+            if (sObjectApiName != withoutNamespace && !knownApiNames.contains(withoutNamespace)) {
+                _memberBySobjectType += sObjectApiNameLowerCase -> sObjectMember
                 _sObjectMembers += sObjectMember
             }
         }
@@ -73,6 +82,16 @@ class DatabaseModel(session: Session) {
             sObjectApiName.substring(namespaceEnd + 2)
         } else {
             sObjectApiName
+        }
+    }
+
+    private def hasNamespacePrefix(sObjectApiName: String): Int = {
+        val namespaceEnd = sObjectApiName.indexOf("__")
+        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
+            //has namespace prefix
+            1
+        } else {
+            0
         }
 
     }
