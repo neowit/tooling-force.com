@@ -17,6 +17,43 @@ object DatabaseModel {
     def REFRESH_INTERVAL_SECONDS = 30 //content of previously loaded fields will be refreshed over this period of time
 
     private val modelBySession = Map.newBuilder[Session, DatabaseModel]
+
+    /**
+      * @param sObjectApiName - full SObject API Name
+      * @return
+      *          if sObjectApiName looks like Something_\_Name[_\_c] then
+      *          return: Name[_\_c]
+      *          otherwise return sObjectApiName as is
+      */
+    def stripNamespace(sObjectApiName: String): String = {
+        getNamespacePrefix(sObjectApiName) match {
+            case Some(namespace) => sObjectApiName.substring(namespace.length + 2) // +2 to include "_ _" after namespace
+            case None => sObjectApiName
+        }
+    }
+
+    /**
+      * used in sortWith()
+      */
+    def hasNamespacePrefix(sObjectApiName: String): Int = {
+        if (getNamespacePrefix(sObjectApiName).isDefined) {
+            //has namespace prefix
+            1
+        } else {
+            0
+        }
+    }
+
+    def getNamespacePrefix(sObjectApiName: String): Option[String] = {
+        val namespaceEnd = sObjectApiName.indexOf("__")
+        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
+            //has namespace prefix
+            Option(sObjectApiName.substring(0, namespaceEnd))
+        } else {
+            None
+        }
+    }
+
     def getModelBySession(session: Session): Option[DatabaseModel] = {
         modelBySession.result().get(session) match {
           case Some(model) => Some(model)
@@ -26,9 +63,18 @@ object DatabaseModel {
                 Some(model)
         }
     }
+
+    def sortNamespaceLast[A](collection: Array[A], getApiName: A => String): Array[A] = {
+        collection.sortWith((left, right) => hasNamespacePrefix(getApiName(left)) - hasNamespacePrefix(getApiName(right)) < 0)
+    }
+
+    def getNameFromSobjectDescribeResult(sobjectDescribeResult: com.sforce.soap.partner.DescribeGlobalSObjectResult): String = {
+        sobjectDescribeResult.getName
+    }
 }
 
 class DatabaseModel(session: Session) {
+    import DatabaseModel._
 
     private val (memberBySobjectType: Map[String, DatabaseModelMember], sObjectMembers: List[DatabaseModelMember]) = load()
 
@@ -45,8 +91,11 @@ class DatabaseModel(session: Session) {
         val knownApiNames = new collection.mutable.HashSet[String]()
 
         // sort result such as types without namespace go first
+        /*
         val sobjectsSortedByNoNamespaceFirst =
                 describeGlobalResult.getSobjects.sortWith((left, right) => hasNamespacePrefix(left.getName) - hasNamespacePrefix(right.getName) < 0)
+        */
+        val sobjectsSortedByNoNamespaceFirst = sortNamespaceLast(describeGlobalResult.getSobjects, getNameFromSobjectDescribeResult)
 
         for (describeGlobalSObjectResult <- sobjectsSortedByNoNamespaceFirst) {
             val sObjectApiName = describeGlobalSObjectResult.getName
@@ -68,33 +117,6 @@ class DatabaseModel(session: Session) {
         (_memberBySobjectType.result(), _sObjectMembers.result())
     }
 
-    /**
-     * @param sObjectApiName - full SObject API Name
-     * @return
-     *          if sObjectApiName looks like Something__Name[__c] then
-     *          return: Name[__c]
-     *          otherwise return sObjectApiName as is
-     */
-    private def stripNamespace(sObjectApiName: String): String = {
-        val namespaceEnd = sObjectApiName.indexOf("__")
-        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
-            //has namespace prefix
-            sObjectApiName.substring(namespaceEnd + 2)
-        } else {
-            sObjectApiName
-        }
-    }
-
-    private def hasNamespacePrefix(sObjectApiName: String): Int = {
-        val namespaceEnd = sObjectApiName.indexOf("__")
-        if (namespaceEnd > 0 && (sObjectApiName.length > namespaceEnd + 3) && ('c' != sObjectApiName.charAt(namespaceEnd + 3))) {
-            //has namespace prefix
-            1
-        } else {
-            0
-        }
-
-    }
 }
 
 case class RefreshMessage(dbModelMember: DatabaseModelMember)
