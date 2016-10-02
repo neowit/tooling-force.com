@@ -218,7 +218,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
                 }
                 storeDescribeResult(storedDescribeMetadataResultFile, linesBuf.iterator)
                 //check if user requested alternative response location
-                config.getRequiredProperty("allMetaTypesFilePath") match {
+                config.getProperty("allMetaTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
                         if (userDefinedFile != storedDescribeMetadataResultFile) {
