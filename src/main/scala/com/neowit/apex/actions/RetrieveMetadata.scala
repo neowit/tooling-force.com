@@ -140,6 +140,7 @@ class RefreshMetadata extends RetrieveMetadata {
             case "config" => "--config - full path to config.properties file"
             case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
             case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
+            case "skipModifiedFilesCheck" => "--skipModifiedFilesCheck - unsafe retrieval, do not check for modified files before retrieval."
         }
 
         override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath")
