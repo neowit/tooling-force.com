@@ -141,9 +141,10 @@ class RefreshMetadata extends RetrieveMetadata {
             case "projectPath" => "--projectPath - full path to folder which contains ./src/ of apex project."
             case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
             case "skipModifiedFilesCheck" => "--skipModifiedFilesCheck - unsafe retrieval, do not check for modified files before retrieval."
+            case "modifiedFilesResultCode" => "--modifiedFilesResultCode - If provided (and project has modified files) then instead of normal 'RESULT=FAILURE' 'RESULT=' will be reported with given code."
         }
 
-        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath")
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath", "skipModifiedFilesCheck", "modifiedFilesResultCode")
 
         override def getExample: String = ""
 
@@ -182,7 +183,11 @@ class RefreshMetadata extends RetrieveMetadata {
                         }
                 }
             } else {
-                responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println("RESULT=FAILURE")
+                // in some cases reporting RESULT=FAILURE (if modified files detected) may not be desirable
+                // check if user requested alternative result code
+                val modifiedFilesResultCode = config.getProperty("modifiedFilesResultCode").getOrElse("FAILURE")
+                responseWriter.println("RESULT=" + modifiedFilesResultCode)
                 responseWriter.println(new Message(ResponseWriter.DEBUG,
                     "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
                 modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN)
