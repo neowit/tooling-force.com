@@ -1,6 +1,8 @@
 package com.neowit.apex.completion.models
 
-import com.neowit.apex.parser.Member
+import java.nio.file.Path
+
+import com.neowit.apex.parser.{Location, Member}
 import spray.json.{JsValue, JsonParser}
 
 trait ModelBase {
@@ -49,6 +51,11 @@ trait ApexModelMember extends Member {
     override def getType: String = getIdentity
 
     protected def isLoaded: Boolean = true
+
+    /**
+      * ApexModelMember members do not come from local file and can not have location
+      */
+    override def getLocation: Option[Location] = None
 
     override def getChildren: List[Member] = {
         if (!isLoaded) {

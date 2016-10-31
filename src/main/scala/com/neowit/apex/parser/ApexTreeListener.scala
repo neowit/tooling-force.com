@@ -1,16 +1,17 @@
 package com.neowit.apex.parser
 
+import java.nio.file.Path
+
 import com.neowit.apex.completion.Caret
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ErrorNode, TerminalNode}
-
-import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeBaseListener}
+import com.neowit.apex.parser.antlr.{ApexcodeBaseListener, ApexcodeParser}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 
-class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int = -1, caret: Option[Caret] = None) extends ApexcodeBaseListener {
+class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = -1, column: Int = -1, caret: Option[Caret] = None) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
@@ -66,7 +67,7 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
 
     }
     override def enterCatchClause(ctx: CatchClauseContext): Unit = {
-        val member = new CatchClauseMember(ctx)
+        val member = new CatchClauseMember(ctx, filePath)
         registerMember(member)
         memberScopeStack.push(member)
     }
@@ -76,7 +77,7 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
     }
 
     override def enterEnumDeclaration(ctx: EnumDeclarationContext): Unit = {
-        val member = new EnumMember(ctx)
+        val member = new EnumMember(ctx, filePath)
         registerMember(member)
         memberScopeStack.push(member)
     }
@@ -86,20 +87,20 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
     }
 
     override def enterEnumConstant(ctx: EnumConstantContext): Unit = {
-        val member = new EnumConstantMember(ctx)
+        val member = new EnumConstantMember(ctx, filePath)
         registerMember(member)
 
     }
 
     override def enterPropertyDeclaration(ctx: PropertyDeclarationContext): Unit = {
-        val member = new PropertyMember(ctx)
+        val member = new PropertyMember(ctx, filePath)
         registerMember(member)
 
     }
 
     override def enterClassBodyDeclaration(ctx: ClassBodyDeclarationContext): Unit = {
         val member = ctx match {
-            case ClassMethodMember(context) => new ClassMethodMember(ctx, parser)
+            case ClassMethodMember(context) => new ClassMethodMember(ctx, parser, filePath)
             case _ => null;//new ClassBodyMember(ctx)
         }
         if (null != member) {
@@ -122,7 +123,7 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
 
     override def enterInterfaceBodyDeclaration(ctx: InterfaceBodyDeclarationContext): Unit = {
         val member = ctx match {
-            case InterfaceMethodMember(context) => new InterfaceMethodMember(ctx, parser)
+            case InterfaceMethodMember(context) => new InterfaceMethodMember(ctx, parser, filePath)
             case _ => null;//new ClassBodyMember(ctx)
         }
         if (null != member) {
@@ -182,7 +183,7 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
         //cycle through all variables declared in the current expression
         //String a, b, c;
         for (varDeclaratorCtx <- ctx.variableDeclarators().variableDeclarator()) {
-            val member = new LocalVariableMember(ctx, varDeclaratorCtx)
+            val member = new LocalVariableMember(ctx, varDeclaratorCtx, filePath)
             registerMember(member)
         }
     }
@@ -192,18 +193,18 @@ class ApexTreeListener (val parser: ApexcodeParser, line: Int = -1, column: Int 
      * for (MyClass cls : collection) {...}
      **/
     override def enterEnhancedForControl(ctx: EnhancedForControlContext): Unit = {
-        val member = new EnhancedForLocalVariableMember(ctx)
+        val member = new EnhancedForLocalVariableMember(ctx, filePath)
         registerMember(member)
     }
 
     override def enterFieldDeclaration(ctx: FieldDeclarationContext): Unit = {
-        val member = new FieldMember(ctx)
+        val member = new FieldMember(ctx, filePath)
         registerMember(member)
     }
 
 
     override def enterFormalParameter(ctx: FormalParameterContext): Unit = {
-        val member = new MethodParameter(ctx)
+        val member = new MethodParameter(ctx, filePath)
         registerMember(member)
 
     }

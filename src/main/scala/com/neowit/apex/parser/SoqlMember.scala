@@ -6,12 +6,16 @@ import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMe
 import com.neowit.apex.parser.antlr.SoqlParser
 import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
 import com.sforce.soap.partner.ChildRelationship
-import org.antlr.v4.runtime.tree.TerminalNode
-import org.antlr.v4.runtime.{ParserRuleContext, Token}
+import org.antlr.v4.runtime.Token
 
 trait SoqlMember extends Member {
     override def isStatic: Boolean = false
     override def toString: String = getIdentity
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
 }
 
 class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMember {
@@ -204,6 +208,11 @@ class DBModelMember(session: Session) extends Member {
     }
 
     override def toString: String = getIdentity
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
 }
 
 /**

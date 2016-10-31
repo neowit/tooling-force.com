@@ -38,9 +38,9 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         val walker = new ParseTreeWalker()
         val extractor = caretReachedException match {
           case Some(_caretReachedException) =>
-              new ApexTreeListener(parser, line, column, _caretReachedException.caretToken.getCaret)
+              new ApexTreeListener(parser, file.toPath, line, column, _caretReachedException.caretToken.getCaret)
           case None =>
-              new ApexTreeListener(parser, line, column)
+              new ApexTreeListener(parser, file.toPath, line, column)
         }
         walker.walk(extractor, tree)
 

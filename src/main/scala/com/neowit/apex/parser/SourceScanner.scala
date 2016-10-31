@@ -32,7 +32,7 @@ class SourceScanner (files: List[File]) extends Logging {
 
                 parseOne(file, errorListener) match {
                     case Some((parser, tree)) =>
-                        val extractor = new ApexTreeListener(parser)
+                        val extractor = new ApexTreeListener(parser, file.toPath)
                         walker.walk(extractor, tree)
                         completeTree.extend(extractor.getTree)
                         fileModificationTimes.+=(file.getAbsolutePath -> file.lastModified())
