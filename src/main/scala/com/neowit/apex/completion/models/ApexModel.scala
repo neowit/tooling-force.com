@@ -207,6 +207,21 @@ case class ApexType(name: String, superType: Option[String], enums: Option[List[
     override def getSuperType: Option[String] = superType
 }
 
+case object ApexVoid extends ApexModelMember {
+    /**
+      * @return
+      * for class it is class name
+      * for method it is method name + string of parameter types
+      * for variable it is variable name
+      * etc
+      */
+    override def getIdentity: String = "void"
+
+    override def getSignature: String = "void"
+
+    override def isStatic: Boolean = true
+}
+
 /**
  *
  * @param s - if static then  = 1

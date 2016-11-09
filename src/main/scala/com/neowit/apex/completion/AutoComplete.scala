@@ -148,6 +148,11 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         } else {
             initialTypeName
         }
+
+        if (ApexVoid.getIdentity == typeName) {
+            return Some(ApexVoid)
+        }
+
         //first check if this is one of parsed classes
         fullTree.getClassMemberByType(typeName) match {
           case Some(typeMember) => return Some(typeMember)
