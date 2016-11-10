@@ -19,7 +19,7 @@
 
 package com.neowit.utils
 
-import java.io.PrintStream
+import java.io.{PrintStream, PrintWriter, StringWriter}
 import java.util.concurrent.TimeUnit
 
 import org.apache.commons.logging.impl.SimpleLog
@@ -39,8 +39,11 @@ trait Logging {
     def fatal(msg: Any) = if (log.isFatalEnabled) log.fatal(msg)
     def fatal(msg: Any, ex: Throwable) = if (log.isFatalEnabled) log.fatal(msg, ex)
 
-    def error(msg: Any) = if (log.isErrorEnabled) log.error(msg)
-    def error(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
+    //def error(msg: Any) = if (log.isErrorEnabled) log.error(msg)
+    //def error(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
+    def error(msg: String) = if (log.isErrorEnabled) log.error(msg)
+    def error(ex: Throwable) = if (log.isErrorEnabled) Logging.log(ex, log.error)
+    def error(msg: String, ex: Throwable) = if (log.isErrorEnabled) Logging.log(msg, ex, log.error)
 
     def warn(msg: Any) = if (log.isWarnEnabled) log.warn(msg)
     def warn(msg: Any, ex: Throwable) = if (log.isWarnEnabled) log.warn(msg, ex)
@@ -48,11 +51,19 @@ trait Logging {
     def info(msg: Any) = if (log.isInfoEnabled) log.info(msg)
     def info(msg: Any, ex: Throwable) = if (log.isInfoEnabled) log.info(msg, ex)
 
-    def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
-    def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
+    //def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
+    //def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
+    def debug(msg: String) = if (log.isDebugEnabled) log.debug(msg)
+    def debug[T](msgArr: Array[T]) = if (log.isDebugEnabled) log.debug(msgArr)
+    def debug(ex: Throwable) = if (log.isDebugEnabled) Logging.log(ex, log.debug)
+    def debug(msg: String, ex: Throwable) = if (log.isDebugEnabled) Logging.log(msg, ex, log.debug)
 
-    def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
-    def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
+    //def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
+    //def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
+    def trace(msg: String) = if (log.isTraceEnabled) log.trace(msg)
+    def trace[T](msgArr: Array[T]) = if (log.isTraceEnabled) log.trace(msgArr)
+    def trace(ex: Throwable) = if (log.isTraceEnabled) Logging.log(ex, log.trace)
+    def trace(msg: String, ex: Throwable) = if (log.isTraceEnabled) Logging.log(msg, ex, log.trace)
 
     def isInfoEnabled: Boolean = log.isInfoEnabled
 
@@ -91,6 +102,25 @@ object Logging {
             } finally {
                 cancellable.cancel()
             }
+        }
+    }
+
+    def getStackTrace(ex: Throwable): Iterable[String] = {
+        val sw = new StringWriter
+        ex.printStackTrace(new PrintWriter(sw))
+        val stackTraceStr = sw.toString
+        stackTraceStr.split("""\n""")
+    }
+
+    def log(ex: Throwable, logFun: Any => Unit): Unit = {
+        if (null != ex) {
+            Logging.getStackTrace(ex).foreach(logFun(_))
+        }
+    }
+    def log(msg: String, ex: Throwable, logFun: Any => Unit): Unit = {
+        logFun(msg)
+        if (null != ex) {
+            Logging.getStackTrace(ex).foreach(logFun(_))
         }
     }
 }

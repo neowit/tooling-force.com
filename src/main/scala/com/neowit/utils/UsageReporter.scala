@@ -35,6 +35,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
             }
             case None => "None"
         }
+
         val data = Map(
             "action" -> basicConfig.action,
             "macHash" -> macHash,
@@ -58,7 +59,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         wr.flush()
         wr.close()
         val in = conn.getInputStream
-        logger.trace("usage service responded" + io.Source.fromInputStream( in ).mkString(""))
+        logger.trace("usage service responded: " + io.Source.fromInputStream( in ).mkString(""))
         in.close()
     }
     def report() {
@@ -67,7 +68,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
                 reportUsage()
             } catch {
                 case x: Throwable => //usage reports are not important enough to do anything about them
-                    logger.debug(x)
+                    logger.trace("", x)
             }
         }
     }
