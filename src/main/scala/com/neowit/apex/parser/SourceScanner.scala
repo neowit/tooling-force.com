@@ -5,7 +5,7 @@ import java.io.{FileInputStream, File}
 import com.neowit.apex.parser.antlr.{ApexcodeParser, ApexcodeLexer}
 import com.neowit.utils.Logging
 import org.antlr.v4.runtime.tree.ParseTreeWalker
-import org.antlr.v4.runtime.{ANTLRInputStream, ParserRuleContext, ANTLRErrorListener, CommonTokenStream}
+import org.antlr.v4.runtime.{ParserRuleContext, ANTLRErrorListener, CommonTokenStream}
 
 class SourceScanner (files: List[File]) extends Logging {
     val completeTree = new ApexTree
@@ -62,7 +62,6 @@ class SourceScanner (files: List[File]) extends Logging {
         } catch {
             case ex:Exception =>
                 logger.error("Failed to parse file: " + file.getName, ex)
-                logger.error(ex.getStackTrace)
                 println("Failed to parse file: " + file.getName)
                 println(ex)
                 println(ex.getStackTrace)
