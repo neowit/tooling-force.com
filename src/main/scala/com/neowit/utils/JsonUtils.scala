@@ -15,6 +15,7 @@ object JsonUtils {
             case b: Boolean if !b => JsFalse
             case a: JsArray => a
             case o: JsObject => o
+            case other if null == other => JsNull
             case other => JsString(other.toString)
         }
         def read(value: JsValue) = value match {
