@@ -1,12 +1,20 @@
 package com.neowit.apex.actions
 
 import java.io.File
+import java.nio.file.{Files, Paths}
 
-import com.neowit.apex.completion.AutoComplete
-import com.neowit.apex.parser.ApexTree
-
+import com.neowit.apex.Session
+import com.neowit.apex.completion._
+import com.neowit.apex.completion.models.ApexModel
+import com.neowit.apex.parser._
 import spray.json._
 import com.neowit.apex.parser.Location._
+import com.neowit.apex.parser.antlr.ApexcodeParser
+import com.neowit.apex.parser.antlr.ApexcodeParser.ClassDeclarationContext
+import com.neowit.utils.ResponseWriter
+import com.neowit.utils.ResponseWriter.Message
+import org.antlr.v4.runtime.CommonTokenStream
+import org.antlr.v4.runtime.tree.ParseTreeWalker
 /**
   * Author: Andrey Gavrikov (westbrook)
   * Date: 01/11/2016
@@ -44,19 +52,23 @@ class FindDefinition extends ApexActionWithReadOnlySession {
                 line <- config.getRequiredProperty("line");
                 column <- config.getRequiredProperty("column")
         ) yield {
+            if (! Files.isReadable(Paths.get(filePath))) {
+                config.responseWriter.println("RESULT=FAILURE")
+                config.responseWriter.println(new Message(ResponseWriter.ERROR, s"'currentFileContentPath' must point to readable file"))
+                return
+            }
             val inputFile = new File(filePath)
             val scanner = new ScanSource().load[ScanSource](session)
-            val classes = scanner.getClassFiles
-            //scan all project files
-            //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
+            //provide alternative location for current file (it may not be saved in project location)
+            val currentFilePath = config.getRequiredProperty("currentFilePath")
+            val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
             scanner.scan(classes)
 
             val cachedTree:ApexTree = SourceScannerCache.getScanResult(config.projectDir)  match {
                 case Some(sourceScanner) => sourceScanner.getTree
                 case None => new ApexTree
             }
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
-            val definition = completion.findDefinition
+            val definition = findDefinition(inputFile, line.toInt, column.toInt, cachedTree, session)
             //dump completion options into a file - 1 line per option
             config.responseWriter.println("RESULT=SUCCESS")
             definition match {
@@ -70,10 +82,9 @@ class FindDefinition extends ApexActionWithReadOnlySession {
                     }
                 case None =>
             }
-            //config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
         }
         */
     }
 
-
 }
+
