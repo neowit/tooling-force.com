@@ -78,7 +78,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                 case None => new ApexTree
             }
 
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
+            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session, isDefinitionOnly = true)
             val definitionOpt = completion.getDefinition
             config.responseWriter.println("RESULT=SUCCESS")
 
@@ -102,8 +102,11 @@ class FindSymbol extends ApexActionWithReadOnlySession {
         definition match {
             case ApexTokenDefinition(definitionMember, typeMember) =>
                 definitionMember.getLocation
-            case ApexTokenDefinitionWithContext(definitionMember, typeMember, _, _, _) =>
-                definitionMember.getLocation
+            case apexTokenDefinition @ ApexTokenDefinitionWithContext(definitionMember, typeMember, _, _, expressionTokens) =>
+                findSymbolDefinition(apexTokenDefinition, completion) match {
+                    case Some(member) => member.getLocation
+                    case None => None
+                }
             case unresolvedDefinition @ UnresolvedApexTokenDefinition(extractor, fullApexTree, expressionTokens) =>
                 findSymbolDefinition(unresolvedDefinition, completion) match {
                     case Some(member) => member.getLocation
@@ -115,9 +118,11 @@ class FindSymbol extends ApexActionWithReadOnlySession {
     }
 
     private def findSymbolDefinition(unresolvedDefinition: UnresolvedApexTokenDefinition, completion: AutoComplete): Option[Member] = {
-        val resolvedExpression = completion.resolveApexDefinition(Option(unresolvedDefinition))
-        resolvedExpression.definitionMemberOpt
+        completion.resolveApexDefinition(Option(unresolvedDefinition))
     }
 
+    private def findSymbolDefinition(apexTokenDefinition: ApexTokenDefinitionWithContext, completion: AutoComplete): Option[Member] = {
+        completion.resolveApexDefinition(Option(apexTokenDefinition))
+    }
 }
 

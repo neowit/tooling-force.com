@@ -15,7 +15,7 @@ case class ResolvedExpression(definitionMemberOpt: Option[Member], completionOpt
   * Author: Andrey Gavrikov (westbrook)
   * Date: 15/11/2016
   */
-class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
+class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, session: Session, isDefinitionOnly: Boolean = false) {
 
     def getDefinition: Option[TokenDefinition] = {
         val lexer = getLexer(file)
@@ -76,17 +76,17 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
       * @return
       *     if current token is not Apex expression then returns ResolvedExpression(None, Nil)
       */
-    def resolveApexDefinition(tokenDefinitionOpt: Option[TokenDefinition]): ResolvedExpression = {
+    def resolveApexDefinition(tokenDefinitionOpt: Option[TokenDefinition]): Option[Member] = {
         tokenDefinitionOpt match {
             case Some(definition @ SoqlTokenDefinition(soqlTypeMember, finalContext, expressionTokens, tree)) =>
                 //listSoqlOptions(definition)
-                ResolvedExpression(None, Nil)
+                None
             case Some(definition @ ApexTokenDefinitionWithContext(_, _, _, _ , _) ) =>
-                resolveApexExpression(definition)
+                resolveApexExpression(definition).definitionMemberOpt
             case Some(definition @ UnresolvedApexTokenDefinition(_, _, _)) =>
-                resolveApexExpression(definition)
+                resolveApexExpression(definition).definitionMemberOpt
             case _ =>
-                ResolvedExpression(None, Nil)
+                None
         }
     }
 
@@ -384,12 +384,16 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //check if this is one of standard Apex types
         getApexModelMember(typeName, memberWithTypeToResolve) match {
             case Some(member) => Some(member)
-            case None =>
+            case None if !isDefinitionOnly =>
                 //if all of the above has been unsuccessful then check if current startType is SObject type
                 DatabaseModel.getModelBySession(session) match {
                     case Some(model) => model.getSObjectMember(typeName)
                     case None => None
                 }
+            case None /* if isDefinitionOnly */=>
+                // when isDefinitionOnly == true we do not need to load DB Model because caller is only interested in
+                // the symbol definition in local Apex Classes
+                Some(memberWithTypeToResolve)
         }
     }
 
@@ -418,12 +422,13 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                                   definitionMember: Option[Member] = None, caretScopeOpt: Option[AnonymousMember] = None ): ResolvedExpression = {
         if (Nil == expressionTokens) {
             val completionOptions = removeInvisibleMembers(parentType.getChildrenWithInheritance(apexTree), definitionMember, caretScopeOpt)
-            return ResolvedExpression(Option(parentType), completionOptions)
+            //return ResolvedExpression(Option(parentType), completionOptions)
+            return ResolvedExpression(definitionMember.orElse(Option(parentType)), completionOptions)
         }
         val token: AToken = expressionTokens.head
         if (token.symbol.isEmpty) {
             val completionOptions = removeInvisibleMembers(parentType.getChildrenWithInheritance(apexTree), definitionMember, caretScopeOpt)
-            return ResolvedExpression(Option(parentType), completionOptions)
+            return ResolvedExpression(definitionMember.orElse(Option(parentType)), completionOptions)
         }
         val tokensToGo = expressionTokens.tail
 
@@ -440,11 +445,11 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
                 if (partialMatchChildren.isEmpty) {
                     //token.symbol may be apex type
                     val completionOptions = getApexTypeMembers(token.symbol)
-                    return ResolvedExpression(None, completionOptions)
+                    return ResolvedExpression(definitionMember, completionOptions)
 
                 } else {
                     val completionOptions = partialMatchChildren
-                    return ResolvedExpression(None, completionOptions)
+                    return ResolvedExpression(definitionMember, completionOptions)
                 }
             case _ => //check if parentType has child which has displayable identity == token.symbol
                 //this is usually when token.symbol is a method name (method Id includes its params, so have to use getIdentityToDisplay)
