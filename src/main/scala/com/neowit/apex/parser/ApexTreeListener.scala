@@ -39,7 +39,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
     }
 
     override def enterClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext): Unit ={
-        val member = if (ClassBodyMember.isInnerClass(ctx)) new InnerClassMember(ctx) else new ClassMember(ctx)
+        val member = if (ClassBodyMember.isInnerClass(ctx)) new InnerClassMember(ctx, filePath) else new ClassMember(ctx, filePath)
         registerMember(member)
         if (!member.isInstanceOf[InnerClassMember]) {
             //only top level classes shall be registered in the root of main tree
@@ -53,7 +53,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
 
     }
     override def enterInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext): Unit ={
-        val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx) else new InterfaceMember(ctx)
+        val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx, filePath) else new InterfaceMember(ctx, filePath)
         registerMember(member)
         if (!ClassBodyMember.isInnerInterface(ctx)) {
             //only top level interfaces shall be registered in the root of main tree

@@ -363,7 +363,7 @@ class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: Str
  * parent for Class & Interface members
  * @param ctx - ParserRuleContext must be either ClassDeclarationContext or InterfaceDeclarationContext
  */
-abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
+abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends Member {
     private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
     private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
 
@@ -463,11 +463,11 @@ abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
       * @return position of this member in the file system and inside file
       */
     override def getLocation: Option[Location] = {
-        ???
+        Location(filePath, ctx)
     }
 }
 
-class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
+class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
 
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
@@ -485,7 +485,7 @@ class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
 
 
 
-class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(ctx) {
+class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
         ctx.Identifier().getText
@@ -499,7 +499,7 @@ class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(
     override def isStatic: Boolean = false
 }
 
-abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMember(ctx) {
+abstract class InnerClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     protected def getIdentityPrefix: String
 
     override def getSignature: String = {
@@ -542,7 +542,7 @@ abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMem
     }
 }
 
-class InnerClassMember(ctx: ClassDeclarationContext) extends InnerClassLikeMember(ctx) {
+class InnerClassMember(ctx: ClassDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
     protected def getIdentityPrefix: String = "InnerClass:"
 
@@ -563,7 +563,7 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends InnerClassLikeMembe
     override def getIdentityToDisplay: String = ctx.Identifier().getText
 }
 
-class InnerInterfaceMember(ctx: InterfaceDeclarationContext) extends InnerClassLikeMember(ctx) {
+class InnerInterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
     protected def getIdentityPrefix: String = "InnerInterface:"
 
