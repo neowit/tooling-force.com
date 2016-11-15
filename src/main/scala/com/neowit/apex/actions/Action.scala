@@ -50,7 +50,7 @@ object ActionFactory {
         "deployAllDestructive" -> "DeployAllDestructive",
         "scanSource" -> "ScanSource",
         "listCompletions" -> "ListCompletions",
-        "findDefinition" -> "FindDefinition",
+        "findSymbol" -> "FindSymbol",
         "soqlQuery" -> "SoqlQuery",
         "changeLogLevels" -> "com.neowit.apex.actions.tooling.ChangeLogLevels",
         "testSuiteManage" -> "TestSuiteActions",

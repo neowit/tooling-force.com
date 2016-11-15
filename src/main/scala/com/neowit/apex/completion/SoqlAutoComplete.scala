@@ -9,18 +9,28 @@ import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
 import scala.collection.JavaConversions._
 
-class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean, val expressionTokens: List[AToken] = Nil )
 
-class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTree, session: Session) {
+class SoqlAutoComplete (session: Session) {
 
-    def listOptions:SoqlCompletionResult = {
+    private class SoqlCompletionResult(val options: List[Member], val isSoqlStatement: Boolean, val expressionTokens: List[AToken] = Nil )
 
-        //val soqlString = stripBrackets(token.getText)
+    /**
+      * try to extract SOQL token definition based on provided token and cursor location
+      *
+      * @return
+      *     if cursor is indeed inside of SOQL expression then return SoqlTokenDefinition
+      *     if cursor is inside SOQL but represents bound apex expression like so:
+      *         [select ... from... where Field = :someApexValue]
+      *     then return that ApexExpression
+      */
+    def getDefinition(token: Token, line: Int, column: Int, cachedTree: ApexTree): Option[Either[ApexExpression, SoqlTokenDefinition]] = {
+
         val soqlString = token.getText
-        val (expressionTokens, caretReachedException) = getCaretStatement(soqlString)
+        val (expressionTokens, caretReachedException) = getCaretStatement(soqlString, token, line, column)
         if (expressionTokens.isEmpty) {
             //looks like the file is too broken to get to the point where caret resides
-            return new SoqlCompletionResult(List(), isSoqlStatement = true)
+            //return new SoqlCompletionResult(List(), isSoqlStatement = true)
+            return None
         }
         //check if this is apex bound expression inside SOQL statement
         //i.e. [select ... from ... where Something > :expr<caret>]
@@ -31,7 +41,8 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
                     val tokenBeforeExpression = tokens.get(_token.getTokenIndex -1)
                     if (":" == tokenBeforeExpression.getText) {
                         //this looks like a bound variable in SOQL
-                        return new SoqlCompletionResult(List(), isSoqlStatement = false, expressionTokens)
+                        //return new SoqlCompletionResult(List(), isSoqlStatement = false, expressionTokens)
+                        return Option(Left(ApexExpression(expressionTokens)))
                     }
 
                 case _ =>
@@ -56,13 +67,31 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
         val definition = findSymbolType(expressionTokens, tree, tokens, caretReachedException, parser)
 
         definition match {
-          case Some(soqlTypeMember) =>
-              new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext, tree), isSoqlStatement = true)
-          case None =>
-              println("Failed to find definition")
-              new SoqlCompletionResult(Nil, isSoqlStatement = false)
+            case Some(soqlTypeMember) =>
+                //new SoqlCompletionResult(removeDuplicates(resolveExpression(soqlTypeMember, expressionTokens), finalContext, tree), isSoqlStatement = true)
+                Option(Right(SoqlTokenDefinition(soqlTypeMember, finalContext, expressionTokens, tree)))
+            case None =>
+                println("Failed to find definition")
+                //new SoqlCompletionResult(Nil, isSoqlStatement = false)
+                None
         }
+
     }
+
+    def listOptions(tokenDefinition: SoqlTokenDefinition):List[Member] = {
+        val completionResult =
+            new SoqlCompletionResult(
+                removeDuplicates(
+                    resolveExpression(tokenDefinition.soqlTypeMember, tokenDefinition.expressionTokens),
+                    tokenDefinition.finalContext,
+                    tokenDefinition.soqlExpressionTree
+                ),
+                isSoqlStatement = true
+            )
+        completionResult.options
+    }
+
+
 
     private def resolveExpression(parentType: Member, expressionTokens: List[AToken]): List[Member] = {
         if (Nil == expressionTokens) {
@@ -113,7 +142,7 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     }
 
 
-    private def getCaretStatement(soqlString: String): (List[AToken], Option[CaretReachedException]) = {
+    private def getCaretStatement(soqlString: String, token: Token, line: Int, column: Int): (List[AToken], Option[CaretReachedException]) = {
         val (caretLine, caretColumn) = getCaretPositionInSoql(token, line, column)
 
         val caret = new CaretInString(caretLine + 1, caretColumn, soqlString)
@@ -141,9 +170,9 @@ class SoqlAutoComplete (token: Token, line: Int, column: Int, cachedTree: ApexTr
     }
     def breakExpressionToATokens(ex: CaretReachedException): List[AToken] = {
         val expressionTokens = CompletionUtils.breakExpressionToATokens(ex)
-        if (expressionTokens.nonEmpty && Set("select", "from").contains(expressionTokens(expressionTokens.size-1).symbol.toLowerCase)) {
+        if (expressionTokens.nonEmpty && Set("select", "from").contains(expressionTokens.last.symbol.toLowerCase)) {
             //most likely attempting to complete first field name in SELECT ... part
-            val lastToken = expressionTokens(expressionTokens.size-1)
+            val lastToken = expressionTokens.last
             return expressionTokens.init ++ List(new AToken(lastToken.index + 1, "", "", None, ex.finalContext))
         }
         expressionTokens
