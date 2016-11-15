@@ -1,24 +1,34 @@
+/*
+ * Copyright (c) 2016 Andrey Gavrikov.
+ * this file is part of tooling-force.com application
+ * https://github.com/neowit/tooling-force.com
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.neowit.apex.actions
 
 import java.io.File
 import java.nio.file.{Files, Paths}
 
-import com.neowit.apex.Session
 import com.neowit.apex.completion.{UnresolvedApexTokenDefinition, _}
-import com.neowit.apex.completion.models.ApexModel
 import com.neowit.apex.parser._
 import spray.json._
 import com.neowit.apex.parser.Location._
-import com.neowit.apex.parser.antlr.ApexcodeParser
-import com.neowit.apex.parser.antlr.ApexcodeParser.ClassDeclarationContext
 import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.Message
-import org.antlr.v4.runtime.CommonTokenStream
-import org.antlr.v4.runtime.tree.ParseTreeWalker
-/**
-  * Author: Andrey Gavrikov (westbrook)
-  * Date: 01/11/2016
-  */
+
 class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -85,23 +95,6 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     println("Definition not found")
                     config.responseWriter.println("{}")
             }
-            /*
-            val resolvedExpression = completion.resolveApexDefinition(definitionOpt)
-            resolvedExpression.definitionMemberOpt match {
-                case Some(member) =>
-                    member.getLocation match {
-                        case Some(location) =>
-                            config.responseWriter.println(location.toJson)
-                        case None =>
-                            println("Not local resource, no location available")
-                            config.responseWriter.println(Map())
-                    }
-                case _ =>
-                    println("Definition not found")
-                    config.responseWriter.println(Map())
-
-            }
-            */
         }
     }
 
