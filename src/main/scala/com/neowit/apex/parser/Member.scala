@@ -12,11 +12,11 @@ import scala.collection.JavaConversions._
 import spray.json._
 import DefaultJsonProtocol._
 
-case class Location ( file: Path, line: Option[Int], column: Option[Int] )
+case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
 
 object Location extends DefaultJsonProtocol {
-    def apply(filePath: Path, ctx: ParserRuleContext): Option[Location] = {
-        Option(Location(filePath, Option(ctx.getStart.getLine), Option(ctx.getStart.getCharPositionInLine)))
+    def apply(filePath: Path, ctx: ParserRuleContext, identity: String): Option[Location] = {
+        Option(Location(filePath, Option(ctx.getStart.getLine), Option(ctx.getStart.getCharPositionInLine), identity))
     }
 
     implicit object LocationJsonFormat extends RootJsonFormat[Location] {
@@ -24,7 +24,8 @@ object Location extends DefaultJsonProtocol {
             Map(
                 "filePath" -> c.file.toString.toJson,
                 "line" -> c.line.getOrElse(-1).toJson,
-                "column" -> c.column.getOrElse(-1).toJson
+                "column" -> c.column.getOrElse(-1).toJson,
+                "identity" -> c.identity.toJson
             ).toJson
 
         def read(value: JsValue) = value match {
@@ -230,7 +231,19 @@ trait AnonymousMember {
 
         children.get(identity.toLowerCase) match {
             case Some(childMember) => Some(childMember)
-            case None => if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
+            case None =>
+                this match {
+                    case ClassMember(_, _) =>
+                        // check if identity represents inner class
+                        children.get( (InnerClassMember.getIdentityPrefix + identity).toLowerCase )
+                            .orElse(if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None)
+                    case InterfaceMember(_, _) =>
+                        // check if identity represents inner class
+                        children.get( (InnerInterfaceMember.getIdentityPrefix + identity).toLowerCase )
+                            .orElse(if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None)
+                    case _ =>
+                        if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
+                }
         }
     }
 }
@@ -463,11 +476,11 @@ abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends M
       * @return position of this member in the file system and inside file
       */
     override def getLocation: Option[Location] = {
-        Location(filePath, ctx)
+        Location(filePath, ctx, getIdentity)
     }
 }
 
-class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
+case class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
 
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
@@ -485,7 +498,7 @@ class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends ClassLik
 
 
 
-class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
+case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
         ctx.Identifier().getText
@@ -540,11 +553,21 @@ abstract class InnerClassLikeMember(ctx: ParserRuleContext, filePath: Path) exte
             case None => None
         }
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = {
+        Location(filePath, ctx, getIdentityToDisplay)
+    }
 }
 
+object InnerClassMember {
+    def getIdentityPrefix: String = "InnerClass:"
+}
 class InnerClassMember(ctx: ClassDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
-    protected def getIdentityPrefix: String = "InnerClass:"
+    protected def getIdentityPrefix: String = InnerClassMember.getIdentityPrefix
 
     override def getType: String = {
         val strType = ctx.Identifier().getText
@@ -563,9 +586,12 @@ class InnerClassMember(ctx: ClassDeclarationContext, filePath: Path) extends Inn
     override def getIdentityToDisplay: String = ctx.Identifier().getText
 }
 
+object InnerInterfaceMember {
+    def getIdentityPrefix: String = "InnerInterface:"
+}
 class InnerInterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
-    protected def getIdentityPrefix: String = "InnerInterface:"
+    protected def getIdentityPrefix: String = InnerInterfaceMember.getIdentityPrefix
 
     override def getType: String = {
         val strType = ctx.Identifier().getText
@@ -722,7 +748,7 @@ class EnumMember(ctx: EnumDeclarationContext, filePath: Path) extends Member {
       * @return position of this member in the file system and inside file
       */
     override def getLocation: Option[Location] = {
-        Location(filePath, ctx)
+        Location(filePath, ctx, getIdentity)
     }
 }
 
@@ -765,7 +791,7 @@ class EnumConstantMember(ctx: EnumConstantContext, filePath: Path) extends Membe
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 object PropertyMember {
@@ -819,7 +845,7 @@ class PropertyMember(ctx: PropertyDeclarationContext, filePath: Path) extends Me
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 object FieldMember {
@@ -870,7 +896,7 @@ class FieldMember(ctx: FieldDeclarationContext, filePath: Path) extends Member {
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 
@@ -1007,7 +1033,7 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, file
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getMethodName)
 }
 
 object ClassMethodMember {
@@ -1112,13 +1138,13 @@ class MethodParameter(ctx: ApexcodeParser.FormalParameterContext, filePath: Path
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 /**
  * one LocalVariableDeclarationStatementContext can define multiple variables
  */
-class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVariableDeclarationContext, ctx: ApexcodeParser.VariableDeclaratorContext, filePath: Path) extends Member {
+case class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVariableDeclarationContext, ctx: ApexcodeParser.VariableDeclaratorContext, filePath: Path) extends Member {
     /**
      * @return
      * for class it is class name
@@ -1137,7 +1163,7 @@ class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVaria
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlContext, filePath: Path) extends Member {
@@ -1159,7 +1185,7 @@ class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlConte
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext, filePath: Path) extends Member {
@@ -1204,7 +1230,7 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext, filePath: Path) 
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 class CreatorMember(ctx: ApexcodeParser.CreatorContext) extends AnonymousMember {
