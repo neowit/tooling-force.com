@@ -229,22 +229,15 @@ trait AnonymousMember {
             }
         }
 
-        children.get(identity.toLowerCase) match {
+        getChildInternal(identity) match {
             case Some(childMember) => Some(childMember)
             case None =>
-                this match {
-                    case ClassMember(_, _) =>
-                        // check if identity represents inner class
-                        children.get( (InnerClassMember.getIdentityPrefix + identity).toLowerCase )
-                            .orElse(if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None)
-                    case InterfaceMember(_, _) =>
-                        // check if identity represents inner class
-                        children.get( (InnerInterfaceMember.getIdentityPrefix + identity).toLowerCase )
-                            .orElse(if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None)
-                    case _ =>
-                        if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
-                }
+                if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
+    }
+
+    protected def getChildInternal(identity: String): Option[Member] = {
+        children.get(identity.toLowerCase)
     }
 }
 
@@ -266,6 +259,20 @@ trait Member extends AnonymousMember {
       * @return position of this member in the file system and inside file
       */
     def getLocation: Option[Location]
+
+    /**
+      * for cases where member with same name resides in different locations (e.g. methods of one class with same name but different parameters)
+      */
+    def getLocations: List[Location] = {
+        getLocation match {
+            case Some(location) => List(location)
+            case None => Nil
+        }
+    }
+
+    def serialise: JsValue = {
+        getLocations.toJson
+    }
 
     /**
      * for most member types Identity is unique (for Methods and Inner Classes it is not)
@@ -325,6 +332,32 @@ trait Member extends AnonymousMember {
 
 }
 
+case class CompoundMember(members: List[Member]) extends Member {
+    /**
+      * @return
+      * for class it is class name
+      * for method it is method name + string of parameter types
+      * for variable it is variable name
+      * etc
+      */
+    override def getIdentity: String = members.head.getIdentity
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
+
+    /**
+      * for cases where member with same name resides in different locations (e.g. methods of one class with same name but different parameters)
+      */
+    override def getLocations: List[Location] = members.filter(_.getLocation.isDefined).map(_.getLocation.get)
+
+    override def getSignature: String = members.head.getSignature
+
+    override def getType: String = members.head.getType
+
+    override def isStatic: Boolean = members.head.isStatic
+}
 /**
  * some types (e.g. enum) have default members, defined on the system level, in addition to user defined members
  * @param parent - member to which this built-in member belongs
@@ -377,8 +410,11 @@ class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: Str
  * @param ctx - ParserRuleContext must be either ClassDeclarationContext or InterfaceDeclarationContext
  */
 abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends Member {
-    private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
-    private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
+    private val innerClassByClassName = new mutable.HashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
+    private val enumByName = new mutable.HashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
+
+    // methodsByName used to record multiple methods have same name but different params
+    private val methodsByName = mutable.HashMap[String, List[MethodMember]]() // method-name.toLowerCase => List(MethodMember)
 
     override def getType: String = getIdentity
     override def isStatic: Boolean = false
@@ -412,6 +448,14 @@ abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends M
                 innerClassByClassName += (m.getType.toLowerCase -> m)
             case m: EnumMember =>
                 enumByName += (m.getType.toLowerCase -> m)
+            case m: MethodMember =>
+                val methodName = m.getMethodName.toLowerCase
+                methodsByName.get(methodName) match {
+                    case Some(methodMembers) =>
+                        methodsByName += (methodName -> (m :: methodMembers))
+                    case None =>
+                        methodsByName += (methodName -> List(m))
+                }
             case _ =>
         }
     }
@@ -442,6 +486,24 @@ abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends M
             }
         } else {
             enumByName.get(enumTypeName.toLowerCase)
+        }
+    }
+
+    def getMethodsByName(methodName: String): List[Member] = {
+        methodsByName.getOrElse(methodName.toLowerCase, Nil)
+    }
+
+    override protected def getChildInternal(identity: String): Option[Member] = {
+        super.getChildInternal(identity).orElse{
+            // check if identity represents method name
+            getMethodsByName(identity) match {
+                case Nil =>
+                    None
+                case methods =>
+                    // return compound member
+                    //super.getChildInternal(identity) //TODO
+                    Option(CompoundMember(methods))
+            }
         }
     }
 
@@ -494,6 +556,12 @@ case class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends Cla
             case None => "private"
         }
     }
+
+    override protected def getChildInternal(identity: String): Option[Member] = {
+        // check if identity represents inner class
+        super.getChildInternal( InnerClassMember.getIdentityPrefix + identity )
+            .orElse(super.getChildInternal(identity))
+    }
 }
 
 
@@ -510,6 +578,12 @@ case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) ext
     }
 
     override def isStatic: Boolean = false
+
+    override protected def getChildInternal(identity: String): Option[Member] = {
+        // check if identity represents inner class
+        super.getChildInternal( InnerInterfaceMember.getIdentityPrefix + identity )
+            .orElse(super.getChildInternal(identity))
+    }
 }
 
 abstract class InnerClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
@@ -1033,7 +1107,7 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, file
     /**
       * @return position of this member in the file system and inside file
       */
-    override def getLocation: Option[Location] = Location(filePath, ctx, getMethodName)
+    override def getLocation: Option[Location] = Location(filePath, ctx, getSignature)
 }
 
 object ClassMethodMember {

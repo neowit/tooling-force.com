@@ -84,9 +84,9 @@ class FindSymbol extends ApexActionWithReadOnlySession {
 
             definitionOpt match {
                 case Some(definition) =>
-                    getSymbolLocation(definition, completion) match {
-                        case Some(location) =>
-                            config.responseWriter.println(location.toJson)
+                    getSymbol(definition, completion) match {
+                        case Some(member) =>
+                            config.responseWriter.println(member.serialise)
                         case None =>
                             println("Not local resource, no location available")
                             config.responseWriter.println("{}")
@@ -98,20 +98,14 @@ class FindSymbol extends ApexActionWithReadOnlySession {
         }
     }
 
-    private def getSymbolLocation(definition: TokenDefinition, completion: AutoComplete): Option[Location] = {
+    private def getSymbol(definition: TokenDefinition, completion: AutoComplete): Option[Member] = {
         definition match {
             case ApexTokenDefinition(definitionMember, typeMember) =>
-                definitionMember.getLocation
+                Option(definitionMember)
             case apexTokenDefinition @ ApexTokenDefinitionWithContext(definitionMember, typeMember, _, _, expressionTokens) =>
-                findSymbolDefinition(apexTokenDefinition, completion) match {
-                    case Some(member) => member.getLocation
-                    case None => None
-                }
+                findSymbolDefinition(apexTokenDefinition, completion)
             case unresolvedDefinition @ UnresolvedApexTokenDefinition(extractor, fullApexTree, expressionTokens) =>
-                findSymbolDefinition(unresolvedDefinition, completion) match {
-                    case Some(member) => member.getLocation
-                    case None => None
-                }
+                findSymbolDefinition(unresolvedDefinition, completion)
             case _ =>
                 None
         }
