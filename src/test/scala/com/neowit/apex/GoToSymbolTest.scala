@@ -211,7 +211,7 @@ class GoToSymbolTest extends FunSuite {
     }
 
     test("Test single method, same class") {
-        val testApexClassFilePath = projectPath + "/src/classes/BaseClass1.cls"
+        val testApexClassFilePath = projectPath + "/src/classes/GoToSymbolTest.cls"
         testFindSymbolResultsInFile(testApexClassFilePath)
     }
 
