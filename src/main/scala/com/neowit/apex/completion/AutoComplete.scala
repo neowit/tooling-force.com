@@ -42,7 +42,8 @@ class AutoComplete(file: File, line: Int, column: Int, cachedTree: ApexTree, ses
         //now for each caretAToken find its type and use it to resolve subsequent caretAToken
         //List( someClassInstance, method(), goes, .)
         val fullApexTree: ApexTree = cachedTree.clone()
-        fullApexTree.extend(extractor.tree)
+        fullApexTree.extend(extractor.tree, overwriteExisting = true)
+        extractor.tree.extend(cachedTree, overwriteExisting = false)
 
         //check if caret is inside SOQL expression [select ...]
         var realExpressionTokens = initialExpressionTokens
