@@ -229,14 +229,15 @@ trait AnonymousMember {
             }
         }
 
-        getChildInternal(identity) match {
+
+        getChildInternal(identity, withHierarchy) match {
             case Some(childMember) => Some(childMember)
             case None =>
                 if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
     }
 
-    protected def getChildInternal(identity: String): Option[Member] = {
+    protected def getChildInternal(identity: String, withHierarchy: Boolean = true): Option[Member] = {
         children.get(identity.toLowerCase)
     }
 }
@@ -489,22 +490,41 @@ abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends M
         }
     }
 
+    /*
     def getMethodsByName(methodName: String): List[Member] = {
         methodsByName.getOrElse(methodName.toLowerCase, Nil)
     }
+    */
+    def getMethodsByName(methodName: String, withHierarchy: Boolean ): List[Member] = {
+        val methods = methodsByName.getOrElse(methodName.toLowerCase, Nil)
+        val superMethods =
+            if (withHierarchy) {
+                val superClassMethods = getSuperClassMember match {
+                    case Some(_superClass) =>
+                        _superClass.getChildInternal(methodName, withHierarchy) match {
+                            case Some(CompoundMember(_superMethods)) => _superMethods
+                            case Some(_superMethod) => List(_superMethod)
+                            case _ =>
+                                Nil
+                        }
+                    case None => Nil
+                }
+                // remove methods we already have as they are defined in the current member/class
+                superClassMethods.filterNot(m => methods.exists(existingMethod => existingMethod.getIdentity == m.getIdentity))
+            } else {
+                Nil
+            }
+        methods ++ superMethods
+    }
 
-    override protected def getChildInternal(identity: String): Option[Member] = {
-        super.getChildInternal(identity).orElse{
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
             // check if identity represents method name
-            getMethodsByName(identity) match {
+            getMethodsByName(identity, withHierarchy) match {
                 case Nil =>
-                    None
+                    super.getChildInternal(identity)
                 case methods =>
-                    // return compound member
-                    //super.getChildInternal(identity) //TODO
                     Option(CompoundMember(methods))
             }
-        }
     }
 
     /**
@@ -557,9 +577,9 @@ case class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends Cla
         }
     }
 
-    override protected def getChildInternal(identity: String): Option[Member] = {
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
         // check if identity represents inner class
-        super.getChildInternal( InnerClassMember.getIdentityPrefix + identity )
+        super.getChildInternal(InnerClassMember.getIdentityPrefix + identity)
             .orElse(super.getChildInternal(identity))
     }
 }
@@ -579,9 +599,9 @@ case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) ext
 
     override def isStatic: Boolean = false
 
-    override protected def getChildInternal(identity: String): Option[Member] = {
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
         // check if identity represents inner class
-        super.getChildInternal( InnerInterfaceMember.getIdentityPrefix + identity )
+        super.getChildInternal(InnerInterfaceMember.getIdentityPrefix + identity)
             .orElse(super.getChildInternal(identity))
     }
 }

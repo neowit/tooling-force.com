@@ -64,9 +64,16 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
         }
     }
 
-    def extend(anotherTree: ApexTree): Unit = {
-        tree ++= anotherTree.tree
-        classByClassName ++= anotherTree.classByClassName
+    def extend(anotherTree: ApexTree, overwriteExisting: Boolean = true): Unit = {
+        if (overwriteExisting) {
+            // overwrite own keys
+            tree ++= anotherTree.tree
+            classByClassName ++= anotherTree.classByClassName
+        } else {
+            // keep own keys
+            tree ++= anotherTree.tree.filterKeys(k => !tree.containsKey(k))
+            classByClassName ++= anotherTree.classByClassName.filterKeys(k => !classByClassName.containsKey(k))
+        }
     }
 
     override def clone = {
