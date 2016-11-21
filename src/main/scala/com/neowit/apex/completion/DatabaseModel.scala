@@ -1,9 +1,11 @@
 package com.neowit.apex.completion
 
+import java.nio.file.Path
+
 import com.neowit.TcpServer
 import com.neowit.apex.Session
 import com.neowit.apex.completion.models.ApexModel
-import com.neowit.apex.parser.Member
+import com.neowit.apex.parser.{Location, Member}
 import com.neowit.utils.Logging
 import akka.actor.Actor
 import akka.actor.Props
@@ -135,6 +137,11 @@ class DatabaseModelRefreshActor extends Actor with Logging {
 
 trait DatabaseModelMember extends Member {
     protected def isLoaded: Boolean
+
+    /**
+      * DatabaseModelMember members do not come from local file and can not have location
+      */
+    override def getLocation: Option[Location] = None
 
     /**
      * all DatabaseModelMember children are always NON static

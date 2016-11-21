@@ -1,16 +1,38 @@
 package com.neowit.apex.parser
 
+import java.nio.file.Path
+
 import com.neowit.apex.parser.antlr.ApexcodeParser._
 import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext}
-import org.antlr.v4.runtime.tree.{TerminalNodeImpl, TerminalNode, ParseTree}
-
+import org.antlr.v4.runtime.tree.{ParseTree, TerminalNode, TerminalNodeImpl}
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
-
 import spray.json._
 import DefaultJsonProtocol._
+
+case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
+
+object Location extends DefaultJsonProtocol {
+    def apply(filePath: Path, ctx: ParserRuleContext, identity: String): Option[Location] = {
+        Option(Location(filePath, Option(ctx.getStart.getLine), Option(ctx.getStart.getCharPositionInLine), identity))
+    }
+
+    implicit object LocationJsonFormat extends RootJsonFormat[Location] {
+        def write(c: Location) =
+            Map(
+                "filePath" -> c.file.toString.toJson,
+                "line" -> c.line.getOrElse(-1).toJson,
+                "column" -> c.column.getOrElse(-1).toJson,
+                "identity" -> c.identity.toJson
+            ).toJson
+
+        def read(value: JsValue) = value match {
+            case _ => deserializationError("Location deserialisation is NOT supported")
+        }
+    }
+}
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None
@@ -33,8 +55,8 @@ trait AnonymousMember {
         } else {
             apexTree = Some(tree)
         }
-
     }
+
     def getApexTree: ApexTree = {
         if (apexTree.isDefined) {
             apexTree.get
@@ -43,6 +65,7 @@ trait AnonymousMember {
             new ApexTree()
         }
     }
+
     /**
      * find parent which matches specified filter
      * @param filter - condition
@@ -206,14 +229,21 @@ trait AnonymousMember {
             }
         }
 
-        children.get(identity.toLowerCase) match {
+
+        getChildInternal(identity, withHierarchy) match {
             case Some(childMember) => Some(childMember)
-            case None => if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
+            case None =>
+                if (withHierarchy) findChildHierarchically(identity.toLowerCase, getApexTree) else None
         }
+    }
+
+    protected def getChildInternal(identity: String, withHierarchy: Boolean = true): Option[Member] = {
+        children.get(identity.toLowerCase)
     }
 }
 
 class StatementMember(ctx: StatementContext) extends AnonymousMember
+
 
 trait Member extends AnonymousMember {
 
@@ -225,6 +255,25 @@ trait Member extends AnonymousMember {
      * etc
      */
     def getIdentity:String
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    def getLocation: Option[Location]
+
+    /**
+      * for cases where member with same name resides in different locations (e.g. methods of one class with same name but different parameters)
+      */
+    def getLocations: List[Location] = {
+        getLocation match {
+            case Some(location) => List(location)
+            case None => Nil
+        }
+    }
+
+    def serialise: JsValue = {
+        getLocations.toJson
+    }
 
     /**
      * for most member types Identity is unique (for Methods and Inner Classes it is not)
@@ -284,6 +333,32 @@ trait Member extends AnonymousMember {
 
 }
 
+case class CompoundMember(members: List[Member]) extends Member {
+    /**
+      * @return
+      * for class it is class name
+      * for method it is method name + string of parameter types
+      * for variable it is variable name
+      * etc
+      */
+    override def getIdentity: String = members.head.getIdentity
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
+
+    /**
+      * for cases where member with same name resides in different locations (e.g. methods of one class with same name but different parameters)
+      */
+    override def getLocations: List[Location] = members.filter(_.getLocation.isDefined).map(_.getLocation.get)
+
+    override def getSignature: String = members.head.getSignature
+
+    override def getType: String = members.head.getType
+
+    override def isStatic: Boolean = members.head.isStatic
+}
 /**
  * some types (e.g. enum) have default members, defined on the system level, in addition to user defined members
  * @param parent - member to which this built-in member belongs
@@ -308,6 +383,11 @@ class BuiltInMember(parent: AnonymousMember, identity: String, displayIdentity: 
     }
 
     override def isStatic: Boolean = isStaticMember
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
 }
 
 class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: String, retType: String,
@@ -319,15 +399,23 @@ class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: Str
         case Some(s) => s
         case None => "public " + getType + " " + getIdentityToDisplay + "(" + params.mkString(", ") + ")"
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = None
 }
 
 /**
  * parent for Class & Interface members
  * @param ctx - ParserRuleContext must be either ClassDeclarationContext or InterfaceDeclarationContext
  */
-abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
-    private val innerClassByClassName = new mutable.LinkedHashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
-    private val enumByName = new mutable.LinkedHashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
+abstract class ClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends Member {
+    private val innerClassByClassName = new mutable.HashMap[String, InnerClassLikeMember]() //inner-class-name.toLowerCase => InnerClassMember
+    private val enumByName = new mutable.HashMap[String, EnumMember]() //enum-name.toLowerCase => EnumMember
+
+    // methodsByName used to record multiple methods have same name but different params
+    private val methodsByName = mutable.HashMap[String, List[MethodMember]]() // method-name.toLowerCase => List(MethodMember)
 
     override def getType: String = getIdentity
     override def isStatic: Boolean = false
@@ -361,6 +449,14 @@ abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
                 innerClassByClassName += (m.getType.toLowerCase -> m)
             case m: EnumMember =>
                 enumByName += (m.getType.toLowerCase -> m)
+            case m: MethodMember =>
+                val methodName = m.getMethodName.toLowerCase
+                methodsByName.get(methodName) match {
+                    case Some(methodMembers) =>
+                        methodsByName += (methodName -> (m :: methodMembers))
+                    case None =>
+                        methodsByName += (methodName -> List(m))
+                }
             case _ =>
         }
     }
@@ -394,6 +490,43 @@ abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
         }
     }
 
+    /*
+    def getMethodsByName(methodName: String): List[Member] = {
+        methodsByName.getOrElse(methodName.toLowerCase, Nil)
+    }
+    */
+    def getMethodsByName(methodName: String, withHierarchy: Boolean ): List[Member] = {
+        val methods = methodsByName.getOrElse(methodName.toLowerCase, Nil)
+        val superMethods =
+            if (withHierarchy) {
+                val superClassMethods = getSuperClassMember match {
+                    case Some(_superClass) =>
+                        _superClass.getChildInternal(methodName, withHierarchy) match {
+                            case Some(CompoundMember(_superMethods)) => _superMethods
+                            case Some(_superMethod) => List(_superMethod)
+                            case _ =>
+                                Nil
+                        }
+                    case None => Nil
+                }
+                // remove methods we already have as they are defined in the current member/class
+                superClassMethods.filterNot(m => methods.exists(existingMethod => existingMethod.getIdentity == m.getIdentity))
+            } else {
+                Nil
+            }
+        methods ++ superMethods
+    }
+
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
+            // check if identity represents method name
+            getMethodsByName(identity, withHierarchy) match {
+                case Nil =>
+                    super.getChildInternal(identity)
+                case methods =>
+                    Option(CompoundMember(methods))
+            }
+    }
+
     /**
      * if this class extends another class then find Member of that other class
      * @return
@@ -420,9 +553,16 @@ abstract class ClassLikeMember(ctx: ParserRuleContext) extends Member {
         }
 
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = {
+        Location(filePath, ctx, getIdentity)
+    }
 }
 
-class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
+case class ClassMember(ctx: ClassDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
 
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
@@ -436,11 +576,17 @@ class ClassMember(ctx: ClassDeclarationContext) extends ClassLikeMember(ctx) {
             case None => "private"
         }
     }
+
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
+        // check if identity represents inner class
+        super.getChildInternal(InnerClassMember.getIdentityPrefix + identity)
+            .orElse(super.getChildInternal(identity))
+    }
 }
 
 
 
-class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(ctx) {
+case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     def getIdentity:String = {
         //ctx.getToken(ApexcodeParser.Identifier, 0).getText
         ctx.Identifier().getText
@@ -452,9 +598,15 @@ class InterfaceMember(ctx: InterfaceDeclarationContext) extends ClassLikeMember(
     }
 
     override def isStatic: Boolean = false
+
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
+        // check if identity represents inner class
+        super.getChildInternal(InnerInterfaceMember.getIdentityPrefix + identity)
+            .orElse(super.getChildInternal(identity))
+    }
 }
 
-abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMember(ctx) {
+abstract class InnerClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     protected def getIdentityPrefix: String
 
     override def getSignature: String = {
@@ -495,11 +647,21 @@ abstract class InnerClassLikeMember(ctx: ParserRuleContext) extends ClassLikeMem
             case None => None
         }
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = {
+        Location(filePath, ctx, getIdentityToDisplay)
+    }
 }
 
-class InnerClassMember(ctx: ClassDeclarationContext) extends InnerClassLikeMember(ctx) {
+object InnerClassMember {
+    def getIdentityPrefix: String = "InnerClass:"
+}
+class InnerClassMember(ctx: ClassDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
-    protected def getIdentityPrefix: String = "InnerClass:"
+    protected def getIdentityPrefix: String = InnerClassMember.getIdentityPrefix
 
     override def getType: String = {
         val strType = ctx.Identifier().getText
@@ -518,9 +680,12 @@ class InnerClassMember(ctx: ClassDeclarationContext) extends InnerClassLikeMembe
     override def getIdentityToDisplay: String = ctx.Identifier().getText
 }
 
-class InnerInterfaceMember(ctx: InterfaceDeclarationContext) extends InnerClassLikeMember(ctx) {
+object InnerInterfaceMember {
+    def getIdentityPrefix: String = "InnerInterface:"
+}
+class InnerInterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) extends InnerClassLikeMember(ctx, filePath) {
 
-    protected def getIdentityPrefix: String = "InnerInterface:"
+    protected def getIdentityPrefix: String = InnerInterfaceMember.getIdentityPrefix
 
     override def getType: String = {
         val strType = ctx.Identifier().getText
@@ -658,7 +823,7 @@ object EnumMember {
     }
 }
 
-class EnumMember(ctx: EnumDeclarationContext) extends Member {
+class EnumMember(ctx: EnumDeclarationContext, filePath: Path) extends Member {
     addChild(new BuiltInMethodMember(this, "values", "values", "List<" + getType + ">")) //add default values() method of enum
 
     override def getIdentity:String = {
@@ -672,6 +837,13 @@ class EnumMember(ctx: EnumDeclarationContext) extends Member {
     override def getType: String = getIdentity
 
     override def isStatic: Boolean = false
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = {
+        Location(filePath, ctx, getIdentity)
+    }
 }
 
 /**
@@ -680,7 +852,7 @@ class EnumMember(ctx: EnumDeclarationContext) extends Member {
 class BuiltInEnumConstantMethodMember(parent: EnumConstantMember, identity: String, displayIdentity: String, retType: String)
                                                                 extends BuiltInMember(parent, identity, displayIdentity, retType)
 
-class EnumConstantMember(ctx: EnumConstantContext) extends Member {
+class EnumConstantMember(ctx: EnumConstantContext, filePath: Path) extends Member {
     addChild(new BuiltInMethodMember(this, "name", "name", "String")) //add default name() method of enum constant
     addChild(new BuiltInMethodMember(this, "ordinal", "ordinal", "Integer")) //add default ordinal() method of enum constant
     /**
@@ -709,6 +881,11 @@ class EnumConstantMember(ctx: EnumConstantContext) extends Member {
     override def getSignature: String = getType
 
     override def isStatic: Boolean = true
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 object PropertyMember {
@@ -724,7 +901,7 @@ object PropertyMember {
     }
 }
 
-class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
+class PropertyMember(ctx: PropertyDeclarationContext, filePath: Path) extends Member {
 
     override def getIdentity: String = {
         ctx.variableDeclarators().variableDeclarator().find(null != _.variableDeclaratorId()) match {
@@ -758,6 +935,11 @@ class PropertyMember(ctx: PropertyDeclarationContext) extends Member {
         case Some(visibility) => visibility.toLowerCase
         case None => "private"
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 object FieldMember {
@@ -765,7 +947,7 @@ object FieldMember {
         if (ClassBodyMember.isField(ctx)) Some(ctx) else None
     }
 }
-class FieldMember(ctx: FieldDeclarationContext) extends Member {
+class FieldMember(ctx: FieldDeclarationContext, filePath: Path) extends Member {
     val fieldDeclarationContext = ctx
 
     override def getIdentity:String = {
@@ -804,10 +986,15 @@ class FieldMember(ctx: FieldDeclarationContext) extends Member {
       case Some(visibility) => visibility.toLowerCase
       case None => "private"
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 
-abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends Member {
+abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, filePath: Path) extends Member {
 
     //same as Member.toJson but with "isStatic"
     override def toJson: JsValue = {
@@ -914,7 +1101,7 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
         }
     }
 
-    protected def getFormalParams(formalParams: ApexcodeParser.FormalParametersContext):List[MethodParameter] = {
+    protected def getFormalParams(formalParams: ApexcodeParser.FormalParametersContext, filePath: Path):List[MethodParameter] = {
         formalParams.formalParameterList() match {
             case paramsListCtx: ApexcodeParser.FormalParameterListContext =>
                 val params = mutable.ListBuffer[MethodParameter]()
@@ -925,7 +1112,7 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
                     //paramsListCtx.getChildCount = number of parameters
                     paramsListCtx.getChild(i) match {
                         case formalParamCtx: ApexcodeParser.FormalParameterContext =>
-                            val param: MethodParameter = new MethodParameter(paramsListCtx.getChild(i).asInstanceOf[ApexcodeParser.FormalParameterContext])
+                            val param: MethodParameter = new MethodParameter(paramsListCtx.getChild(i).asInstanceOf[ApexcodeParser.FormalParameterContext], filePath)
                             //println("param=" + param.getSignature)
                             params += param
                         case _ =>
@@ -937,7 +1124,10 @@ abstract class MethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
             case _ => List()
         }
     }
-
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getSignature)
 }
 
 object ClassMethodMember {
@@ -945,7 +1135,8 @@ object ClassMethodMember {
         if (ClassBodyMember.isMethodOfClass(ctx)) Some(ctx) else None
     }
 }
-class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends MethodMember(ctx.asInstanceOf[ClassBodyDeclarationContext], parser) {
+class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, filePath: Path)
+        extends MethodMember(ctx.asInstanceOf[ClassBodyDeclarationContext], parser, filePath) {
 
     def getMethodMemberClass: Class[_ <: ParserRuleContext] = classOf[MethodDeclarationContext]
 
@@ -972,7 +1163,7 @@ class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends 
     override def getArgs:List[MethodParameter] = {
         val paramsContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (paramsContext.nonEmpty) {
-            getFormalParams(paramsContext.head.formalParameters())
+            getFormalParams(paramsContext.head.formalParameters(), filePath)
         } else {
             List()
         }
@@ -985,7 +1176,7 @@ object InterfaceMethodMember {
     }
 }
 
-class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) extends MethodMember(ctx.asInstanceOf[InterfaceBodyDeclarationContext], parser) {
+class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, filePath: Path) extends MethodMember(ctx.asInstanceOf[InterfaceBodyDeclarationContext], parser, filePath) {
 
     def getMethodMemberClass: Class[_ <: ParserRuleContext] = classOf[InterfaceMethodDeclarationContext]
 
@@ -1011,14 +1202,14 @@ class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser) exte
     override def getArgs:List[MethodParameter] = {
         val paramsContext = ApexParserUtils.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
         if (paramsContext.nonEmpty) {
-            getFormalParams(paramsContext.head.formalParameters())
+            getFormalParams(paramsContext.head.formalParameters(), filePath)
         } else {
             List()
         }
     }
 }
 
-class MethodParameter(ctx: ApexcodeParser.FormalParameterContext) extends Member {
+class MethodParameter(ctx: ApexcodeParser.FormalParameterContext, filePath: Path) extends Member {
     //class/method name
     override def getType: String = ctx.getRuleContext(classOf[ApexcodeParser.TypeContext], 0).getText
 
@@ -1037,12 +1228,17 @@ class MethodParameter(ctx: ApexcodeParser.FormalParameterContext) extends Member
     override def isStatic: Boolean = false
 
     override def toString: String = getSignature
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 /**
  * one LocalVariableDeclarationStatementContext can define multiple variables
  */
-class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVariableDeclarationContext, ctx: ApexcodeParser.VariableDeclaratorContext) extends Member {
+case class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVariableDeclarationContext, ctx: ApexcodeParser.VariableDeclaratorContext, filePath: Path) extends Member {
     /**
      * @return
      * for class it is class name
@@ -1057,9 +1253,14 @@ class LocalVariableMember(localVariableDeclarationCtx: ApexcodeParser.LocalVaria
     override def getSignature: String = getType + " " + getIdentity
 
     override def isStatic: Boolean = false //local variables are never static
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
-class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlContext) extends Member {
+class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlContext, filePath: Path) extends Member {
     /**
      * @return
      * for class it is class name
@@ -1074,9 +1275,14 @@ class EnhancedForLocalVariableMember(ctx: ApexcodeParser.EnhancedForControlConte
     override def getSignature: String = getType + " " + getIdentity
 
     override def isStatic: Boolean = false //local variables are never static
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
-class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext) extends Member {
+class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext, filePath: Path) extends Member {
     /**
      * @return
      * for class it is class name
@@ -1114,6 +1320,11 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext) extends Member {
             None
         }
     }
+
+    /**
+      * @return position of this member in the file system and inside file
+      */
+    override def getLocation: Option[Location] = Location(filePath, ctx, getIdentity)
 }
 
 class CreatorMember(ctx: ApexcodeParser.CreatorContext) extends AnonymousMember {

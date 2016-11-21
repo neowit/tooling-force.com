@@ -1,8 +1,11 @@
 package com.neowit.apex.completion
 
-import com.neowit.apex.parser.ApexParserUtils
+import java.io.{File, FileInputStream}
+
+import com.neowit.apex.parser.{ApexParserUtils, CaseInsensitiveInputStream}
+import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import org.antlr.v4.runtime.tree.ParseTree
-import org.antlr.v4.runtime.{TokenStream, CommonTokenStream, Token, ParserRuleContext}
+import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext, Token, TokenStream}
 
 object AToken {
     val SOQL_Pattern = "(?i)\\[\\s*select\\s+".r
@@ -299,5 +302,57 @@ object CompletionUtils {
             currentToken = tokenStream.get(index)
         }
         index
+    }
+
+    /**
+      * find blockStatement where caret reside
+      *
+      * vari| - list of all elements that can start with “vari” in current scope
+      * variable.| - list of all methods of “variable” type
+      * variable.andSome| - list of all methods of “variable” type that start with “andSome”
+      * variable.andSome.| - list of all methods of property “andSome” of “variable”
+      *
+      * collection.| - list of all methods of collection (need to know collection type)
+      * collection[0].| - list of all methods of element in collection (need to know element type)
+      *
+      * @param lexerFun - use it provide alternative ApexcodeLexer
+      * @return
+      */
+    def getCaretStatement(file: File, line: Int, column: Int, lexerFun: File => ApexcodeLexer = getDefaultLexer): (List[AToken], Option[CaretReachedException]) = {
+        val caret = new CaretInFile(line, column, file)
+        val tokenSource = new CodeCompletionTokenSource(lexerFun(file), caret)
+        val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
+        //val tokens: CommonTokenStream = new CommonTokenStream(getLexer(file))
+        val parser = new ApexcodeParser(tokens)
+        ApexParserUtils.removeConsoleErrorListener(parser)
+        parser.setBuildParseTree(true)
+        parser.setErrorHandler(new CompletionErrorStrategy())
+
+        //parse tree until we reach caret caretAToken
+        try {
+            parser.compilationUnit()
+        } catch {
+            case ex: CaretReachedException =>
+                //println("found caret?")
+                //println(ex.getToken.getText)
+                //listOptions(ex)
+                return (CompletionUtils.breakExpressionToATokens(ex), Some(ex))
+            case e:Throwable =>
+                println(e.getMessage)
+        }
+
+        (List(), None)
+    }
+
+    /**
+      * default case insensitive ApexCode lexer
+      * @param file - file to parse
+      * @return case insensitive ApexcodeLexer
+      */
+    def getDefaultLexer(file: File): ApexcodeLexer = {
+        //val input = new ANTLRInputStream(new FileInputStream(file))
+        val input = new CaseInsensitiveInputStream(new FileInputStream(file))
+        val lexer = new ApexcodeLexer(input)
+        lexer
     }
 }

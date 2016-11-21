@@ -14,7 +14,7 @@ class SoqlGrammarTest extends FunSuite{
     val paths = new Properties()
     paths.load(is)
 
-    val projectPath = paths.getProperty("projectPath")
+    val projectPath = paths.getProperty("sql-grammar.projectPath")
     test("Test Soql.g4 grammar") {
         val testFilePath = projectPath + "/SOQL-Grammar-Test.sql"
         testGrammarInFile(testFilePath)
