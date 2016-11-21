@@ -5,6 +5,7 @@ import com.neowit.apex.completion.models.{SoqlFunction, SoqlModel}
 import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMember}
 import com.neowit.apex.parser.antlr.SoqlParser
 import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
+import com.neowit.apex.parser.MemberJsonSupport._
 import com.sforce.soap.partner.ChildRelationship
 import org.antlr.v4.runtime.Token
 

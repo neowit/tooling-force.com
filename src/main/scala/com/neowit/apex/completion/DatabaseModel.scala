@@ -5,7 +5,8 @@ import java.nio.file.Path
 import com.neowit.TcpServer
 import com.neowit.apex.Session
 import com.neowit.apex.completion.models.ApexModel
-import com.neowit.apex.parser.{Location, Member}
+import com.neowit.apex.parser.Member
+import com.neowit.apex.parser.MemberJsonSupport._
 import com.neowit.utils.Logging
 import akka.actor.Actor
 import akka.actor.Props

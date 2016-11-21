@@ -1,8 +1,7 @@
 package com.neowit.apex.completion.models
 
-import java.nio.file.Path
-
-import com.neowit.apex.parser.{Location, Member}
+import com.neowit.apex.parser.Member
+import com.neowit.apex.parser.MemberJsonSupport._
 import spray.json.{JsValue, JsonParser}
 
 trait ModelBase {

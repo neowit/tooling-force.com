@@ -12,27 +12,7 @@ import scala.collection.JavaConversions._
 import spray.json._
 import DefaultJsonProtocol._
 
-case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
-
-object Location extends DefaultJsonProtocol {
-    def apply(filePath: Path, ctx: ParserRuleContext, identity: String): Option[Location] = {
-        Option(Location(filePath, Option(ctx.getStart.getLine), Option(ctx.getStart.getCharPositionInLine), identity))
-    }
-
-    implicit object LocationJsonFormat extends RootJsonFormat[Location] {
-        def write(c: Location) =
-            Map(
-                "filePath" -> c.file.toString.toJson,
-                "line" -> c.line.getOrElse(-1).toJson,
-                "column" -> c.column.getOrElse(-1).toJson,
-                "identity" -> c.identity.toJson
-            ).toJson
-
-        def read(value: JsValue) = value match {
-            case _ => deserializationError("Location deserialisation is NOT supported")
-        }
-    }
-}
+import MemberJsonSupport._
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None

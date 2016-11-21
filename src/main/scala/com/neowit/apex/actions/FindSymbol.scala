@@ -24,8 +24,6 @@ import java.nio.file.{Files, Paths}
 
 import com.neowit.apex.completion.{UnresolvedApexTokenDefinition, _}
 import com.neowit.apex.parser._
-import spray.json._
-import com.neowit.apex.parser.Location._
 import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.Message
 
