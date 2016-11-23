@@ -28,7 +28,7 @@ class SourceScanner (files: List[File]) extends Logging {
             }
 
             if (completeScan || file.lastModified() > lastModifiedTime) {
-                logger.debug("scanning file: " + file.getName)
+                logger.info("scanning file: " + file.getName)
 
                 parseOne(file, errorListener) match {
                     case Some((parser, tree)) =>
