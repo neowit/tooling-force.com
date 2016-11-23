@@ -8,8 +8,8 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.antlr.v4.runtime.{ParserRuleContext, ANTLRErrorListener, CommonTokenStream}
 
 class SourceScanner (files: List[File]) extends Logging {
-    val completeTree = new ApexTree
-    val fileModificationTimes = Map.newBuilder[String, Long]
+    private val completeTree = new ApexTree
+    private val fileModificationTimes = Map.newBuilder[String, Long]
 
     private def getLexer(file: File): ApexcodeLexer = {
         //val input = new ANTLRInputStream(new FileInputStream(file))
