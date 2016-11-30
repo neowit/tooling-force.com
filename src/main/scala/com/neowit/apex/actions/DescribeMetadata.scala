@@ -251,6 +251,13 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
  * --specificTypes=/path/to/file with types list
  */
 class ListMetadata extends ApexActionWithWritableSession {
+    // sfdc is very inconsistent in the way of naming types needed to retrieve members
+    // for example both Document and EmailTemplate return isFolder = true
+    // but in order to listMetadata() Document must be named as DocumentFolder
+    // while EmailTemplate has to stay EmailTemplate (and not EmailTemplateFolder)
+    // so we have to hardcode these associations
+    private val LIST_METADATA_TYPE_BY_XML_TYPE: Map[String, String] =
+        Map("Dashboard" -> "DashboardFolder", "Document" -> "DocumentFolder", "Report" -> "ReportFolder")
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -277,9 +284,13 @@ class ListMetadata extends ApexActionWithWritableSession {
                 metadataByXmlName.get(typeName)  match {
                     case Some(describeObject) =>
                         val query = new ListMetadataQuery()
-                        query.setType(typeName)
+                        LIST_METADATA_TYPE_BY_XML_TYPE.get(typeName) match {
+                            case Some(_type) =>
+                                query.setType(_type)
+                            case None =>
+                                query.setType(typeName)
+                        }
                         queries += query
-                    //query.setFolder(describeObject.get)
                     case None => throw new Error("Invalid type: " + typeName)
                 }
             }
@@ -290,8 +301,15 @@ class ListMetadata extends ApexActionWithWritableSession {
         var resourcesByXmlTypeName = Map[String, Set[String]]()
         Try(session.listMetadata(queries.toArray, config.apiVersion)) match {
             case Success(fileProperties) =>
+                val folderPattern = """(.*)Folder$""".r
                 for (fileProp <- fileProperties) {
-                    val typeName = fileProp.getType
+                    val typeName = fileProp.getType match {
+                        case folderPattern(_type) =>
+                            // drop 'Folder' suffix to map type name back to the orginal one
+                            // e.g. ReportFolder becomes Report
+                            _type
+                        case _type => _type
+                    }
                     val resourceName = fileProp.getFullName
                     resourcesByXmlTypeName = addToMap(resourcesByXmlTypeName, typeName, resourceName)
                 }
