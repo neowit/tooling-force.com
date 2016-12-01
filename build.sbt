@@ -20,10 +20,19 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
+    "com.force.api" % "force-wsc" % "36.2.0",
+    "com.force.api" % "force-partner-api" % "36.0.0",
+    "com.force.api" % "force-metadata-api" % "36.0.0",
+    "com.force.api" % "force-apex-api" % "36.0.0"
+)
+
+libraryDependencies ++= Seq(
     "commons-logging" %  "commons-logging" % "1.1.3",
     "org.scalatest" %% "scalatest" % "2.2.6" % "test",
     "com.typesafe.akka" %% "akka-actor" % "2.4.3"
 )
+
+libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
 
