@@ -35,6 +35,7 @@ import java.io._
 import com.neowit.TcpServer
 import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
+import com.neowit.oauth.Oauth2Tokens
 
 import scala.util.{Failure, Success, Try}
 
@@ -124,6 +125,13 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
     }
 
+    private def getHash(tokens: Oauth2Tokens): String = {
+        val md5 = MessageDigest.getInstance("SHA-256")
+        md5.reset()
+        val str = tokens.id.getOrElse("")
+        md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+    }
+
 
     override def hashCode(): Int = getHash.hashCode
 
@@ -136,10 +144,33 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
             throw new IllegalAccessError("Attempted to write in Read/Only session")
         }
         if (!callingAnotherOrg) {
+            sessionProperties.setJsonData("session",
+                Map(
+                    "sessionId" -> connectionConfig.getSessionId,
+                    "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
+                    "authType" -> "login",
+                    "hash" -> getHash
+                )
+            )
+            sessionProperties.remove("UserInfo")
+        } else {
+            sessionProperties.remove("session")
+            sessionProperties.remove("UserInfo")
+        }
+        storeSessionData(allowWrite)
+    }
+
+    def storeConnectionData(tokens: Oauth2Tokens, allowWrite: Boolean) {
+        if (isReadOnly && !allowWrite) {
+            throw new IllegalAccessError("Attempted to write in Read/Only session")
+        }
+        if (!callingAnotherOrg) {
             sessionProperties.setJsonData("session", Map(
-                            "sessionId" -> connectionConfig.getSessionId,
-                            "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
-                            "hash" -> getHash
+                "sessionId" -> tokens.access_token.getOrElse(""),
+                "refresh_token" -> tokens.refresh_token.getOrElse(""),
+                "serviceEndpoint" -> (tokens.instance_url.getOrElse("") + "/services/Soap/u/" + config.apiVersion + "/" + tokens.getOrgId.getOrElse("")),
+                "authType" -> "oauth2",
+                "hash" -> getHash(tokens)
             ))
             sessionProperties.remove("UserInfo")
         } else {

@@ -31,6 +31,7 @@ object ActionFactory {
     val REGISTERED_ACTIONS = Map[String, String](
         "version" -> "com.neowit.apex.AppVersion",
         "serverStart" -> "com.neowit.ServerStart",
+        "login" -> "LoginOauth",
         "refresh" -> "RefreshMetadata",
         "listModified" -> "ListModified",
         "saveModified" -> "com.neowit.apex.actions.tooling.SaveModified",
