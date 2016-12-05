@@ -1,7 +1,5 @@
 package com.neowit.apex.completion
 
-import java.nio.file.Path
-
 import com.neowit.TcpServer
 import com.neowit.apex.Session
 import com.neowit.apex.completion.models.ApexModel
