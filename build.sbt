@@ -29,7 +29,8 @@ libraryDependencies ++= Seq(
 libraryDependencies ++= Seq(
     "commons-logging" %  "commons-logging" % "1.1.3",
     "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.4.3"
+    "com.typesafe.akka" %% "akka-actor" % "2.4.3",
+    "org.nanohttpd" % "nanohttpd" % "2.3.1"
 )
 
 libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
