@@ -76,30 +76,45 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
     private def onResponseCallback(consumer: OAuthConsumer)(server: WebServer, urlParams: Map[String, List[String]]): Future[Unit] = {
         Future {
 
-            val code = urlParams.get("code") match {
-                case Some(values) => values.head
-                case None => ""
-            }
-            val env = urlParams.get("state") match {
-                case Some(values) => values.head
-                case None => ""
-            }
 
-            if (code.nonEmpty) {
-                // next step is to extract session id via call to: https://login.salesforce.com/services/oauth2/token,
-                // see here: https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#The_Salesforce.com_Identity_Service
-                consumer.getTokens(env, code) match {
-                    case Some(tokens) =>
-                        println("loaded tokens")
-                        session.storeConnectionData(tokens, allowWrite = true)
-                        config.responseWriter.println("RESULT=SUCCESS")
-                        config.responseWriter.println(tokens.toJson.prettyPrint)
-                    case None =>
-                        config.responseWriter.println("RESULT=FAILURE")
-                }
+            urlParams.get("error") match {
+                case Some(values) =>
+                    val error = values.head
+                    config.responseWriter.println("RESULT=FAILURE")
+                    urlParams.get("error_description") match {
+                        case Some(strings) =>
+                            val errorDescription = strings.head
+                            val message = new Message(ResponseWriter.ERROR, error + ": "  + errorDescription)
+                            config.responseWriter.println(message)
+                        case _ =>
+                            val message = new Message(ResponseWriter.ERROR, error)
+                            config.responseWriter.println(message)
+                    }
+                case None =>
+                    val code = urlParams.get("code") match {
+                        case Some(values) => values.head
+                        case None => ""
+                    }
+                    val env = urlParams.get("state") match {
+                        case Some(values) => values.head
+                        case None => ""
+                    }
 
+                    if (code.nonEmpty) {
+                        // next step is to extract session id via call to: https://login.salesforce.com/services/oauth2/token,
+                        // see here: https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#The_Salesforce.com_Identity_Service
+                        consumer.getTokens(env, code) match {
+                            case Some(tokens) =>
+                                println("loaded tokens")
+                                session.storeConnectionData(tokens, allowWrite = true)
+                                config.responseWriter.println("RESULT=SUCCESS")
+                                config.responseWriter.println(tokens.toJson.prettyPrint)
+                            case None =>
+                                config.responseWriter.println("RESULT=FAILURE")
+                        }
+
+                    }
             }
-
 
             // give server a chance to send output message
             delayedExecution(1) {

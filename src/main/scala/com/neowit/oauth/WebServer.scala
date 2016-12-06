@@ -40,10 +40,13 @@ class WebServer(port: Int,
     println(s"\nRunning! Expecting requests at: http://localhost:$port/ \n")
 
     override def serve(session: IHTTPSession): Response = {
-
-        var msg = "<html><body><h1>Authorisation Result</h1>\n"
+        val result = if (null == session.getParameters.get("error")) "Successful" else "Failed"
+        var msg = s"<html><body><h1>Authorisation $result</h1>\n"
         if (null != session.getParameters.get("error")) {
             msg += "<p>" + session.getParameters.get("error") + "</p>"
+            if (null != session.getParameters.get("error_description")) {
+                msg += "<p>" + session.getParameters.get("error_description") + "</p>"
+            }
         } else {
             msg += "<p>You can close this window</p>"
         }
