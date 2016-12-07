@@ -14,10 +14,17 @@ import scala.util.{Failure, Success}
 import spray.json._
 /**
   * Author: Andrey Gavrikov
-  * Date: 05/12/2016
   */
 
 
+/**
+  *
+  * @param appConfig - basic configuration
+  * @param environment - e.g. login.salesforce.com
+  * @param consumerKey
+  * @param consumerSecret
+  * @param callbackUrl
+  */
 class OAuthConsumer(appConfig: BasicConfig,
                     environment: String,
                     consumerKey: String,
@@ -29,11 +36,12 @@ class OAuthConsumer(appConfig: BasicConfig,
     }
 
     /**
+      * Obtaining an Access Token in a Web Application (Web Server Flow)
       * Step 1 - obtain authorisation code
-      * @param environment - e.g. login.salesforce.com
+      * https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#Obtaining_an_Access_Token_in_a_Web_Application_.28Web_Server_Flow.29
       * @return
       */
-    def getLoginUrl(environment: String): Try[URL] =  {
+    def getLoginUrl: Try[URL] =  {
         val params = encodeUrlParams(
             Map(
                 // response_type must be "code" to make sure that response string looks like
@@ -44,6 +52,7 @@ class OAuthConsumer(appConfig: BasicConfig,
                 "client_id" -> consumerKey,
                 "redirect_uri" -> callbackUrl,
                 "state" -> environment,
+                "prompt" -> "login",
                 "scope" -> "id api web refresh_token" //refresh_token must be requested explicitly
             )
         )
@@ -60,8 +69,13 @@ class OAuthConsumer(appConfig: BasicConfig,
         encodedParams.mkString("&")
     }
 
-    def getTokens(env: String, code: String): Option[Oauth2Tokens] = {
-        val serverUrl: String = getServerUrl(env) + "/services/oauth2/token"
+    /**
+      * Obtaining an Access Token in a Web Application (Web Server Flow)
+      * Step 2: get OAuth2 tokens using code obtained via explicit user login
+      * @return
+      */
+    def getTokens(code: String): Option[Oauth2Tokens] = {
+        val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
         val params =
             Map(
                 "code" -> code,
@@ -69,6 +83,25 @@ class OAuthConsumer(appConfig: BasicConfig,
                 "client_id" -> consumerKey,
                 "client_secret" -> consumerSecret,
                 "redirect_uri" -> callbackUrl
+
+            )
+
+        sendPost(serverUrl, params).toOption
+    }
+
+    /**
+      * https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#Token_Refresh
+      * get OAuth2 tokens using refresh_token obtained at some point in the past
+      * @return
+      */
+    def refreshTokens(refreshToken: String): Option[Oauth2Tokens] = {
+        val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
+        val params =
+            Map(
+                "refresh_token" -> refreshToken,
+                "grant_type" -> "refresh_token",
+                "client_id" -> consumerKey,
+                "client_secret" -> consumerSecret
 
             )
 
