@@ -21,15 +21,14 @@ import spray.json._
   *
   * @param appConfig - basic configuration
   * @param environment - e.g. login.salesforce.com
-  * @param consumerKey
-  * @param consumerSecret
-  * @param callbackUrl
+  * @param callbackUrl - must be *exactly* the same url as configured in connected app settings
   */
 class OAuthConsumer(appConfig: BasicConfig,
                     environment: String,
                     consumerKey: String,
                     consumerSecret: String,
                     callbackUrl: String) extends Logging with OAuth2JsonSupport{
+
     private def getServerUrl(environment: String): String = {
 
         "https://" + environment
