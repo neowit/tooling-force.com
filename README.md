@@ -98,7 +98,7 @@ Author: Andrey Gavrikov
 
 ## Legal stuff
 
-Copyright (c) 2013-2014, Andrey Gavrikov. All rights reserved.
+Copyright (c) 2013-2016, Andrey Gavrikov. All rights reserved.
 
 License: LGPL v3 <http://www.gnu.org/licenses/>
 
@@ -108,4 +108,4 @@ Third-Party Licenses:
 * [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 * [ANTLR 4](http://www.antlr.org/) - [BSD license](http://www.antlr.org/license.html)  
 * [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
-
+* [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd) - [Modified BSD licence](https://github.com/NanoHttpd/nanohttpd/blob/master/LICENSE.md)  
