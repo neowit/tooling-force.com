@@ -1,7 +1,7 @@
 package com.neowit.oauth
 
 import java.io.OutputStreamWriter
-import java.net.{URL, URLEncoder}
+import java.net.{HttpURLConnection, URL, URLEncoder}
 import java.util.zip.GZIPInputStream
 
 import scala.util.Try
@@ -93,7 +93,7 @@ class OAuthConsumer(appConfig: BasicConfig,
       * get OAuth2 tokens using refresh_token obtained at some point in the past
       * @return
       */
-    def refreshTokens(refreshToken: String): Option[Oauth2Tokens] = {
+    def refreshTokens(refreshToken: String): Either[Throwable, Oauth2Tokens] = {
         val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
         val params =
             Map(
@@ -104,10 +104,27 @@ class OAuthConsumer(appConfig: BasicConfig,
 
             )
 
-        sendPost(serverUrl, params).toOption
+        sendPost(serverUrl, params) match {
+            case Success(tokens) => Right(tokens)
+            case Failure(ex) => Left(ex)
+        }
     }
 
     private def sendPost(url: String, params: Map[String, String]):Try[Oauth2Tokens] = {
+        def extractJsonResponse(conn: HttpURLConnection): Option[JsValue] = {
+            Try{
+                val in = conn.getInputStream
+                val text = conn.getContentEncoding match {
+                    case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                    case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+                }
+
+                in.close()
+                val json = text.parseJson
+                println(json.prettyPrint)
+                json
+            }.toOption
+        }
         val connectionConfig = Connection.initConnectorConfig(appConfig)
         val conn = connectionConfig.createConnection(new URL(url), new java.util.HashMap[String, String](), false)
         conn.setRequestMethod("POST")
@@ -123,16 +140,12 @@ class OAuthConsumer(appConfig: BasicConfig,
 
         val responseCode = conn.getResponseCode
         if (200 == responseCode) {
-            val in = conn.getInputStream
-            val text = conn.getContentEncoding match {
-                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
-                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+            extractJsonResponse(conn) match {
+                case Some(json) =>
+                    Success(json.convertTo[Oauth2Tokens])
+                case None =>
+                    Failure(new RuntimeException("Failed to extract JSON response"))
             }
-
-            in.close()
-            val json = text.parseJson
-            println(json.prettyPrint)
-            Success(json.convertTo[Oauth2Tokens])
         } else {
             if (401 == responseCode) { //Unauthorized
                 throw Session.UnauthorizedConnectionException(conn)
@@ -140,6 +153,11 @@ class OAuthConsumer(appConfig: BasicConfig,
                 logger.error(s"Request Failed - URL=$url")
                 logger.error(s"Response Code: $responseCode, Response Message: ${conn.getResponseMessage}")
                 val ex = Session.ConnectionException(conn)
+                extractJsonResponse(conn) match {
+                    case Some(json) =>
+                        println(json.prettyPrint)
+                    case None =>
+                }
                 Failure(ex)
             }
         }

@@ -60,8 +60,8 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
                         val consumer = new OAuthConsumer(config.basicConfig, env, consumerKey = keys.consumerKey, consumerSecret = keys.consumerSecret, callbackUrl = keys.callbackUrl)
                         val directUrl = consumer.getLoginUrl.getOrElse("").toString
                         val shortUrl = WebServer.getStartPagePath(keys.getPort)
-                        println(shortUrl)
                         OsUtils.openUrl(directUrl, shortUrl)
+                        println("If web browser failed to open automatically please follow this url: " + shortUrl)
                         // start server
                         val callbackPath = new URL(keys.callbackUrl).getPath
                         val server = new WebServer(keys.getPort, callbackPath, consumer, onResponseCallback(consumer))

@@ -72,6 +72,14 @@ object Session {
     def apply(basicConfig: BasicConfig, isReadOnly: Boolean = true) = new Session(basicConfig, isReadOnly)
 }
 
+case class StoredSession(env: Option[String],
+                         sessionId: Option[String],
+                         refreshToken: Option[String],
+                         hash: Option[String],
+                         instance_url: Option[String],
+                         serviceEndpoint: Option[String],
+                         authType: Option[String])
+
 /**
  * Session has following responsibilities
  * 1. Maintains/stores persistent connection and can resue connection
@@ -108,35 +116,62 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         if (!callingAnotherOrg) {
             val connectionData = getData("session")
             connectionData.get("hash") match {
-              case Some(hash) if hash == getHash =>
-                  (connectionData.get("sessionId").map(_.toString), connectionData.get("serviceEndpoint").map(_.toString))
-              case _ =>
-                  emptySession
+                case Some(hash) if hash == getHash(None) =>
+                    (connectionData.get("sessionId").map(_.toString), connectionData.get("serviceEndpoint").map(_.toString))
+                case _ =>
+                    emptySession
             }
         } else {
             emptySession
         }
     }
     //hash is used to check if current session Id was generated against current set of login credentials
-    private def getHash: String = {
-        val md5 = MessageDigest.getInstance("SHA-256")
-        md5.reset()
-        val str = config.username + config.password + config.soapEndpoint
-        md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+    private def getHash(authType: Option[String]): String = {
+        getData("session") match {
+            case connectionData if connectionData.nonEmpty  =>
+                val hashSource =
+                    authType.orElse(connectionData.get("authType") ) match {
+                        case Some("oauth2") =>
+                            // in case if current login method is oauth2 we check if it saved data is still applicable by checking
+                            // if current config.projectPath is the same as stored in session
+                            config.projectPath
+                        case _ =>
+                            // authType = password
+                            // login/pass type authentication
+                            // when current login method is "password" we hash a combination of "login+pass+soap-endpoint"
+                            config.getSfdcCredentials match {
+                                case Some(credentials) =>
+                                    credentials.username + credentials.password + credentials.getSoapEndpoint(config.apiVersion)
+
+                                case None => ""
+                            }
+                    }
+                if (hashSource.nonEmpty) {
+                    val md5 = MessageDigest.getInstance("SHA-256")
+                    md5.reset()
+                    val str = hashSource
+                    md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
+                } else {
+                   ""
+                }
+            case _ => ""
+        }
     }
 
+    /*
     private def getHash(tokens: Oauth2Tokens): String = {
         val md5 = MessageDigest.getInstance("SHA-256")
         md5.reset()
         val str = tokens.id.getOrElse("")
         md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
     }
+    */
 
 
-    override def hashCode(): Int = getHash.hashCode
+    override def hashCode(): Int = getHash(None).hashCode
 
     override def equals(p1: scala.Any): Boolean = {
-        p1.isInstanceOf[Session] && this.getHash == p1.asInstanceOf[Session].getHash
+        p1.isInstanceOf[Session] && this.getHash(None) == p1.asInstanceOf[Session].getHash(None)
     }
 
     def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig, allowWrite: Boolean = false) {
@@ -148,8 +183,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                 Map(
                     "sessionId" -> connectionConfig.getSessionId,
                     "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
-                    "authType" -> "login",
-                    "hash" -> getHash
+                    "authType" -> "password",
+                    "hash" -> getHash(Option("password"))
                 )
             )
             sessionProperties.remove("UserInfo")
@@ -160,17 +195,20 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         storeSessionData(allowWrite)
     }
 
-    def storeConnectionData(tokens: Oauth2Tokens, allowWrite: Boolean) {
+    def storeConnectionData(tokens: Oauth2Tokens, environment: String, allowWrite: Boolean) {
         if (isReadOnly && !allowWrite) {
             throw new IllegalAccessError("Attempted to write in Read/Only session")
         }
         if (!callingAnotherOrg) {
+            getStoredSession
             sessionProperties.setJsonData("session", Map(
                 "sessionId" -> tokens.access_token.getOrElse(""),
                 "refresh_token" -> tokens.refresh_token.getOrElse(""),
+                "instance_url" -> tokens.instance_url.getOrElse(""),
                 "serviceEndpoint" -> (tokens.instance_url.getOrElse("") + "/services/Soap/u/" + config.apiVersion + "/" + tokens.getOrgId.getOrElse("")),
                 "authType" -> "oauth2",
-                "hash" -> getHash(tokens)
+                "hash" -> getHash(authType = Option("oauth2")),
+                "env" -> environment //login.salesforce.com or test.salesforce.com
             ))
             sessionProperties.remove("UserInfo")
         } else {
@@ -469,6 +507,38 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         allFiles.toList
     }
 
+    /**
+      * @return "refresh_token" saved in session ={...} if auth_type = "oauth2"
+      */
+    private def getSavedAuthType: Option[String] = {
+        getData("session") match {
+            case connectionData if connectionData.nonEmpty =>
+                connectionData.get("authType").map(_.toString)
+            case _ =>
+                None
+        }
+    }
+
+    private def getStoredSession: Option[StoredSession] = {
+        getData("session") match {
+            case connectionData if connectionData.nonEmpty =>
+                Option(
+                    StoredSession(
+                        env = connectionData.get("env").map(_.toString),
+                        sessionId = connectionData.get("sessionId").map(_.toString),
+                        refreshToken = connectionData.get("refresh_token").map(_.toString),
+                        hash = connectionData.get("hash").map(_.toString),
+                        serviceEndpoint = connectionData.get("serviceEndpoint").map(_.toString),
+                        instance_url = connectionData.get("instance_url").map(_.toString),
+                        authType = connectionData.get("authType").map(_.toString)
+                    )
+                )
+
+            case _ =>
+                None
+        }
+    }
+
     private def getPartnerConnection: PartnerConnection = {
         val conn = connectionPartner match {
           case Some(connection) => connection
@@ -479,8 +549,15 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                       //use cached data
                       Connection.getPartnerConnection(config, sessionId, serviceEndpoint)
                   case _ =>
-                      //login explicitly
-                      val _conn = Connection.createPartnerConnection(config)
+                      val _conn =
+                          getStoredSession match {
+                              case Some(StoredSession(Some(env), _, Some(refreshToken), _, instanceUrlOpt, Some(serviceEndpoint), Some(authType))) if "oauth2" == authType =>
+                                  //TODO - try to refresh connection using refresh token
+                                  Connection.createPartnerConnectionWithRefreshToken(config, refreshToken, env)
+                              case _ =>
+                                  //login explicitly
+                                  Connection.createPartnerConnectionWithPassword(config)
+                          }
                       storeConnectionData(_conn.getConfig, allowWrite = true)
                       _conn
               }
@@ -657,13 +734,13 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
             case ex:com.sforce.ws.SoapFaultException if "INVALID_SESSION_ID" == ex.getFaultCode.getLocalPart =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
-                reset(allowWrite = true)
+                reset(allowWrite = true, keepRefreshToken = true)
                 //run once again
                 codeBlock
             case ex:com.sforce.ws.ConnectionException =>
                 //sometimes WSC library returns ConnectionException instead of SoapFaultException when session is invalid
                 logger.trace(ex)
-                reset(allowWrite = true)
+                reset(allowWrite = true, keepRefreshToken = false)
                 //run once again
                 codeBlock
             case ex:Throwable =>
@@ -683,12 +760,12 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
             case ex:Session.UnauthorizedConnectionException =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
                 logger.trace(ex)
-                reset(allowWrite = true)
+                reset(allowWrite = true, keepRefreshToken = true)
                 //run once again
                 codeBlock
             case ex: Session.ConnectionException =>
                 logger.trace(ex)
-                reset(allowWrite = true)
+                reset(allowWrite = true, keepRefreshToken = false)
                 //run once again
                 codeBlock
             case ex:Throwable =>
@@ -696,8 +773,14 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         }
     }
 
-    def reset(allowWrite: Boolean = false) {
-        sessionProperties.remove("session")
+    def reset(allowWrite: Boolean = false, keepRefreshToken: Boolean = false) {
+        if (keepRefreshToken) {
+            // remove all session values except "authType" and "env"
+            val dataToKeep = getData("session").filterKeys(key => Set("authType", "env", "refresh_token", "serviceEndpoint").contains(key))
+            setData("session", dataToKeep)
+        } else {
+            sessionProperties.remove("session")
+        }
         storeSessionData(allowWrite)
         connectionPartner = None
         connectionMetadata = None

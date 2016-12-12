@@ -237,8 +237,15 @@ class Config(val basicConfig: BasicConfig) extends Logging{
 
 }
 
+case class SfdcCredentials(username: String, password: String, serverurl: String) {
+    def getSoapEndpoint(apiVersion: Double): String = {
+        serverurl + "/services/Soap/u/" + apiVersion
+    }
+}
+
 class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Config(basicConfig) {
 
+    /*
     lazy val username = getRequiredProperty("sf.username").get
     lazy val password = getRequiredProperty("sf.password").get
     lazy val soapEndpoint = {
@@ -246,6 +253,16 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
         serverUrl match {
             case Some(x) => x + "/services/Soap/u/" + apiVersion
             case None => null
+        }
+    }
+    */
+    def getSfdcCredentials: Option[SfdcCredentials] = {
+        getProperty("sf.username").flatMap{ username =>
+            getProperty("sf.password").flatMap{ password =>
+                getProperty("sf.serverurl").map{serverUrl =>
+                    SfdcCredentials(username, password, serverUrl)
+                }
+            }
         }
     }
 

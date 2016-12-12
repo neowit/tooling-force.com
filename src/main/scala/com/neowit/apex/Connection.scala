@@ -19,7 +19,8 @@
 
 package com.neowit.apex
 
-import com.neowit.utils.{BasicConfig, Config, ConfigWithSfdcProject, Logging}
+import com.neowit.oauth.{OAuthConsumer, Oauth2Tokens}
+import com.neowit.utils._
 
 object Connection extends Logging {
     val CLIENT_NAME = AppVersion.APP_NAME + "/" + AppVersion.VERSION
@@ -66,14 +67,34 @@ object Connection extends Logging {
 
     private def getConnectionConfig (appConfig: ConfigWithSfdcProject) = {
         val config = initConnectorConfig(appConfig.basicConfig)
-        config.setUsername(appConfig.username)
-        config.setPassword(appConfig.password)
 
-        val endpoint = appConfig.soapEndpoint
-        if (null != endpoint)
+        appConfig.getSfdcCredentials match {
+            case Some(credentials) =>
+                config.setUsername(credentials.username)
+                config.setPassword(credentials.password)
+
+                val endpoint = credentials.getSoapEndpoint(appConfig.apiVersion)
+                config.setAuthEndpoint(endpoint)
+                config.setServiceEndpoint(endpoint)
+            case None =>
+                //throw new ConfigValueException("Please provide username/password/serverurl cofiguration or login explicitly using 'login' command.")
+        }
+
+        config
+    }
+    private def getConnectionConfig (appConfig: ConfigWithSfdcProject, oauth2Tokens: Oauth2Tokens) = {
+        val config = initConnectorConfig(appConfig.basicConfig)
+        oauth2Tokens.access_token match {
+            case Some(sessionId) =>
+                config.setSessionId(sessionId)
+            case None =>
+                throw new ConfigValueException("Failed to obtain session Id.")
+        }
+        oauth2Tokens.instance_url.foreach{url =>
+            val endpoint = url + "/services/Soap/u/" + appConfig.apiVersion
             config.setAuthEndpoint(endpoint)
-        config.setServiceEndpoint(endpoint)
-
+            config.setServiceEndpoint(endpoint)
+        }
         config
     }
 
@@ -83,11 +104,33 @@ object Connection extends Logging {
         connection.__setCallOptions(callOptions)
         connection
     }
-    def createPartnerConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.partner.PartnerConnection = {
+
+    def createPartnerConnectionWithRefreshToken(appConfig: ConfigWithSfdcProject,
+                                oauth2RefreshToken: String,
+                                env: String):com.sforce.soap.partner.PartnerConnection = {
+        logger.debug("Creating NEW Partner Connection using OAuth2 refresh token")
+
+        ConnectedAppKeys.load() match {
+            case Some(keys) =>
+                val consumer = new OAuthConsumer(appConfig.basicConfig, env, keys.consumerKey, keys.consumerSecret, keys.callbackUrl )
+                consumer.refreshTokens(oauth2RefreshToken) match {
+                    case Right(tokens) =>
+                        println()
+                        //TODO - try to get session Id using oauth2 refresh token
+                        val connectionConfig = getConnectionConfig(appConfig, tokens)
+                        setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig))
+                    case Left(ex) =>
+                        throw new RuntimeException("Unable to refresh connection. Please login again.")
+                }
+            case None =>
+                throw new RuntimeException("Invalid jar file, missing consumer key/secret configuration")
+        }
+    }
+    def createPartnerConnectionWithPassword(appConfig: ConfigWithSfdcProject ):com.sforce.soap.partner.PartnerConnection = {
         logger.debug("Creating NEW Partner Connection")
+
         val connectionConfig = getConnectionConfig(appConfig)
         setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig))
-
     }
     def getPartnerConnection(appConfig: ConfigWithSfdcProject, sessionId: String, serviceEndpoint: String):com.sforce.soap.partner.PartnerConnection = {
         val connectionConfig = getConnectionConfig(appConfig)
@@ -102,11 +145,13 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
+    /*
     def createMetadataConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.metadata.MetadataConnection = {
         logger.debug("Creating NEW Metadata Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getMetadataConnection(appConfig, partnerConnection)
     }
+    */
 
     /**
      * initialise MetadataConnection based on existing PartnerConnection
@@ -140,11 +185,13 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
+    /*
     def createToolingConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.tooling.ToolingConnection = {
         logger.debug("Creating NEW Tooling Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getToolingConnection(appConfig, partnerConnection)
     }
+    */
 
     /**
      * initialise tooling Connection based on existing PartnerConnection
@@ -178,11 +225,13 @@ object Connection extends Logging {
      * @param appConfig - user defined config
      * @return
      */
+    /*
     def createApexConnection(appConfig: ConfigWithSfdcProject):com.sforce.soap.apex.SoapConnection = {
         logger.debug("Creating NEW Apex Connection")
         val partnerConnection = createPartnerConnection(appConfig)
         getApexConnection(appConfig, partnerConnection)
     }
+    */
 
     /**
      * initialise apex Connection based on existing PartnerConnection
