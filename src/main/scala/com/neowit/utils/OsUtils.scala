@@ -13,16 +13,30 @@ object OsUtils {
 
     // inspired by stackoverflow answer:
     // http://stackoverflow.com/questions/5226212/how-to-open-the-default-webbrowser-using-java
-    def openUrl(url: String, unknownOsUrl: String): Unit = {
-        getOs match {
-            case Win =>
-                openUrlInWindows(url)
-            case Mac =>
-                openUrlInMac(url)
-            case Linux =>
-                openUrlInLinux(url)
-            case Unknown =>
-                println("Open this URL in your web browser: " + unknownOsUrl)
+    /**
+      * attempts to open given url in web browser
+      * @param url url to open
+      * @return true if known/supported OS
+      */
+    def openUrl(url: String): Boolean = {
+        val commandsOpt =
+            getOs match {
+                case Win =>
+                    Option(Array("cmd", "/c", "start", url.replaceAll("&", "^&")))
+                case Mac =>
+                    Option(Array("open", url))
+                case Linux =>
+                    Option(Array("xdg-open", url))
+                case Unknown =>
+                    None
+            }
+        commandsOpt match {
+            case Some(commands) =>
+                val rt = Runtime.getRuntime
+                rt.exec(commands)
+                true
+            case None =>
+                false
         }
     }
 
@@ -40,27 +54,5 @@ object OsUtils {
         }
         Unknown
 
-    }
-
-    private def openUrlInWindows(url: String): Unit = {
-        val rt = Runtime.getRuntime
-        rt.exec("rundll32 url.dll,FileProtocolHandler " + url)
-    }
-
-    private def openUrlInLinux(url: String): Unit = {
-        val rt = Runtime.getRuntime
-        val browsers = Seq("epiphany", "firefox", "mozilla", "konqueror", "netscape", "opera", "links", "lynx")
-        val cmd = new StringBuffer()
-        for (i <- browsers.indices) {
-            cmd.append(
-                (if (i == 0) "" else " || ") + browsers(i) + " \"" + url + "\" "
-            )
-        }
-        rt.exec(Array("sh", "-c", cmd.toString))
-    }
-
-    private def openUrlInMac(url: String): Unit = {
-        val rt = Runtime.getRuntime
-        rt.exec(Array("open", url))
     }
 }
