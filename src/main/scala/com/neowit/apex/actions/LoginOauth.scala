@@ -1,10 +1,11 @@
 package com.neowit.apex.actions
 
+import java.io.File
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
 import com.neowit.oauth.{OAuth2JsonSupport, OAuthConsumer}
-import com.neowit.utils.{ConnectedAppKeys, Logging, OsUtils, ResponseWriter}
+import com.neowit.utils._
 import com.neowit.utils.ResponseWriter.Message
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.{IHTTPSession, Response}
@@ -17,17 +18,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 /**
   * Author: Andrey Gavrikov
   */
-class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
+class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
     override def getHelp: ActionHelp = new ActionHelp {
-        override def getParamNames: List[String] = List("responseFilePath")
+        override def getParamNames: List[String] = List("env", "responseFilePath", "saveAuthPath")
 
         override def getSummary: String = "Get salesforce.com session Id via OAuth2"
 
         override def getName: String = "login"
 
         override def getExample: String =
-            """login --env=test.salesforce.com --projectPath='/path/to/project' --responseFilePath="/tmp/response.txt" --autoRefresh=true """
+            """login --env=test.salesforce.com --responseFilePath="/tmp/response.txt" --saveAuthPath="/tmp/secret/oauth2/my-project" """
 
         override def getParamDescription(paramName: String): String = paramName match {
             case "env" =>
@@ -40,13 +41,7 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
                   |
                 """.stripMargin
             case "responseFilePath" => "--responseFilePath - path to file where operation result will be reported"
-            case "projectPath" => "--projectPath - path to folder parent of ./src/ folder"
-            case "autoRefresh" =>
-                """--autoRefresh - [true|false]
-                  |     Optional, default is 'true'.
-                  |     When you make requests with expired access token, "tooling-force.com" will automatically attempt
-                  |     to refresh your access token from Salesforce and re-try your original request...
-                """.stripMargin
+            case "saveAuthPath" => "--saveAuthPath - path to file where authentication result should be saved"
             case x => s"Parameter '$x' is not supported for this action"
         }
 
@@ -60,8 +55,15 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
                         val consumer = new OAuthConsumer(config.basicConfig, env, consumerKey = keys.consumerKey, consumerSecret = keys.consumerSecret, callbackUrl = keys.callbackUrl)
                         val directUrl = consumer.getLoginUrl.getOrElse("").toString
                         val shortUrl = WebServer.getStartPagePath(keys.getPort)
-                        OsUtils.openUrl(directUrl, shortUrl)
-                        println("If web browser failed to open automatically please follow this url: " + shortUrl)
+                        if (OsUtils.openUrl(directUrl)) {
+                            // in case if open fails
+                            println("If web browser failed to open automatically please follow this url: " + shortUrl)
+                        } else {
+                            // unsupported OS, provide alternative (short) url to open manually
+                            val message = new Message(ResponseWriter.WARN, "Open this URL in your web browser: " + shortUrl)
+                            config.responseWriter.println(message)
+                            //println("Open this URL in your web browser: " + shortUrl)
+                        }
                         // start server
                         val callbackPath = new URL(keys.callbackUrl).getPath
                         val server = new WebServer(keys.getPort, callbackPath, consumer, onResponseCallback(consumer))
@@ -78,12 +80,14 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
 
     }
 
-    /**
-      * callback should only be called when request was made exactly to CALLBACK_PATH
-      * if request is made to a different path, e.g. favicon or something, then there is no need to call callback
-      */
-    private def isOkToCallback(callbackPath: String)(session: IHTTPSession): Boolean = {
-        session.getUri.contains(callbackPath)
+    private def getOutputFile: Option[File] = {
+        val saveAuthPath = config.getRequiredProperty("saveAuthPath").get
+        val file = new File(saveAuthPath)
+        // make sure file does not exist
+        FileUtils.delete(file)
+        // make sure all path folders exist
+        file.getParentFile.mkdirs()
+        Option(file)
     }
 
     private def onResponseCallback(consumer: OAuthConsumer)(server: WebServer, urlParams: Map[String, List[String]]): Future[Unit] = {
@@ -113,16 +117,24 @@ class LoginOauth extends ApexActionWithWritableSession with OAuth2JsonSupport {
                     }
 
                     if (code.nonEmpty) {
-                        // next step is to extract session id via call to: https://login.salesforce.com/services/oauth2/token,
-                        // see here: https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#The_Salesforce.com_Identity_Service
-                        consumer.getTokens(code) match {
-                            case Some(tokens) =>
-                                println("loaded tokens")
-                                session.storeConnectionData(tokens, env, allowWrite = true)
-                                config.responseWriter.println("RESULT=SUCCESS")
-                                config.responseWriter.println(tokens.toJson.prettyPrint)
+                        getOutputFile match {
+                            case Some(outputFile) =>
+                                // next step is to extract session id via call to: https://login.salesforce.com/services/oauth2/token,
+                                // see here: https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#The_Salesforce.com_Identity_Service
+                                consumer.getTokens(code) match {
+                                    case Some(tokens) =>
+                                        println("loaded tokens")
+                                        FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
+                                        //session.storeConnectionData(tokens, env, allowWrite = true)
+                                        config.responseWriter.println("RESULT=SUCCESS")
+                                        config.responseWriter.println(tokens.toJson.prettyPrint)
+                                    case None =>
+                                        config.responseWriter.println("RESULT=FAILURE")
+                                }
                             case None =>
                                 config.responseWriter.println("RESULT=FAILURE")
+                                val message = new Message(ResponseWriter.ERROR, "Failed to create output file: " + config.getRequiredProperty("saveAuthPath").get)
+                                config.responseWriter.println(message)
                         }
 
                     }
