@@ -4,7 +4,7 @@ import java.io.File
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
-import com.neowit.oauth.{OAuth2JsonSupport, OAuthConsumer}
+import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
 import com.neowit.utils.ResponseWriter.Message
 import fi.iki.elonen.NanoHTTPD
@@ -81,13 +81,17 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
     }
 
     private def getOutputFile: Option[File] = {
-        val saveAuthPath = config.getRequiredProperty("saveAuthPath").get
-        val file = new File(saveAuthPath)
-        // make sure file does not exist
-        FileUtils.delete(file)
-        // make sure all path folders exist
-        file.getParentFile.mkdirs()
-        Option(file)
+        config.getProperty("saveAuthPath") match {
+            case Some(saveAuthPath) =>
+                val file = new File(saveAuthPath)
+                // make sure file does not exist
+                FileUtils.delete(file)
+                // make sure all path folders exist
+                file.getParentFile.mkdirs()
+                Option(file)
+            case None =>
+                None
+        }
     }
 
     private def onResponseCallback(consumer: OAuthConsumer)(server: WebServer, urlParams: Map[String, List[String]]): Future[Unit] = {
@@ -133,7 +137,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                                 }
                             case None =>
                                 config.responseWriter.println("RESULT=FAILURE")
-                                val message = new Message(ResponseWriter.ERROR, "Failed to create output file: " + config.getRequiredProperty("saveAuthPath").get)
+                                val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
                                 config.responseWriter.println(message)
                         }
 
