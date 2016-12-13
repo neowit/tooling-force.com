@@ -20,6 +20,7 @@
 package com.neowit.utils
 
 import java.io._
+import java.nio.file.Path
 import java.util.zip.CRC32
 import java.security.MessageDigest
 import java.util.regex.Matcher
@@ -137,6 +138,9 @@ object FileUtils {
         file.getName.startsWith(".") || file.getName.contains("~")
     }
 
+    def getExtension(filePath: Path): String = {
+        getExtension(filePath.toFile)
+    }
     def getExtension(file: File): String = {
         getExtension(file.getName)
     }
@@ -232,6 +236,9 @@ object FileUtils {
 
     val UTF_8 = scala.io.Codec("UTF-8")
 
+    def readFile(file: Path): scala.io.BufferedSource = {
+        scala.io.Source.fromFile(file.toFile)(UTF_8)
+    }
     def readFile(file: File): scala.io.BufferedSource = {
         scala.io.Source.fromFile(file)(UTF_8)
     }

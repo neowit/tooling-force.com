@@ -1,4 +1,4 @@
-package com.neowit.oauth
+package com.neowit.auth
 
 import java.io.OutputStreamWriter
 import java.net.{HttpURLConnection, URL, URLEncoder}

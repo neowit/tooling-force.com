@@ -238,6 +238,11 @@ abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySessi
             try {
                 ApexActionWithWritableSession.lockSession(this)
                 super.execute()
+            } catch {
+                case ex: ConfigValueException =>
+                    responseWriter.error(ex.getMessage)
+                case ex: Throwable =>
+                    responseWriter.error(ex)
             } finally {
                 ApexActionWithWritableSession.unLockSession(this)
             }

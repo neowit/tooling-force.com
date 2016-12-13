@@ -1,4 +1,6 @@
-package com.neowit.oauth
+package com.neowit.auth
+
+import java.net.URL
 
 import com.neowit.utils.JsonSupport
 
@@ -40,6 +42,22 @@ case class Oauth2Tokens(id: Option[String],
             case Some(url) => Option(url.split("/").dropRight(1).takeRight(1).head)
             case None => None
         }
+    }
+
+    /**
+      * extract Login URL from
+      * "id":"https://login.salesforce.com/id/00D50000000IZ3ZEAW/00550000001fg5OAAQ"
+      * @return
+      */
+    def getLoginUrl: Option[String] = {
+        id match {
+            case Some(urlStr) =>
+                val url = new URL(urlStr)
+                val urlString = url.toExternalForm
+                Option(urlString.substring(0, urlString.length - url.getPath.length))
+            case None => None
+        }
+
     }
 }
 

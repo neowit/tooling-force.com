@@ -21,10 +21,15 @@ package com.neowit.utils
 
 import java.util.Properties
 import java.io.{File, FileWriter, OutputStream}
+import java.nio.file.{Files, Paths}
+
+import com.neowit.auth._
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
+
+import spray.json._
 
 class InvalidCommandLineException(msg: String)  extends IllegalArgumentException(msg: String) {
     def this() {
@@ -196,7 +201,7 @@ regardless of whether it is also specified in config file or not
     lazy val action = getRequiredProperty("action").get
 }
 
-class Config(val basicConfig: BasicConfig) extends Logging{
+class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
 
     val apiVersion:Double = 36.0
 
@@ -237,11 +242,6 @@ class Config(val basicConfig: BasicConfig) extends Logging{
 
 }
 
-case class SfdcCredentials(username: String, password: String, serverurl: String) {
-    def getSoapEndpoint(apiVersion: Double): String = {
-        serverurl + "/services/Soap/u/" + apiVersion
-    }
-}
 
 class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Config(basicConfig) {
 
@@ -256,15 +256,17 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
         }
     }
     */
-    def getSfdcCredentials: Option[SfdcCredentials] = {
+    /*
+    def getSfdcCredentials: Option[LoginPasswordCredentials] = {
         getProperty("sf.username").flatMap{ username =>
             getProperty("sf.password").flatMap{ password =>
                 getProperty("sf.serverurl").map{serverUrl =>
-                    SfdcCredentials(username, password, serverUrl)
+                    LoginPasswordCredentials(username, password, serverUrl)
                 }
             }
         }
     }
+    */
 
     lazy val projectPath = getRequiredProperty("projectPath").get
     lazy val projectDir = new File(getRequiredProperty("projectPath").get)
@@ -276,6 +278,52 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
             throw new ConfigValueException("failed to detect 'src' folder in path:" + projectPath)
         }
         fSrc
+
+    }
+
+    def getAuthConfig: Option[AuthCredentials] = {
+        getProperty("authConfigPath") match {
+            case Some(authConfigPath) =>
+                // user provided explicit auth config
+                val path = Paths.get(authConfigPath)
+                if (!Files.isReadable(path)) {
+                    throw new ConfigValueException("Specified 'authConfigPath' does not point to readable file: " + authConfigPath)
+                }
+                AuthCredentials.load(path) match {
+                    case Some(credentials) => Option(credentials)
+                    case None =>
+                        throw new ConfigValueException("Specified 'authConfigPath' does not point to supported auth type: " + authConfigPath)
+                }
+            case None =>
+                // try to load login/pass/server from main configuration
+                getProperty("sf.username").flatMap{ username =>
+                    getProperty("sf.password").flatMap{ password =>
+                        getProperty("sf.serverurl").map{serverUrl =>
+                            LoginPasswordCredentials(username, password, serverUrl)
+                        }
+                    }
+                }
+        }
+    }
+
+    def saveAccessToken(tokens: Oauth2Tokens): Unit = {
+        getProperty("authConfigPath") match {
+            case Some(authConfigPath) =>
+                // user provided explicit auth config
+                val path = Paths.get(authConfigPath)
+                if (!Files.isWritable(path)) {
+                    throw new ConfigValueException("Specified 'authConfigPath' does not point to readable file: " + authConfigPath)
+                }
+                getAuthConfig match {
+                    case Some(credentials @ Oauth2Credentials(_)) =>
+                        val updatedTokens = credentials.tokens.copy(access_token = tokens.access_token)
+                        FileUtils.writeFile(updatedTokens.toJson.prettyPrint, path.toFile)
+                    case _ =>
+                    //not oauth, do nothing
+                }
+            case None =>
+                // do nothing
+        }
 
     }
 
