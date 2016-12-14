@@ -108,4 +108,4 @@ Third-Party Licenses:
 * [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 * [ANTLR 4](http://www.antlr.org/) - [BSD license](http://www.antlr.org/license.html)  
 * [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
-* [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd) - [Modified BSD licence](https://github.com/NanoHttpd/nanohttpd/blob/master/LICENSE.md)  
+* [jetty](https://www.eclipse.org/jetty/) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)

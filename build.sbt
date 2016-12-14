@@ -29,19 +29,18 @@ libraryDependencies ++= Seq(
 libraryDependencies ++= Seq(
     "commons-logging" %  "commons-logging" % "1.1.3",
     "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.4.3",
-    "org.nanohttpd" % "nanohttpd" % "2.3.1"
+    "com.typesafe.akka" %% "akka-actor" % "2.4.3"
 )
 
 libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
 
+// embedded web server
 val jettyVersion="9.4.0.v20161208"
 libraryDependencies ++= Seq(
-"org.eclipse.jetty"   %   "jetty-webapp"          % jettyVersion/*,
-"org.eclipse.jetty"   %   "jetty-plus"            % jettyVersion,
-"org.eclipse.jetty"   %   "jetty-servlets"        % jettyVersion*/
+    "org.eclipse.jetty" % "jetty-webapp" % jettyVersion
 )
+
 //exportJars := true
 

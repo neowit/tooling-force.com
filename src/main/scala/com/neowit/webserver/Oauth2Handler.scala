@@ -18,34 +18,28 @@ class Oauth2Handler(consumer: OAuthConsumer, oauth2CallBackPath: String, onRespo
 
     import Oauth2Handler._
 
-    private var server: Option[EmbeddedJetty] = None
-
     override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Unit = {
         response.setContentType("text/html; charset=utf-8")
 
-        val (html, isStopServer) =
+        val html =
         target match {
             case START_PAGE_PATH =>
                 response.setStatus(HttpServletResponse.SC_OK)
-                (getAuthStartPage(consumer), false)
+                getAuthStartPage(consumer)
             case `oauth2CallBackPath` =>
                 // initiate asynchronous callback
                 onResponseCallback(request.getParameterMap.mapValues(_.toList).toMap)
                 response.setStatus(HttpServletResponse.SC_OK)
-                (getOauthCompletePage(request), true)
+                getOauthCompletePage(request)
             case _ =>
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
-                (s"No handler for url: $target", false)
+                s"No handler for url: $target"
         }
         val out = response.getWriter
 
         out.println(html)
         baseRequest.setHandled(true)
 
-        if (isStopServer) {
-            println("stopping server")
-            server.foreach(_.stop())
-        }
     }
 }
 

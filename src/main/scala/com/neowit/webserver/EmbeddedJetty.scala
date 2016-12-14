@@ -2,9 +2,8 @@ package com.neowit.webserver
 
 import org.eclipse.jetty.server.{Handler, Server}
 
-class EmbeddedJetty(port: Int,
-                    handler: Handler
-                   ) {
+//http://www.eclipse.org/jetty/documentation/current/embedding-jetty.html
+class EmbeddedJetty(port: Int, handler: Handler ) {
 
     val server = new Server(port)
     server.setStopAtShutdown(true)
@@ -12,9 +11,12 @@ class EmbeddedJetty(port: Int,
     server.setHandler(handler)
 
     server.start()
-    //server.join()
+    //server.join() // commented out because do not need to join current thread
 
-    def isAlive: Boolean = server.isRunning || server.isStarting
+    def isAlive: Boolean = {
+        server.isRunning || server.isStarting
+    }
+
     def stop(): Unit =
         server.stop()
 }

@@ -8,11 +8,8 @@ import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
 import com.neowit.utils.ResponseWriter.Message
 import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
-import fi.iki.elonen.NanoHTTPD
-import fi.iki.elonen.NanoHTTPD.{IHTTPSession, Response}
 import spray.json._
 
-import scala.collection.JavaConversions._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -57,7 +54,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                     case Some(env) =>
                         val consumer = new OAuthConsumer(config.basicConfig, env, consumerKey = keys.consumerKey, consumerSecret = keys.consumerSecret, callbackUrl = keys.callbackUrl)
                         val directUrl = consumer.getLoginUrl.getOrElse("").toString
-                        val shortUrl = WebServer.getStartPagePath(keys.getPort)
+                        val shortUrl = Oauth2Handler.getStartPagePath(keys.getPort)
                         if (OsUtils.openUrl(directUrl)) {
                             // in case if open fails
                             println("If web browser failed to open automatically please follow this url: " + shortUrl)
@@ -67,9 +64,9 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                             config.responseWriter.println(message)
                             //println("Open this URL in your web browser: " + shortUrl)
                         }
+
                         // start server
                         val callbackPath = new URL(keys.callbackUrl).getPath
-                        //val server = new WebServer(keys.getPort, callbackPath, consumer, onResponseCallback(consumer))
                         val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
                         server = Option(new EmbeddedJetty(keys.getPort, handler))
                         while (server.get.isAlive) {
@@ -169,143 +166,3 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
 }
 
-private object WebServer {
-    private val START_PAGE_PATH: String = "/startOAuth"
-
-    def getStartPagePath(port: Int): String = {
-        s"http://localhost:$port$START_PAGE_PATH"
-    }
-    //give user link to this page instead of the long link with all tokens
-    private def getAuthStartPage(consumer: OAuthConsumer): String = {
-        consumer.getLoginUrl.toOption  match {
-            case Some(linkUrl) =>
-                val html =
-                    s"""
-                       |<html><body>
-                       |<a href="$linkUrl">Click here to start Authentication process</a>
-                       |</body></html>
-                    """.stripMargin
-                html
-            case None =>
-                val html =
-                    s"""
-                       |<html><body>
-                       |<h1>Error. Unable to determine salesforce auth URL.</h1>
-                       |</body></html>
-                    """.stripMargin
-                html
-        }
-    }
-
-    def serveStartPage(consumer: OAuthConsumer): Response = {
-        NanoHTTPD.newFixedLengthResponse(getAuthStartPage(consumer))
-    }
-
-    def serveOAuthCompletePage(session: IHTTPSession): Response = {
-        val result = if (null == session.getParameters.get("error")) "Successful" else "Failed"
-
-        if (null != session.getParameters.get("error")){
-            val error = session.getParameters.get("error").head
-            val errorDescription =
-                if (null != session.getParameters.get("error_description")) {
-                    session.getParameters.get("error_description").head
-                } else {
-                    ""
-                }
-            NanoHTTPD.newFixedLengthResponse(getAuthErrorPageContent(error, errorDescription))
-        } else {
-
-            NanoHTTPD.newFixedLengthResponse(getAuthSuccessPageContent)
-        }
-    }
-
-    private def getAuthSuccessPageContent: String = {
-       """
-         |<html>
-         |    <head>
-         |        <style>
-         |        .centered {
-         |            position: fixed;
-         |            top: 5%;
-         |            left: 50%;
-         |            transform: translate(-50%, -5%);
-         |        }
-         |        </style>
-         |    </head>
-         |    <body>
-         |        <div class="centered">
-         |            <h1>tooling-force.com</h1>
-         |            <h3>Authorisation Successful</h3>
-         |            <p>You may now close this window</p>
-         |        </div>
-         |    </body>
-         |</html>
-         |
-       """.stripMargin
-    }
-
-    private def getAuthErrorPageContent(error: String, errorDescription: String): String = {
-        s"""
-          |<html>
-          |    <head>
-          |        <style>
-          |        .centered {
-          |            position: fixed;
-          |            top: 5%;
-          |            left: 50%;
-          |            transform: translate(-50%, -5%);
-          |        }
-          |        </style>
-          |    </head>
-          |    <body>
-          |        <div class="centered">
-          |            <h1>tooling-force.com</h1>
-          |            <h3>Authorisation FAILED</h3>
-          |            <p>$error</p>
-          |            <p>$errorDescription</p>
-          |        </div>
-          |    </body>
-          |</html>
-          |
-        """.stripMargin
-    }
-
-
-    def serveUndefinedPathPage(session: IHTTPSession): Response = {
-
-        val html =
-            s"""
-               |<html><body>
-               |No handler for specified URL: ${session.getUri }
-               |</body></html>
-            """.stripMargin
-        NanoHTTPD.newFixedLengthResponse(html)
-    }
-}
-private class WebServer(port: Int,
-                        oauth2CallBackPath: String,
-                        consumer: OAuthConsumer,
-                        onResponseCallback: (WebServer, Map[String, List[String]]) => Future[Unit]
-                       ) extends NanoHTTPD(port) with Logging {
-
-    start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-
-    logger.debug(s"\nRunning! Expecting requests at: http://localhost:$port/ \n")
-
-    override def serve(session: IHTTPSession): Response = {
-        session.getUri match {
-            case WebServer.START_PAGE_PATH => // e.g. "/startOAuth"
-                WebServer.serveStartPage(consumer)
-
-            case `oauth2CallBackPath` => // e.g. "/_oauth_callback"
-                // initiate asynchronous callback
-                onResponseCallback(this, session.getParameters.mapValues(_.toList).toMap)
-                WebServer.serveOAuthCompletePage(session)
-
-            case _ =>
-                WebServer.serveUndefinedPathPage(session)
-        }
-
-    }
-
-}
