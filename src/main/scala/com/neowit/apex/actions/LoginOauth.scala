@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
 import com.neowit.utils.ResponseWriter.Message
+import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.{IHTTPSession, Response}
 import spray.json._
@@ -47,6 +48,8 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
     }
 
+    private var server: Option[EmbeddedJetty] = None
+
     override protected def act(): Unit = {
         ConnectedAppKeys.load() match {
             case Some(keys) =>
@@ -66,10 +69,13 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                         }
                         // start server
                         val callbackPath = new URL(keys.callbackUrl).getPath
-                        val server = new WebServer(keys.getPort, callbackPath, consumer, onResponseCallback(consumer))
-                        while (server.isAlive) {
+                        //val server = new WebServer(keys.getPort, callbackPath, consumer, onResponseCallback(consumer))
+                        val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
+                        server = Option(new EmbeddedJetty(keys.getPort, handler))
+                        while (server.get.isAlive) {
                             Thread.sleep(1000)
                         }
+
                     case None =>
                 }
             case None =>
@@ -94,7 +100,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
         }
     }
 
-    private def onResponseCallback(consumer: OAuthConsumer)(server: WebServer, urlParams: Map[String, List[String]]): Future[Unit] = {
+    private def onResponseCallback(consumer: OAuthConsumer)(urlParams: Map[String, List[String]]): Future[Unit] = {
         Future {
 
             urlParams.get("error") match {
@@ -147,7 +153,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
             // give server a chance to send output message
             delayedExecution(1) {
                 println("stopping server")
-                server.stop()
+                server.foreach(_.stop())
             }
         }
 
@@ -169,7 +175,7 @@ private object WebServer {
     def getStartPagePath(port: Int): String = {
         s"http://localhost:$port$START_PAGE_PATH"
     }
-    //TODO - give user link to this page instead of the long link with all tokens
+    //give user link to this page instead of the long link with all tokens
     private def getAuthStartPage(consumer: OAuthConsumer): String = {
         consumer.getLoginUrl.toOption  match {
             case Some(linkUrl) =>

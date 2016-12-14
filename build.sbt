@@ -37,5 +37,11 @@ libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
 
+val jettyVersion="9.4.0.v20161208"
+libraryDependencies ++= Seq(
+"org.eclipse.jetty"   %   "jetty-webapp"          % jettyVersion/*,
+"org.eclipse.jetty"   %   "jetty-plus"            % jettyVersion,
+"org.eclipse.jetty"   %   "jetty-servlets"        % jettyVersion*/
+)
 //exportJars := true
 
