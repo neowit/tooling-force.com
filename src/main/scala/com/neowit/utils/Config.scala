@@ -170,7 +170,7 @@ class BasicConfig extends Logging {
     }
 
     def help() {
-        System.out.println( """
+        println( """
  Command line utility for working with force.com Metadata and Tooling API.
  https://github.com/neowit/tooling-force.com
 
