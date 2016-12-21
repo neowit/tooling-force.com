@@ -26,7 +26,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
         override def getName: String = "login"
 
         override def getExample: String =
-            """login --env=test.salesforce.com --responseFilePath="/tmp/response.txt" --saveAuthPath="/tmp/secret/oauth2/my-project" """
+            """--action=login --env="test.salesforce.com" --responseFilePath="/tmp/response.txt" --saveAuthPath="/tmp/secret/oauth2/my-project" """
 
         override def getParamDescription(paramName: String): String = paramName match {
             case "env" =>
