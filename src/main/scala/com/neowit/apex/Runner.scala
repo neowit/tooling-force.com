@@ -50,7 +50,12 @@ class Executor extends Logging {
                 isGoodConfig = true
                 exitCode = 0
             } catch {
-                case ex: InvalidCommandLineException => basicConfig.help()
+                case ex: InvalidCommandLineException =>
+                    if (null != ex.getMessage) {
+                        basicConfig.getResponseWriter.println(ex.getMessage)
+                        logger.error(ex.getMessage)
+                    }
+                    basicConfig.help()
                 case ex: ShowHelpException =>
                     /* uncomment to display actual stack trace
                     val sw = new StringWriter
