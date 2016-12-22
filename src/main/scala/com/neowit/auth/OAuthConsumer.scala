@@ -20,18 +20,21 @@ import spray.json._
 /**
   *
   * @param appConfig - basic configuration
-  * @param environment - e.g. login.salesforce.com
+  * @param _environment - e.g. login.salesforce.com
   * @param callbackUrl - must be *exactly* the same url as configured in connected app settings
   */
 class OAuthConsumer(appConfig: BasicConfig,
-                    environment: String,
+                    private val _environment: String,
                     consumerKey: String,
                     consumerSecret: String,
                     callbackUrl: String) extends Logging with OAuth2JsonSupport{
 
-    private def getServerUrl(environment: String): String = {
+    def environment: String = {
+        Try(new URL(_environment)).map(_.getHost).getOrElse("login.salesforce.com")
+    }
 
-        "https://" + environment
+    private def getServerUrl(environment: String): Try[URL] = {
+        Try(new URL("https://" + environment))
     }
 
     /**
@@ -55,9 +58,10 @@ class OAuthConsumer(appConfig: BasicConfig,
                 "scope" -> "id api web refresh_token" //refresh_token must be requested explicitly
             )
         )
-        val serverUrl: String = getServerUrl(environment)
-        val url = Try(new URL(serverUrl + "/services/oauth2/authorize?" + params))
-        url
+        getServerUrl(environment).flatMap{serverUrl =>
+            val url = Try(new URL(serverUrl, "/services/oauth2/authorize?" + params))
+            url
+        }
     }
 
     private def encodeUrlParams(params: Map[String, String]): String = {
@@ -74,18 +78,22 @@ class OAuthConsumer(appConfig: BasicConfig,
       * @return
       */
     def getTokens(code: String): Option[Oauth2Tokens] = {
-        val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
-        val params =
-            Map(
-                "code" -> code,
-                "grant_type" -> "authorization_code",
-                "client_id" -> consumerKey,
-                "client_secret" -> consumerSecret,
-                "redirect_uri" -> callbackUrl
+        //val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
+        getServerUrl(environment).flatMap{serverUrl =>
 
-            )
+            val params =
+                Map(
+                    "code" -> code,
+                    "grant_type" -> "authorization_code",
+                    "client_id" -> consumerKey,
+                    "client_secret" -> consumerSecret,
+                    "redirect_uri" -> callbackUrl
 
-        sendPost(serverUrl, params).toOption
+                )
+            Try(new URL(serverUrl, "/services/oauth2/token")).map{url =>
+                sendPost(url, params).toOption
+            }
+        }.getOrElse(None)
     }
 
     /**
@@ -94,23 +102,25 @@ class OAuthConsumer(appConfig: BasicConfig,
       * @return
       */
     def refreshTokens(refreshToken: String): Either[Throwable, Oauth2Tokens] = {
-        val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
-        val params =
-            Map(
-                "refresh_token" -> refreshToken,
-                "grant_type" -> "refresh_token",
-                "client_id" -> consumerKey,
-                "client_secret" -> consumerSecret
+        //val serverUrl: String = getServerUrl(environment) + "/services/oauth2/token"
+        getServerUrl(environment).flatMap{serverUrl =>
+            val params =
+                Map(
+                    "refresh_token" -> refreshToken,
+                    "grant_type" -> "refresh_token",
+                    "client_id" -> consumerKey,
+                    "client_secret" -> consumerSecret
 
-            )
+                )
 
-        sendPost(serverUrl, params) match {
+            sendPost(new URL(serverUrl, "/services/oauth2/token"), params)
+        } match {
             case Success(tokens) => Right(tokens)
             case Failure(ex) => Left(ex)
         }
     }
 
-    private def sendPost(url: String, params: Map[String, String]):Try[Oauth2Tokens] = {
+    private def sendPost(url: URL, params: Map[String, String]):Try[Oauth2Tokens] = {
         def extractJsonResponse(conn: HttpURLConnection): Option[JsValue] = {
             Try{
                 val in = conn.getInputStream
@@ -126,7 +136,7 @@ class OAuthConsumer(appConfig: BasicConfig,
             }.toOption
         }
         val connectionConfig = Connection.initConnectorConfig(appConfig)
-        val conn = connectionConfig.createConnection(new URL(url), new java.util.HashMap[String, String](), false)
+        val conn = connectionConfig.createConnection(url, new java.util.HashMap[String, String](), false)
         conn.setRequestMethod("POST")
         conn.setDoOutput(true)
         conn.setDoInput(true)
