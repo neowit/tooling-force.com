@@ -27,7 +27,9 @@ class OAuthConsumer(appConfig: BasicConfig,
                     private val _environment: String,
                     consumerKey: String,
                     consumerSecret: String,
-                    callbackUrl: String) extends Logging with OAuth2JsonSupport{
+                    callbackUrl: String,
+                    state: Option[String] = None
+                   ) extends Logging with OAuth2JsonSupport{
 
     def environment: String = {
         Try(new URL(_environment)).map(_.getHost).getOrElse("login.salesforce.com")
@@ -53,7 +55,7 @@ class OAuthConsumer(appConfig: BasicConfig,
                 "response_type" -> "code",
                 "client_id" -> consumerKey,
                 "redirect_uri" -> callbackUrl,
-                "state" -> environment,
+                "state" -> state.getOrElse(environment),
                 "prompt" -> "login",
                 "scope" -> "id api web refresh_token" //refresh_token must be requested explicitly
             )

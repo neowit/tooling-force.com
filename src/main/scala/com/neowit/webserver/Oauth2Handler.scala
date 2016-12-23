@@ -8,37 +8,45 @@ import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
 import com.neowit.auth.OAuthConsumer
 import org.eclipse.jetty.server.Request
-import org.eclipse.jetty.server.handler.AbstractHandler
 
 import scala.concurrent.Future
-
 import scala.collection.JavaConversions._
 
-class Oauth2Handler(consumer: OAuthConsumer, oauth2CallBackPath: String, onResponseCallback: (Map[String, List[String]]) => Future[Unit]) extends AbstractHandler {
+/**
+  * Author: Andrey Gavrikov
+  */
+class Oauth2Handler(
+                    consumer: OAuthConsumer,
+                    oauth2CallBackPath: String,
+                    onResponseCallback: (Map[String, List[String]]) => Future[Unit]) extends EmbeddedJettyHandler {
 
     import Oauth2Handler._
 
-    override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Unit = {
-        response.setContentType("text/html; charset=utf-8")
+    override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): HandleStatus = {
 
-        val html =
         target match {
             case START_PAGE_PATH =>
+                response.setContentType("text/html; charset=utf-8")
                 response.setStatus(HttpServletResponse.SC_OK)
-                getAuthStartPage(consumer)
+                val html = getAuthStartPage(consumer)
+                val out = response.getWriter
+                out.println(html)
+                Handled
             case `oauth2CallBackPath` =>
                 // initiate asynchronous callback
                 onResponseCallback(request.getParameterMap.mapValues(_.toList).toMap)
+
+                response.setContentType("text/html; charset=utf-8")
                 response.setStatus(HttpServletResponse.SC_OK)
-                getOauthCompletePage(request)
+                val html = getOauthCompletePage(request)
+                val out = response.getWriter
+                out.println(html)
+                Handled
             case _ =>
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
-                s"No handler for url: $target"
+                //s"No handler for url: $target"
+                NotHandled
         }
-        val out = response.getWriter
-
-        out.println(html)
-        baseRequest.setHandled(true)
 
     }
 }

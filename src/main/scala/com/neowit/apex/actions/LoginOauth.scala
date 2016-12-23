@@ -2,6 +2,7 @@ package com.neowit.apex.actions
 
 import java.io.File
 import java.net.URL
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
@@ -45,14 +46,24 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
     }
 
-    private var server: Option[EmbeddedJetty] = None
+    //private var server: Option[EmbeddedJetty] = None
 
     override protected def act(): Unit = {
         ConnectedAppKeys.load() match {
             case Some(keys) =>
                 config.getRequiredProperty("env") match {
                     case Some(env) =>
-                        val consumer = new OAuthConsumer(config.basicConfig, env, consumerKey = keys.consumerKey, consumerSecret = keys.consumerSecret, callbackUrl = keys.callbackUrl)
+                        val handlerUuid = UUID.randomUUID()
+                        val handlerId = handlerUuid.toString
+                        val consumer =
+                            new OAuthConsumer(
+                                config.basicConfig,
+                                env,
+                                consumerKey = keys.consumerKey,
+                                consumerSecret = keys.consumerSecret,
+                                callbackUrl = keys.callbackUrl,
+                                state = Option(handlerId) // use request state parameter as unique request identifier
+                            )
                         val directUrl = consumer.getLoginUrl.getOrElse("").toString
                         val shortUrl = Oauth2Handler.getStartPagePath(keys.getPort)
                         if (OsUtils.openUrl(directUrl)) {
@@ -66,11 +77,19 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                         }
 
                         // start server
-                        val callbackPath = new URL(keys.callbackUrl).getPath
-                        val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
-                        server = Option(new EmbeddedJetty(keys.getPort, handler))
-                        while (server.get.isAlive) {
-                            Thread.sleep(1000)
+                        EmbeddedJetty.start(keys.getPort) match {
+                            case Right(_server) =>
+                                val callbackPath = new URL(keys.callbackUrl).getPath
+                                val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
+                                EmbeddedJetty.addHandler(handlerId, handler)
+                                //server = Option(_server)
+                                while (EmbeddedJetty.hasHandler(handlerId)) {
+                                    Thread.sleep(1000)
+                                }
+                            case Left(err) =>
+                                config.responseWriter.println("RESULT=FAILURE")
+                                val message = new Message(ResponseWriter.ERROR, err)
+                                config.responseWriter.println(message)
                         }
 
                     case None =>
@@ -148,9 +167,14 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
             }
 
             // give server a chance to send output message
-            delayedExecution(1) {
-                println("stopping server")
-                server.foreach(_.stop())
+            urlParams.get("state") match {
+                case Some(handlerId :: tail) =>
+                    delayedExecution(1) {
+                        println("stopping server")
+                        EmbeddedJetty.stop(handlerId)
+                    }
+                case _ =>
+                    // response missing state parameter - something must have gone wrong, can not stop server explicitly
             }
         }
 
