@@ -48,6 +48,15 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
     //private var server: Option[EmbeddedJetty] = None
 
     override protected def act(): Unit = {
+        val outputFile: File = getOutputFile match {
+            case Some(file) => file
+            case None =>
+                config.responseWriter.println("RESULT=FAILURE")
+                val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
+                config.responseWriter.println(message)
+                return
+        }
+        
         ConnectedAppKeys.load() match {
             case Some(keys) =>
                 config.getRequiredProperty("env") match {
@@ -72,14 +81,13 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                             // unsupported OS, provide alternative (short) url to open manually
                             val message = new Message(ResponseWriter.WARN, "Open this URL in your web browser: " + shortUrl)
                             config.responseWriter.println(message)
-                            //println("Open this URL in your web browser: " + shortUrl)
                         }
 
                         // start server
                         EmbeddedJetty.start(keys.getPort) match {
                             case Right(_server) =>
                                 val callbackPath = new URL(keys.callbackUrl).getPath
-                                val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
+                                val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(outputFile, consumer))
                                 EmbeddedJetty.addHandler(handlerId, handler)
                                 // wait for process to complete
                                 while (EmbeddedJetty.hasHandler(handlerId)) {
@@ -117,7 +125,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
         }
     }
 
-    private def onResponseCallback(consumer: OAuthConsumer)(urlParams: Map[String, List[String]]): Future[Unit] = {
+    private def onResponseCallback(outputFile: File, consumer: OAuthConsumer)(urlParams: Map[String, List[String]]): Future[Unit] = {
         Future {
 
             urlParams.get("error") match {
@@ -144,32 +152,22 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                     }
 
                     if (code.nonEmpty) {
-                        getOutputFile match {
-                            case Some(outputFile) =>
-                                // next step is to extract session id via call to: https://login.salesforce.com/services/oauth2/token,
-                                // see here: https://developer.salesforce.com/page/Digging_Deeper_into_OAuth_2.0_at_Salesforce.com#The_Salesforce.com_Identity_Service
-                                consumer.getTokens(code) match {
-                                    case Some(tokens) =>
-                                        println("loaded tokens")
-                                        FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
-                                        //session.storeConnectionData(tokens, env, allowWrite = true)
-                                        config.responseWriter.println("RESULT=SUCCESS")
-                                        config.responseWriter.println(tokens.toJson.prettyPrint)
-                                    case None =>
-                                        config.responseWriter.println("RESULT=FAILURE")
-                                }
+                        consumer.getTokens(code) match {
+                            case Some(tokens) =>
+                                //println("outputFile=" + outputFile.getAbsolutePath)
+                                println("loaded tokens")
+                                FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
+                                //session.storeConnectionData(tokens, env, allowWrite = true)
+                                config.responseWriter.println("RESULT=SUCCESS")
+                                config.responseWriter.println(tokens.toJson.prettyPrint)
                             case None =>
                                 config.responseWriter.println("RESULT=FAILURE")
-                                val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
-                                config.responseWriter.println(message)
                         }
-
                     }
             }
 
             urlParams.get("state") match {
                 case Some(handlerId :: tail) =>
-                    //println("state.handlerId: " + handlerId)
                     EmbeddedJetty.removeHandler(handlerId)
                 case _ =>
                     // response missing state parameter - something must have gone wrong, can not stop server explicitly
