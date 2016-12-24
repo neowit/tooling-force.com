@@ -11,6 +11,7 @@ import org.eclipse.jetty.server.Request
 
 import scala.concurrent.Future
 import scala.collection.JavaConversions._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Author: Andrey Gavrikov
@@ -22,7 +23,7 @@ class Oauth2Handler(
 
     import Oauth2Handler._
 
-    override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): HandleStatus = {
+    override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Future[HandleStatus] = {
 
         target match {
             case START_PAGE_PATH =>
@@ -31,21 +32,23 @@ class Oauth2Handler(
                 val html = getAuthStartPage(consumer)
                 val out = response.getWriter
                 out.println(html)
-                Handled
+                Future.successful(Handled)
             case `oauth2CallBackPath` =>
-                // initiate asynchronous callback
-                onResponseCallback(request.getParameterMap.mapValues(_.toList).toMap)
 
                 response.setContentType("text/html; charset=utf-8")
                 response.setStatus(HttpServletResponse.SC_OK)
                 val html = getOauthCompletePage(request)
                 val out = response.getWriter
                 out.println(html)
-                Handled
+                // signal that request has been handled
+                baseRequest.setHandled(true)
+                // initiate asynchronous callback
+                onResponseCallback(request.getParameterMap.mapValues(_.toList).toMap)
+                    .map(_ => Handled)
             case _ =>
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
                 //s"No handler for url: $target"
-                NotHandled
+                Future.successful(NotHandled)
         }
 
     }

@@ -1,10 +1,13 @@
 package com.neowit.webserver
 
+import java.util.concurrent.TimeUnit
 import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
 import org.eclipse.jetty.server.handler.AbstractHandler
 import org.eclipse.jetty.server.{Handler, Request, Server}
 
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -16,7 +19,7 @@ case object Handled extends HandleStatus
 case object NotHandled extends HandleStatus
 
 trait EmbeddedJettyHandler {
-    def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): HandleStatus
+    def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Future[HandleStatus]
 }
 
 //http://www.eclipse.org/jetty/documentation/current/embedding-jetty.html
@@ -29,7 +32,7 @@ object EmbeddedJetty {
             case Some(_server) =>
                 Right(_server)
             case None =>
-                Try(new EmbeddedJetty(port, _defaultHandler)) match {
+                Try(new EmbeddedJetty(port, _internalHandler)) match {
                     case Success(_server) => serverOpt = Option(_server)
                         Right(_server)
                     case Failure(ex) => Left(ex.getMessage)
@@ -37,14 +40,21 @@ object EmbeddedJetty {
         }
     }
 
-    def stop(handlerId: String): Boolean = {
-        removeHandler(handlerId)
-
+    /**
+      * server can only be stopped when there are no handlers left
+      * @return
+      */
+    def stop(): Boolean = {
         serverOpt match {
             case Some(_server) =>
                 // check if no handlers left and we can stop
-                if (handlersMap.isEmpty) {
-                    _server.stop()
+                if ( isOkToStop ) {
+                    //1sec delay to give server a chance to complete current response
+                    delayedExecution(1) {
+                        println("stopping server")
+                        _server.stop()
+                    }
+                    serverOpt = None
                     true
                 } else {
                     // some handlers still exist, unprocessed requests may be in progress
@@ -67,17 +77,31 @@ object EmbeddedJetty {
         handlersMap.remove(id)
     }
 
-    private val _defaultHandler = new AbstractHandler {
+    protected def isOkToStop: Boolean = {
+        handlersMap.isEmpty
+    }
+
+    private val _internalHandler = new AbstractHandler {
         override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Unit = {
             for (handler <- handlersMap.values) {
-                handler.handle(target, baseRequest, request, response) match {
-                    case Handled =>
-                        baseRequest.setHandled(true)
-                        return
-                    case _ => // continue to next handler
+                // only call next handler if request has not already been handled
+                if ( !baseRequest.isHandled ) {
+                    handler.handle(target, baseRequest, request, response).map{
+                        case Handled =>
+                            if (! baseRequest.isHandled ) {
+                                baseRequest.setHandled(true)
+                            }
+                        case _ => // continue to next handler
+                    }
                 }
             }
 
+        }
+    }
+    private def delayedExecution(delaySec: Long) (codeUnit: => Unit): Future[Unit] = {
+        Future.successful {
+            TimeUnit.SECONDS.sleep(delaySec)
+            codeUnit
         }
     }
 }
@@ -96,7 +120,8 @@ class EmbeddedJetty private (port: Int, handler: Handler ) {
         server.isRunning || server.isStarting
     }
 
-    protected def stop(): Unit =
+    protected def stop(): Unit = {
         server.stop()
+    }
 }
 

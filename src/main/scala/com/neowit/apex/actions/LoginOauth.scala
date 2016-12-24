@@ -3,7 +3,6 @@ package com.neowit.apex.actions
 import java.io.File
 import java.net.URL
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
@@ -82,10 +81,12 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                                 val callbackPath = new URL(keys.callbackUrl).getPath
                                 val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(consumer))
                                 EmbeddedJetty.addHandler(handlerId, handler)
-                                //server = Option(_server)
+                                // wait for process to complete
                                 while (EmbeddedJetty.hasHandler(handlerId)) {
                                     Thread.sleep(1000)
                                 }
+                                EmbeddedJetty.stop()
+
                             case Left(err) =>
                                 config.responseWriter.println("RESULT=FAILURE")
                                 val message = new Message(ResponseWriter.ERROR, err)
@@ -166,13 +167,10 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                     }
             }
 
-            // give server a chance to send output message
             urlParams.get("state") match {
                 case Some(handlerId :: tail) =>
-                    delayedExecution(1) {
-                        println("stopping server")
-                        EmbeddedJetty.stop(handlerId)
-                    }
+                    //println("state.handlerId: " + handlerId)
+                    EmbeddedJetty.removeHandler(handlerId)
                 case _ =>
                     // response missing state parameter - something must have gone wrong, can not stop server explicitly
             }
@@ -180,12 +178,6 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
     }
 
-    private def delayedExecution(delaySec: Long) (codeUnit: => Unit): Future[Unit] = {
-        Future.successful {
-            TimeUnit.SECONDS.sleep(delaySec)
-            codeUnit
-        }
-    }
 
 
 }
