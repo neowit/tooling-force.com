@@ -56,7 +56,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                 config.responseWriter.println(message)
                 return
         }
-        
+
         ConnectedAppKeys.load() match {
             case Some(keys) =>
                 config.getRequiredProperty("env") match {
@@ -85,7 +85,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
                         // start server
                         EmbeddedJetty.start(keys.getPort) match {
-                            case Right(_server) =>
+                            case Right(_) =>
                                 val callbackPath = new URL(keys.callbackUrl).getPath
                                 val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(outputFile, consumer))
                                 EmbeddedJetty.addHandler(handlerId, handler)
@@ -146,18 +146,12 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                         case Some(values) => values.head
                         case None => ""
                     }
-                    val env = urlParams.get("state") match {
-                        case Some(values) => values.head
-                        case None => ""
-                    }
 
                     if (code.nonEmpty) {
                         consumer.getTokens(code) match {
                             case Some(tokens) =>
-                                //println("outputFile=" + outputFile.getAbsolutePath)
                                 println("loaded tokens")
                                 FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
-                                //session.storeConnectionData(tokens, env, allowWrite = true)
                                 config.responseWriter.println("RESULT=SUCCESS")
                                 config.responseWriter.println(tokens.toJson.prettyPrint)
                             case None =>
@@ -167,7 +161,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
             }
 
             urlParams.get("state") match {
-                case Some(handlerId :: tail) =>
+                case Some(handlerId :: _) =>
                     EmbeddedJetty.removeHandler(handlerId)
                 case _ =>
                     // response missing state parameter - something must have gone wrong, can not stop server explicitly
