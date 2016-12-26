@@ -128,14 +128,14 @@ class CommandParser extends Actor {
         context.stop(self)
     }
 
-    def receive = {
+    def receive: Actor.Receive = {
         case Message(socket) => processCommand(socket)
         case _ => println("huh?")
     }
 }
 
 class CommandProcessor extends Actor {
-    def receive = {
+    def receive: Actor.Receive = {
         case Ping(socket) => ping(socket)
         case Shutdown(socket) => shutdown(socket)
         case Command(socket, commandLine) => processCommand(socket, commandLine)
