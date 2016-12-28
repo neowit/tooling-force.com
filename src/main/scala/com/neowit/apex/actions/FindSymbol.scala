@@ -25,7 +25,7 @@ import java.nio.file.{Files, Paths}
 import com.neowit.apex.completion.{UnresolvedApexTokenDefinition, _}
 import com.neowit.apex.parser._
 import com.neowit.utils.ResponseWriter
-import com.neowit.utils.ResponseWriter.Message
+import com.neowit.utils.ResponseWriter.{Message, SUCCESS}
 
 class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
@@ -78,13 +78,13 @@ class FindSymbol extends ApexActionWithReadOnlySession {
 
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session, isDefinitionOnly = true)
             val definitionOpt = completion.getDefinition
-            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println(SUCCESS)
 
             definitionOpt match {
                 case Some(definition) =>
                     getSymbol(definition, completion) match {
                         case Some(member) =>
-                            config.responseWriter.println(member.serialise)
+                            config.responseWriter.println(member.serialise.compactPrint)
                         case None =>
                             println("Not local resource, no location available")
                             config.responseWriter.println("{}")

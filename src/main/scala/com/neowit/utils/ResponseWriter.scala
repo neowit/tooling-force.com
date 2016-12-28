@@ -27,6 +27,10 @@ import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
 
 object ResponseWriter {
+    sealed trait RESULT
+
+    case object FAILURE extends RESULT
+    case object SUCCESS extends RESULT
 
     def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.mapValues(value => if (null == value) "" else value)
 
@@ -37,13 +41,19 @@ object ResponseWriter {
             COUNTER
         }
     }
-    case class Message(msgType: MessageType, text: String, data: Map[String, Any] = Map()) {
+
+    class Message(msgType: MessageType, text: String, data: Map[String, Any] = Map()) {
         val id = Message.getNextId()
         def toJSONObject = {
             val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ensureNoNulls(data)
             msgData.toJson.asJsObject
         }
     }
+    case class InfoMessage(text: String, data: Map[String, Any] = Map()) extends Message(INFO, text, data)
+    case class WarnMessage(text: String, data: Map[String, Any] = Map()) extends Message(WARN, text, data)
+    case class ErrorMessage(text: String, data: Map[String, Any] = Map()) extends Message(ERROR, text, data)
+    case class DebugMessage(text: String, data: Map[String, Any] = Map()) extends Message(DEBUG, text, data)
+
     case class MessageDetail(message: Message, data: Map[String, Any]) {
         def toJSONObject = {
             val msgData = Map("messageId"-> message.id) ++ ensureNoNulls(data)
@@ -99,7 +109,12 @@ object ResponseWriter {
         }.mkString
 }
 
-class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends PrintWriter(out, autoFlush) with Logging{
+
+class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends Logging{
+    import ResponseWriter._
+
+    private val _writer = new PrintWriter(out, autoFlush)
+
     var needClosing = false
 
     def this(file: File) {
@@ -108,8 +123,15 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     def this(file: File, append: Boolean) {
         this(new FileOutputStream(file), autoFlush = true, append)
     }
-    override def println(p1: String): Unit = {
-        super.println(p1)
+
+    def println(result: RESULT): Unit = {
+        result match {
+            case SUCCESS => this.println("RESULT=SUCCESS")
+            case FAILURE => this.println("RESULT=FAILURE")
+        }
+    }
+    def println(p1: String): Unit = {
+        _writer.println(p1)
         needClosing = true
         logger.debug(p1)
     }
@@ -135,9 +157,9 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
         println("#SECTION END: " + sectionName)
     }
 
-    override def close(): Unit = {
+    def close(): Unit = {
         if (needClosing)
-            super.close()
+            _writer.close()
     }
 
 

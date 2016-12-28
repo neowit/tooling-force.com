@@ -3,10 +3,12 @@ package com.neowit.apex.actions
 import com.neowit.apex.actions.Deploy.RunTestResultMetadata
 import com.neowit.apex.actions.tooling.AuraMember
 import com.neowit.apex._
-import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
-import com.neowit.utils.{FileUtils, ZipUtils, ResponseWriter}
-import java.io.{PrintWriter, FileWriter, File}
+import com.neowit.utils.ResponseWriter._
+import com.neowit.utils.{FileUtils, ResponseWriter, ZipUtils}
+import java.io.{File, FileWriter, PrintWriter}
+
 import com.sforce.soap.metadata._
+
 import scala.collection.mutable
 import scala.util.matching.Regex
 
@@ -232,7 +234,7 @@ class DeployModified extends Deploy {
     protected def reportEmptyFileList(files: List[File]): Unit = {
         responseWriter.println("RESULT=SUCCESS")
         responseWriter.println("FILE_COUNT=" + files.size)
-        responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+        responseWriter.println(InfoMessage("no modified files detected."))
     }
     /**
      * @return - true if deployment is successful
@@ -323,14 +325,14 @@ class DeployModified extends Deploy {
 
         val deployDetails = deployResult.getDetails
         if (!deployResult.isSuccess) {
-            responseWriter.println("RESULT=FAILURE")
+            responseWriter.println(FAILURE)
             //dump details of failures into a response file
             writeDeploymentFailureReport(deployDetails, isRunningTests)
         } else { //deployResult.isSuccess = true
 
             val runTestResult = deployDetails.getRunTestResult
             if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
-                responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+                responseWriter.println(InfoMessage("Tests PASSED"))
             }
             if (isRunningTests && (null != runTestResult) && runTestResult.getTotalTime > 0 ) {
                 logger.info(s"total cumulative time spent running tests: ${runTestResult.getTotalTime}")
@@ -345,7 +347,7 @@ class DeployModified extends Deploy {
                 updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
             }
             session.storeSessionData()
-            responseWriter.println("RESULT=SUCCESS")
+            responseWriter.println(SUCCESS)
             responseWriter.println("FILE_COUNT=" + files.size)
             if (!checkOnly) {
                 responseWriter.startSection("DEPLOYED FILES")
@@ -445,7 +447,7 @@ class DeployModified extends Deploy {
             responseWriter.startSection("ERROR LIST")
 
             //display errors both as messages and as ERROR: lines
-            val componentFailureMessage = new Message(ResponseWriter.WARN, "Component failures")
+            val componentFailureMessage = WarnMessage("Component failures")
             if (deployDetails.getComponentFailures.nonEmpty) {
                 responseWriter.println(componentFailureMessage)
             }
@@ -460,7 +462,7 @@ class DeployModified extends Deploy {
                     case _ => ResponseWriter.ERROR
                 }
                 responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                responseWriter.println(new MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                responseWriter.println( MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
             }
             //process test successes and failures
             val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
@@ -496,14 +498,14 @@ class DeployModified extends Deploy {
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
-                        responseWriter.println("RESULT=FAILURE")
+                        responseWriter.println(FAILURE)
 
-                        val msg = new Message(ResponseWriter.WARN, "Outdated file(s) detected.")
+                        val msg = WarnMessage("Outdated file(s) detected.")
                         responseWriter.println(msg)
                         val checker = new ListConflicting().load[ListConflicting](session)
                         checker.generateConflictMessageDetails(conflictingFiles, msg).
                             foreach{detail => responseWriter.println(detail)}
-                        responseWriter.println(new Message(ResponseWriter.WARN, "Use 'refresh' before 'deploy'."))
+                        responseWriter.println(WarnMessage("Use 'refresh' before 'deploy'."))
                     }
                     conflictingFiles.nonEmpty
                 case None => false
@@ -676,8 +678,8 @@ class DeployAllDestructive extends DeployAll {
 
         diffWithRemote.getDiffReport match {
             case None =>
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(new Message(ResponseWriter.ERROR, "Failed to load remote version of current project"))
+                responseWriter.println(FAILURE)
+                responseWriter.println(ErrorMessage("Failed to load remote version of current project"))
 
             case Some(diffReport) =>
                 val dummyFilesBuilder = Map.newBuilder[String, File]
@@ -849,9 +851,9 @@ class DeploySpecificFiles extends DeployModified {
 
 
     protected override def reportEmptyFileList(files: List[File]): Unit = {
-        responseWriter.println("RESULT=FAILURE")
+        responseWriter.println(FAILURE)
         val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
-        responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
+        responseWriter.println(ErrorMessage("no valid files in " + fileListFile))
     }
 }
 

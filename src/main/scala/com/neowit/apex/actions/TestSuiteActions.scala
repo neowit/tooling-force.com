@@ -103,7 +103,7 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
                 responseWriter.println("RESULT=SUCCESS")
             case Failure(ex) =>
                 responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
+                responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
         }
     }
 

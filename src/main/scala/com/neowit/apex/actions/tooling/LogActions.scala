@@ -5,6 +5,7 @@ import java.io.File
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession, SoqlQuery}
+import com.neowit.utils.ResponseWriter.{ErrorMessage, FAILURE, SUCCESS}
 import com.neowit.utils.{ConfigValueException, FileUtils, ResponseWriter}
 import com.sforce.soap.tooling._
 
@@ -115,10 +116,10 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
         }
         setupTrace(traceFlagMap, session, logger, config.getProperty("logType"), tracedEntityId) match {
             case Success(traceFlagId) =>
-                responseWriter.println("RESULT=SUCCESS")
+                responseWriter.println(SUCCESS)
             case Failure(e) =>
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage))
+                responseWriter.println(FAILURE)
+                responseWriter.println(ErrorMessage(e.getMessage))
 
         }
     }

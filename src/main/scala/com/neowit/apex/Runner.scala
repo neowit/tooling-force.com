@@ -88,15 +88,15 @@ class Executor extends Logging {
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
                     val _responseWriter = basicConfig.getResponseWriter//e.responseWriterOpt.getOrElse(basicConfig.getResponseWriter)
-                    _responseWriter.println("RESULT=FAILURE")
+                    _responseWriter.println(ResponseWriter.FAILURE)
                     for (msg <- messages) {
                         _responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    basicConfig.getResponseWriter.println("RESULT=FAILURE")
-                    basicConfig.getResponseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.getResponseWriter.println(ResponseWriter.FAILURE)
+                    basicConfig.getResponseWriter.println(ResponseWriter.ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
@@ -110,7 +110,7 @@ class Executor extends Logging {
                     System.out.println(stackTraceStr)
                     //ex.printStackTrace(System.out)
 
-                    basicConfig.getResponseWriter.println("RESULT=FAILURE")
+                    basicConfig.getResponseWriter.println(ResponseWriter.FAILURE)
                     basicConfig.getResponseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
             } finally {

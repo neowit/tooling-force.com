@@ -2,7 +2,7 @@ package com.neowit.apex
 
 import com.neowit.apex.actions.{ActionHelp, ApexAction}
 import com.neowit.utils.ResponseWriter
-import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
+import com.neowit.utils.ResponseWriter.{InfoMessage, MessageDetail, SUCCESS}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
@@ -15,8 +15,8 @@ class AppVersion extends ApexAction {
         val name = p.getImplementationTitle
         val version = p.getImplementationVersion
         */
-        config.responseWriter.println("RESULT=SUCCESS")
-        val versionMessage = new Message(ResponseWriter.INFO, AppVersion.APP_NAME + " - version: " + AppVersion.VERSION + "; SFDC API Version: " + config.apiVersion)
+        config.responseWriter.println(SUCCESS)
+        val versionMessage = InfoMessage(AppVersion.APP_NAME + " - version: " + AppVersion.VERSION + "; SFDC API Version: " + config.apiVersion)
         config.responseWriter.println(versionMessage)
         val mb = 1024*1024
         val runtime = Runtime.getRuntime

@@ -1,11 +1,10 @@
 package com.neowit.apex
 
-import java.io.{PrintWriter, File}
+import java.io.{File, PrintWriter}
 
-import com.neowit.apex.actions.{Deploy, ActionError, DescribeMetadata}
+import com.neowit.apex.actions.{ActionError, Deploy, DescribeMetadata}
 import com.neowit.utils.{Config, FileUtils, ResponseWriter}
-import com.neowit.utils.ResponseWriter.{MessageDetail, Message}
-
+import com.neowit.utils.ResponseWriter.{Message, MessageDetail, WarnMessage}
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
@@ -63,7 +62,7 @@ object ApexTestUtils {
             case None => ("triggers", "trigger")
         }
         //only display coverage details of files included in deployment package
-        val coverageDetails = new Message(ResponseWriter.WARN, "Code coverage details")
+        val coverageDetails = WarnMessage("Code coverage details")
         val hasCoverageData = runTestResult.getCodeCoverage.nonEmpty
         var coverageFile: Option[File] = None
         val coverageWriter = config.getProperty("reportCoverage").getOrElse("false") match {
