@@ -31,10 +31,14 @@ class OAuthConsumer(appConfig: BasicConfig,
                     state: Option[String] = None
                    ) extends Logging with OAuth2JsonSupport{
 
-    def environment: String = {
-        Try(new URL(_environment)).map(_.getHost).getOrElse("login.salesforce.com")
+    val environment: String = {
+        _environment.replaceAll("^http[s]?://", "")
     }
 
+    /**
+      * @param environment - expects host name, without protocol or path
+      * @return
+      */
     private def getServerUrl(environment: String): Try[URL] = {
         Try(new URL("https://" + environment))
     }
