@@ -60,10 +60,10 @@ class BasicConfig extends Logging {
 
     private var options:OptionMap = Map()
 
-    def load(args: Array[String]) {
+    def load(args: Array[String]): Unit = {
         load(args.toList)
     }
-    def load(arglist: List[String]) {
+    def load(arglist: List[String]): Unit = {
         if (arglist.isEmpty) {
             throw new InvalidCommandLineException
         }
@@ -169,7 +169,7 @@ class BasicConfig extends Logging {
         }
     }
 
-    def help() {
+    def help(): Unit = {
         println( """
  Command line utility for working with force.com Metadata and Tooling API.
  https://github.com/neowit/tooling-force.com

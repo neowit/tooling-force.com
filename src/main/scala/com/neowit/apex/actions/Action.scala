@@ -28,7 +28,7 @@ class ActionError(msg: String) extends Error(msg: String)
 class UnsupportedActionError(msg: String) extends ActionError(msg: String)
 
 object ActionFactory {
-    val REGISTERED_ACTIONS = Map[String, String](
+    private val REGISTERED_ACTIONS = Map[String, String](
         "version" -> "com.neowit.apex.AppVersion",
         "serverStart" -> "com.neowit.ServerStart",
         "login" -> "LoginOauth",

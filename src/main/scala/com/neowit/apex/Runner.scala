@@ -28,7 +28,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import ExecutionContext.Implicits.global
 
 object Runner extends Logging {
-    def main(args: Array[String]) {
+    def main(args: Array[String]): Unit = {
         val runner = new Executor()
         val exitCode = runner.execute(args)
         sys.exit(exitCode)
@@ -122,7 +122,7 @@ class Executor extends Logging {
         exitCode
     }
 
-    private def run () {
+    private def run (): Unit = {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
         if (basicConfig.getProperty("help").isEmpty) {
             val start = System.currentTimeMillis
@@ -157,7 +157,7 @@ class Executor extends Logging {
             case ex: ShowHelpException => help(ex.help)
         }
     }
-    def help(actionHelp: ActionHelp) {
+    def help(actionHelp: ActionHelp): Unit = {
         System.out.println("\n--action=" + actionHelp.getName)
         System.out.println(" " + actionHelp.getSummary)
         if (actionHelp.getParamNames.nonEmpty) {
@@ -172,7 +172,7 @@ class Executor extends Logging {
         }
     }
 
-    def help() {
+    def help(): Unit = {
         basicConfig.help()
         System.out.println("Available Actions:")
         for (actionName <- ActionFactory.getActionNames) {

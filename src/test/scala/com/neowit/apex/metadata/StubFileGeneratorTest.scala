@@ -1,7 +1,5 @@
 package com.neowit.apex.metadata
 
-import java.io.{FileWriter, File}
-
 import com.neowit.apex.StubFileGenerator
 import org.scalatest.FunSuite
 

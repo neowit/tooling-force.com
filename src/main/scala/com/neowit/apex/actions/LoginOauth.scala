@@ -108,7 +108,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                 val message = new Message(ResponseWriter.ERROR, "Invalid jar file, missing consumer key/secret configuration")
                 config.responseWriter.println(message)
         }
-
+        ()
     }
 
     private def getOutputFile: Option[File] = {

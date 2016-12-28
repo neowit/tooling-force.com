@@ -58,12 +58,12 @@ object ApexMember {
 
 trait ApexMember {
     val xmlType: String
-    def setBody(text: String)
-    def setMetadataContainerId(containerId: String)
-    def setContentEntityId(id: String)
+    def setBody(text: String): Unit
+    def setMetadataContainerId(containerId: String): Unit
+    def setContentEntityId(id: String): Unit
     def getContentEntityId: String
 
-    def setBody(file: File) {
+    def setBody(file: File): Unit = {
         setBody(FileUtils.readFile(file).mkString)
     }
 }

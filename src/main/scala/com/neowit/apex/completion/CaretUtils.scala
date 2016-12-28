@@ -95,7 +95,7 @@ class CodeCompletionTokenSource( source: TokenSource, caret: Caret) extends Toke
         tokenFactory
     }
 
-    def setTokenFactory(tokenFactory: TokenFactory[_]) {
+    def setTokenFactory(tokenFactory: TokenFactory[_]): Unit = {
         source.setTokenFactory(tokenFactory)
         this.tokenFactory = if (tokenFactory != null) tokenFactory else CommonTokenFactory.DEFAULT
     }
@@ -112,7 +112,7 @@ class CaretReachedException(val recognizer: Parser, val finalContext: RuleContex
 
 class CompletionErrorStrategy extends DefaultErrorStrategy {
 
-    override def reportError(recognizer: Parser, e: RecognitionException) {
+    override def reportError(recognizer: Parser, e: RecognitionException): Unit = {
         if (e != null && e.getOffendingToken != null &&
             e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
             return
@@ -121,7 +121,7 @@ class CompletionErrorStrategy extends DefaultErrorStrategy {
     }
 
 
-    override def recover(recognizer: Parser, e: RecognitionException) {
+    override def recover(recognizer: Parser, e: RecognitionException): Unit = {
         if (e != null && e.getOffendingToken != null) {
             if (e.getOffendingToken.getType == CaretToken2.CARET_TOKEN_TYPE) {
                 throw new CaretReachedException(recognizer, recognizer.getContext, e.getOffendingToken.asInstanceOf[CaretTokenTrait], Some(e))
@@ -182,7 +182,7 @@ trait CaretTokenTrait extends org.antlr.v4.runtime.CommonToken {
 
     private var originalToken: Option[Token] = None
 
-    def setOriginalToken(token: Token) {
+    def setOriginalToken(token: Token): Unit = {
         originalToken = Some(token)
     }
     def getOriginalToken: Option[Token] = {

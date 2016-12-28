@@ -20,7 +20,7 @@
 package com.neowit.apex
 
 import com.sforce.soap.metadata.PackageTypeMembers
-import com.neowit.utils.{Config, ConfigWithSfdcProject, FileUtils}
+import com.neowit.utils.{ConfigValueException, ConfigWithSfdcProject, FileUtils}
 import java.io.{File, FileInputStream, InputStream}
 
 import org.w3c.dom.{Node, NodeList}

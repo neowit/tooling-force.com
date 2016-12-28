@@ -4,7 +4,7 @@ import java.io.File
 import java.nio.file.{Files, Path}
 
 import com.neowit.apex.Session
-import com.neowit.apex.actions.{ActionHelp, ApexAction, ApexActionWithReadOnlySession}
+import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession}
 import com.neowit.apex.completion.models.{ApexModelJsonProtocol, ApexType}
 import com.neowit.utils.{FileUtils, Logging}
 import spray.json._

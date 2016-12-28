@@ -292,14 +292,14 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
     }
 
     trait DebugLevelLike {
-        def setApexCode(level: String)
-        def setApexProfiling(level: String)
-        def setCallout(level: String)
-        def setDatabase(level: String)
-        def setSystem(level: String)
-        def setValidation(level: String)
-        def setVisualforce(level: String)
-        def setWorkflow(level: String)
+        def setApexCode(level: String): Unit
+        def setApexProfiling(level: String): Unit
+        def setCallout(level: String): Unit
+        def setDatabase(level: String): Unit
+        def setSystem(level: String): Unit
+        def setValidation(level: String): Unit
+        def setVisualforce(level: String): Unit
+        def setWorkflow(level: String): Unit
     }
     private def setLogLevelByType(logType: String, logLevel: String, traceFlag: DebugLevelLike) = {
         //default - DB & Apex = Debug

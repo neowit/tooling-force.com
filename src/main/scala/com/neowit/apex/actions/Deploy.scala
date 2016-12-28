@@ -206,7 +206,7 @@ class DeployModified extends Deploy {
         override def getName: String = "deployModified"
     }
 
-    def act() {
+    def act(): Unit = {
         val hasTestsToRun = config.getProperty("testsToRun").isDefined
         val modifiedFiles = getFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml")
@@ -222,6 +222,7 @@ class DeployModified extends Deploy {
                 deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
             }
         }
+        ()
     }
 
     /**
@@ -611,10 +612,12 @@ class DeployAll extends DeployModified {
 
     }
 
-    override def act() {
+    override def act(): Unit = {
         val allFiles = getAllFiles
 
         deploy(allFiles, isUpdateSessionDataOnSuccess)
+
+        ()
     }
 
     /**
@@ -665,7 +668,7 @@ class DeployAllDestructive extends DeployAll {
      *   - execute DeployAll against this temp folder
      *   - if previous step is successful then execute DeployDestructive using list of blank files
      */
-    override def act() {
+    override def act(): Unit = {
 
         val diffWithRemote = new DiffWithRemote {
             /**
@@ -761,7 +764,7 @@ class DeployAllDestructive extends DeployAll {
             componentsToDeleteFile.delete()
 
         }
-
+        ()
     }
     /**
      * using list of apex files which belong to different projects - merge them all under one temp project
@@ -904,7 +907,7 @@ class ListModified extends ApexActionWithReadOnlySession {
 
     }
     
-    def reportDeletedFiles(deletedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
+    def reportDeletedFiles(deletedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO): Unit = {
         val msg = new Message(messageType, "Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
         responseWriter.println(msg)
         for(f <- deletedFiles) {
@@ -1000,7 +1003,7 @@ class DeployDestructive extends Deploy {
 
     def getSpecificComponentsFilePath: String = config.getRequiredProperty("specificComponents").get
 
-    override def act() {
+    override def act(): Unit = {
         val components = getComponentPaths
         if (components.isEmpty) {
             responseWriter.println("RESULT=FAILURE")
@@ -1203,7 +1206,7 @@ class DeployModifiedDestructive extends DeployModified {
         override def getName: String = "deployModifiedDestructive"
     }
 
-    override def act() {
+    override def act(): Unit = {
         val hasTestsToRun = config.getProperty("testsToRun").nonEmpty
         val listModified = new ListModified().load[ListModified](session)
         val modifiedFiles = listModified.getModifiedFiles
@@ -1254,7 +1257,7 @@ class DeployModifiedDestructive extends DeployModified {
             //get rid of temp file
             componentsToDeleteFile.delete()
         }
-
+        ()
     }
 
 }

@@ -35,7 +35,7 @@ import scala.util.{Failure, Success, Try}
 class SaveModified extends DeployModified {
     val CONTAINER_PREFIX = "tooling-force.com"
 
-    def deleteMetadataContainer(session: Session) {
+    def deleteMetadataContainer(session: Session): Unit = {
         getExistingMetadataContainer(session)  match {
             case Some(container) =>
                 try {
@@ -351,7 +351,7 @@ class SaveModified extends DeployModified {
                 (member, f)
             }).toMap
 
-            val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toInt
+            val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toLong
             val saveResults = session.createTooling(membersMap.map(_._1.asInstanceOf[SObject]).toArray)
             val res = saveResults.head
             if (res.isSuccess) {

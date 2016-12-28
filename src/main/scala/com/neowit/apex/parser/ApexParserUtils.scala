@@ -149,12 +149,12 @@ object ApexParserUtils {
     }
 
     def getParent[T](ctx:ParseTree, ctxType: Class[T]): Option[T] = {
-        def getParentImpl[T](ctx: ParseTree, ctxType: Class[T]): Option[T] = {
+        def getParentImpl[TT](ctx: ParseTree, ctxType: Class[TT]): Option[TT] = {
             if (null == ctx) {
                 None
             } else {
                 if (ctx.getClass == ctxType) {
-                    Some(ctx.asInstanceOf[T])
+                    Some(ctx.asInstanceOf[TT])
                 } else {
                     if (null != ctx.getParent) {
                         getParentImpl(ctx.getParent, ctxType)

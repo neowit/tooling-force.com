@@ -29,7 +29,7 @@ class CodeCompletionsTest extends FunSuite {
 
     )
 
-    def withResponseFile(testCode: (File) => Any) {
+    def withResponseFile(testCode: (File) => Any): Unit = {
         val responseFile = File.createTempFile("completions", ".json")
         try {
             testCode(responseFile) // "loan" the fixture to the test
@@ -37,6 +37,7 @@ class CodeCompletionsTest extends FunSuite {
             // clean up the fixture
             responseFile.delete()
         }
+        Unit
     }
     case class TestConfig(lineMarker: String, column: Int, itemsCountMin: Int, identities: Option[List[String]], identityMustNotContain: Option[List[String]],
                            signatureContains: Option[List[String]], signatureMustNotContain: Option[List[String]],

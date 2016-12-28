@@ -84,7 +84,7 @@ abstract class GenericNamespace(name: String) extends ApexModelMember {
 
     override def isStatic: Boolean = true
 
-    protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean)
+    protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean): Unit
 
     protected def loadFile(filePath: String, overwriteChildren: Boolean = false): Unit = {
         val is = getClass.getClassLoader.getResource("apex-doc/" + filePath + ".json")

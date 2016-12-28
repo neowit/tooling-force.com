@@ -56,7 +56,7 @@ class ServerStart  extends AsyncAction {
 object TcpServer {
     val system = ActorSystem("TcpServerSystem")
     var isShutdownReceived = false
-    def shutdown() {
+    def shutdown(): Unit = {
         system.terminate()
         println("shutdown ActorSystem")
     }
@@ -65,7 +65,7 @@ object TcpServer {
 class TcpServer (port: Int, timeoutMillis: Int){
     val serverSocket = new ServerSocket(port)
 
-    def start() {
+    def start(): Unit = {
         var count = 0
         while (!TcpServer.isShutdownReceived) {
             if (!TcpServer.isShutdownReceived) {
@@ -98,7 +98,7 @@ class TcpServer (port: Int, timeoutMillis: Int){
 }
 
 class CommandParser extends Actor {
-    def processCommand(socket: Socket) {
+    def processCommand(socket: Socket): Unit = {
 
         //val out = new PrintWriter(socket.getOutputStream, true) //use to communicate back to the client
         //val in = new BufferedReader(new InputStreamReader(socket.getInputStream))
@@ -145,7 +145,7 @@ class CommandProcessor extends Actor {
     /**
      * must be called as the very last call of current Actor, when everything is done
      */
-    def done(socket: Socket) {
+    def done(socket: Socket): Unit = {
         println("Disconnect " + socket.getInetAddress + ":" + socket.getPort)
         socket.close()
         context.stop(self)
@@ -153,14 +153,14 @@ class CommandProcessor extends Actor {
     /**
      * ping command checks if server is On and keeps it alive (i.e. resets accept() timeout)
      */
-    def ping(socket: Socket) {
+    def ping(socket: Socket): Unit = {
         val out = new PrintWriter(socket.getOutputStream, true)
         out.println("pong back at you")
         out.close()
         done(socket)
     }
 
-    def shutdown(socket: Socket) {
+    def shutdown(socket: Socket): Unit = {
         val out = new PrintWriter(socket.getOutputStream, true)
         out.println("server is shutting down")
         println("server is shutting down")
@@ -174,7 +174,7 @@ class CommandProcessor extends Actor {
      * generic command
      * @param commandLine - command line to run
      */
-    def processCommand(socket: Socket, commandLine: String) {
+    def processCommand(socket: Socket, commandLine: String): Unit = {
         println("received command: " + commandLine)
 
         val commandLineArgs:Array[String] = commandLine match {

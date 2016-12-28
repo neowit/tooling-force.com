@@ -83,7 +83,7 @@ object ApexTestUtils {
             reportedNames += coverageResult.getName
             val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
             val coveragePercent = if (coverageResult.getNumLocations > 0) linesCovered * 100 / coverageResult.getNumLocations else 0
-            coverageRelatedMessages += coverageResult.getName -> new MessageDetail(coverageDetails,
+            coverageRelatedMessages += coverageResult.getName -> MessageDetail(coverageDetails,
                 Map("text" ->
                     (coverageResult.getName +
                         ": lines total " + coverageResult.getNumLocations +
@@ -110,7 +110,7 @@ object ApexTestUtils {
                             for (codeLocation <- coverageResult.getLocationsNotCovered) {
                                 locations += codeLocation.getLine
                             }
-                            val coverageJSON = Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
+                            val coverageJSON: JsValue = Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
                                 "linesNotCoveredNum" -> coverageResult.getNumLocationsNotCovered,
                                 "linesNotCovered" -> locations.result().toJson ).toJson
                             // end result looks like so:
@@ -133,10 +133,10 @@ object ApexTestUtils {
         for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
             if (null != coverageWarning.getName) {
                 if (!reportedNamesSet.contains(coverageWarning.getName)) {
-                    responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+                    responseWriter.println(MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
                 }
             } else {
-                responseWriter.println(new MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+                responseWriter.println(MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
             }
 
         }

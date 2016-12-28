@@ -152,7 +152,7 @@ trait AuraMember {
 
 }
 class AuraDefinitionMember extends AuraDefinition with AuraMember {
-    def setSource(file: File) {
+    def setSource(file: File): Unit = {
         setSource(FileUtils.readFile(file).mkString)
     }
 

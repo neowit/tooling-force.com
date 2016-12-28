@@ -13,12 +13,12 @@ import scala.util.{Failure, Success, Try}
 
 class GoToSymbolTest extends FunSuite {
 
-    val is = getClass.getClassLoader.getResource("paths.properties").openStream()
+    private val is = getClass.getClassLoader.getResource("paths.properties").openStream()
     val paths = new Properties()
     paths.load(is)
 
-    val projectPath = paths.getProperty("gotoSymbol.projectPath")
-    val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
+    private val projectPath = paths.getProperty("gotoSymbol.projectPath")
+    private val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
 
     val commandLine = Array(
         s"--config=${escapeFilePath(loginCredentialsPath)}"
@@ -28,7 +28,7 @@ class GoToSymbolTest extends FunSuite {
 
     )
 
-    def withResponseFile(testCode: (File) => Any) {
+    def withResponseFile(testCode: (File) => Any): Unit = {
         val responseFile = File.createTempFile("findSymbol", ".json")
         try {
             testCode(responseFile) // "loan" the fixture to the test
@@ -36,6 +36,7 @@ class GoToSymbolTest extends FunSuite {
             // clean up the fixture
             responseFile.delete()
         }
+        Unit
     }
     case class TestConfig(lineMarker: String, column: Int, itemsCountMin: Int,
                           identities: Option[List[String]],

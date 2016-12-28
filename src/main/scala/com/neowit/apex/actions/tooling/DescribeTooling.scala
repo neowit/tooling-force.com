@@ -61,7 +61,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
 
     def getOutputFilePath = config.getRequiredProperty("allToolingTypesFilePath")
 
-    def act() {
+    def act(): Unit = {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")
@@ -69,7 +69,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
         responseWriter.println("FILE_COUNT=" + resMap.size)
     }
 
-    private def storeDescribeResult(file: File, lines: Iterator[String]) {
+    private def storeDescribeResult(file: File, lines: Iterator[String]): Unit = {
         val writer = new PrintWriter(file)
         lines.foreach(writer.println)
         writer.close()

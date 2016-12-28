@@ -17,7 +17,7 @@ case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
 abstract class RetrieveMetadata extends ApexActionWithWritableSession {
 
-    def setUpackaged(retrieveRequest: RetrieveRequest) {
+    def setUpackaged(retrieveRequest: RetrieveRequest): Unit = {
         val metaXml = new MetaXml(session.getConfig)
         val unpackagedManifest = metaXml.getPackageXml
         logger.debug("Manifest file: " + unpackagedManifest.getAbsolutePath)
@@ -153,7 +153,7 @@ class RefreshMetadata extends RetrieveMetadata {
         override def getName: String = "refresh"
     }
 
-    def act() {
+    def act(): Unit = {
         try {
             //first check if we have modified files
             val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
@@ -203,7 +203,7 @@ class RefreshMetadata extends RetrieveMetadata {
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult) {
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult): Unit = {
         val tempFolder = FileUtils.createTempDir(config)
         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
         //clear Ids of all files not loaded from the Org
@@ -312,7 +312,7 @@ class ListConflicting extends RetrieveMetadata {
         )
     }
 
-    def act() {
+    def act(): Unit = {
         val checker = new ListModified().load[ListModified](session)
         val modifiedFiles = checker.getModifiedFiles
         getFilesNewerOnRemote(modifiedFiles) match {

@@ -29,7 +29,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
     val appConfig = new Config(new BasicConfig)
 
     val FAIL = false
-    def withFile(testCode: (File, FileWriter) => Any) {
+    def withFile(testCode: (File, FileWriter) => Any): Unit = {
         val file = File.createTempFile("test", ".properties") // create the fixture
         val writer = new FileWriter(file)
         try {
@@ -39,6 +39,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             writer.close()
             file.delete()
         }
+        Unit
     }
 
     test("No Command Params") {

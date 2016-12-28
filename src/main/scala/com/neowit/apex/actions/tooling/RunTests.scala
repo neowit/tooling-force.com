@@ -68,7 +68,7 @@ object RunTests {
  * --reportCoverage=true|false (defaults to false) - if true then generate code coverage file
  * --async=true|false (defaults to false) - if true then use runTestsAsynchronous
  */
-class RunTests extends DeployModified{
+class RunTests extends DeployModified {
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -446,7 +446,7 @@ class RunTests extends DeployModified{
     private def waitAsyncJob(asyncJobId: String, progressReporter: (String, Set[String]) => Set[String]): Option[AsyncApexJob] = {
         val startTimeMills = System.currentTimeMillis
         var lastReportTime = System.currentTimeMillis
-        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toLong
         val FINAL_STATUSES = Set("Aborted", "Completed", "Failed")
         val query = s"SELECT ApexClassId,ExtendedStatus,Id,ParentJobId,Status FROM AsyncApexJob where Id = '$asyncJobId'"
         val doneClassIds = new collection.mutable.HashSet[String]()

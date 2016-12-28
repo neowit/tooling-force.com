@@ -234,7 +234,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
     }
     def getOutputFilePath = config.getRequiredProperty("allMetaTypesFilePath")
 
-    def act() {
+    def act(): Unit = {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")

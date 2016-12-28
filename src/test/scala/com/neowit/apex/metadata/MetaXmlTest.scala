@@ -20,15 +20,13 @@
 package com.neowit.apex.metadata
 
 import org.scalatest.{FunSuite, PrivateMethodTester}
-import java.io.{File, FileWriter, FileNotFoundException}
-import java.util.Properties
-import java.lang.IllegalArgumentException
-import com.neowit.utils.{BasicConfig, Config, OptionProperties, InvalidCommandLineException}
+import java.io.{File, FileWriter}
+import com.neowit.utils.{BasicConfig, Config}
 
 class MetaXmlTest extends FunSuite with PrivateMethodTester {
     val appConfig = new Config(new BasicConfig)
 
-    def withPropertiesFile(testCode: (File, FileWriter) => Any) {
+    def withPropertiesFile(testCode: (File, FileWriter) => Any): Unit = {
         val file = File.createTempFile("test", ".properties") // create the fixture
         val writer = new FileWriter(file)
         try {
@@ -38,8 +36,9 @@ class MetaXmlTest extends FunSuite with PrivateMethodTester {
             writer.close()
             file.delete()
         }
+        Unit
     }
-    def withPackageXmlFile(testCode: (File, FileWriter) => Any) {
+    def withPackageXmlFile(testCode: (File, FileWriter) => Any): Unit = {
         val file = File.createTempFile("test", ".xml") // create the fixture
         val writer = new FileWriter(file)
         //there must be no blank line at th etop of xml file defined with
@@ -92,6 +91,7 @@ class MetaXmlTest extends FunSuite with PrivateMethodTester {
             writer.close()
             file.delete()
         }
+        Unit
     }
 
     /*

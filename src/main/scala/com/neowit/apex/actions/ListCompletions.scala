@@ -33,6 +33,7 @@ class ListCompletions extends ApexActionWithReadOnlySession {
             config.responseWriter.println("RESULT=SUCCESS")
             config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
         }
+        ()
     }
 
     private def sortMembers(members: List[Member]): List[Member] = {

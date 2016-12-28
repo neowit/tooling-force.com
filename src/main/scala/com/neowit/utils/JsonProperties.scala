@@ -35,7 +35,7 @@ trait JsonProperties extends OptionProperties {
      * convert key/value pairs into JSON and save in session file
      * @param data - map of values to save
      */
-    def setJsonData(key: String, data: Data) {
+    def setJsonData(key: String, data: Data): AnyRef = {
         //this.setProperty(key, JSONObject(data).toString())
         this.setProperty(key, data.toJson.compactPrint)
     }
@@ -71,7 +71,7 @@ trait JsonProperties extends OptionProperties {
         getKeyByValue("Id", id)
     }
 
-    def setField(key: String, propName:String, value: Any) {
+    def setField(key: String, propName:String, value: Any): AnyRef = {
         val x = getJsonData(key)
         setJsonData(key, x ++ Map(propName -> value))
     }
@@ -80,11 +80,11 @@ trait JsonProperties extends OptionProperties {
      * remove specified field from data map
      * @param propName - name of the field to be removed
      */
-    def clearField(key: String, propName:String) {
+    def clearField(key: String, propName:String): AnyRef = {
         val data = getJsonData(key)
         setJsonData(key, data - "Id")
     }
-    def remove(key: String) {
+    def remove(key: String): Unit = {
         super.remove(key)
     }
 

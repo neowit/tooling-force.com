@@ -34,7 +34,7 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
             tree.get(lowerCaseIdentity)
         }
     }
-    def addMember(member: Member) {
+    def addMember(member: Member): Unit = {
         tree += ((member.getIdentity.toLowerCase, member))
         if (member.isInstanceOf[ClassMember] || member.isInstanceOf[InterfaceMember]) {
             classByClassName += (member.getType.toLowerCase -> member.asInstanceOf[ClassLikeMember])
@@ -58,9 +58,9 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
             classByClassName.get(lowerCaseTypeName)
         }
     }
-    def dump() {
+    def dump(): Unit = {
         for(key <- tree.keySet) {
-            println(key + ": " + tree.get(key).get.toString)
+            println(key + ": " + tree(key).toString)
         }
     }
 
@@ -76,7 +76,7 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
         }
     }
 
-    override def clone = {
+    override def clone: ApexTree = {
         val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> Member
         val _classByClassName = new mutable.LinkedHashMap[String, ClassLikeMember]() //class-name.toLowerCase => ClassMember
         _tree.putAll(this.tree)

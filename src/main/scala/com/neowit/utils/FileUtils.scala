@@ -187,10 +187,10 @@ object FileUtils {
     /**
      * file copy methods
      */
-    def copy(src:File, dest:File) {
+    def copy(src:File, dest:File): Long = {
         new FileOutputStream(dest).getChannel.transferFrom( new FileInputStream(src).getChannel, 0, Long.MaxValue )
     }
-    def copy(srcPath:String, destPath:String) {
+    def copy(srcPath:String, destPath:String): Long = {
         copy(new File(srcPath), new File(destPath))
     }
 

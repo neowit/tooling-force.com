@@ -15,7 +15,7 @@ import java.net._
 class UsageReporter(basicConfig: BasicConfig) extends Logging {
     private def encodePostData(data: Map[String, String]) = data.toJson.toString()
 
-    private def reportUsage() {
+    private def reportUsage(): Unit = {
         val localAddress = InetAddress.getLocalHost
         val ni = NetworkInterface.getByInetAddress( localAddress )
         val hardwareAddress = ni.getHardwareAddress
@@ -62,7 +62,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         logger.trace("usage service responded: " + io.Source.fromInputStream( in ).mkString(""))
         in.close()
     }
-    def report() {
+    def report(): Unit = {
         if ("0" != basicConfig.getProperty("reportUsage").getOrElse("1")) {
             try {
                 reportUsage()

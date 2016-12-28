@@ -60,6 +60,7 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
             }
         }
 
+        ()
     }
 
     class SyntaxErrorListener extends BaseErrorListener {
@@ -74,6 +75,7 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
             //super.syntaxError(recognizer, offendingSymbol, line, charPositionInLine, msg, e)
             logger.error(s"Syntax error:: line: $line, pos: $charPositionInLine, msg: $msg")
             errors += SyntaxError(offendingSymbol, line, charPositionInLine, msg)
+            ()
         }
         def result: List[SyntaxError] = errors.result()
     }

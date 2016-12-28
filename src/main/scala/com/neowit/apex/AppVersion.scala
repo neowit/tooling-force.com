@@ -1,7 +1,6 @@
 package com.neowit.apex
 
 import com.neowit.apex.actions.{ActionHelp, ApexAction}
-import com.neowit.utils.ResponseWriter
 import com.neowit.utils.ResponseWriter.{InfoMessage, MessageDetail, SUCCESS}
 
 object AppVersion {

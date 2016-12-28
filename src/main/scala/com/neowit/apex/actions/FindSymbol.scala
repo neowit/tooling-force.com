@@ -94,6 +94,8 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     config.responseWriter.println("{}")
             }
         }
+
+        ()
     }
 
     private def getSymbol(definition: TokenDefinition, completion: AutoComplete): Option[Member] = {

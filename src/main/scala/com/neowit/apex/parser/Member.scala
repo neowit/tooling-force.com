@@ -118,12 +118,12 @@ trait AnonymousMember {
     def getFullSuperType: Option[String] = None
 
     private val children = mutable.HashMap[String, Member]()
-    protected def clearChildren() = children.clear()
+    protected def clearChildren(): Unit = children.clear()
 
     def addChild(member: AnonymousMember): Unit = {
         addChild(member, overwrite = false)
     }
-    def addChild(member: AnonymousMember, overwrite: Boolean = false) {
+    def addChild(member: AnonymousMember, overwrite: Boolean = false): Unit = {
         member.getParent match {
             case Some(_parent) if _parent.equals(this) => //do nothing
             case _ => member.setParent(this)

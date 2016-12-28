@@ -15,7 +15,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
 
     //contains stack of current class/method hierarchy, currently processed class is at the top
-    val memberScopeStack = mutable.Stack[AnonymousMember]()
+    private val memberScopeStack = mutable.Stack[AnonymousMember]()
     private var caretScopeMember: Option[AnonymousMember] = None
 
     def getCaretScopeMember: Option[AnonymousMember] = caretScopeMember
@@ -28,7 +28,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
         tree
     }
 
-    def registerMember(member: AnonymousMember) {
+    def registerMember(member: AnonymousMember): Unit = {
         member.setApexTree(tree)
         if (memberScopeStack.nonEmpty) {
             val parentMember = memberScopeStack.top
@@ -48,12 +48,11 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
         memberScopeStack.push(member)
 
     }
-    override def exitClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext) {
+    override def exitClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext): Unit = {
         memberScopeStack.pop()
-
     }
     override def enterInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext): Unit ={
-        val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx, filePath) else new InterfaceMember(ctx, filePath)
+        val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx, filePath) else InterfaceMember(ctx, filePath)
         registerMember(member)
         if (!ClassBodyMember.isInnerInterface(ctx)) {
             //only top level interfaces shall be registered in the root of main tree
@@ -62,7 +61,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
         memberScopeStack.push(member)
 
     }
-    override def exitInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext) {
+    override def exitInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext): Unit = {
         memberScopeStack.pop()
 
     }
@@ -240,7 +239,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
     /**
      * check if current node is part of the token we are trying to auto-complete
      */
-    private def checkTargetMember(token: Token) {
+    private def checkTargetMember(token: Token): Unit = {
         if (line > 0 && memberScopeStack.nonEmpty) {
             //we are in progress of parsing file where completion needs to be done
             //println("target node=" + token.getText)

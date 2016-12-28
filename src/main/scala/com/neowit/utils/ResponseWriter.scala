@@ -150,10 +150,10 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     def println(data: Map[String, Any]): Unit = {
         println("", data)
     }
-    def startSection(sectionName: String) {
+    def startSection(sectionName: String): Unit = {
         println("#SECTION START: " + sectionName)
     }
-    def endSection(sectionName: String) {
+    def endSection(sectionName: String): Unit = {
         println("#SECTION END: " + sectionName)
     }
 

@@ -55,7 +55,7 @@ object ZipUtils extends Logging{
      *                   define this parameter when you do not need every file in specified folder to be included in the zip
      *
      */
-    def zipDir(fPath: String, outputZipPath: String, ignoreFile: File => Boolean = { _ => false} ) {
+    def zipDir(fPath: String, outputZipPath: String, ignoreFile: File => Boolean = { _ => false} ): Unit = {
 
         val bos: ByteArrayOutputStream = new ByteArrayOutputStream
         val zos: ZipOutputStream = new ZipOutputStream(bos)
@@ -114,7 +114,7 @@ object ZipUtils extends Logging{
 
     private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream,
                          ignoreFileFunc: File => Boolean = { _ => false},
-                         preProcessFileFunc: File => File = {f=> f}) {
+                         preProcessFileFunc: File => File = {f=> f}): Unit = {
         for (file <- files) {
             zipFile(relPath, file, zos, ignoreFileFunc, preProcessFileFunc)
         }
@@ -126,7 +126,7 @@ object ZipUtils extends Logging{
 
     private def zipFile(relPath: String, file: File, zos: ZipOutputStream,
                         ignoreFileFunc: File => Boolean = { _ => false},
-                        preProcessFileFunc: File => File = {f=> f}) {
+                        preProcessFileFunc: File => File = {f=> f}): Unit = {
         if (!isIgnored(file)) {
             val filePath: String = relPath + file.getName
             if (file.isDirectory) {
@@ -140,6 +140,7 @@ object ZipUtils extends Logging{
                 addFile(filePath, preProcessFileFunc(file), zos )
             }
         }
+        ()
     }
 
     private def addFile(filename: String, file: File, zos: ZipOutputStream,
@@ -162,7 +163,7 @@ object ZipUtils extends Logging{
         }
     }
 
-    private def copy(src: ReadableByteChannel, dest: WritableByteChannel) {
+    private def copy(src: ReadableByteChannel, dest: WritableByteChannel): Unit = {
         val buffer: ByteBuffer = ByteBuffer.allocate(8092)
         while (src.read(buffer) != -1) {
             buffer.flip

@@ -133,7 +133,7 @@ class ApexNamespace(name: String) extends GenericNamespace(name) with ApexModelJ
         }
     }
 
-    protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean) {
+    protected def loadTypes(types: Map[String, JsValue], overwriteChildren: Boolean): Unit = {
         val typesWithSuperTypes = List.newBuilder[ApexType]
         for (typeName <- types.keys) {
             val typeJson = types(typeName)

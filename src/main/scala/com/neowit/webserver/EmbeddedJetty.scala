@@ -71,6 +71,7 @@ object EmbeddedJetty {
 
     def addHandler(id: String, handler: EmbeddedJettyHandler): Unit = {
         handlersMap += (id -> handler)
+        ()
     }
 
     def removeHandler(id: String): Option[EmbeddedJettyHandler] = {
