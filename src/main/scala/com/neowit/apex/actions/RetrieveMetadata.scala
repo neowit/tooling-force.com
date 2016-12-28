@@ -786,7 +786,12 @@ class DiffWithRemote extends RetrieveMetadata {
             case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")
         }
     }
-    protected def getLocalFiles: List[File] =  getFilePaths(getSessionConfig.srcDir)
+    protected def getLocalFiles: List[File] = {
+        getSessionConfig.srcDirOpt match {
+            case Some(srcDir) => getFilePaths(srcDir)
+            case None => Nil
+        }
+    }
 
     protected def getRemoteFiles(remoteSrcFolder: File): List[File] = getFilePaths(remoteSrcFolder)
     /**

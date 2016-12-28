@@ -182,7 +182,11 @@ class MetaXml(config: ConfigWithSfdcProject) {
     }
 
     def getPackageXml:File = {
-        val projectSrcDir = config.srcDir
+        val projectSrcDir = config.srcDirOpt match {
+            case Some(srcDir) => srcDir
+            case None =>
+                throw new ConfigValueException("No project path provided")
+        }
         if (projectSrcDir.isDirectory && projectSrcDir.canRead) {
             val packageXml = new File(projectSrcDir, "package.xml")
             if (!packageXml.isFile || !packageXml.canRead) {

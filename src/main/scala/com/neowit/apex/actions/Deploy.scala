@@ -320,7 +320,12 @@ class DeployModified extends Deploy {
         deployOptions.setCheckOnly(checkOnly)
 
         logger.info("Deploying...")
-        val srcDir = alternativeSrcDir.getOrElse(session.getConfig.srcDir)
+        if (alternativeSrcDir.isEmpty && session.getConfig.srcDirOpt.isEmpty) {
+            responseWriter.println(FAILURE)
+            responseWriter.println(ErrorMessage("src folder not found"))
+            return false
+        }
+        val srcDir = alternativeSrcDir.getOrElse(session.getConfig.srcDirOpt.get)
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(srcDir, excludeFileFromZip(allFilesToDeploySet, _),
             disableNotNeededTests(_, testMethodsByClassName)), deployOptions)
 
@@ -393,32 +398,37 @@ class DeployModified extends Deploy {
             val oldData = session.getData(key)
             session.setData(key, oldData ++ newData)
 
+            ()
         }
 
         val deployDetails = deployResult.getDetails
 
         for ( successMessage <- deployDetails.getComponentSuccesses) {
             val relativePath = successMessage.getFileName
-            val f = new File(getProjectConfig.projectDir, relativePath)
-            if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
-                //process bundle definition
-                //for aura bundles Metadata API deploy() reports only bundle name, not individual files
-                // process bundle dir
-                processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
-                // process individual files
-                FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
-                    .filter(AuraMember.isSupportedType)
-                    .foreach(file =>
-                        processOneFile(file, successMessage, AuraMember.XML_TYPE)
-                    )
-            } else {
-                if (f.exists() && !f.isDirectory) {
-                    val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                        case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                        case None => "" //package.xml and -meta.xml do not have xmlType
+            getProjectConfig.projectDirOpt match {
+                case Some(projectDir) =>
+                    val f = new File(projectDir, relativePath)
+                    if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
+                        //process bundle definition
+                        //for aura bundles Metadata API deploy() reports only bundle name, not individual files
+                        // process bundle dir
+                        processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
+                        // process individual files
+                        FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
+                            .filter(AuraMember.isSupportedType)
+                            .foreach(file =>
+                                processOneFile(file, successMessage, AuraMember.XML_TYPE)
+                            )
+                    } else {
+                        if (f.exists() && !f.isDirectory) {
+                            val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                                case None => "" //package.xml and -meta.xml do not have xmlType
+                            }
+                            processOneFile(f, successMessage, xmlType)
+                        }
                     }
-                    processOneFile(f, successMessage, xmlType)
-                }
+                case None =>
             }
         }
         //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
@@ -625,12 +635,16 @@ class DeployAll extends DeployModified {
      */
     def getAllFiles:List[File] = {
         val config = session.getConfig
-        val allFiles  = FileUtils.listFiles(config.srcDir).filter(
-            //remove all non apex files
-            file => DescribeMetadata.isValidApexFile(session, file)
-        ).toSet
+        config.srcDirOpt match {
+            case Some(srcDir) =>
+                val allFiles  = FileUtils.listFiles(srcDir).filter(
+                    //remove all non apex files
+                    file => DescribeMetadata.isValidApexFile(session, file)
+                ).toSet
 
-        allFiles.toList
+                allFiles.toList
+            case None => Nil
+        }
     }
 }
 
@@ -883,16 +897,20 @@ class ListModified extends ApexActionWithReadOnlySession {
 
         //logger.debug("packageXmlData=" + packageXmlData)
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
-        val allFiles  = FileUtils.listFiles(getProjectConfig.srcDir).filter(
-            //remove all non apex files
-            file => DescribeMetadata.isValidApexFile(session, file)
-        ).toSet
+        val allFiles = getProjectConfig.srcDirOpt match {
+            case Some(srcDir) =>
+                FileUtils.listFiles(srcDir).filter(
+                    //remove all non apex files
+                    file => DescribeMetadata.isValidApexFile(session, file)
+                ).toSet
+            case None => Set()
+        }
 
         val modifiedFiles = allFiles.filter(session.isModified(_))
         modifiedFiles.toList
     }
 
-    def reportModifiedFiles(modifiedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO) {
+    def reportModifiedFiles(modifiedFiles: List[File], messageType: ResponseWriter.MessageType = ResponseWriter.INFO): Unit = {
         val msg = new Message(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
         responseWriter.println(msg)
         for(f <- modifiedFiles) {
@@ -922,22 +940,28 @@ class ListModified extends ApexActionWithReadOnlySession {
 
     }
 
-    def act() {
-        val modifiedFiles = getModifiedFiles
-        val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(getProjectConfig.projectDir, _))
+    def act(): Unit = {
+        getProjectConfig.projectDirOpt match {
+            case Some(projectDir) =>
+                val modifiedFiles = getModifiedFiles
+                val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(projectDir, _))
 
-        responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
-        if (modifiedFiles.nonEmpty) {
-            reportModifiedFiles(modifiedFiles)
-        } else {
-            responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
-        }
+                responseWriter.println(SUCCESS)
+                responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
+                if (modifiedFiles.nonEmpty) {
+                    reportModifiedFiles(modifiedFiles)
+                } else {
+                    responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
+                }
 
-        if (deletedFiles.nonEmpty) {
-            reportDeletedFiles(deletedFiles)
-        } else {
-            //responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
+                if (deletedFiles.nonEmpty) {
+                    reportDeletedFiles(deletedFiles)
+                } else {
+                    //responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
+                }
+            case None =>
+                responseWriter.println(SUCCESS)
+                responseWriter.println(ErrorMessage("Invalid or Missing Project Path"))
         }
     }
 

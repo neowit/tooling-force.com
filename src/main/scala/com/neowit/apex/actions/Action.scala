@@ -220,15 +220,33 @@ abstract class ApexActionWithReadOnlySession extends ApexActionWithProject {
 object ApexActionWithWritableSession {
     private val _currentActionByProject = new mutable.HashMap[String, ApexActionWithWritableSession]()
 
-    private def getKey(action: ApexActionWithWritableSession): String = action.getProjectConfig.projectDir.getAbsolutePath
+    private def getKey(action: ApexActionWithWritableSession): Option[String] = {
+        action.getProjectConfig.projectDirOpt.map(_.getAbsolutePath)
+    }
 
     def lockSession(action: ApexActionWithWritableSession):Unit = {
-        _currentActionByProject += getKey(action) -> action
+        getKey(action) match {
+            case Some(key) =>
+                _currentActionByProject += key -> action
+            case None =>
+        }
+        ()
     }
     def unLockSession(action: ApexActionWithWritableSession):Unit = {
-        _currentActionByProject -= getKey(action)
+        getKey(action) match {
+            case Some(key) =>
+                _currentActionByProject -= key
+            case None =>
+        }
+        ()
     }
-    def isSessionLocked(action: ApexActionWithWritableSession): Boolean = _currentActionByProject.contains(getKey(action))
+    def isSessionLocked(action: ApexActionWithWritableSession): Boolean = {
+        getKey(action) match {
+            case Some(key) =>
+                _currentActionByProject.contains(key)
+            case None => false // no point to lock session if project path is not provided
+        }
+    }
 }
 abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySession {
 

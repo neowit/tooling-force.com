@@ -4,15 +4,18 @@ import java.io.File
 
 import com.neowit.apex.completion.AutoComplete
 import com.neowit.apex.parser.{ApexTree, Member}
+import com.neowit.utils.ResponseWriter.SUCCESS
 
 class ListCompletions extends ApexActionWithReadOnlySession {
 
     override def act(): Unit = {
         val config = session.getConfig
 
-        for (   filePath <- config.getRequiredProperty("currentFileContentPath");
-                line <- config.getRequiredProperty("line");
-                column <- config.getRequiredProperty("column")
+        for (
+            projectDir <- config.projectDirOpt;
+            filePath <- config.getRequiredProperty("currentFileContentPath");
+            line <- config.getRequiredProperty("line");
+            column <- config.getRequiredProperty("column")
         ) yield {
             val inputFile = new File(filePath)
             val scanner = new ScanSource().load[ScanSource](session)
@@ -23,14 +26,14 @@ class ListCompletions extends ApexActionWithReadOnlySession {
             //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
             scanner.scan(classes)
 
-            val cachedTree:ApexTree = SourceScannerCache.getScanResult(config.projectDir)  match {
+            val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
                 case Some(sourceScanner) => sourceScanner.getTree
                 case None => new ApexTree
             }
             val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
-            val members = completion.listOptions
+            val members = completion.listOptions()
             //dump completion options into a file - 1 line per option
-            config.responseWriter.println("RESULT=SUCCESS")
+            config.responseWriter.println(SUCCESS)
             config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
         }
         ()

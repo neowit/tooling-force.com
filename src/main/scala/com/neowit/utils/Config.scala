@@ -43,14 +43,14 @@ class ConfigValueException(msg:String) extends IllegalArgumentException(msg: Str
 
 class BasicConfig extends Logging {
     private var out: OutputStream = Console.out
-    def setOutputStream(out: OutputStream) { this.out = out}
+    def setOutputStream(out: OutputStream): Unit = { this.out = out}
 
     private var providedResponseWriter: Option[ResponseWriter] =  None
     private val internalResponseWriter =  new ResponseWriter(this.out)
-    def setResponseWriter(writer: ResponseWriter) = this.providedResponseWriter = Option(writer)
-    lazy val getResponseWriter= providedResponseWriter.getOrElse(internalResponseWriter)
+    def setResponseWriter(writer: ResponseWriter): Unit = this.providedResponseWriter = Option(writer)
+    lazy val getResponseWriter: ResponseWriter = providedResponseWriter.getOrElse(internalResponseWriter)
 
-    def isUnix = {
+    def isUnix: Boolean = {
         val os = System.getProperty("os.name").toLowerCase
         os.contains("nux") || os.contains("mac")
     }
@@ -198,7 +198,7 @@ regardless of whether it is also specified in config file or not
                  """)
     }
 
-    lazy val action = getRequiredProperty("action").get
+    lazy val action: String = getRequiredProperty("action").get
 }
 
 class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
@@ -206,18 +206,18 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
     val apiVersion:Double = 36.0
 
     //make BasicConfig methods available in Config
-    def load(arglist: List[String]) {
+    def load(arglist: List[String]): Unit = {
         basicConfig.load(arglist)
         basicConfig.setResponseWriter(responseWriter)
     }
-    def isUnix = basicConfig.isUnix
+    def isUnix: Boolean = basicConfig.isUnix
     def getProperty(key:String):Option[String] = basicConfig.getProperty(key)
     def getRequiredProperty(key: String): Option[String] =  basicConfig.getRequiredProperty(key)
-    lazy val action = basicConfig.action
+    lazy val action: String = basicConfig.action
     //END BasicConfig methods
 
     //tempFolderPath - optional - if specified then use this folder instead of system generated
-    lazy val tempFolderPath =  getProperty("tempFolderPath")
+    lazy val tempFolderPath: Option[String] = getProperty("tempFolderPath")
 
 
     /*
@@ -245,39 +245,20 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
 
 class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Config(basicConfig) {
 
-    /*
-    lazy val username = getRequiredProperty("sf.username").get
-    lazy val password = getRequiredProperty("sf.password").get
-    lazy val soapEndpoint = {
-        val serverUrl = getRequiredProperty("sf.serverurl")
-        serverUrl match {
-            case Some(x) => x + "/services/Soap/u/" + apiVersion
-            case None => null
-        }
-    }
-    */
-    /*
-    def getSfdcCredentials: Option[LoginPasswordCredentials] = {
-        getProperty("sf.username").flatMap{ username =>
-            getProperty("sf.password").flatMap{ password =>
-                getProperty("sf.serverurl").map{serverUrl =>
-                    LoginPasswordCredentials(username, password, serverUrl)
-                }
-            }
-        }
-    }
-    */
-
-    lazy val projectPath = getRequiredProperty("projectPath").get
-    lazy val projectDir = new File(getRequiredProperty("projectPath").get)
+    protected def projectPathOpt: Option[String] = getProperty("projectPath")
+    def projectDirOpt: Option[File] = projectPathOpt.map(new File(_))
     /* path to src folder */
-    lazy val srcPath = srcDir.getAbsolutePath
-    lazy val srcDir = {
-        val fSrc = new File(projectPath, "src")
-        if (!fSrc.isDirectory || !fSrc.canRead) {
-            throw new ConfigValueException("failed to detect 'src' folder in path:" + projectPath)
+    //lazy val srcPathOpt: Option[String] = srcDirOpt.map(_.getAbsolutePath)
+    lazy val srcDirOpt: Option[File] = {
+        projectPathOpt match {
+            case Some(_projectPath) =>
+                val fSrc = new File(_projectPath, "src")
+                if (!fSrc.isDirectory || !fSrc.canRead) {
+                    throw new ConfigValueException("failed to detect 'src' folder in path:" + _projectPath)
+                }
+                Option(fSrc)
+            case None => None
         }
-        fSrc
 
     }
 
@@ -330,17 +311,20 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
     /*
      * generates specified folders nested in the main outputFolder
      */
-    def mkdirs(dirName: String) = {
-        val path = srcDir + File.separator + dirName
-        //check that folder exists
-        val f = new File(path)
-        if (!f.isDirectory) {
-            if (!f.mkdirs())
-                throw new RuntimeException("Failed to create folder: " + path)
+    /*
+    def mkdirs(dirName: String): String = {
+        srcDirOpt.map{srcDir =>
+            val path = srcDir + File.separator + dirName
+            //check that folder exists
+            val f = new File(path)
+            if (!f.isDirectory) {
+                if (!f.mkdirs())
+                    throw new RuntimeException("Failed to create folder: " + path)
+            }
+            path
         }
-
-        path
     }
+    */
 
     lazy val debuggingHeaderConfigPath: Option[String] = getProperty("debuggingHeaderConfig") match {
         case Some(path) => Option(path)
@@ -359,45 +343,51 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
 
 class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends ConfigWithSfdcProject(basicConfig) {
 
-    lazy val isCheckOnly = getProperty("checkOnly") match {
-        case Some(x) => "true" == x
-        case None => false
-    }
+    lazy val isCheckOnly: Boolean = getProperty("checkOnly").contains("true")
 
     /**
       * by default CRC32 hash is used to detect file changes
       * but command line option --preferMD5=true can force MD5
       */
-    lazy val useMD5Hash = getProperty("preferMD5")match {
-        case Some(x) => "true" == x
-        case None => false
-    }
+    lazy val useMD5Hash: Boolean = getProperty("preferMD5").contains("true")
 
     //path to folder where all cached metadata (session Id, last update dates, etc) stored
-    lazy val sessionFolder = {
-        val path = getProperty("sessionFolderPath").getOrElse[String](new File(projectPath, ".vim-force.com").getAbsolutePath)
-        val dir = new File(path)
-        if (!dir.exists()) {
-            if (!dir.mkdirs())
-                throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for sessionFolderPath")
+    lazy val sessionFolderOpt: Option[File] = {
+        projectPathOpt match {
+            case Some(_projectPath) =>
+                val path = getProperty("sessionFolderPath").getOrElse[String](new File(_projectPath, ".vim-force.com").getAbsolutePath)
+                val dir = new File(path)
+                if (!dir.exists()) {
+                    if (!dir.mkdirs())
+                        throw new IllegalArgumentException("Failed to create folder: " + dir.getAbsolutePath + " for sessionFolderPath")
+                }
+                Option(dir)
+            case None => None
         }
-        dir
     }
-    lazy val lastSessionProps: JsonProperties = {
-        val file = new File(sessionFolder, "session.properties")
-        if (!file.exists) {
-            file.createNewFile()
+    lazy val lastSessionPropsOpt: Option[JsonProperties] = {
+        sessionFolderOpt.map{ sessionFolder =>
+            val file = new File(sessionFolder, "session.properties")
+            if (!file.exists) {
+                file.createNewFile()
+            }
+            val props = new Properties() with JsonProperties
+            props.load(FileUtils.readFile(file).bufferedReader())
+            props
         }
-        val props = new Properties() with JsonProperties
-        props.load(FileUtils.readFile(file).bufferedReader())
-        props
     }
 }
 
 class ConfigWithSession(override val basicConfig: BasicConfig) extends ConfigWithReadOnlySession(basicConfig) {
-    def storeSessionProps() {
-        val writer = new FileWriter(new File(sessionFolder, "session.properties"))
-        lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
-        writer.close()
+    def storeSessionProps(): Unit = {
+        for {
+            sessionFolder <- sessionFolderOpt
+            lastSessionProps <- lastSessionPropsOpt
+        } yield {
+            val writer = new FileWriter(new File(sessionFolder, "session.properties"))
+            lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
+            writer.close()
+            true
+        }
     }
 }

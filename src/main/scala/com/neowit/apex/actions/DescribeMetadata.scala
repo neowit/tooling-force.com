@@ -158,27 +158,32 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
 
     def loadFromFile: Map[String, DescribeMetadataObject] = {
 
-        val describeMetadataObjectMap = new mutable.HashMap[String, DescribeMetadataObject]
+        storedDescribeMetadataResultFile match {
+            case Some(_storedDescribeMetadataResultFile) =>
+                val describeMetadataObjectMap = new mutable.HashMap[String, DescribeMetadataObject]
 
-        for (line <- FileUtils.readFile(storedDescribeMetadataResultFile).getLines()) {
-            //JSON.parseFull(line)
-            val jsonAst = JsonParser(line)
-            val data = jsonAst.convertTo[MetadataTypeJSON](MetadataDescriptionJsonProtocol.singleMetadataTypeFormat)
-            val descrObj = new DescribeMetadataObject()
-            descrObj.setDirectoryName(data.DirName)
-            descrObj.setInFolder(data.InFolder)
-            descrObj.setMetaFile(data.HasMetaFile)
-            descrObj.setSuffix(data.Suffix)
-            descrObj.setXmlName(data.XMLName)
-            val xmlNames = data.ChildObjects
-            descrObj.setChildXmlNames(xmlNames.toArray)
+                for (line <- FileUtils.readFile(_storedDescribeMetadataResultFile).getLines()) {
+                    //JSON.parseFull(line)
+                    val jsonAst = JsonParser(line)
+                    val data = jsonAst.convertTo[MetadataTypeJSON](MetadataDescriptionJsonProtocol.singleMetadataTypeFormat)
+                    val descrObj = new DescribeMetadataObject()
+                    descrObj.setDirectoryName(data.DirName)
+                    descrObj.setInFolder(data.InFolder)
+                    descrObj.setMetaFile(data.HasMetaFile)
+                    descrObj.setSuffix(data.Suffix)
+                    descrObj.setXmlName(data.XMLName)
+                    val xmlNames = data.ChildObjects
+                    descrObj.setChildXmlNames(xmlNames.toArray)
 
-            describeMetadataObjectMap += data.XMLName -> descrObj
+                    describeMetadataObjectMap += data.XMLName -> descrObj
+                }
+                describeMetadataObjectMap.toMap
+            case None =>
+                Map.empty
         }
-        describeMetadataObjectMap.toMap
     }
 
-    private def storeDescribeResult(file: File, lines: Iterator[String]) {
+    private def storeDescribeResult(file: File, lines: Iterator[String]): Unit = {
         val writer = new PrintWriter(file)
         lines.foreach(writer.println)
         writer.close()
@@ -187,12 +192,17 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
     /**
       * Local copy of Describe Metadata result
       */
-    private lazy val storedDescribeMetadataResultFile:File  = {
-        val file = new File(getSessionConfig.sessionFolder, "describeMetadata-result.js")
-        if (!file.exists) {
-            file.createNewFile()
+    private lazy val storedDescribeMetadataResultFile:Option[File]  = {
+        getSessionConfig.sessionFolderOpt match {
+            case Some(sessionFolder) =>
+                val file = new File(sessionFolder, "describeMetadata-result.js")
+                if (!file.exists) {
+                    file.createNewFile()
+                }
+                Option(file)
+            case None =>
+                None
         }
-        file
     }
     def loadFromRemote: Map[String, DescribeMetadataObject] = {
         Try(session.describeMetadata(config.apiVersion)) match {
@@ -216,12 +226,17 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
                         case None =>
                     }
                 }
-                storeDescribeResult(storedDescribeMetadataResultFile, linesBuf.iterator)
+
+                storedDescribeMetadataResultFile match {
+                    case Some(localFile) => storeDescribeResult(localFile, linesBuf.iterator)
+                    case None =>
+                }
+
                 //check if user requested alternative response location
                 config.getProperty("allMetaTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
-                        if (userDefinedFile != storedDescribeMetadataResultFile) {
+                        if ( !storedDescribeMetadataResultFile.contains(userDefinedFile) ) {
                             storeDescribeResult(userDefinedFile, linesBuf.iterator)
 
                         }
@@ -232,7 +247,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
             case Failure(thrown) => throw thrown
         }
     }
-    def getOutputFilePath = config.getRequiredProperty("allMetaTypesFilePath")
+    def getOutputFilePath: Option[String] = config.getRequiredProperty("allMetaTypesFilePath")
 
     def act(): Unit = {
         //load from SFDC and dump to local file

@@ -28,15 +28,19 @@ class ScanSource extends ApexActionWithReadOnlySession {
     }
 
     def scan(files: List[File]): Unit = {
-        var completeScan = false
         val config = session.getConfig
-        val scanner = SourceScannerCache.getScanResult(config.projectDir) match {
-          case Some(_scanner) => _scanner
-          case None => completeScan = true; new SourceScanner(files)
-        }
+        config.projectDirOpt match {
+            case Some(projectDir) =>
+                var completeScan = false
+                val scanner = SourceScannerCache.getScanResult(projectDir) match {
+                    case Some(_scanner) => _scanner
+                    case None => completeScan = true; new SourceScanner(files)
+                }
 
-        scanner.scan(completeScan)
-        SourceScannerCache.addScanResult(config.projectDir, scanner)
+                scanner.scan(completeScan)
+                SourceScannerCache.addScanResult(projectDir, scanner)
+            case None =>
+        }
 
     }
     override def getHelp: ActionHelp = new ActionHelp {
@@ -59,10 +63,14 @@ class ScanSource extends ApexActionWithReadOnlySession {
     def getClassFiles:List[File] = {
         val config = session.getConfig
 
-        val allFiles  = FileUtils.listFiles(config.srcDir).filter(
-            //remove all non apex files
-            file => APEX_EXTENSIONS.contains(FileUtils.getExtension(file))
-        ).toSet
+        val allFiles = config.srcDirOpt match {
+            case Some(srcDir) =>
+                FileUtils.listFiles(srcDir).filter(
+                    //remove all non apex files
+                    file => APEX_EXTENSIONS.contains(FileUtils.getExtension(file))
+                ).toSet
+            case None => Set()
+        }
 
         val classFiles = allFiles.filter("cls" == FileUtils.getExtension(_))
         classFiles.toList

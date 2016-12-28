@@ -22,10 +22,10 @@ package com.neowit.apex.actions
 import java.io.File
 import java.nio.file.{Files, Paths}
 
-import com.neowit.apex.completion.{UnresolvedApexTokenDefinition, _}
+import com.neowit.apex.completion._
 import com.neowit.apex.parser._
-import com.neowit.utils.ResponseWriter
-import com.neowit.utils.ResponseWriter.{Message, SUCCESS}
+import com.neowit.utils.ConfigValueException
+import com.neowit.utils.ResponseWriter.{ErrorMessage, FAILURE, SUCCESS}
 
 class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
@@ -54,14 +54,19 @@ class FindSymbol extends ApexActionWithReadOnlySession {
     //this method should implement main logic of the action
     override protected def act(): Unit = {
         val config = session.getConfig
+        if (config.projectDirOpt.isEmpty) {
+            // this action is not applicable when project is not provided
+            throw new ConfigValueException("Invalid or Missing --projectPath parameter")
+        }
+        val projectDir = config.projectDirOpt.get
 
         for (   filePath <- config.getRequiredProperty("currentFileContentPath");
                 line <- config.getRequiredProperty("line");
                 column <- config.getRequiredProperty("column")
         ) yield {
             if (! Files.isReadable(Paths.get(filePath))) {
-                config.responseWriter.println("RESULT=FAILURE")
-                config.responseWriter.println(new Message(ResponseWriter.ERROR, s"'currentFileContentPath' must point to readable file"))
+                config.responseWriter.println(FAILURE)
+                config.responseWriter.println(ErrorMessage(s"'currentFileContentPath' must point to readable file"))
                 return
             }
             val inputFile = new File(filePath)
@@ -71,7 +76,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
             val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
             scanner.scan(classes)
 
-            val cachedTree:ApexTree = SourceScannerCache.getScanResult(config.projectDir)  match {
+            val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
                 case Some(sourceScanner) => sourceScanner.getTree
                 case None => new ApexTree
             }

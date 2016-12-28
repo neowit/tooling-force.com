@@ -59,7 +59,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
         override def getName: String = "DescribeTooling"
     }
 
-    def getOutputFilePath = config.getRequiredProperty("allToolingTypesFilePath")
+    def getOutputFilePath: Option[String] = config.getRequiredProperty("allToolingTypesFilePath")
 
     def act(): Unit = {
         //load from SFDC and dump to local file
@@ -75,57 +75,48 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
         writer.close()
     }
     def loadFromFile: Map[String, DescribeGlobalSObjectResult] = {
-        val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
+        storedDescribeToolingResultFile match {
+            case Some(_storedDescribeToolingResultFile) =>
+                val describeMetadataObjectMap = new mutable.HashMap[String, DescribeGlobalSObjectResult]
 
+                for (line <- FileUtils.readFile(_storedDescribeToolingResultFile).getLines()) {
+                    Try(JsonParser(line)) match {
+                        case Success(jsonAst) =>
+                            val data = jsonAst.convertTo[ToolingTypeJSON](ToolingDescriptionJsonProtocol.singleToolingTypeFormat)
+                            val descrObj = new DescribeGlobalSObjectResult()
+                            descrObj.setActivateable(data.isActivateable.getOrElse(false))
+                            descrObj.setCustom(data.isCustom.getOrElse(false))
+                            descrObj.setCustomSetting(data.isCustomSetting.getOrElse(false))
+                            descrObj.setQueryable(data.isQueryable.getOrElse(false))
+                            descrObj.setKeyPrefix(data.keyPrefix.getOrElse(""))
+                            val name = data.name.getOrElse("")
+                            descrObj.setName(name)
 
-        for (line <- FileUtils.readFile(storedDescribeToolingResultFile).getLines()) {
-            Try(JsonParser(line)) match {
-                case Success(jsonAst) =>
-                    val data = jsonAst.convertTo[ToolingTypeJSON](ToolingDescriptionJsonProtocol.singleToolingTypeFormat)
-                    val descrObj = new DescribeGlobalSObjectResult()
-                    descrObj.setActivateable(data.isActivateable.getOrElse(false))
-                    descrObj.setCustom(data.isCustom.getOrElse(false))
-                    descrObj.setCustomSetting(data.isCustomSetting.getOrElse(false))
-                    descrObj.setQueryable(data.isQueryable.getOrElse(false))
-                    descrObj.setKeyPrefix(data.keyPrefix.getOrElse(""))
-                    val name = data.name.getOrElse("")
-                    descrObj.setName(name)
+                            describeMetadataObjectMap += name -> descrObj
+                        case Failure(e) =>
+                            logger.error("Failed to parse line: \n" + line + "\n " + e.getMessage)
+                    }
 
-                    describeMetadataObjectMap += name -> descrObj
-                case Failure(e) =>
-                    logger.error("Failed to parse line: \n" + line + "\n " + e.getMessage)
-            }
-            /*
-            JSON.parseRaw(line)  match {
-                case Some(json) =>
-                    val data = json.asInstanceOf[JSONObject].obj
-                    val descrObj = new DescribeGlobalSObjectResult()
-                    descrObj.setActivateable(data.getOrElse("isActivateable", false).asInstanceOf[Boolean])
-                    descrObj.setCustom(data.getOrElse("isCustom", false).asInstanceOf[Boolean])
-                    descrObj.setCustomSetting(data.getOrElse("isCustomSetting", false).asInstanceOf[Boolean])
-                    descrObj.setQueryable(data.getOrElse("isQueryable", false).asInstanceOf[Boolean])
-                    descrObj.setKeyPrefix(data.getOrElse("keyPrefix", "").asInstanceOf[String])
-                    val name = data.getOrElse("name", "").asInstanceOf[String]
-                    descrObj.setName(name)
-
-                    describeMetadataObjectMap += name -> descrObj
-                case None =>
-                    logger.error("Failed to parse line: \n" + line)
-            }
-            */
-
-         }
-        describeMetadataObjectMap.toMap
+                }
+                describeMetadataObjectMap.toMap
+            case None =>
+                Map.empty
+        }
     }
     /**
       * Local copy of Tooling Describe Global result
       */
-    private lazy val storedDescribeToolingResultFile:File  = {
-        val file = new File(getSessionConfig.sessionFolder, "describeTooling-result.js")
-        if (!file.exists) {
-            file.createNewFile()
+    private lazy val storedDescribeToolingResultFile:Option[File]  = {
+        getSessionConfig.sessionFolderOpt match {
+            case Some(sessionFolder) =>
+                val file = new File(sessionFolder, "describeTooling-result.js")
+                if (!file.exists) {
+                    file.createNewFile()
+                }
+                Option(file)
+            case None =>
+                None
         }
-        file
     }
 
     def loadFromRemote: Map[String, DescribeGlobalSObjectResult] = {
@@ -152,12 +143,16 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
                         case None =>
                     }
                 }
-                storeDescribeResult(storedDescribeToolingResultFile, linesBuf.iterator)
+                storedDescribeToolingResultFile match {
+                    case Some(localFile) =>
+                        storeDescribeResult(localFile, linesBuf.iterator)
+                    case None =>
+                }
                 //check if user requested alternative response location
                 config.getProperty("allToolingTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
-                        if (userDefinedFile != storedDescribeToolingResultFile) {
+                        if (!storedDescribeToolingResultFile.contains(storedDescribeToolingResultFile)) {
                             storeDescribeResult(userDefinedFile, linesBuf.iterator)
 
                         }

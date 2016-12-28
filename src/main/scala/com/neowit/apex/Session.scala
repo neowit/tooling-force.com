@@ -46,7 +46,7 @@ object Session {
 
     case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
     case class RestCallException(connection: HttpURLConnection) extends RuntimeException {
-        val jsonAst = Try(io.Source.fromInputStream(connection.getErrorStream)("UTF-8").getLines().mkString("")) match {
+        private val jsonAst = Try(io.Source.fromInputStream(connection.getErrorStream)("UTF-8").getLines().mkString("")) match {
             case Success(responseDetails) => Try(responseDetails.parseJson) match {
                 case Success(_ast) => Some(_ast)
                 case _ => None
@@ -89,7 +89,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
 
     val config = new ConfigWithSession(basicConfig)
 
-    private val sessionProperties = config.lastSessionProps
+    private val sessionPropertiesOpt = config.lastSessionPropsOpt
     private var connectionPartner:Option[PartnerConnection] = None
     private var connectionMetadata:Option[MetadataConnection] = None
     private var connectionTooling:Option[com.sforce.soap.tooling.ToolingConnection] = None
@@ -101,14 +101,14 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
     def getConfig: ConfigWithSession = config
 
 
-    def storeSessionData(allowWrite: Boolean = false) {
+    def storeSessionData(allowWrite: Boolean = false): Unit = {
         if (isReadOnly && !allowWrite) {
             throw new IllegalAccessError("Attempted to write in Read/Only session")
         }
         config.storeSessionProps()
     }
 
-    def getSavedConnectionData :(Option[String], Option[String])= {
+    def getSavedConnectionData :(Option[String], Option[String]) = {
 
         val emptySession = (None, None)
         if (!callingAnotherOrg) {
@@ -152,22 +152,26 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         p1.isInstanceOf[Session] && this.hashCode() == p1.asInstanceOf[Session].hashCode()
     }
 
-    def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig, allowWrite: Boolean = false) {
+    def storeConnectionData(connectionConfig: com.sforce.ws.ConnectorConfig, allowWrite: Boolean = false): Unit = {
         if (isReadOnly && !allowWrite) {
             throw new IllegalAccessError("Attempted to write in Read/Only session")
         }
-        if (!callingAnotherOrg) {
-            sessionProperties.setJsonData("session",
-                Map(
-                    "sessionId" -> connectionConfig.getSessionId,
-                    "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
-                    "hash" -> getHash
-                )
-            )
-            sessionProperties.remove("UserInfo")
-        } else {
-            sessionProperties.remove("session")
-            sessionProperties.remove("UserInfo")
+        sessionPropertiesOpt match {
+            case Some(sessionProperties) =>
+                if (!callingAnotherOrg) {
+                    sessionProperties.setJsonData("session",
+                        Map(
+                            "sessionId" -> connectionConfig.getSessionId,
+                            "serviceEndpoint" -> connectionConfig.getServiceEndpoint,
+                            "hash" -> getHash
+                        )
+                    )
+                    remove("UserInfo")
+                } else {
+                    remove("session")
+                    remove("UserInfo")
+                }
+            case None =>
         }
         storeSessionData(allowWrite)
     }
@@ -196,24 +200,24 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         storeSessionData(allowWrite)
     }
     */
-    def setData(key: String, data: Map[String, Any]) = {
+    def setData(key: String, data: Map[String, Any]): AnyRef = {
         if (isReadOnly) {
             throw new IllegalAccessError("Attempted to modify Read/Only session")
         }
-        sessionProperties.setJsonData(key, data)
+        sessionPropertiesOpt.map(_.setJsonData(key, data))
     }
     def getData(key: String): Map[String, Any] = {
-        sessionProperties.getJsonData(key)
+        sessionPropertiesOpt.map(_.getJsonData(key)).getOrElse(Map.empty[String, Any])
     }
     def getData(file: File): Map[String, Any] = {
         getData(getKeyByFile(file))
     }
 
-    def removeData(key: String) {
+    def removeData(key: String): Unit = {
         if (isReadOnly) {
             throw new IllegalAccessError("Attempted to modify Read/Only session")
         }
-        sessionProperties.remove(key)
+        remove(key)
     }
 
     /**
@@ -260,10 +264,14 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      * @return list of keys that start with "unpackaged/"
      */
     def getFileKeysInSession: List[String] = {
-        val names = sessionProperties.propertyNames()
-        val prefix = "unpackaged/"
-        val fileNameKeys = names.asScala.toList.filter(_.toString.startsWith(prefix)).map(_.toString)
-        fileNameKeys
+        sessionPropertiesOpt match {
+            case Some(sessionProperties) =>
+                val names = sessionProperties.propertyNames()
+                val prefix = "unpackaged/"
+                val fileNameKeys = names.asScala.toList.filter(_.toString.startsWith(prefix)).map(_.toString)
+                fileNameKeys
+            case None => Nil
+        }
     }
 
     /**
@@ -273,19 +281,22 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      * @return list of relative file paths (e.g. src/classes/MyClass.cls) that exist in session but do not exist locally as a file
      */
     def getDeletedLocalFilePaths(extraSrcFoldersToLookIn: List[File]):List[String] = {
-        val config = getConfig
-        val allFiles = (config.srcDir :: extraSrcFoldersToLookIn).flatMap(FileUtils.listFiles(_, descentIntoFolders = true, includeFolders = true))
-        val existingFiles = allFiles.filter(
-            //remove all non apex files
-            file => file.isDirectory || DescribeMetadata.isValidApexFile(this, file)
-        ).map(getRelativePath(_))
-            //normalise all paths to start with src/ rather than unpackaged/
-            .map(name => if (name.startsWith("unpackaged/")) name.replaceFirst("unpackaged/", "src/") else name)
-            .toSet
+        config.srcDirOpt match {
+            case Some(srcDir) =>
+                val allFiles = (srcDir :: extraSrcFoldersToLookIn).flatMap(FileUtils.listFiles(_, descentIntoFolders = true, includeFolders = true))
+                val existingFiles = allFiles.filter(
+                    //remove all non apex files
+                    file => file.isDirectory || DescribeMetadata.isValidApexFile(this, file)
+                ).map(getRelativePath(_))
+                    //normalise all paths to start with src/ rather than unpackaged/
+                    .map(name => if (name.startsWith("unpackaged/")) name.replaceFirst("unpackaged/", "src/") else name)
+                    .toSet
 
-        val relativePathsInSession = this.getRelativeFilePathsInSession
-        val deletedFilePaths = relativePathsInSession.filterNot(existingFiles.contains(_))
-        deletedFilePaths
+                val relativePathsInSession = this.getRelativeFilePathsInSession
+                val deletedFilePaths = relativePathsInSession.filterNot(existingFiles.contains(_))
+                deletedFilePaths
+            case None => Nil
+        }
     }
 
     /**
@@ -326,24 +337,34 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
      * @return turns path\\to\file into path/to/file
      */
-    def normalizePath(filePath: String) = FileUtils.normalizePath(filePath)
+    def normalizePath(filePath: String): String = FileUtils.normalizePath(filePath)
 
+    private def containsKey(key: String): Boolean = {
+        sessionPropertiesOpt.exists(_.containsKey(key))
+    }
+    private def remove(key: String): Unit = {
+        sessionPropertiesOpt.foreach(_.remove(key))
+    }
     /**
      * @param dirName - e.g. "classes"
      * @param fileName - e.g. "Messages.cls"
      * @return relative path in project folder, e.g. src/classes.MyClass.cls
      */
     def getRelativePath(dirName: String, fileName: String): Option[String] = {
-        if (sessionProperties.containsKey("unpackaged/" + dirName + "/" + fileName)) {
+        if (containsKey("unpackaged/" + dirName + "/" + fileName)) {
             Some("src" + File.separator + dirName + File.separator + fileName)
         } else {
             //looks like this file is not in session yet, last attempt, check if local file exists
-            val folder = new File(config.srcDir, dirName)
-            val file = new File(folder, fileName)
-            if (file.canRead)
-                Some(getRelativePath(file))
-            else
-                None
+            config.srcDirOpt match {
+                case Some(srcDir) =>
+                    val folder = new File(srcDir, dirName)
+                    val file = new File(folder, fileName)
+                    if (file.canRead)
+                        Some(getRelativePath(file))
+                    else
+                        None
+                case None => None
+            }
         }
     }
 
@@ -387,15 +408,19 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      * @return
      */
     def findFile(nameWithoutExtension: String, xmlName: String): Option[File] = {
-        DescribeMetadata.getDirAndSuffix(this, xmlName) match {
-          case Some((dirName, suffix)) =>
-              getRelativePath(dirName, nameWithoutExtension + "." + suffix) match {
-                case Some(relativePath) =>
-                    val f = new File(config.projectDir, relativePath)
-                    if (f.canRead) Some(f) else None
-                case _ => None
-              }
-          case _ => None
+        config.projectDirOpt match {
+            case Some(_projectDir) =>
+                DescribeMetadata.getDirAndSuffix(this, xmlName) match {
+                    case Some((dirName, suffix)) =>
+                        getRelativePath(dirName, nameWithoutExtension + "." + suffix) match {
+                            case Some(relativePath) =>
+                                val f = new File(_projectDir, relativePath)
+                                if (f.canRead) Some(f) else None
+                            case _ => None
+                        }
+                    case _ => None
+                }
+            case None => None
         }
     }
     /**
@@ -406,7 +431,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      */
     def findKey(dirName: String, fileName: String): Option[String] = {
         val key = "unpackaged/" + dirName + "/" + fileName
-        if (sessionProperties.containsKey(key)) {
+        if (containsKey(key)) {
             Some(key)
         } else {
             None
@@ -429,16 +454,15 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         val hashFieldName = if (useMD5Hash) MetadataType.MD5 else MetadataType.CRC32
         val useHashCheck = fileData.contains(hashFieldName)
 
-        val fileDiffBySessionData = useHashCheck match {
-          case true =>
-              val hashDifference = fileData.get(prefix + hashFieldName) match {
-                  case Some(storedHash) =>
-                      if (useMD5Hash) FileUtils.getMD5Hash(file) != storedHash
-                      else FileUtils.getCRC32Hash(file)!= storedHash
-                  case None => true //file is not listed in session, so must be new
-              }
-              hashDifference
-          case false =>
+        val fileDiffBySessionData = if (useHashCheck) {
+            val hashDifference = fileData.get(prefix + hashFieldName) match {
+                case Some(storedHash) =>
+                    if (useMD5Hash) FileUtils.getMD5Hash(file) != storedHash
+                    else FileUtils.getCRC32Hash(file) != storedHash
+                case None => true //file is not listed in session, so must be new
+            }
+            hashDifference
+        } else {
               val fileTimeNewerThanSessionTimeData = fileData.get(prefix + MetadataType.LOCAL_MILLS) match {
                   case Some(x) => Math.abs(file.lastModified() - x.asInstanceOf[Long]) > SESSION_TO_FILE_TIME_DIFF_TOLERANCE_SEC
                   case None => true //file is not listed in session, so must be new
@@ -465,25 +489,26 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
     def listApexFilesFromFile(fileListFile: File): List[File] = {
         val config = this.getConfig
 
-        //logger.debug("packageXmlData=" + packageXmlData)
-        val projectDir = config.projectDir
+        config.projectDirOpt match {
+            case Some(projectDir) =>
+                //load file list from specified file
+                val files:List[File] = FileUtils.readFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
 
-        //load file list from specified file
-        val files:List[File] = FileUtils.readFile(fileListFile).getLines().map(relativeFilePath => new File(projectDir, relativeFilePath)).toList
+                //for each file check that it exists
+                files.find(!_.canRead) match {
+                    case Some(f) =>
+                        throw new ActionError("Can not read file: " + f.getAbsolutePath)
+                    case None =>
+                }
 
-        //for each file check that it exists
-        files.find(!_.canRead) match {
-            case Some(f) =>
-                throw new ActionError("Can not read file: " + f.getAbsolutePath)
-            case None =>
+                val allFiles  = files.filter(
+                    //remove all non apex files
+                    file => DescribeMetadata.isValidApexFile(this, file)
+                ).toSet
+
+                allFiles.toList
+            case None => Nil
         }
-
-        val allFiles  = files.filter(
-            //remove all non apex files
-            file => DescribeMetadata.isValidApexFile(this, file)
-        ).toSet
-
-        allFiles.toList
     }
 
     private def getPartnerConnection: PartnerConnection = {
@@ -498,11 +523,11 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                   case _ =>
                       val _conn =
                       config.getAuthConfig match {
-                          case Some(credentials @ LoginPasswordCredentials(username, password, _)) =>
+                          case Some(LoginPasswordCredentials(_, _, _)) =>
                               //login explicitly
                               Connection.createPartnerConnection(config)
 
-                          case Some(credentials @ Oauth2Credentials(tokens)) =>
+                          case Some(credentials @ Oauth2Credentials(_)) =>
                               Connection.createPartnerConnectionWithRefreshToken(config, credentials) match {
                                   case Right(newConnection) => newConnection
                                   case Left(err) => throw new ConfigValueException(err)
@@ -725,8 +750,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         }
     }
 
-    def reset(allowWrite: Boolean = false) {
-        sessionProperties.remove("session")
+    def reset(allowWrite: Boolean = false): Unit = {
+        remove("session")
         storeSessionData(allowWrite)
         connectionPartner = None
         connectionMetadata = None
@@ -765,13 +790,13 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         Some(text)
     }
 
-    def getServerTimestamp = {
+    def getServerTimestamp: com.sforce.soap.partner.GetServerTimestampResult = {
         withRetry {
             getPartnerConnection.getServerTimestamp
         }.asInstanceOf[com.sforce.soap.partner.GetServerTimestampResult]
     }
 
-    def getUserInfo = {
+    def getUserInfo: com.sforce.soap.partner.GetUserInfoResult = {
         withRetry {
             getPartnerConnection.getUserInfo
         }.asInstanceOf[com.sforce.soap.partner.GetUserInfoResult]
@@ -1077,7 +1102,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
     private val MAX_NUM_POLL_REQUESTS = config.getProperty("maxPollRequests").getOrElse[String]("100").toInt
 
     private def waitRetrieve(connection: MetadataConnection, asyncResult: AsyncResult): RetrieveResult = {
-        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toLong
         var attempts = 0
         var lastReportTime = System.currentTimeMillis()
 
@@ -1119,7 +1144,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
     }
 
     private def waitDeploy(connection: MetadataConnection, asyncResult: AsyncResult): DeployResult = {
-        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toInt
+        val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 5)).toLong
         var attempts = 0
 
         var lastReportTime = System.currentTimeMillis()
