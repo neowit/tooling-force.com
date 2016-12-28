@@ -11,7 +11,13 @@ scalacOptions ++= Seq(
     "-encoding", "UTF-8",
     "-feature",
     "-unchecked",
-    "-Xfatal-warnings"
+    "-Xfatal-warnings",
+    //"-Xlint",
+    //"-Yno-adapted-args",
+    //"-Ywarn-numeric-widen",
+    //"-Ywarn-value-discard",
+    "-Xfuture",
+    "-Ywarn-unused-import"
 )
 
 resolvers ++= Seq(
