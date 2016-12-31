@@ -1,16 +1,21 @@
 package com.neowit.apex.actions
 
 import com.neowit.apex.actions.tooling.AuraMember
-import com.sforce.soap.metadata.{ListMetadataQuery, DescribeMetadataObject}
+import com.sforce.soap.metadata.{DescribeMetadataObject, ListMetadataQuery}
 import com.neowit.apex.Session
-import scala.collection.mutable
-import java.io.{PrintWriter, File}
-import com.neowit.utils.FileUtils
-import scala.util.{Failure, Success, Try}
 
+import scala.collection.mutable
+import java.io.{File, PrintWriter}
+
+import com.neowit.utils.FileUtils
+
+import scala.util.{Failure, Success, Try}
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
+import com.neowit.utils.ResponseWriter.KeyValueMessage
+
+import scala.concurrent.{ExecutionContext, Future}
 
 object DescribeMetadata {
     private var describeMetadataObjectMap:Map[String, DescribeMetadataObject] = Map()
@@ -249,12 +254,13 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
     }
     def getOutputFilePath: Option[String] = config.getRequiredProperty("allMetaTypesFilePath")
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
-        responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("RESULT_FILE=" + getOutputFilePath)
-        responseWriter.println("FILE_COUNT=" + resMap.size)
+        //responseWriter.println("RESULT=SUCCESS")
+        //responseWriter.println("RESULT_FILE=" + getOutputFilePath)
+        //responseWriter.println("FILE_COUNT=" + resMap.size)
+        Future.successful(ActionSuccess(KeyValueMessage(Map("RESULT_FILE" -> getOutputFilePath, "FILE_COUNT" -> resMap.size))))
     }
 }
 
@@ -288,7 +294,7 @@ class ListMetadata extends ApexActionWithWritableSession {
         override def getName: String = "listMetadata"
     }
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
 
         val metadataByXmlName = DescribeMetadata.getMap(session)
         //load file list from specified file
@@ -331,24 +337,29 @@ class ListMetadata extends ApexActionWithWritableSession {
             case Failure(error) => throw error
         }
 
-        responseWriter.println("RESULT=SUCCESS")
-        if (resourcesByXmlTypeName.nonEmpty) {
-            //dump results to JSON file, with each line looking like this
-            //{"CustomTab" : ["Account_Edit", "My_Object__c"]}
+        //responseWriter.println("RESULT=SUCCESS")
+        val actionResult =
+            if (resourcesByXmlTypeName.nonEmpty) {
+                //dump results to JSON file, with each line looking like this
+                //{"CustomTab" : ["Account_Edit", "My_Object__c"]}
 
-            val tempFile = FileUtils.createTempFile("listMetadata", ".js")
-            val writer = new PrintWriter(tempFile)
-            resourcesByXmlTypeName.foreach{
-                case (k, v: Set[String]) if k == null =>
-                    logger.trace("key is null for v=" + v)
-                case (key: String, values: Set[String]) =>
-                    logger.trace("key=" + key)
-                    val line = Map(key -> values.toList.toJson).toJson.compactPrint
-                    writer.println(line)
+                val tempFile = FileUtils.createTempFile("listMetadata", ".js")
+                val writer = new PrintWriter(tempFile)
+                resourcesByXmlTypeName.foreach{
+                    case (k, v: Set[String]) if k == null =>
+                        logger.trace("key is null for v=" + v)
+                    case (key: String, values: Set[String]) =>
+                        logger.trace("key=" + key)
+                        val line = Map(key -> values.toList.toJson).toJson.compactPrint
+                        writer.println(line)
+                }
+                writer.close()
+                //responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
+                ActionSuccess(KeyValueMessage(Map("RESULT_FILE" -> tempFile.getAbsolutePath)))
+            } else {
+                ActionSuccess()
             }
-            writer.close()
-            responseWriter.println("RESULT_FILE=" + tempFile.getAbsolutePath)
-        }
+        Future.successful(actionResult)
     }
 }
 

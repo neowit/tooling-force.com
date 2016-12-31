@@ -6,11 +6,11 @@ import java.util.UUID
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
-import com.neowit.utils.ResponseWriter.Message
+import com.neowit.utils.ResponseWriter.ErrorMessage
 import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
 import spray.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
@@ -45,21 +45,19 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
 
     }
 
-    //private var server: Option[EmbeddedJetty] = None
-
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val outputFile: File = getOutputFile match {
             case Some(file) => file
             case None =>
-                config.responseWriter.println("RESULT=FAILURE")
-                val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
-                config.responseWriter.println(message)
-                return
+                //config.responseWriter.println("RESULT=FAILURE")
+                //val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
+                //config.responseWriter.println(message)
+                return Future.successful(ActionFailure(ErrorMessage("Missing or invalid value of --saveAuthPath parameter.")))
         }
 
         ConnectedAppKeys.load() match {
             case Some(keys) =>
-                config.getRequiredProperty("env") match {
+                config.getProperty("env") match {
                     case Some(env) =>
                         val handlerUuid = UUID.randomUUID()
                         val handlerId = handlerUuid.toString
@@ -79,36 +77,42 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                             println("If web browser failed to open automatically please follow this url: " + shortUrl)
                         } else {
                             // unsupported OS, provide alternative (short) url to open manually
-                            val message = new Message(ResponseWriter.WARN, "Open this URL in your web browser: " + shortUrl)
-                            config.responseWriter.println(message)
+                            //val message = WarnMessage("Open this URL in your web browser: " + shortUrl)
+                            println("Open this URL in your web browser: " + shortUrl)
                         }
 
                         // start server
                         EmbeddedJetty.start(keys.getPort) match {
                             case Right(_) =>
                                 val callbackPath = new URL(keys.callbackUrl).getPath
-                                val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(outputFile, consumer))
+                                val onCompletePromise = Promise[ActionResult]()
+                                val handler = new Oauth2Handler(consumer, callbackPath, onResponseCallback(outputFile, consumer, onCompletePromise))
                                 EmbeddedJetty.addHandler(handlerId, handler)
                                 // wait for process to complete
+                                /*
                                 while (EmbeddedJetty.hasHandler(handlerId)) {
                                     Thread.sleep(1000)
                                 }
                                 EmbeddedJetty.stop()
-
+                                */
+                                onCompletePromise.future
                             case Left(err) =>
-                                config.responseWriter.println("RESULT=FAILURE")
-                                val message = new Message(ResponseWriter.ERROR, err)
-                                config.responseWriter.println(message)
+                                //config.responseWriter.println("RESULT=FAILURE")
+                                //val message = new Message(ResponseWriter.ERROR, err)
+                                //config.responseWriter.println(message)
+                                Future.successful(ActionFailure(ErrorMessage(err)))
                         }
 
                     case None =>
+                        Future.successful(ActionFailure("Missing required parameter: --env"))
                 }
             case None =>
-                config.responseWriter.println("RESULT=FAILURE")
-                val message = new Message(ResponseWriter.ERROR, "Invalid jar file, missing consumer key/secret configuration")
-                config.responseWriter.println(message)
+                //config.responseWriter.println("RESULT=FAILURE")
+                //val message = new Message(ResponseWriter.ERROR, "Invalid jar file, missing consumer key/secret configuration")
+                //config.responseWriter.println(message)
+                Future.successful(ActionFailure(ErrorMessage("Invalid jar file, missing consumer key/secret configuration")))
         }
-        ()
+
     }
 
     private def getOutputFile: Option[File] = {
@@ -125,40 +129,49 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
         }
     }
 
-    private def onResponseCallback(outputFile: File, consumer: OAuthConsumer)(urlParams: Map[String, List[String]]): Future[Unit] = {
+    private def onResponseCallback(outputFile: File, consumer: OAuthConsumer, onCompletePromise: Promise[ActionResult])(urlParams: Map[String, List[String]]): Future[Unit] = {
         Future {
 
-            urlParams.get("error") match {
-                case Some(values) =>
-                    val error = values.head
-                    config.responseWriter.println("RESULT=FAILURE")
-                    urlParams.get("error_description") match {
-                        case Some(strings) =>
-                            val errorDescription = strings.head
-                            val message = new Message(ResponseWriter.ERROR, error + ": "  + errorDescription)
-                            config.responseWriter.println(message)
-                        case _ =>
-                            val message = new Message(ResponseWriter.ERROR, error)
-                            config.responseWriter.println(message)
-                    }
-                case None =>
-                    val code = urlParams.get("code") match {
-                        case Some(values) => values.head
-                        case None => ""
-                    }
-
-                    if (code.nonEmpty) {
-                        consumer.getTokens(code) match {
-                            case Some(tokens) =>
-                                println("loaded tokens")
-                                FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
-                                config.responseWriter.println("RESULT=SUCCESS")
-                                config.responseWriter.println(tokens.toJson.prettyPrint)
-                            case None =>
-                                config.responseWriter.println("RESULT=FAILURE")
+            val actionResult =
+                urlParams.get("error") match {
+                    case Some(values) =>
+                        val error = values.head
+                        //config.responseWriter.println("RESULT=FAILURE")
+                        val errorMessage =
+                            urlParams.get("error_description") match {
+                                case Some(strings) =>
+                                    val errorDescription = strings.head
+                                    val message = ErrorMessage(error + ": "  + errorDescription)
+                                    //config.responseWriter.println(message)
+                                    message
+                                case _ =>
+                                    val message = ErrorMessage(error)
+                                    //config.responseWriter.println(message)
+                                    message
+                            }
+                        ActionFailure(errorMessage)
+                    case None =>
+                        val code = urlParams.get("code") match {
+                            case Some(values) => values.head
+                            case None => ""
                         }
-                    }
-            }
+
+                        if (code.nonEmpty) {
+                            consumer.getTokens(code) match {
+                                case Some(tokens) =>
+                                    println("loaded tokens")
+                                    FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
+                                    //config.responseWriter.println("RESULT=SUCCESS")
+                                    //config.responseWriter.println(tokens.toJson.prettyPrint)
+                                    ActionSuccess(tokens.toJson.prettyPrint)
+                                case None =>
+                                    //config.responseWriter.println("RESULT=FAILURE")
+                                    ActionFailure(Nil)
+                            }
+                        } else {
+                            ActionFailure("Unexpected response returned: response missing 'code' parameter")
+                        }
+                }
 
             urlParams.get("state") match {
                 case Some(handlerId :: _) =>
@@ -166,6 +179,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                 case _ =>
                     // response missing state parameter - something must have gone wrong, can not stop server explicitly
             }
+            onCompletePromise.success(actionResult)
         }
 
     }

@@ -25,7 +25,8 @@ import java.nio.file.{Files, Paths}
 import com.neowit.apex.completion._
 import com.neowit.apex.parser._
 import com.neowit.utils.ConfigValueException
-import com.neowit.utils.ResponseWriter.{ErrorMessage, FAILURE, SUCCESS}
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
@@ -52,7 +53,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
     }
 
     //this method should implement main logic of the action
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
         if (config.projectDirOpt.isEmpty) {
             // this action is not applicable when project is not provided
@@ -60,47 +61,54 @@ class FindSymbol extends ApexActionWithReadOnlySession {
         }
         val projectDir = config.projectDirOpt.get
 
-        for (   filePath <- config.getRequiredProperty("currentFileContentPath");
-                line <- config.getRequiredProperty("line");
-                column <- config.getRequiredProperty("column")
-        ) yield {
-            if (! Files.isReadable(Paths.get(filePath))) {
-                config.responseWriter.println(FAILURE)
-                config.responseWriter.println(ErrorMessage(s"'currentFileContentPath' must point to readable file"))
-                return
-            }
-            val inputFile = new File(filePath)
-            val scanner = new ScanSource().load[ScanSource](session)
-            //provide alternative location for current file (it may not be saved in project location)
-            val currentFilePath = config.getRequiredProperty("currentFilePath")
-            val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
-            scanner.scan(classes)
+        val actionResultOpt =
+            for (   filePath <- config.getRequiredProperty("currentFileContentPath");
+                    line <- config.getRequiredProperty("line");
+                    column <- config.getRequiredProperty("column")
+            ) yield {
+                if (! Files.isReadable(Paths.get(filePath))) {
+                    //config.responseWriter.println(FAILURE)
+                    //config.responseWriter.println(ErrorMessage(s"'currentFileContentPath' must point to readable file"))
+                    ActionFailure(s"'currentFileContentPath' must point to readable file")
+                } else {
+                    val inputFile = new File(filePath)
+                    val scanner = new ScanSource().load[ScanSource](session)
+                    //provide alternative location for current file (it may not be saved in project location)
+                    val currentFilePath = config.getRequiredProperty("currentFilePath")
+                    val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
+                    scanner.scan(classes)
 
-            val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
-                case Some(sourceScanner) => sourceScanner.getTree
-                case None => new ApexTree
-            }
-
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session, isDefinitionOnly = true)
-            val definitionOpt = completion.getDefinition
-            config.responseWriter.println(SUCCESS)
-
-            definitionOpt match {
-                case Some(definition) =>
-                    getSymbol(definition, completion) match {
-                        case Some(member) =>
-                            config.responseWriter.println(member.serialise.compactPrint)
-                        case None =>
-                            println("Not local resource, no location available")
-                            config.responseWriter.println("{}")
+                    val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
+                        case Some(sourceScanner) => sourceScanner.getTree
+                        case None => new ApexTree
                     }
-                case None =>
-                    println("Definition not found")
-                    config.responseWriter.println("{}")
-            }
-        }
 
-        ()
+                    val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session, isDefinitionOnly = true)
+                    val definitionOpt = completion.getDefinition
+                    //config.responseWriter.println(SUCCESS)
+
+                    val responseJson =
+                        definitionOpt match {
+                            case Some(definition) =>
+                                getSymbol(definition, completion) match {
+                                    case Some(member) =>
+                                        //config.responseWriter.println(member.serialise.compactPrint)
+                                        member.serialise.compactPrint
+                                    case None =>
+                                        println("Not local resource, no location available")
+                                        //config.responseWriter.println("{}")
+                                        "{}"
+                                }
+                            case None =>
+                                println("Definition not found")
+                                //config.responseWriter.println("{}")
+                                "{}"
+                        }
+                    ActionSuccess(responseJson)
+                }
+            }
+        Future.successful(actionResultOpt.getOrElse(ActionSuccess()))
+
     }
 
     private def getSymbol(definition: TokenDefinition, completion: AutoComplete): Option[Member] = {

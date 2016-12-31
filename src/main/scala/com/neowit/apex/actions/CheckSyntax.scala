@@ -3,7 +3,10 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.parser.SourceScanner
+import com.neowit.utils.ResponseWriter._
 import org.antlr.v4.runtime._
+
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * 'checkSyntax' action runs apexcode parser against specified file and reports syntax errors
@@ -33,34 +36,46 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
         override def getName: String = "checkSyntax"
     }
 
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
 
-        for (   filePath <- config.getRequiredProperty("currentFileContentPath");
-                sourceFilePath <- config.getRequiredProperty("currentFilePath")
-                //line <- config.getProperty("line");
-                //column <- config.getProperty("column")
-        ) yield {
-            val inputFile = new File(filePath)
-            val scanner = new SourceScanner(List(inputFile))
-            val errorListener = new SyntaxErrorListener()
-            scanner.parseOne(inputFile, Some(errorListener))
-            val errors = errorListener.result
-            if (errors.isEmpty) {
-                config.responseWriter.println("RESULT=SUCCESS")
-            } else {
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.startSection("ERROR LIST")
-                val pathToReport = session.getRelativePath(new File(sourceFilePath))
-                errors.foreach{e =>
-                    responseWriter.println("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
+        val actionResultOpt =
+            for (   filePath <- config.getRequiredProperty("currentFileContentPath");
+                    sourceFilePath <- config.getRequiredProperty("currentFilePath")
+            //line <- config.getProperty("line");
+            //column <- config.getProperty("column")
+            ) yield {
+                val inputFile = new File(filePath)
+                val scanner = new SourceScanner(List(inputFile))
+                val errorListener = new SyntaxErrorListener()
+                scanner.parseOne(inputFile, Some(errorListener))
+                val errors = errorListener.result
+                if (errors.isEmpty) {
+                    //config.responseWriter.println("RESULT=SUCCESS")
+                    ActionSuccess()
+                } else {
+                    //responseWriter.println("RESULT=FAILURE")
+                    val actionResultBuilder = new ActionResultBuilder(FAILURE)
+
+                    //responseWriter.startSection("ERROR LIST")
+                    val errorsMessage = ErrorMessage("ERROR LIST")
+                    actionResultBuilder.addMessage(errorsMessage)
+
+                    val pathToReport = session.getRelativePath(new File(sourceFilePath))
+                    errors.foreach{e =>
+                        //responseWriter.println("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
+                        actionResultBuilder.addDetail(
+                            MessageDetailMap(
+                                errorsMessage,
+                                Map("type" -> "ERROR", "filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg)
+                            )
+                        )
+                    }
+                    //config.responseWriter.endSection("ERROR LIST")
+                    actionResultBuilder.result()
                 }
-                config.responseWriter.endSection("ERROR LIST")
-
             }
-        }
-
-        ()
+        Future.successful(actionResultOpt.getOrElse(ActionFailure("Check command line parameters")))
     }
 
     class SyntaxErrorListener extends BaseErrorListener {

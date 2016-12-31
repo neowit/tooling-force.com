@@ -9,10 +9,13 @@ import scala.util.{Failure, Success, Try}
 import com.neowit.utils.FileUtils
 import java.io.{File, PrintWriter}
 
-import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession}
+import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionSuccess, ApexActionWithReadOnlySession}
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
+import com.neowit.utils.ResponseWriter.KeyValueMessage
+
+import scala.concurrent.{ExecutionContext, Future}
 
 object DescribeTooling {
     private var describeToolingObjectMap:Map[String, DescribeGlobalSObjectResult] = Map()
@@ -61,12 +64,17 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
 
     def getOutputFilePath: Option[String] = config.getRequiredProperty("allToolingTypesFilePath")
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
         responseWriter.println("RESULT=SUCCESS")
         responseWriter.println("RESULT_FILE=" + getOutputFilePath)
         responseWriter.println("FILE_COUNT=" + resMap.size)
+        val actionResult =
+            ActionSuccess(
+                    KeyValueMessage(Map("RESULT_FILE" -> getOutputFilePath, "FILE_COUNT" -> resMap.size))
+            )
+        Future.successful(actionResult)
     }
 
     private def storeDescribeResult(file: File, lines: Iterator[String]): Unit = {
@@ -152,7 +160,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
                 config.getProperty("allToolingTypesFilePath") match {
                     case Some(allMetaTypesFilePath) =>
                         val userDefinedFile = new File(allMetaTypesFilePath)
-                        if (!storedDescribeToolingResultFile.contains(storedDescribeToolingResultFile)) {
+                        if ( !storedDescribeToolingResultFile.contains(userDefinedFile) ) {
                             storeDescribeResult(userDefinedFile, linesBuf.iterator)
 
                         }

@@ -22,9 +22,10 @@ package com.neowit.apex
 import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
-import com.neowit.apex.actions.{ActionFactory, ActionHelp, RetrieveError, ShowHelpException}
+import com.neowit.apex.actions._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
 import ExecutionContext.Implicits.global
 
 object Runner extends Logging {
@@ -121,7 +122,6 @@ class Executor extends Logging {
         }
         exitCode
     }
-
     private def run (): Unit = {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
         if (basicConfig.getProperty("help").isEmpty) {
@@ -133,7 +133,18 @@ class Executor extends Logging {
             }
 
             ActionFactory.getAction(basicConfig, basicConfig.action) match {
-                case Some(action) => action.execute()
+                case Some(action) =>
+                    val actionResultFuture = action.execute()
+                    val responseWriter = basicConfig.getResponseWriter
+                    Await.result(actionResultFuture, Duration.Inf)
+                    actionResultFuture.map{
+                        case ActionSuccess(messages) =>
+                            responseWriter.println("RESULT=SUCCESS")
+                            messages.foreach(responseWriter.println(_))
+                        case ActionFailure(messages) =>
+                            responseWriter.println("RESULT=FAILURE")
+                            messages.foreach(responseWriter.println(_))
+                    }
                 case None =>
             }
             //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion

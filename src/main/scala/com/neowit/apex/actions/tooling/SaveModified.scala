@@ -5,11 +5,10 @@ import java.io.File
 
 import com.neowit.apex.actions._
 import com.sforce.soap.tooling._
-import com.neowit.utils.ResponseWriter.Message
-import com.neowit.utils.{FileUtils, ResponseWriter, ZipUtils, ZuluTime}
+import com.neowit.utils.ResponseWriter._
+import com.neowit.utils.{FileUtils, ZipUtils, ZuluTime}
 
 import scala.concurrent._
-import com.neowit.utils.ResponseWriter.MessageDetail
 import com.sforce.ws.bind.XmlObject
 
 import scala.util.{Failure, Success, Try}
@@ -75,7 +74,7 @@ class SaveModified extends DeployModified {
         }
     }
 
-    def withMetadataContainer(session: Session)(codeBlock: (MetadataContainer) => Any) = {
+    def withMetadataContainer(session: Session)(codeBlock: (MetadataContainer) => Any): Any = {
 
         try {
             codeBlock(getMetadataContainer(session))
@@ -134,11 +133,11 @@ class SaveModified extends DeployModified {
     /**
      * @return - true if deployment is successful
      */
-    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
         logger.debug("Entered SaveModified.deploy()")
         if (!ToolingUtils.canUseTooling(session, files)) {
             //can not use tooling, fall back to metadata version - DeployModified
-            super.deploy(files, updateSessionDataOnSuccess)
+            super.deploy(files, updateSessionDataOnSuccess, resultBuilder)
         } else {
             val hasAuraFiles = files.exists(AuraMember.isSupportedType(_))
             if (!hasAuraFiles) {
@@ -147,19 +146,19 @@ class SaveModified extends DeployModified {
                 //files to be saved in MetadataContainer
                 val res1 = filesByContainerType.get("MetadataContainer") match {
                   case Some(_files) =>
-                      deployWithMetadataContaner(_files, updateSessionDataOnSuccess)
+                      deployWithMetadataContaner(_files, updateSessionDataOnSuccess, resultBuilder)
                   case None => true
                 }
                 //files to be saved standalone
                 val res2 = filesByContainerType.get("ContainerLess") match {
                     case Some(_files) =>
-                        saveContainerLessFiles(_files, updateSessionDataOnSuccess)
+                        saveContainerLessFiles(_files, updateSessionDataOnSuccess, resultBuilder)
                     case None => true
                 }
                 res1 && res2
             } else {
                 //aura
-                deployAura(files, updateSessionDataOnSuccess)
+                deployAura(files, updateSessionDataOnSuccess, resultBuilder)
             }
         }
 
@@ -173,10 +172,10 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if session data needs to be updated at the end of successful save
      * @return - true if all files have been saved successfully
      */
-    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
         val successByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
             saveFilesOfSingleXmlType(files, fileToToolingInstance,
-                (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
+                (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess, resultBuilder)
         }
         val hasFailure = successByExtension.exists{case (extension, res) => !res}
         !hasFailure
@@ -189,7 +188,9 @@ class SaveModified extends DeployModified {
      * @return
      */
     private def saveFilesOfSingleXmlType(files: List[File], sobjectInstanceCreator: (File) => SObject,
-                                         sessionDataUpdater: (List[File]) => Unit, updateSessionDataOnSuccess: Boolean): Boolean = {
+                                         sessionDataUpdater: (List[File]) => Unit,
+                                         updateSessionDataOnSuccess: Boolean,
+                                         resultBuilder: ActionResultBuilder): Boolean = {
 
         val sObjects = files.map(sobjectInstanceCreator(_))
         val saveResults = session.updateTooling(sObjects.toArray)
@@ -219,12 +220,17 @@ class SaveModified extends DeployModified {
             session.storeSessionData()
 
             if (errorByFileIndex.isEmpty) {
-                config.responseWriter.println("RESULT=SUCCESS")
-                config.responseWriter.println("FILE_COUNT=" + files.size)
+                //config.responseWriter.println("RESULT=SUCCESS")
+                resultBuilder.setActionResult(SUCCESS)
+                //config.responseWriter.println("FILE_COUNT=" + files.size)
+                resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> files.size)))
                 if (!getSessionConfig.isCheckOnly) {
-                    config.responseWriter.startSection("SAVED FILES")
-                    files.foreach(f => config.responseWriter.println(f.getName))
-                    config.responseWriter.endSection("SAVED FILES")
+                    //config.responseWriter.startSection("SAVED FILES")
+                    //files.foreach(f => config.responseWriter.println(f.getName))
+                    //config.responseWriter.endSection("SAVED FILES")
+
+                    val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
+                    files.foreach(f => resultBuilder.addDetail(MessageDetailText(savedFilesMsg, f.getName)))
                 }
             }
 
@@ -233,11 +239,15 @@ class SaveModified extends DeployModified {
         //now process errors
         if (errorByFileIndex.nonEmpty) {
             logger.debug("Request failed")
-            responseWriter.println("RESULT=FAILURE")
-            config.responseWriter.startSection("ERROR LIST")
+            //responseWriter.println("RESULT=FAILURE")
+            resultBuilder.setActionResult(FAILURE)
+
+            //config.responseWriter.startSection("ERROR LIST")
+            val errorListMsg = resultBuilder.addMessage(ErrorMessage("ERROR LIST"))
             val problemType = "ERROR"
-            val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-            responseWriter.println(componentFailureMessage)
+            val componentFailureMessage = WarnMessage("Compiler errors")
+            //responseWriter.println(componentFailureMessage)
+            resultBuilder.addMessage(componentFailureMessage)
 
             for (index <- errorByFileIndex.keys) {
                 val file = fileArray(index)
@@ -260,8 +270,10 @@ class SaveModified extends DeployModified {
                         case None => Map.empty
                         })
                 //display errors both as messages and as ERROR: lines
-                responseWriter.println("ERROR", errorMap)
-                responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+                //responseWriter.println("ERROR", errorMap)
+                resultBuilder.addDetail(MessageDetailMap(errorListMsg, errorMap))
+                //responseWriter.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
+                resultBuilder.addDetail(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
             }
             false
         } else {
@@ -334,14 +346,17 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
      * @return
      */
-    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
-        saveFilesOfSingleXmlType(files,
-                                (file: File) => AuraMember.getInstanceUpdate(file, session),
-                                (files: List[File]) => updateFileModificationData(files, Some(AuraMember.XML_TYPE)),
-                                updateSessionDataOnSuccess)
+    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
+        saveFilesOfSingleXmlType(
+            files,
+            (file: File) => AuraMember.getInstanceUpdate(file, session),
+            (files: List[File]) => updateFileModificationData(files, Some(AuraMember.XML_TYPE)),
+            updateSessionDataOnSuccess,
+            resultBuilder
+        )
     }
 
-    private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean): Boolean = {
+    private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
         logger.debug("Deploying with Metadata Container")
         var allSuccess = true
         withMetadataContainer(session) { container =>
@@ -383,7 +398,7 @@ class SaveModified extends DeployModified {
                                 }
                                 attempts += 1
                             }
-                            allSuccess &= processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
+                            allSuccess &= processSaveResult(_request, membersMap, updateSessionDataOnSuccess, resultBuilder)
                         }
                     } else {
                         throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
@@ -503,7 +518,10 @@ class SaveModified extends DeployModified {
         }
     }
 
-    private def processSaveResult(request: ContainerAsyncRequest, membersMap: Map[ApexMember, File], updateSessionDataOnSuccess: Boolean): Boolean = {
+    private def processSaveResult(request: ContainerAsyncRequest,
+                                  membersMap: Map[ApexMember, File],
+                                  updateSessionDataOnSuccess: Boolean,
+                                  resultBuilder: ActionResultBuilder): Boolean = {
 
         request.getState match {
             case "Completed" =>
@@ -528,26 +546,33 @@ class SaveModified extends DeployModified {
                 //dump session data to disk
                 session.storeSessionData()
 
-                config.responseWriter.println("RESULT=SUCCESS")
-                config.responseWriter.println("FILE_COUNT=" + membersMap.size)
+                //config.responseWriter.println("RESULT=SUCCESS")
+                resultBuilder.setActionResult(SUCCESS)
+                //config.responseWriter.println("FILE_COUNT=" + membersMap.size)
+                resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> membersMap.size)))
                 if (!getSessionConfig.isCheckOnly) {
                     config.responseWriter.startSection("SAVED FILES")
                     membersMap.values.foreach(f => config.responseWriter.println(f.getName))
                     config.responseWriter.endSection("SAVED FILES")
+                    val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
+                    resultBuilder.addDetails(membersMap.values.map(f => MessageDetailText(savedFilesMsg, f.getName)))
                 }
                 true
 
             case "Failed" =>
                 logger.debug("Request failed")
-                responseWriter.println("RESULT=FAILURE")
-                config.responseWriter.startSection("ERROR LIST")
+                //responseWriter.println("RESULT=FAILURE")
+                resultBuilder.setActionResult(FAILURE)
+                //config.responseWriter.startSection("ERROR LIST")
+                //val errorListMsg = resultBuilder.addMessage(InfoMessage("ERROR LIST"))
                 val deployDetails = request.getDeployDetails
                 if (deployDetails.getComponentFailures.nonEmpty ) {
                     val deployMessages = deployDetails.getComponentFailures
                     logger.debug(deployMessages)
                     //display errors both as messages and as ERROR: lines
-                    val componentFailureMessage = new Message(ResponseWriter.WARN, "Compiler errors")
-                    responseWriter.println(componentFailureMessage)
+                    val componentFailureMessage = WarnMessage("Compiler errors")
+                    //responseWriter.println(componentFailureMessage)
+                    resultBuilder.addMessage(componentFailureMessage)
 
                     for (deployMessage <- deployMessages) {
                         val line = deployMessage.getLineNumber
@@ -556,30 +581,35 @@ class SaveModified extends DeployModified {
                         val filePath =  getFilePath(deployMessage).getOrElse("")
 
                         val problemType = "CompileError"
-                        responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                        responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                        //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                        resultBuilder.addDetail(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
+                        //responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
                     false
                 } else {
                     //general error
                     //display errors both as messages and as ERROR: lines
-                    val generalFailureMessage = new Message(ResponseWriter.WARN, "General failure")
-                    responseWriter.println(generalFailureMessage)
+                    val generalFailureMessage = WarnMessage("General failure")
+                    //responseWriter.println(generalFailureMessage)
+                    resultBuilder.addMessage(generalFailureMessage)
                     val problem = request.getErrorMsg match {
                         case "Can't alter metadata in an active org" => //attempt to deploy using Tooling API into Production
                             request.getErrorMsg + "; If you are trying to deploy using Tooling API in Production org then switch to Metadata API."
                         case s => s
                     }
-                    responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
-                    responseWriter.println(MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
+                    //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
+                    //responseWriter.println(MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
+                    resultBuilder.addDetail(MessageDetailMap(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
                 }
                 false
 
             case state =>
-                responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println("RESULT=FAILURE")
+                resultBuilder.setActionResult(FAILURE)
                 val msg = s"Async Request Failed with status: '$state'. Message: ${request.getErrorMsg}"
                 logger.error(msg)
-                responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))
+                //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))
+                resultBuilder.addMessage(ErrorMessage(msg))
                 false
         }
     }
@@ -659,9 +689,14 @@ class SaveSpecificFiles extends SaveModified {
         session.listApexFilesFromFile(fileListFile)
     }
 
-    protected override def reportEmptyFileList(files: List[File]): Unit = {
-        responseWriter.println("RESULT=FAILURE")
+    protected override def reportEmptyFileList(files: List[File]): ActionResult = {
+        //responseWriter.println("RESULT=FAILURE")
         val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
-        responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
+        //responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
+        ActionFailure(
+            List(
+                ErrorMessage("no valid files in " + fileListFile)
+            )
+        )
     }
 }

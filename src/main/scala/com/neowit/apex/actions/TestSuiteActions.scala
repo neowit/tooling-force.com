@@ -4,11 +4,11 @@ import java.io.File
 
 import com.neowit.apex.Session
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
-import com.neowit.utils.{FileUtils, ResponseWriter}
+import com.neowit.utils.FileUtils
 import com.sforce.soap.tooling.{ApexClass, ApexTestSuite, TestSuiteMembership}
-
 import spray.json._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -19,7 +19,7 @@ trait TestSuiteProtocol extends DefaultJsonProtocol {
     case class TestSuite(name: String, id: String, classes: List[ApexClass])
 
     implicit object ApexClassJsonFormat extends RootJsonFormat[ApexClass] {
-        def write(c: ApexClass) =
+        def write(c: ApexClass): JsValue =
             Map("Name" -> c.getName.toJson, "Id" -> c.getId.toJson).toJson
 
         def read(value: JsValue) = value match {
@@ -65,7 +65,7 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
     }
 
     //this method should implement main logic of the action
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val actionResult =
         config.getProperty("testSuiteAction") match {
             case Some(action) if Set("create", "addclasses", "removeclasses", "delete").contains(action.toLowerCase) =>
@@ -100,10 +100,12 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
 
         actionResult match {
             case Success(_res) =>
-                responseWriter.println("RESULT=SUCCESS")
+                //responseWriter.println("RESULT=SUCCESS")
+                Future.successful(ActionSuccess())
             case Failure(ex) =>
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
+                //responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
+                Future.successful(ActionFailure(ex.getMessage))
         }
     }
 

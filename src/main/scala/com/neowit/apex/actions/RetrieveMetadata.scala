@@ -3,15 +3,16 @@ package com.neowit.apex.actions
 import java.io.{File, FileOutputStream}
 
 import com.neowit.apex.{MetaXml, MetadataType}
-import com.neowit.utils.ResponseWriter.{Message, MessageDetail}
+import com.neowit.utils.ResponseWriter._
 import com.neowit.utils._
 import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
-
 import spray.json._
 import DefaultJsonProtocol._
+
+import scala.concurrent.{ExecutionContext, Future}
 
 case class RetrieveError(retrieveResult: RetrieveResult) extends Error
 
@@ -73,7 +74,8 @@ abstract class RetrieveMetadata extends ApexActionWithWritableSession {
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, tempFolder: File,
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult,
+                           tempFolder: File,
                            updateSessionData: Boolean = true): Map[String, FileProperties] = {
 
         //val outputPath = appConfig.srcDir.getParentFile.getAbsolutePath
@@ -153,7 +155,8 @@ class RefreshMetadata extends RetrieveMetadata {
         override def getName: String = "refresh"
     }
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        val actionResultBuilder = new ActionResultBuilder()
         try {
             //first check if we have modified files
             val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
@@ -166,15 +169,17 @@ class RefreshMetadata extends RetrieveMetadata {
                 setUpackaged(retrieveRequest)
                 Try(session.retrieve(retrieveRequest)) match {
                     case Success(retrieveResult) =>
-                        updateFromRetrieve(retrieveResult)
+                        updateFromRetrieve(retrieveResult, actionResultBuilder)
                     case Failure(err) =>
                         err match {
                             case e: RetrieveError =>
                                 err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
                                     case messages if null != messages && messages.nonEmpty=>
-                                        responseWriter.println("RESULT=FAILURE")
+                                        //responseWriter.println("RESULT=FAILURE")
+                                        actionResultBuilder.setActionResult(FAILURE)
                                         for(msg <- messages) {
-                                            responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                            //responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                            actionResultBuilder.addMessage(ErrorMessage(msg.getFileName + ": " + msg.getProblem))
                                         }
                                     case _ =>
                                 }
@@ -186,32 +191,45 @@ class RefreshMetadata extends RetrieveMetadata {
                 //responseWriter.println("RESULT=FAILURE")
                 // in some cases reporting RESULT=FAILURE (if modified files detected) may not be desirable
                 // check if user requested alternative result code
-                val modifiedFilesResultCode = config.getProperty("modifiedFilesResultCode").getOrElse("FAILURE")
-                responseWriter.println("RESULT=" + modifiedFilesResultCode)
-                responseWriter.println(new Message(ResponseWriter.DEBUG,
-                    "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
-                modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN)
+                config.getProperty("modifiedFilesResultCode") match {
+                    case Some("SUCCESS") =>
+                        actionResultBuilder.setActionResult(SUCCESS)
+                    case _ =>
+                        actionResultBuilder.setActionResult(FAILURE)
+                }
+                //responseWriter.println("RESULT=" + modifiedFilesResultCode)
+                //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+                actionResultBuilder.addMessage(DebugMessage("Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+
+                modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN, actionResultBuilder)
             }
         } catch {
             case ex:Throwable =>
                 println(ex)
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(new Message(ResponseWriter.ERROR, ex.toString))
+                //responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println(new Message(ResponseWriter.ERROR, ex.toString))
+                actionResultBuilder.setActionResult(FAILURE)
+                actionResultBuilder.addMessage(ErrorMessage(ex.toString))
         }
+        Future.successful(actionResultBuilder.result())
     }
     /**
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult): Unit = {
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, actionResultBuilder: ActionResultBuilder): Unit = {
         val tempFolder = FileUtils.createTempDir(config)
         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
         //clear Ids of all files not loaded from the Org
         session.resetData(filePropsMap.keySet)
 
-        config.responseWriter.println("RESULT=SUCCESS")
-        config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-        config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))
+        //config.responseWriter.println("RESULT=SUCCESS")
+        //config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
+        //config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))
+        actionResultBuilder.setActionResult(SUCCESS)
+        actionResultBuilder.addMessage(KeyValueMessage(Map("RESULT_FOLDER" -> tempFolder.getAbsolutePath)))
+        actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))))
+
     }
 }
 /**
@@ -307,28 +325,35 @@ class ListConflicting extends RetrieveMetadata {
                     case None => ""
                 }
                 //config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text)))
-                MessageDetail(msg, Map("filePath" -> filePath, "text" -> text))
+                MessageDetailMap(msg, Map("filePath" -> filePath, "text" -> text))
             }
         )
     }
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val checker = new ListModified().load[ListModified](session)
         val modifiedFiles = checker.getModifiedFiles
+
+        val actionResultBuilder = new ActionResultBuilder(SUCCESS)
+
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
-                config.responseWriter.println("RESULT=SUCCESS")
+                //config.responseWriter.println("RESULT=SUCCESS")
+                actionResultBuilder.setActionResult(SUCCESS)
                 if (fileProps.nonEmpty) {
-                    val msg = new Message(ResponseWriter.INFO, "Outdated file(s) detected.")
-                    config.responseWriter.println(msg)
-                    generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
+                    val msg = InfoMessage("Outdated file(s) detected.")
+                    //config.responseWriter.println(msg)
+                    actionResultBuilder.addMessage(msg)
+                    //generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
+                    generateConflictMessageDetails(fileProps, msg).foreach{detail => actionResultBuilder.addDetail(detail)}
                 } else {
-                    config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
+                    //config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
+                    actionResultBuilder.addMessage(InfoMessage("No outdated files detected."))
                 }
                 //fileProps.isEmpty
             case None =>
         }
-
+        Future.successful(actionResultBuilder.result())
     }
 }
 
@@ -503,7 +528,7 @@ class BulkRetrieve extends RetrieveMetadata {
     protected def getTypesFileFormat: String = config.getProperty("typesFileFormat").getOrElse("json")
     protected def getSpecificTypesFile: File = new File(config.getRequiredProperty("specificTypes").get)
 
-    def act(): Unit = {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val tempFolder = config.getProperty("targetFolder")  match {
             case Some(x) => new File(x)
             case None =>
@@ -515,12 +540,21 @@ class BulkRetrieve extends RetrieveMetadata {
         val fileCountByType = bulkRetrieveResult.fileCountByType
 
         if (errors.isEmpty) {
-            config.responseWriter.println("RESULT=SUCCESS")
-            config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
-            config.responseWriter.println("FILE_COUNT_BY_TYPE=" + fileCountByType.toJson.compactPrint)
+            //config.responseWriter.println("RESULT=SUCCESS")
+            //config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
+            //config.responseWriter.println("FILE_COUNT_BY_TYPE=" + fileCountByType.toJson.compactPrint)
+            val actionResultBuilder = new ActionResultBuilder(SUCCESS)
+            actionResultBuilder.addMessage(KeyValueMessage(Map("RESULT_FOLDER" -> tempFolder.getAbsolutePath)))
+            actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT_BY_TYPE" -> fileCountByType.toJson.compactPrint)))
+
+            Future.successful(actionResultBuilder.result())
         } else {
-            config.responseWriter.println("RESULT=FAILURE")
-            errors.foreach(responseWriter.println(_))
+            //config.responseWriter.println("RESULT=FAILURE")
+            //errors.foreach(responseWriter.println(_))
+            val actionResultBuilder = new ActionResultBuilder(FAILURE)
+            actionResultBuilder.addMessages(errors)
+
+            Future.successful(actionResultBuilder.result())
         }
 
     }
@@ -557,7 +591,7 @@ class BulkRetrieve extends RetrieveMetadata {
                         }
                         membersByXmlName
                     case Failure(e) =>
-                        errors ::= new Message(ResponseWriter.ERROR, "failed to parse line: '" + line + "'. Make sure you specified correct '--typesFileFormat' value")
+                        errors ::= ErrorMessage("failed to parse line: '" + line + "'. Make sure you specified correct '--typesFileFormat' value")
                 }
             }
         } else {
@@ -610,7 +644,7 @@ class BulkRetrieve extends RetrieveMetadata {
                                 e.retrieveResult.getMessages match {
                                     case messages if null != messages && messages.nonEmpty=>
                                         for(msg <- messages) {
-                                            errors ::= new Message(ResponseWriter.ERROR, msg.getFileName + ": " + msg.getProblem)
+                                            errors ::= ErrorMessage(msg.getFileName + ": " + msg.getProblem)
                                         }
                                     case _ =>
                                 }
@@ -651,11 +685,11 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
         _hasSomethingToReport = true
     }
 
-    def hasSomethingToReport = _hasSomethingToReport
+    def hasSomethingToReport: Boolean = _hasSomethingToReport
 
-    def getLocalFilesMissingOnRemote = localFilesMissingOnRemoteBuilder.result()
+    def getLocalFilesMissingOnRemote: Map[String, File] = localFilesMissingOnRemoteBuilder.result()
 
-    def getRemoteFilesMissingLocally = remoteFilesMissingLocallyBuilder.result()
+    def getRemoteFilesMissingLocally: Map[String, File] = remoteFilesMissingLocallyBuilder.result()
 
     def getConflictingFiles = conflictingFileMapBuilder.result()
 }
@@ -706,13 +740,15 @@ class DiffWithRemote extends RetrieveMetadata {
         override def getName: String = "diffWithRemote"
     }
 
-    def act(): Unit = {
-        getDiffReport match {
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        val actionResultBuilder = new ActionResultBuilder(SUCCESS)
+        getDiffReport(actionResultBuilder) match {
           case Some(diffReport) =>
-              responseWriter.println("RESULT=SUCCESS")
-              writeReportToResponseFile(diffReport)
+              //responseWriter.println("RESULT=SUCCESS")
+              writeReportToResponseFile(diffReport, actionResultBuilder)
           case None =>
         }
+        Future.successful(actionResultBuilder.result())
 
     }
 
@@ -722,7 +758,7 @@ class DiffWithRemote extends RetrieveMetadata {
      */
     def getTargetFolder: Option[String] = config.getProperty("targetFolder")
 
-    def getDiffReport: Option[DiffWithRemoteReport] = {
+    def getDiffReport(actionResultBuilder: ActionResultBuilder): Option[DiffWithRemoteReport] = {
         val tempFolder = getTargetFolder match {
             case Some(x) => new File(x)
             case None => FileUtils.createTempDir(config)
@@ -743,10 +779,10 @@ class DiffWithRemote extends RetrieveMetadata {
         bulkRetrieve.load[BulkRetrieve](session)
 
         val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
-        processRetrieveResult(tempFolder, bulkRetrieveResult)
+        processRetrieveResult(tempFolder, bulkRetrieveResult, actionResultBuilder)
     }
 
-    protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): Option[DiffWithRemoteReport] = {
+    protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult, actionResultBuilder: ActionResultBuilder): Option[DiffWithRemoteReport] = {
         val errors = bulkRetrieveResult.errors
 
         if (errors.isEmpty) {
@@ -763,14 +799,18 @@ class DiffWithRemote extends RetrieveMetadata {
 
             } else {
                 //failed to rename unpackaged/ into src/
-                responseWriter.println("RESULT=FAILURE")
-                responseWriter.println(new Message(ResponseWriter.ERROR,
-                    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
+                //responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println(new Message(ResponseWriter.ERROR,
+                //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
+                actionResultBuilder.setActionResult(FAILURE)
+                actionResultBuilder.addMessage(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
                 None
             }
         } else {
-            config.responseWriter.println("RESULT=FAILURE")
-            errors.foreach(responseWriter.println(_))
+            //config.responseWriter.println("RESULT=FAILURE")
+            //errors.foreach(responseWriter.println(_))
+            actionResultBuilder.setActionResult(FAILURE)
+            actionResultBuilder.addMessages(errors)
             None
         }
     }
@@ -863,12 +903,14 @@ class DiffWithRemote extends RetrieveMetadata {
         report
     }
 
-    protected def writeReportToResponseFile(report: DiffWithRemoteReport): Unit = {
+    protected def writeReportToResponseFile(report: DiffWithRemoteReport, actionResultBuilder: ActionResultBuilder): Unit = {
         val bulkRetrieveResult: BulkRetrieveResult = report.bulkRetrieveResult
         val remoteSrcFolderPath: String = report.remoteSrcFolderPath
 
-        responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
-        responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
+        //responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
+        actionResultBuilder.addMessage(KeyValueMessage(Map("REMOTE_SRC_FOLDER_PATH" -> remoteSrcFolderPath)))
+        //responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
+        actionResultBuilder.addMessage(InfoMessage("Remote version is saved in: " + remoteSrcFolderPath))
 
         val conflictingFilesMap = report.getConflictingFiles
         val localFilesMissingOnRemoteMap = report.getLocalFilesMissingOnRemote
@@ -879,8 +921,9 @@ class DiffWithRemote extends RetrieveMetadata {
             if (conflictingFilesMap.nonEmpty) {
                 //list files where remote version has different size compared to local version
                 //Modified Files
-                val msg = new Message(ResponseWriter.WARN, "Different file sizes")
-                responseWriter.println(msg)
+                val msg = WarnMessage("Different file sizes")
+                //responseWriter.println(msg)
+                actionResultBuilder.addMessage(msg)
 
                 for (relativePath <- conflictingFilesMap.keys.toList.sortWith((left, right) => left.compareTo(right) < 0)) {
                     conflictingFilesMap.get(relativePath) match {
@@ -892,7 +935,8 @@ class DiffWithRemote extends RetrieveMetadata {
                                 " => Modified By: " + props.getLastModifiedByName +
                                 "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                 s"; Local size: $sizeLocal; remote size: $sizeRemote"
-                            responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                            //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                            actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text)))
                         case None =>
                     }
                 }
@@ -900,8 +944,9 @@ class DiffWithRemote extends RetrieveMetadata {
 
             if (localFilesMissingOnRemoteMap.nonEmpty) {
                 //list files that exist on locally but do not exist on remote
-                val msg = new Message(ResponseWriter.WARN, "Files exist locally but not on remote (based on current package.xml)")
-                responseWriter.println(msg)
+                val msg = WarnMessage("Files exist locally but not on remote (based on current package.xml)")
+                //responseWriter.println(msg)
+                actionResultBuilder.addMessage(msg)
 
                 for(relativePath <- localFilesMissingOnRemoteMap.keys) {
                     localFilesMissingOnRemoteMap.get(relativePath) match {
@@ -909,7 +954,8 @@ class DiffWithRemote extends RetrieveMetadata {
                           val text = localFile.getName +
                               " => exists locally but missing on remote"
                           val echoText = localFile.getName
-                          responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
+                          //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
+                          actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
                       case None =>
                     }
                 }
@@ -917,8 +963,10 @@ class DiffWithRemote extends RetrieveMetadata {
 
             if (remoteFilesMissingLocallyMap.nonEmpty) {
                 //list files that exist on remote but do not exist locally
-                val msg = new Message(ResponseWriter.WARN, "Files exist on remote but not locally (based on current package.xml)")
-                responseWriter.println(msg)
+                val msg = WarnMessage("Files exist on remote but not locally (based on current package.xml)")
+                //responseWriter.println(msg)
+                actionResultBuilder.addMessage(msg)
+
                 for(relativePath <- remoteFilesMissingLocallyMap.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
                     remoteFilesMissingLocallyMap.get(relativePath) match {
                       case Some(remoteFile) =>
@@ -929,7 +977,8 @@ class DiffWithRemote extends RetrieveMetadata {
                                       " => Modified By: " + props.getLastModifiedByName +
                                       "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
                                       s"; remote size: $sizeRemote"
-                                  responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                                  //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
+                                  actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text)))
                               case None =>
                           }
                       case None =>
@@ -937,7 +986,8 @@ class DiffWithRemote extends RetrieveMetadata {
                 }
             }
         } else {
-            responseWriter.println(new Message(ResponseWriter.INFO, "No differences between local version and remote Org detected"))
+            //responseWriter.println(new Message(ResponseWriter.INFO, "No differences between local version and remote Org detected"))
+            actionResultBuilder.addMessage(InfoMessage("No differences between local version and remote Org detected"))
         }
 
 

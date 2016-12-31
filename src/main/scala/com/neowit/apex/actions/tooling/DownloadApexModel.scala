@@ -4,11 +4,12 @@ import java.io.File
 import java.nio.file.{Files, Path}
 
 import com.neowit.apex.Session
-import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession}
+import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionSuccess, ApexActionWithReadOnlySession}
 import com.neowit.apex.completion.models.{ApexModelJsonProtocol, ApexType}
 import com.neowit.utils.{FileUtils, Logging}
 import spray.json._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 /**
   * Author: Andrey Gavrikov
@@ -31,7 +32,7 @@ class DownloadApexModel extends ApexActionWithReadOnlySession with StandardApexM
         override def getName: String = "DownloadApexModel"
     }
 
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         download(session).map { apexJson =>
             getOutputDir.map{outputDirPath =>
                 apexJson.publicDeclarations.map{
@@ -39,7 +40,7 @@ class DownloadApexModel extends ApexActionWithReadOnlySession with StandardApexM
                 }
             }
         }
-
+        Future.successful(ActionSuccess())
     }
 
     private def download(session: Session): Try[ApexJson] = {
@@ -86,7 +87,7 @@ class DownloadApexModel extends ApexActionWithReadOnlySession with StandardApexM
         val ctorsOpt = if (apexClass.constructors.isEmpty) None else Option(apexClass.constructors.map(_.toApexCtor(name)))
 
         val apexType =
-            new ApexType(
+            ApexType(
                 name = name,
                 superType = None,
                 enums = None,

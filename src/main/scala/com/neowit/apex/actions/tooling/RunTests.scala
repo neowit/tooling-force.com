@@ -6,13 +6,14 @@ import com.neowit.TcpServer
 import com.neowit.apex._
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
-import com.neowit.apex.actions.{ActionHelp, DeployModified, SoqlQuery, TestSuiteActions}
-import com.neowit.utils.{FileUtils, Logging, ResponseWriter}
-import com.neowit.utils.ResponseWriter.Message
+import com.neowit.apex.actions._
+import com.neowit.utils.{FileUtils, Logging}
+import com.neowit.utils.ResponseWriter._
 import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object RunTests {
@@ -120,18 +121,27 @@ class RunTests extends DeployModified {
 
         override def getName: String = "runTestsTooling"
     }
-    override def act(): Unit = {
+    protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
 
+        val actionResultBuilder = new ActionResultBuilder()
         val modifiedFiles = getFiles
         if (modifiedFiles.nonEmpty ) {
             //check if we can save using tooling API
             if (ToolingUtils.canUseTooling(session, modifiedFiles)) {
                 val saveModified = new SaveModified().load[SaveModified](session)
-                if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)) {
-                    responseWriter.println("RESULT=FAILURE")
-                    responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                    responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
-                    return
+                if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true, actionResultBuilder)) {
+                    //responseWriter.println("RESULT=FAILURE")
+                    //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+                    //responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
+
+                    return Future.successful(
+                        ActionFailure(
+                            List(
+                                KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)),
+                                ErrorMessage("Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first")
+                            )
+                        )
+                    )
                 }
 
             }
@@ -151,17 +161,20 @@ class RunTests extends DeployModified {
             val runTestsResultWithJobId = runTests()
             val runTestsResult = runTestsResultWithJobId.sourceTestResult
             if (0 == runTestsResult.getNumFailures) {
-                responseWriter.println("RESULT=SUCCESS")
+                //responseWriter.println("RESULT=SUCCESS")
+                actionResultBuilder.setActionResult(SUCCESS)
             } else {
-                responseWriter.println("RESULT=FAILURE")
+                //responseWriter.println("RESULT=FAILURE")
+                actionResultBuilder.setActionResult(FAILURE)
             }
             val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
-            ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, responseWriter) match {
+            ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, actionResultBuilder) match {
                 case Some(coverageFile) =>
-                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                    //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                    actionResultBuilder.addMessage(KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)))
                 case _ =>
             }
-            ApexTestUtils.processTestResult(toolingRunTestResult, session, responseWriter)
+            ApexTestUtils.processTestResult(toolingRunTestResult, session, actionResultBuilder)
 
             if (traceIdOpt.isDefined) {
                 //retrieve log files
@@ -170,7 +183,8 @@ class RunTests extends DeployModified {
                         val logIdByClassName = getLogIds(jobId)
                         val logFileByClassName = getLogFileByClassName(logIdByClassName)
                         val logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
-                        responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
+                        //responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
+                        actionResultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE_BY_CLASS_NAME" -> logFilePathByClassName.toJson)))
                     case None => //test was run in Synchronous mode
                         if (runTestsResultWithJobId.useLastLog) {
                             LogActions.getLastLogId(session) match {
@@ -190,8 +204,10 @@ class RunTests extends DeployModified {
             case ex: Session.RestCallException =>
                 ex.getRestErrorCode match {
                     case Some(code) if "ALREADY_IN_PROCESS" == code =>
-                        responseWriter.println("RESULT=FAILURE")
-                        responseWriter.println(new Message(ResponseWriter.ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                        //responseWriter.println("RESULT=FAILURE")
+                        //responseWriter.println(new Message(ResponseWriter.ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                        actionResultBuilder.setActionResult(FAILURE)
+                        actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
                     case None =>
                         throw ex
                 }
@@ -202,6 +218,7 @@ class RunTests extends DeployModified {
               ChangeLogLevels.deleteTraceFlag(traceId, session, logger)
           case None =>
         }
+        Future.successful(actionResultBuilder.result())
     }
 
     private def runTests(): RunTests.TestResultWithJobId = {

@@ -2,9 +2,12 @@ package com.neowit.apex.actions
 
 import java.io.File
 import java.net.URLEncoder
-import com.neowit.apex.Session
-import com.neowit.utils.{ResponseWriter, FileUtils}
 
+import com.neowit.apex.Session
+import com.neowit.utils.ResponseWriter._
+import com.neowit.utils.FileUtils
+
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 //import collection.JavaConverters._
@@ -49,7 +52,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
         override def getName: String = "soqlQuery"
     }
     //this method should implement main logic of the action
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
         val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
 
@@ -59,64 +62,79 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
             case "Tooling" => Try(session.getRestContentTooling("/query/", queryString))
             case x => Try(throw new ShowHelpException(getHelp, "Invalid API: " + x))
         }
-        requestResult match {
-            case Success(result) =>
-                result match {
-                    case Some(doc) =>
-                        val queryResult = SoqlQuery.parseQueryResultDoc(doc)
-                        val queryIterator = new QueryBatchIterator(session, queryResult,
-                            (locator: String) => {
-                                val batchResult = config.getProperty("api").getOrElse("Partner") match {
-                                    case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
-                                    case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")
-                                    case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
-                                }
-                                batchResult match {
-                                    case Some(batchDoc) => SoqlQuery.parseQueryResultDoc(batchDoc)
-                                    case _ => throw new IllegalAccessError("Out of range")
-                                }
-                            })
+        val builderWithSuccess = new ActionResultBuilder(SUCCESS)
+        val builderWithFailure = new ActionResultBuilder(FAILURE)
 
-                        def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
-                            logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
-                        }
-                        queryIterator.setOnBatchComplete(onBatchComplete)
-                        responseWriter.println("RESULT=SUCCESS")
-                        responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
+        val resultBuilder =
+            requestResult match {
+                case Success(result) =>
+                    result match {
+                        case Some(doc) =>
+                            val queryResult = SoqlQuery.parseQueryResultDoc(doc)
+                            val queryIterator = new QueryBatchIterator(session, queryResult,
+                                (locator: String) => {
+                                    val batchResult = config.getProperty("api").getOrElse("Partner") match {
+                                        case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
+                                        case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")
+                                        case x => throw new ShowHelpException(getHelp, "Invalid API: " + x)
+                                    }
+                                    batchResult match {
+                                        case Some(batchDoc) => SoqlQuery.parseQueryResultDoc(batchDoc)
+                                        case _ => throw new IllegalAccessError("Out of range")
+                                    }
+                                })
 
-                        if (queryResult.totalSize < 1 || queryResult.records.isEmpty) {
-                            //looks like there are no results or this is just a count() query
-                            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "size=" + queryResult.totalSize))
-                        } else {
-                            val outputFilePath = config.getRequiredProperty("outputFilePath").get
-                            //make sure output file does not exist
-                            FileUtils.delete(new File(outputFilePath))
-                            val outputFile = new File(outputFilePath)
-
-                            var displayHeader = true
-                            for (batch <- queryIterator) {
-                                writeQueryBatchResults(batch, outputFile, displayHeader)
-                                displayHeader = false
+                            def onBatchComplete(totalRecordsLoaded: Int, batchNum: Int) = {
+                                logger.info("Loaded " + totalRecordsLoaded + " out of " + queryIterator.size)
                             }
+                            queryIterator.setOnBatchComplete(onBatchComplete)
+                            //responseWriter.println("RESULT=SUCCESS")
+                            //responseWriter.println("RESULT_SIZE=" + queryResult.totalSize)
+                            builderWithSuccess.addMessage(KeyValueMessage(Map("RESULT_SIZE" -> queryResult.totalSize)))
 
-                            responseWriter.println("RESULT_FILE=" + outputFilePath)
-                        }
-                    case None =>
+                            if (queryResult.totalSize < 1 || queryResult.records.isEmpty) {
+                                //looks like there are no results or this is just a count() query
+                                responseWriter.println(InfoMessage("size=" + queryResult.totalSize))
+                            } else {
+                                val outputFilePath = config.getRequiredProperty("outputFilePath").get
+                                //make sure output file does not exist
+                                FileUtils.delete(new File(outputFilePath))
+                                val outputFile = new File(outputFilePath)
+
+                                var displayHeader = true
+                                for (batch <- queryIterator) {
+                                    writeQueryBatchResults(batch, outputFile, displayHeader)
+                                    displayHeader = false
+                                }
+
+                                //responseWriter.println("RESULT_FILE=" + outputFilePath)
+                                builderWithSuccess.addMessage(KeyValueMessage(Map("RESULT_FILE" -> outputFilePath)))
+                                builderWithSuccess
+                            }
+                        case None =>
+
+                    }
+                    builderWithSuccess
+                case Failure(result) =>
+                    //responseWriter.println("RESULT=FAILURE")
+                    result match {
+                        case ex: Session.RestCallException if null != ex.connection =>
+                            //responseWriter.println(ErrorMessage(ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
+                            builderWithFailure.addMessage(ErrorMessage(ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
+                            ex.getRestErrorCode match {
+                                case Some(errorCode) =>
+                                    //responseWriter.println(ErrorMessage( errorCode + ": " + ex.getRestMessage.getOrElse("") )
+                                    builderWithFailure.addMessage(ErrorMessage(errorCode + ": " + ex.getRestMessage.getOrElse("")))
+
+                                case None =>
+                            }
+                        case _ =>
+                            responseWriter.println(ErrorMessage( result.getMessage))
+                            builderWithFailure.addMessage(ErrorMessage(result.getMessage))
+                    }
+                    builderWithFailure
             }
-            case Failure(result) =>
-                responseWriter.println("RESULT=FAILURE")
-                result match {
-                    case ex: Session.RestCallException if null != ex.connection =>
-                        responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
-                        ex.getRestErrorCode match {
-                          case Some(errorCode) =>
-                              responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, errorCode + ": " + ex.getRestMessage.getOrElse("") ))
-                          case None =>
-                        }
-                    case _ =>
-                        responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, result.getMessage))
-                }
-        }
+        Future.successful(resultBuilder.result())
     }
 
 
@@ -181,7 +199,7 @@ object SoqlQuery {
         queryResult
     }
 
-    def queryMoreFun(session: Session, api: String) (locator: String) = {
+    private def queryMoreFun(session: Session, api: String) (locator: String) = {
             val batchResult = session.config.getProperty("api").getOrElse("Partner") match {
                 case "Partner" => session.getRestContentPartner(s"/query/$locator", "")
                 case "Tooling" => session.getRestContentTooling(s"/query/$locator", "")

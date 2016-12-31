@@ -4,11 +4,12 @@ import java.io.File
 
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
-import com.neowit.apex.actions.{ActionHelp, ApexActionWithReadOnlySession, SoqlQuery}
-import com.neowit.utils.ResponseWriter.{ErrorMessage, FAILURE, SUCCESS}
-import com.neowit.utils.{ConfigValueException, FileUtils, ResponseWriter}
+import com.neowit.apex.actions._
+import com.neowit.utils.ResponseWriter.{InfoMessage, KeyValueMessage, SUCCESS}
+import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 object LogActions {
@@ -104,7 +105,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
     }
 
     //this method should implement main logic of the action
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val traceFlagMap = loadTraceFlagConfig
 
         val tracedEntityId = getTracedEntityId match {
@@ -116,10 +117,12 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
         }
         setupTrace(traceFlagMap, session, logger, config.getProperty("logType"), tracedEntityId) match {
             case Success(traceFlagId) =>
-                responseWriter.println(SUCCESS)
+                //responseWriter.println(SUCCESS)
+                Future.successful(ActionSuccess())
             case Failure(e) =>
-                responseWriter.println(FAILURE)
-                responseWriter.println(ErrorMessage(e.getMessage))
+                //responseWriter.println(FAILURE)
+                //responseWriter.println(ErrorMessage(e.getMessage))
+                Future.successful(ActionFailure(e.getMessage))
 
         }
     }
@@ -362,7 +365,7 @@ class ListLogs extends ApexActionWithReadOnlySession {
     }
 
     //this method should implement main logic of the action
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
 
         val conditions = List.newBuilder[String]
         config.getProperty("location") match {
@@ -390,10 +393,13 @@ class ListLogs extends ApexActionWithReadOnlySession {
 
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session, query )
 
-        responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("RESULT_SIZE=" + queryIterator.size)
+        //responseWriter.println("RESULT=SUCCESS")
+        val builder = new ActionResultBuilder(SUCCESS)
+        //responseWriter.println("RESULT_SIZE=" + queryIterator.size)
+        builder.addMessage(InfoMessage("RESULT_SIZE=" + queryIterator.size))
         if (queryIterator.isEmpty) {
-            responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "No Logs available"))
+            //responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "No Logs available"))
+            builder.addMessage(InfoMessage("No Logs available"))
         } else {
             val outputFilePath = config.getRequiredProperty("outputFilePath").get
             //make sure output file does not exist
@@ -403,9 +409,11 @@ class ListLogs extends ApexActionWithReadOnlySession {
                 //TODO
                 //writeResults(batch, outputFile)
             }
-            responseWriter.println("RESULT_FILE=" + outputFilePath)
+            //responseWriter.println("RESULT_FILE=" + outputFilePath)
+            builder.addMessage(KeyValueMessage(Map("RESULT_FILE" -> outputFilePath)))
         }
 
-        responseWriter.println("RESULT=SUCCESS")
+        //responseWriter.println("RESULT=SUCCESS")
+        Future.successful(builder.result())
     }
 }

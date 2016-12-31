@@ -7,8 +7,10 @@ import java.io._
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.Props
-import com.neowit.apex.actions.{ActionHelp, AsyncAction}
+import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionSuccess, AsyncAction}
 import com.neowit.apex.Executor
+
+import scala.concurrent.{ExecutionContext, Future}
 
 case class Message(socket: Socket)
 case class Ping(socket: Socket)
@@ -22,11 +24,12 @@ object MyServer extends App{
 }
 
 class ServerStart  extends AsyncAction {
-    override protected def act(): Unit = {
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val port = basicConfig.getProperty("port").getOrElse("8888").toInt
         val timeoutMillis = basicConfig.getProperty("timeoutSec").getOrElse("30").toInt * 1000
         val server = new TcpServer(port, timeoutMillis)
         server.start()
+        Future.successful(ActionSuccess(Nil))
     }
     override def getHelp: ActionHelp = new ActionHelp {
         override def getParamNames: List[String] = List("port", "timeoutMillis")

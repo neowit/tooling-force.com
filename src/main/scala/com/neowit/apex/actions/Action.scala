@@ -23,6 +23,7 @@ import com.neowit.utils._
 import com.neowit.apex._
 
 import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
 
 class ActionError(msg: String) extends Error(msg: String)
 class UnsupportedActionError(msg: String) extends ActionError(msg: String)
@@ -87,13 +88,16 @@ object ActionFactory {
 
 }
 trait Action extends Logging {
-    def execute(): Unit = {
-        act()
-        finalise()
+
+    def execute()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        act().map{result =>
+            finalise()
+            result
+        }
     }
 
     //this method should implement main logic of the action
-    protected def act(): Unit
+    protected def act()(implicit ec: ExecutionContext): Future[ActionResult]
 
     //implement if need to execute some logic only after main action is complete, e.g. persist data to disk
     protected def finalise(): Unit
@@ -250,24 +254,27 @@ object ApexActionWithWritableSession {
 }
 abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySession {
 
-    override def execute(): Unit = {
+    override def execute()(implicit ec: ExecutionContext): Future[ActionResult]  = {
         // make sure we do not have another action (which can modify the session of given project) already in progress
         if (!ApexActionWithWritableSession.isSessionLocked(this)) {
             try {
                 ApexActionWithWritableSession.lockSession(this)
-                super.execute()
+                super.execute()(ec)
             } catch {
                 case ex: ConfigValueException =>
-                    responseWriter.error(ex.getMessage)
+                    //responseWriter.error(ex.getMessage)
+                    Future.successful(ActionFailure(ex.getMessage))
                 case ex: Throwable =>
-                    responseWriter.error(ex)
+                    //responseWriter.error(ex)
+                    Future.successful(ActionFailure(ex.getMessage))
             } finally {
                 ApexActionWithWritableSession.unLockSession(this)
             }
         } else {
             //responseWriter.println("RESULT=FAILURE")
             //responseWriter.println(new Message(ResponseWriter.ERROR, "Session is locked. Another action is already in progress. Please wait for that action to complete..."))
-            responseWriter.error("Session is locked. Another action is already in progress. Please wait for that action to complete...")
+            //responseWriter.error("Session is locked. Another action is already in progress. Please wait for that action to complete...")
+            Future.successful(ActionFailure("Session is locked. Another action is already in progress. Please wait for that action to complete..."))
         }
     }
 

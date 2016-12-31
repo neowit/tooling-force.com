@@ -2,9 +2,9 @@ package com.neowit.apex
 
 import java.io.{File, PrintWriter}
 
-import com.neowit.apex.actions.{ActionError, Deploy, DescribeMetadata}
+import com.neowit.apex.actions.{ActionError, ActionResultBuilder, Deploy, DescribeMetadata}
 import com.neowit.utils.{Config, FileUtils, ResponseWriter}
-import com.neowit.utils.ResponseWriter.{Message, MessageDetail, WarnMessage}
+import com.neowit.utils.ResponseWriter._
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
@@ -40,9 +40,9 @@ trait RunTestFailure {
 
 object ApexTestUtils {
     //Class.Test1: line 19, column 1
-    val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
+    private val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
     //Class.Test1.prepareData: line 13, column 1
-    val TypeFileMethodLineColumnRegex = """.*(Class|Trigger)\.(\w*)\.(\w*).*line (\d+), column (\d+).*""".r
+    private val TypeFileMethodLineColumnRegex = """.*(Class|Trigger)\.(\w*)\.(\w*).*line (\d+), column (\d+).*""".r
 
     /**
      * process code coverage results
@@ -50,7 +50,7 @@ object ApexTestUtils {
      * @return set of file names (e.g. MyClass) for which we had coverage
      */
     def processCodeCoverage(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
-                                    responseWriter: ResponseWriter ): Option[File] = {
+                            actionResultBuilder: ActionResultBuilder ): Option[File] = {
         val config: Config = session.getConfig
         val metadataByXmlName = DescribeMetadata.getMap(session)
         val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
@@ -74,7 +74,8 @@ object ApexTestUtils {
         }
 
         if (runTestResult.getCodeCoverage.nonEmpty) {
-            responseWriter.println(coverageDetails)
+            //responseWriter.println(coverageDetails)
+            actionResultBuilder.addMessage(coverageDetails)
         }
 
         val reportedNames = Set.newBuilder[String]
@@ -83,7 +84,7 @@ object ApexTestUtils {
             reportedNames += coverageResult.getName
             val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
             val coveragePercent = if (coverageResult.getNumLocations > 0) linesCovered * 100 / coverageResult.getNumLocations else 0
-            coverageRelatedMessages += coverageResult.getName -> MessageDetail(coverageDetails,
+            coverageRelatedMessages += coverageResult.getName -> MessageDetailMap(coverageDetails,
                 Map("text" ->
                     (coverageResult.getName +
                         ": lines total " + coverageResult.getNumLocations +
@@ -123,20 +124,24 @@ object ApexTestUtils {
         }
         //dump coverage related MessageDetail-s into the response file, making sure that messages are sorted by file name
         val messageDetailsSortedByFileName = coverageRelatedMessages.result().toSeq.sortBy(_._1.toLowerCase).map(_._2).toList
-        responseWriter.println(messageDetailsSortedByFileName)
+        //responseWriter.println(messageDetailsSortedByFileName)
+        actionResultBuilder.addDetails(messageDetailsSortedByFileName)
 
-        val coverageMessage = new Message(ResponseWriter.WARN, "Code coverage warnings")
+        val coverageMessage = WarnMessage("Code coverage warnings")
         if (runTestResult.getCodeCoverageWarnings.nonEmpty) {
-            responseWriter.println(coverageMessage)
+            //responseWriter.println(coverageMessage)
+            actionResultBuilder.addMessage(coverageMessage)
         }
         val reportedNamesSet = reportedNames.result()
         for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
             if (null != coverageWarning.getName) {
                 if (!reportedNamesSet.contains(coverageWarning.getName)) {
-                    responseWriter.println(MessageDetail(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+                    //responseWriter.println(MessageDetailMap(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+                    actionResultBuilder.addDetail(MessageDetailMap(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
                 }
             } else {
-                responseWriter.println(MessageDetail(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+                //responseWriter.println(MessageDetailMap(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+                actionResultBuilder.addDetail(MessageDetailMap(coverageMessage, Map("text" -> coverageWarning.getMessage)))
             }
 
         }
@@ -196,16 +201,18 @@ object ApexTestUtils {
     }
 
     def processTestResult(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
-                          responseWriter: ResponseWriter) = {
+                          actionResultBuilder: ActionResultBuilder): Unit = {
         val metadataByXmlName = DescribeMetadata.getMap(session)
 
 
-        val testFailureMessage = new Message(ResponseWriter.ERROR, "Test failures")
+        val testFailureMessage = ErrorMessage("Test failures")
         if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
-            responseWriter.println(testFailureMessage)
+            //responseWriter.println(testFailureMessage)
+            actionResultBuilder.addMessage(testFailureMessage)
         }
         if (null == runTestResult || runTestResult.getFailures.isEmpty) {
-            responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            //responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            actionResultBuilder.addMessage(InfoMessage("Tests PASSED"))
         }
         for ( failureMessage <- runTestResult.getFailures) {
 
@@ -223,14 +230,16 @@ object ApexTestUtils {
                             val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName, metadataByXmlName)
                             val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
                             val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
-                            responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
+                            //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
                             if (showProblem) {
-                                responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
                             }
                         case None => //failed to parse anything meaningful, fall back to simple message
-                            responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
+                            //responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
                             if (showProblem) {
-                                responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
+                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
                             }
                     }
                     showProblem = false
@@ -239,13 +248,16 @@ object ApexTestUtils {
             val typeName = failureMessage.getType
                 val fileName = failureMessage.getName
                 val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName, metadataByXmlName)
-                responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
             }
 
             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
         }
-        responseWriter.endSection("ERROR LIST")
+        //responseWriter.endSection("ERROR LIST")
+
+        Unit
     }
     /**
      *

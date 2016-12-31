@@ -5,8 +5,10 @@ import java.io.File
 import com.neowit.apex.parser.SourceScanner
 import com.neowit.utils.FileUtils
 
+import scala.concurrent.{ExecutionContext, Future}
+
 object SourceScannerCache {
-    val scannerByProject = Map.newBuilder[File, SourceScanner]
+    private val scannerByProject = Map.newBuilder[File, SourceScanner]
     def addScanResult(project: File, scanner: SourceScanner): Unit = {
         scannerByProject += (project -> scanner)
 
@@ -20,14 +22,15 @@ object SourceScannerCache {
 class ScanSource extends ApexActionWithReadOnlySession {
     val APEX_EXTENSIONS = Set("cls", "trigger")
 
-    override def act(): Unit = {
+    protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //val config = session.getConfig
 
         val classes = getClassFiles
-        scan(classes)
+        val actionResult = scan(classes)
+        Future.successful(actionResult)
     }
 
-    def scan(files: List[File]): Unit = {
+    def scan(files: List[File]): ActionResult = {
         val config = session.getConfig
         config.projectDirOpt match {
             case Some(projectDir) =>
@@ -39,7 +42,9 @@ class ScanSource extends ApexActionWithReadOnlySession {
 
                 scanner.scan(completeScan)
                 SourceScannerCache.addScanResult(projectDir, scanner)
+                ActionSuccess()
             case None =>
+                ActionFailure("Nothing to scan when no --projectPath provided")
         }
 
     }

@@ -4,39 +4,42 @@ import java.io.File
 
 import com.neowit.apex.completion.AutoComplete
 import com.neowit.apex.parser.{ApexTree, Member}
-import com.neowit.utils.ResponseWriter.SUCCESS
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class ListCompletions extends ApexActionWithReadOnlySession {
 
-    override def act(): Unit = {
+    protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
 
-        for (
-            projectDir <- config.projectDirOpt;
-            filePath <- config.getRequiredProperty("currentFileContentPath");
-            line <- config.getRequiredProperty("line");
-            column <- config.getRequiredProperty("column")
-        ) yield {
-            val inputFile = new File(filePath)
-            val scanner = new ScanSource().load[ScanSource](session)
-            //exclude current file
-            val currentFilePath = config.getRequiredProperty("currentFilePath")
-            val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
-            //scan all project files (except the current one)
-            //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
-            scanner.scan(classes)
+        val resultOpt =
+            for (
+                projectDir <- config.projectDirOpt;
+                filePath <- config.getRequiredProperty("currentFileContentPath");
+                line <- config.getRequiredProperty("line");
+                column <- config.getRequiredProperty("column")
+            ) yield {
+                val inputFile = new File(filePath)
+                val scanner = new ScanSource().load[ScanSource](session)
+                //exclude current file
+                val currentFilePath = config.getRequiredProperty("currentFilePath")
+                val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
+                //scan all project files (except the current one)
+                //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
+                scanner.scan(classes)
 
-            val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
-                case Some(sourceScanner) => sourceScanner.getTree
-                case None => new ApexTree
+                val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
+                    case Some(sourceScanner) => sourceScanner.getTree
+                    case None => new ApexTree
+                }
+                val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
+                val members = completion.listOptions()
+                //dump completion options into a file - 1 line per option
+                //config.responseWriter.println(SUCCESS)
+                //config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
+                ActionSuccess(sortMembers(members).map(_.toJson).mkString("\n"))
             }
-            val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
-            val members = completion.listOptions()
-            //dump completion options into a file - 1 line per option
-            config.responseWriter.println(SUCCESS)
-            config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
-        }
-        ()
+        Future.successful(resultOpt.getOrElse(ActionFailure("Check command line parameters")))
     }
 
     private def sortMembers(members: List[Member]): List[Member] = {
