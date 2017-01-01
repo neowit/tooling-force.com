@@ -1,5 +1,6 @@
 package com.neowit.response
 
+import com.neowit.apex.parser.Member
 import com.neowit.response.Message.MessageId
 import com.neowit.utils.JsonSupport
 import spray.json._
@@ -10,34 +11,37 @@ import spray.json._
 object Message {
     type MessageId = Int
     private var COUNTER = 0
-    def getNextId(): MessageId = {
+    def generateNextId(): MessageId = {
         COUNTER += 1
         COUNTER
     }
 }
-sealed trait Message extends JsonSupport{
-    val id: MessageId = Message.getNextId()
-    val msgType: MessageType
-    val text: String
-    val data: Map[String, Any]
-    val details: List[MessageDetail]
+sealed trait Message {
+    val id: MessageId = Message.generateNextId()
+    //val text: String
+    //val data: Map[String, Any]
+    //val details: List[MessageDetail]
 
-    def toJson: JsValue = {
+    def toJson: JsValue
+}
+trait BaseSerialiser extends JsonSupport {
+
+    def toJson(msgType: MessageType, id: MessageId, text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil): JsValue = {
         val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ResponseWriter.ensureNoNulls(data)
         msgData.toJson
     }
 }
-case class InfoMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-    override val msgType: MessageType = INFO
+case class InfoMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(INFO, id, text, data, details)
 }
-case class WarnMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-    override val msgType: MessageType = WARN
+case class WarnMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(WARN, id, text, data, details)
 }
-case class ErrorMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-    override val msgType: MessageType = ERROR
+case class ErrorMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(ERROR, id, text, data, details)
 }
-case class DebugMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-    override val msgType: MessageType = DEBUG
+case class DebugMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(DEBUG, id, text, data, details)
 }
 // text is section name, e.g. "ERROR"
 /*
@@ -47,18 +51,15 @@ case class SectionMessage(text: String, data: Map[String, Any] = Map(), details:
 */
 //case class SectionDetailText(message: SectionMessage, text: String)
 
-case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message {
-    override val text: String = ""
-    override val details: List[MessageDetail] = Nil
-    override val msgType: MessageType = KEY_VALUE
+case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(KEY_VALUE, id, text = "", data, details = List.empty)
 }
-case class JsonMessage(jsValue: JsValue) extends Message {
-    override val text: String = ""
-    override val details: List[MessageDetail] = Nil
-    override val data: Map[String, Any] = Map.empty[String, Any]
-    override val msgType: MessageType = JSON_VALUE
 
-    override def toJson: JsValue = jsValue
+case class FindSymbolMessage(memberOpt: Option[Member]) extends Message with JsonSupport {
+    override def toJson: JsValue = memberOpt match {
+        case Some(member) => member.serialise
+        case None => Map.empty.toJson
+    }
 }
 
 sealed trait MessageDetail {
@@ -72,5 +73,7 @@ case class MessageDetailMap(parentMessage: Message, data: Map[String, Any]) exte
 }
 case class MessageDetailText(parentMessage: Message, text: String) extends MessageDetail
 
-case class ArbitraryTypeMessage(msgType: MessageType, text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message
+case class ArbitraryTypeMessage(msgType: MessageType, text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message with BaseSerialiser {
+    override def toJson: JsValue = toJson(msgType, id, text, data, details)
+}
 

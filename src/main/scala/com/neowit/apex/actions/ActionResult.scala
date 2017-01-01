@@ -106,6 +106,7 @@ class ActionResultBuilder() {
                             case m @ DebugMessage(_, _, _) => m.copy(details = details)
                             case m @ KeyValueMessage(_) => m
                             case m @ ArbitraryTypeMessage(_, _, _, _) => m.copy(details = details)
+                            case m @ FindSymbolMessage(_) => m
                         }
                     case _ => // no extra details have been added
                         msg

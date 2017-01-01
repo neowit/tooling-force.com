@@ -142,7 +142,6 @@ class Executor extends Logging {
                     result match {
                         case ActionSuccess(messages) =>
                             responseWriter.println(SUCCESS)
-                            System.out.println("### 2.1 = " + messages.length)
                             messages.foreach(responseWriter.println(_))
                         case ActionFailure(messages) =>
                             responseWriter.println(FAILURE)

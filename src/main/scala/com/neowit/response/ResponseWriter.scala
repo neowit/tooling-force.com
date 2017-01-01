@@ -111,7 +111,6 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     }
 
     def close(): Unit = {
-        System.out.println("writer will be closed: " + needClosing)
         if (needClosing)
             _writer.close()
     }

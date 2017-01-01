@@ -24,13 +24,12 @@ import java.nio.file.{Files, Paths}
 
 import com.neowit.apex.completion._
 import com.neowit.apex.parser._
-import com.neowit.response.JsonMessage
-import com.neowit.utils.{ConfigValueException, JsonSupport}
+import com.neowit.response.FindSymbolMessage
+import com.neowit.utils.ConfigValueException
 
 import scala.concurrent.{ExecutionContext, Future}
-import spray.json._
 
-class FindSymbol extends ApexActionWithReadOnlySession with JsonSupport {
+class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -89,24 +88,24 @@ class FindSymbol extends ApexActionWithReadOnlySession with JsonSupport {
                     val definitionOpt = completion.getDefinition
                     //config.responseWriter.println(SUCCESS)
 
-                    val responseJson =
+                    val memberOpt =
                         definitionOpt match {
                             case Some(definition) =>
                                 getSymbol(definition, completion) match {
                                     case Some(member) =>
                                         //config.responseWriter.println(member.serialise.compactPrint)
-                                        member.serialise
+                                        Option(member)
                                     case None =>
                                         println("Not local resource, no location available")
                                         //config.responseWriter.println("{}")
-                                        Map.empty[String, Any].toJson
+                                        None
                                 }
                             case None =>
                                 println("Definition not found")
                                 //config.responseWriter.println("{}")
-                                Map.empty[String, Any].toJson
+                                None
                         }
-                    ActionSuccess(JsonMessage(responseJson))
+                    ActionSuccess(FindSymbolMessage(memberOpt))
                 }
             }
         Future.successful(actionResultOpt.getOrElse(ActionSuccess()))
