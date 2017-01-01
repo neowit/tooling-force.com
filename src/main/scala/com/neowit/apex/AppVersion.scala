@@ -7,7 +7,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
-    val VERSION = "0.3.6.7-#20"
+    val VERSION = "0.3.6.7"
 }
 class AppVersion extends ApexAction {
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
