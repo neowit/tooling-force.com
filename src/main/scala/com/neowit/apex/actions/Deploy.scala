@@ -334,7 +334,7 @@ class DeployModified extends Deploy {
         if (alternativeSrcDir.isEmpty && session.getConfig.srcDirOpt.isEmpty) {
             //responseWriter.println(FAILURE)
             //responseWriter.println(ErrorMessage("src folder not found"))
-            resultBuilder.setActionResult(FAILURE)
+            resultBuilder.setResultType(FAILURE)
             resultBuilder.addMessage(ErrorMessage("src folder not found"))
             return false
         }
@@ -345,7 +345,7 @@ class DeployModified extends Deploy {
         val deployDetails = deployResult.getDetails
         if (!deployResult.isSuccess) {
             //responseWriter.println(FAILURE)
-            resultBuilder.setActionResult(FAILURE)
+            resultBuilder.setResultType(FAILURE)
             //dump details of failures into a response file
             writeDeploymentFailureReport(deployDetails, isRunningTests, resultBuilder)
         } else { //deployResult.isSuccess = true
@@ -371,7 +371,7 @@ class DeployModified extends Deploy {
             session.storeSessionData()
             //responseWriter.println(SUCCESS)
             //responseWriter.println("FILE_COUNT=" + files.size)
-            resultBuilder.setActionResult(SUCCESS)
+            resultBuilder.setResultType(SUCCESS)
             resultBuilder.addMessage( KeyValueMessage(Map("FILE_COUNT" -> files.size)) )
 
             if (!checkOnly) {
@@ -538,7 +538,7 @@ class DeployModified extends Deploy {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
                         //responseWriter.println(FAILURE)
-                        actionResultBuilder.setActionResult(FAILURE)
+                        actionResultBuilder.setResultType(FAILURE)
 
                         val msg = WarnMessage("Outdated file(s) detected.")
                         //responseWriter.println(msg)
@@ -813,11 +813,11 @@ class DeployAllDestructive extends DeployAll {
                 //deployDestructiveAction.setResponseWriter(this.responseWriter)
 
                 deployDestructiveAction.act().map{
-                    case result @ ActionSuccess(messages) =>
+                    case result @ ActionSuccess(_, _) =>
                         //get rid of temp file
                         componentsToDeleteFile.delete()
                         result
-                    case result @ ActionFailure(messages) =>
+                    case result @ ActionFailure(_) =>
                         //get rid of temp file
                         componentsToDeleteFile.delete()
                         result
@@ -1138,7 +1138,7 @@ class DeployDestructive extends Deploy {
                 val resultBuilder = new ActionResultBuilder()
                 if (!deployResult.isSuccess) {
                     //responseWriter.println("RESULT=FAILURE")
-                    resultBuilder.setActionResult(FAILURE)
+                    resultBuilder.setResultType(FAILURE)
                     if (null != deployDetails) {
                         //responseWriter.startSection("ERROR LIST")
 
@@ -1178,7 +1178,7 @@ class DeployDestructive extends Deploy {
                     }
                 } else {
                     //responseWriter.println("RESULT=SUCCESS")
-                    resultBuilder.setActionResult(SUCCESS)
+                    resultBuilder.setResultType(SUCCESS)
                     if (isUpdateSessionDataOnSuccess) {
                         //responseWriter.debug("Updating session data")
                         resultBuilder.addMessage(DebugMessage("Updating session data"))
@@ -1335,7 +1335,7 @@ class DeployModifiedDestructive extends DeployModified {
         if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
             if (session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).isEmpty) {
                 //responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setActionResult(SUCCESS)
+                actionResultBuilder.setResultType(SUCCESS)
                 //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                 actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)))
                 //responseWriter.println(new Message(INFO, "no modified files detected."))

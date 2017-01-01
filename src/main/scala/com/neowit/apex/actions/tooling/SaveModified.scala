@@ -221,7 +221,7 @@ class SaveModified extends DeployModified {
 
             if (errorByFileIndex.isEmpty) {
                 //config.responseWriter.println("RESULT=SUCCESS")
-                resultBuilder.setActionResult(SUCCESS)
+                resultBuilder.setResultType(SUCCESS)
                 //config.responseWriter.println("FILE_COUNT=" + files.size)
                 resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> files.size)))
                 if (!getSessionConfig.isCheckOnly) {
@@ -240,7 +240,7 @@ class SaveModified extends DeployModified {
         if (errorByFileIndex.nonEmpty) {
             logger.debug("Request failed")
             //responseWriter.println("RESULT=FAILURE")
-            resultBuilder.setActionResult(FAILURE)
+            resultBuilder.setResultType(FAILURE)
 
             //config.responseWriter.startSection("ERROR LIST")
             val errorListMsg = resultBuilder.addMessage(ErrorMessage("ERROR LIST"))
@@ -547,7 +547,7 @@ class SaveModified extends DeployModified {
                 session.storeSessionData()
 
                 //config.responseWriter.println("RESULT=SUCCESS")
-                resultBuilder.setActionResult(SUCCESS)
+                resultBuilder.setResultType(SUCCESS)
                 //config.responseWriter.println("FILE_COUNT=" + membersMap.size)
                 resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> membersMap.size)))
                 if (!getSessionConfig.isCheckOnly) {
@@ -562,7 +562,7 @@ class SaveModified extends DeployModified {
             case "Failed" =>
                 logger.debug("Request failed")
                 //responseWriter.println("RESULT=FAILURE")
-                resultBuilder.setActionResult(FAILURE)
+                resultBuilder.setResultType(FAILURE)
                 //config.responseWriter.startSection("ERROR LIST")
                 //val errorListMsg = resultBuilder.addMessage(InfoMessage("ERROR LIST"))
                 val deployDetails = request.getDeployDetails
@@ -605,7 +605,7 @@ class SaveModified extends DeployModified {
 
             case state =>
                 //responseWriter.println("RESULT=FAILURE")
-                resultBuilder.setActionResult(FAILURE)
+                resultBuilder.setResultType(FAILURE)
                 val msg = s"Async Request Failed with status: '$state'. Message: ${request.getErrorMsg}"
                 logger.error(msg)
                 //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))

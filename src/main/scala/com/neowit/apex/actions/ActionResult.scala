@@ -12,13 +12,25 @@ sealed trait ActionResult
 
 object ActionSuccess {
     def apply(): ActionSuccess = {
-        new ActionSuccess(Nil)
+        new ActionSuccess(Nil, None)
+    }
+    def apply(messages: List[Message]): ActionSuccess = {
+        new ActionSuccess(messages, None)
+    }
+    def apply(messages: List[Message], result: BaseResult): ActionSuccess = {
+        new ActionSuccess(messages, Option(result))
+    }
+    def apply(result: BaseResult): ActionSuccess = {
+        new ActionSuccess(Nil, Option(result))
+    }
+    def apply(msg: Message, result: BaseResult): ActionSuccess = {
+        new ActionSuccess(List(msg), Option(result))
     }
     def apply(msg: Message): ActionSuccess = {
-        new ActionSuccess(List(msg))
+        new ActionSuccess(List(msg), None)
     }
     def apply(msg: String): ActionSuccess = {
-        new ActionSuccess(List(InfoMessage(msg)))
+        new ActionSuccess(List(InfoMessage(msg)), None)
     }
 }
 
@@ -36,20 +48,30 @@ object ActionFailure {
 
 }
 
-case class ActionSuccess(messages: List[Message]) extends ActionResult
+case class ActionSuccess(messages: List[Message], result: Option[BaseResult]) extends ActionResult
 case class ActionFailure(messages: List[Message]) extends ActionResult
 
 class ActionResultBuilder() {
-    private var _actionResult: Option[RESULT] = None
-    def this(actionResult: RESULT) = {
+    private var _actionResultType: Option[RESULT] = None
+    private var _actionResult: Option[BaseResult] = None
+
+    def this(actionResultType: RESULT) = {
         this()
-        setActionResult(actionResult)
+        setResultType(actionResultType)
     }
 
-    def setActionResult(actionResult: RESULT): Unit = {
-        _actionResult match {
+    def setResultType(actionResult: RESULT): Unit = {
+        _actionResultType match {
             case Some(FAILURE) =>
                 // do not allow to overwrite FAILURE
+            case _ =>
+                _actionResultType = Option(actionResult)
+        }
+    }
+    def setResult(actionResult: BaseResult): Unit = {
+        _actionResult match {
+            case Some(_) =>
+            // do not allow to overwrite FAILURE
             case _ =>
                 _actionResult = Option(actionResult)
         }
@@ -83,10 +105,10 @@ class ActionResultBuilder() {
       */
     def add(existingResult: ActionResult): Unit = {
         existingResult match {
-            case ActionSuccess(messages) =>
+            case ActionSuccess(messages, resultOpt) =>
                 messages.foreach(msg => addMessage(msg))
             case ActionFailure(messages) =>
-                setActionResult(FAILURE)
+                setResultType(FAILURE)
                 messages.foreach(msg => addMessage(msg))
         }
     }
@@ -106,15 +128,14 @@ class ActionResultBuilder() {
                             case m @ DebugMessage(_, _, _) => m.copy(details = details)
                             case m @ KeyValueMessage(_) => m
                             case m @ ArbitraryTypeMessage(_, _, _, _) => m.copy(details = details)
-                            case m @ FindSymbolMessage(_) => m
                         }
                     case _ => // no extra details have been added
                         msg
                 }
             }
 
-        _actionResult match {
-            case Some(SUCCESS) => ActionSuccess(messagesWithDetails)
+        _actionResultType match {
+            case Some(SUCCESS) => ActionSuccess(messagesWithDetails, _actionResult)
             case Some(FAILURE) => ActionFailure(messagesWithDetails)
             case _ =>
                 throw new IllegalStateException("Action Result has not been set")

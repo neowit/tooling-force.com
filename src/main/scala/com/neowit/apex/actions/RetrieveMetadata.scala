@@ -175,7 +175,7 @@ class RefreshMetadata extends RetrieveMetadata {
                                 err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
                                     case messages if null != messages && messages.nonEmpty=>
                                         //responseWriter.println("RESULT=FAILURE")
-                                        actionResultBuilder.setActionResult(FAILURE)
+                                        actionResultBuilder.setResultType(FAILURE)
                                         for(msg <- messages) {
                                             //responseWriter.println(msg.getFileName + ": " + msg.getProblem)
                                             actionResultBuilder.addMessage(ErrorMessage(msg.getFileName + ": " + msg.getProblem))
@@ -192,9 +192,9 @@ class RefreshMetadata extends RetrieveMetadata {
                 // check if user requested alternative result code
                 config.getProperty("modifiedFilesResultCode") match {
                     case Some("SUCCESS") =>
-                        actionResultBuilder.setActionResult(SUCCESS)
+                        actionResultBuilder.setResultType(SUCCESS)
                     case _ =>
-                        actionResultBuilder.setActionResult(FAILURE)
+                        actionResultBuilder.setResultType(FAILURE)
                 }
                 //responseWriter.println("RESULT=" + modifiedFilesResultCode)
                 //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
@@ -207,7 +207,7 @@ class RefreshMetadata extends RetrieveMetadata {
                 println(ex)
                 //responseWriter.println("RESULT=FAILURE")
                 //responseWriter.println(new Message(ERROR, ex.toString))
-                actionResultBuilder.setActionResult(FAILURE)
+                actionResultBuilder.setResultType(FAILURE)
                 actionResultBuilder.addMessage(ErrorMessage(ex.toString))
         }
         Future.successful(actionResultBuilder.result())
@@ -225,7 +225,7 @@ class RefreshMetadata extends RetrieveMetadata {
         //config.responseWriter.println("RESULT=SUCCESS")
         //config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
         //config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))
-        actionResultBuilder.setActionResult(SUCCESS)
+        actionResultBuilder.setResultType(SUCCESS)
         actionResultBuilder.addMessage(KeyValueMessage(Map("RESULT_FOLDER" -> tempFolder.getAbsolutePath)))
         actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))))
 
@@ -338,7 +338,7 @@ class ListConflicting extends RetrieveMetadata {
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
                 //config.responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setActionResult(SUCCESS)
+                actionResultBuilder.setResultType(SUCCESS)
                 if (fileProps.nonEmpty) {
                     val msg = InfoMessage("Outdated file(s) detected.")
                     //config.responseWriter.println(msg)
@@ -801,14 +801,14 @@ class DiffWithRemote extends RetrieveMetadata {
                 //responseWriter.println("RESULT=FAILURE")
                 //responseWriter.println(new Message(ERROR,
                 //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
-                actionResultBuilder.setActionResult(FAILURE)
+                actionResultBuilder.setResultType(FAILURE)
                 actionResultBuilder.addMessage(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
                 None
             }
         } else {
             //config.responseWriter.println("RESULT=FAILURE")
             //errors.foreach(responseWriter.println(_))
-            actionResultBuilder.setActionResult(FAILURE)
+            actionResultBuilder.setResultType(FAILURE)
             actionResultBuilder.addMessages(errors)
             None
         }

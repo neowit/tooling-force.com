@@ -1,6 +1,5 @@
 package com.neowit.response
 
-import com.neowit.apex.parser.Member
 import com.neowit.response.Message.MessageId
 import com.neowit.utils.JsonSupport
 import spray.json._
@@ -53,13 +52,6 @@ case class SectionMessage(text: String, data: Map[String, Any] = Map(), details:
 
 case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message with BaseSerialiser {
     override def toJson: JsValue = toJson(KEY_VALUE, id, text = "", data, details = List.empty)
-}
-
-case class FindSymbolMessage(memberOpt: Option[Member]) extends Message with JsonSupport {
-    override def toJson: JsValue = memberOpt match {
-        case Some(member) => member.serialise
-        case None => Map.empty.toJson
-    }
 }
 
 sealed trait MessageDetail {

@@ -162,10 +162,10 @@ class RunTests extends DeployModified {
             val runTestsResult = runTestsResultWithJobId.sourceTestResult
             if (0 == runTestsResult.getNumFailures) {
                 //responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setActionResult(SUCCESS)
+                actionResultBuilder.setResultType(SUCCESS)
             } else {
                 //responseWriter.println("RESULT=FAILURE")
-                actionResultBuilder.setActionResult(FAILURE)
+                actionResultBuilder.setResultType(FAILURE)
             }
             val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
             ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, actionResultBuilder) match {
@@ -207,7 +207,7 @@ class RunTests extends DeployModified {
                     case Some(code) if "ALREADY_IN_PROCESS" == code =>
                         //responseWriter.println("RESULT=FAILURE")
                         //responseWriter.println(new Message(ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
-                        actionResultBuilder.setActionResult(FAILURE)
+                        actionResultBuilder.setResultType(FAILURE)
                         actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
                     case None =>
                         throw ex

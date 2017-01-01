@@ -24,7 +24,7 @@ import java.nio.file.{Files, Paths}
 
 import com.neowit.apex.completion._
 import com.neowit.apex.parser._
-import com.neowit.response.FindSymbolMessage
+import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -105,7 +105,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                                 //config.responseWriter.println("{}")
                                 None
                         }
-                    ActionSuccess(FindSymbolMessage(memberOpt))
+                    ActionSuccess(FindSymbolResult(memberOpt))
                 }
             }
         Future.successful(actionResultOpt.getOrElse(ActionSuccess()))
