@@ -10,16 +10,17 @@ import spray.json._
 
 import scala.util.{Failure, Try, Success}
 
+import scala.concurrent.ExecutionContext.Implicits.global
 //import DefaultJsonProtocol._
 
 class CodeCompletionsTest extends FunSuite {
 
-    val is = getClass.getClassLoader.getResource("paths.properties").openStream()
+    private val is = getClass.getClassLoader.getResource("paths.properties").openStream()
     val paths = new Properties()
     paths.load(is)
 
-    val projectPath = paths.getProperty("completions.projectPath")
-    val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
+    private val projectPath = paths.getProperty("completions.projectPath")
+    private val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
 
     val commandLine = Array(
         s"--config=${escapeFilePath(loginCredentialsPath)}"

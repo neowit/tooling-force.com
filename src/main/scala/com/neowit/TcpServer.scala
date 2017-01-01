@@ -198,7 +198,7 @@ class CommandProcessor extends Actor {
         scala.Console.withErr(out) {
             scala.Console.withOut(out) {
                 val runner = new Executor()
-                runner.execute(commandLineArgs)
+                runner.execute(commandLineArgs)(TcpServer.system.dispatcher)
             }
         }
 

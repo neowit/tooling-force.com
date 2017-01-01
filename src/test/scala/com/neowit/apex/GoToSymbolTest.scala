@@ -8,7 +8,7 @@ import org.scalatest.FunSuite
 import spray.json._
 
 import scala.util.{Failure, Success, Try}
-
+import scala.concurrent.ExecutionContext.Implicits.global
 //import DefaultJsonProtocol._
 
 class GoToSymbolTest extends FunSuite {

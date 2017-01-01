@@ -27,9 +27,10 @@ import com.neowit.response.{ErrorMessage, FAILURE, SUCCESS}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
-import ExecutionContext.Implicits.global
+
 
 object Runner extends Logging {
+    import ExecutionContext.Implicits.global
     def main(args: Array[String]): Unit = {
         val runner = new Executor()
         val exitCode = runner.execute(args)
@@ -40,7 +41,7 @@ object Runner extends Logging {
 class Executor extends Logging {
     val basicConfig = new BasicConfig()
 
-    def execute(args: Array[String]): Int = {
+    def execute(args: Array[String])(implicit ec: ExecutionContext): Int = {
         var exitCode = 1
         if (args.isEmpty) {
             help()
@@ -123,7 +124,7 @@ class Executor extends Logging {
         }
         exitCode
     }
-    private def run (): Unit = {
+    private def run()(implicit ec: ExecutionContext): Unit = {
         //logger.debug("Server Timestamp" + session.getServerTimestamp)
         if (basicConfig.getProperty("help").isEmpty) {
             val start = System.currentTimeMillis
@@ -137,16 +138,17 @@ class Executor extends Logging {
                 case Some(action) =>
                     val actionResultFuture = action.execute()
                     val responseWriter = basicConfig.getResponseWriter
-                    Await.result(actionResultFuture, Duration.Inf)
-                    actionResultFuture.map{
+                    val result = Await.result(actionResultFuture, Duration.Inf)
+                    result match {
                         case ActionSuccess(messages) =>
                             responseWriter.println(SUCCESS)
+                            System.out.println("### 2.1 = " + messages.length)
                             messages.foreach(responseWriter.println(_))
                         case ActionFailure(messages) =>
                             responseWriter.println(FAILURE)
                             messages.foreach(responseWriter.println(_))
                     }
-                    //responseWriter.close()
+
                 case None =>
             }
             //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion
