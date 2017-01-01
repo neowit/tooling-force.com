@@ -55,7 +55,9 @@ case class SectionMessage(text: String, data: Map[String, Any] = Map(), details:
 //case class SectionDetailText(message: SectionMessage, text: String)
 
 case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message with BaseSerialiser {
-    override def toJson: JsValue = toJson(KEY_VALUE, id, text = "", data, details = List.empty)
+    override def toJson: JsValue = {
+        data.toJson
+    }
 }
 
 sealed trait MessageDetail {
