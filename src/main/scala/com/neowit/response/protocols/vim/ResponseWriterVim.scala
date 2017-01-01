@@ -23,8 +23,7 @@ import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
 
 import com.neowit.apex.actions.{ActionFailure, ActionResult, ActionSuccess}
 import com.neowit.response._
-import com.neowit.utils.JsonSupport
-
+import com.neowit.utils.{FileUtils, JsonSupport}
 import spray.json._
 
 class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends ResponseWriter with JsonSupport {
@@ -44,6 +43,24 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
     override def send(msg: String): Unit = println(msg)
 
     override def send(msg: RESULT): Unit = println(msg)
+
+
+    /**
+      * return relative path inside project folder
+      * this path is used as key in session
+      * @param file - resource under project folder
+      * @return - string, looks like: unpackaged/pages/Hello.page
+      */
+    def getRelativePath(file: File): String = {
+        //find parent src/ or unpackaged/
+        FileUtils.getParentByName(file, Set("src", "unpackaged")) match {
+            case Some(srcFolder) if null != srcFolder.getParentFile =>
+                val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
+                val res = file.getAbsolutePath.substring(projectPath.length)
+                FileUtils.normalizePath(res)
+            case None => file.getAbsolutePath
+        }
+    }
 
     def println(result: RESULT): Unit = {
         result match {
@@ -113,6 +130,9 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ RefreshMetadataResult(_) =>
                 val protocol = new RefreshMetadata(this)
                 protocol.send(res)
+            case res @ CheckSyntaxResult(_, _) =>
+                val protocol = new CheckSyntax(this)
+                protocol.send(res)
         }
     }
 
@@ -125,9 +145,13 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
                 println(SUCCESS)
                 messages.foreach(println(_))
                 println(_result)
-            case ActionFailure(messages) =>
+            case ActionFailure(messages, None) =>
                 println(FAILURE)
                 messages.foreach(println(_))
+            case ActionFailure(messages, Some(_result)) =>
+                println(FAILURE)
+                messages.foreach(println(_))
+                println(_result)
         }
     }
 

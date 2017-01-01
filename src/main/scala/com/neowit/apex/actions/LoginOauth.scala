@@ -185,7 +185,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                                     ActionSuccess(tokens.toJson.prettyPrint)
                                 case None =>
                                     //config.responseWriter.println("RESULT=FAILURE")
-                                    ActionFailure(Nil)
+                                    ActionFailure()
                             }
                         } else {
                             ActionFailure("Unexpected response returned: response missing 'code' parameter")

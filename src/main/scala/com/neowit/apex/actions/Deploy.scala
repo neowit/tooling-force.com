@@ -836,7 +836,7 @@ class DeployAllDestructive extends DeployAll {
                         //get rid of temp file
                         componentsToDeleteFile.delete()
                         result
-                    case result @ ActionFailure(_) =>
+                    case result @ ActionFailure(_, _) =>
                         //get rid of temp file
                         componentsToDeleteFile.delete()
                         result

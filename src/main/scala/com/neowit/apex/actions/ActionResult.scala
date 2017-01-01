@@ -56,19 +56,25 @@ object ActionSuccess {
 
 object ActionFailure {
     def apply(): ActionFailure = {
-        new ActionFailure(Nil)
+        new ActionFailure(Nil, None)
     }
     def apply(msg: Message): ActionFailure = {
-        new ActionFailure(List(msg))
+        new ActionFailure(List(msg), None)
     }
     def apply(msg: String): ActionFailure = {
-        new ActionFailure(List(ErrorMessage(msg)))
+        new ActionFailure(List(ErrorMessage(msg)), None)
+    }
+    def apply(result: BaseResult): ActionFailure = {
+        new ActionFailure(Nil, Option(result))
+    }
+    def apply(messages: List[Message]): ActionFailure = {
+        new ActionFailure(messages, None)
     }
 
 }
 
 case class ActionSuccess(messages: List[Message], result: Option[BaseResult]) extends ActionResult
-case class ActionFailure(messages: List[Message]) extends ActionResult
+case class ActionFailure(messages: List[Message], result: Option[BaseResult]) extends ActionResult
 
 class ActionResultBuilder() {
     private var _actionResultType: Option[RESULT] = None
@@ -124,9 +130,9 @@ class ActionResultBuilder() {
       */
     def add(existingResult: ActionResult): Unit = {
         existingResult match {
-            case ActionSuccess(messages, resultOpt) =>
+            case ActionSuccess(messages, _) =>
                 messages.foreach(msg => addMessage(msg))
-            case ActionFailure(messages) =>
+            case ActionFailure(messages, _) =>
                 setResultType(FAILURE)
                 messages.foreach(msg => addMessage(msg))
         }
@@ -155,7 +161,7 @@ class ActionResultBuilder() {
 
         _actionResultType match {
             case Some(SUCCESS) => ActionSuccess(messagesWithDetails, _actionResult)
-            case Some(FAILURE) => ActionFailure(messagesWithDetails)
+            case Some(FAILURE) => ActionFailure(messagesWithDetails, _actionResult)
             case _ =>
                 throw new IllegalStateException("Action Result has not been set")
         }

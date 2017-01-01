@@ -22,7 +22,7 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.parser.SourceScanner
-import com.neowit.response.{ErrorMessage, FAILURE, MessageDetailMap}
+import com.neowit.response.CheckSyntaxResult
 import org.antlr.v4.runtime._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -73,6 +73,7 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                     //config.responseWriter.println("RESULT=SUCCESS")
                     ActionSuccess()
                 } else {
+                    /*
                     //responseWriter.println("RESULT=FAILURE")
                     val actionResultBuilder = new ActionResultBuilder(FAILURE)
 
@@ -92,6 +93,8 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                     }
                     //config.responseWriter.endSection("ERROR LIST")
                     actionResultBuilder.result()
+                    */
+                    ActionFailure(CheckSyntaxResult(inputFile, errors))
                 }
             }
         Future.successful(actionResultOpt.getOrElse(ActionFailure("Check command line parameters")))
@@ -113,8 +116,8 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
         }
         def result: List[SyntaxError] = errors.result()
     }
-    case class SyntaxError(offendingSymbol: scala.Any,
-                           line: Int,
-                           charPositionInLine: Int,
-                           msg: String)
 }
+case class SyntaxError(offendingSymbol: scala.Any,
+                       line: Int,
+                       charPositionInLine: Int,
+                       msg: String)

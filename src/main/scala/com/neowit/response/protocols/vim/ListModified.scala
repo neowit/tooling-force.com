@@ -46,10 +46,6 @@ class ListModified(writer: ResponseWriterVim) {
             writer.println(InfoMessage("No Deleted file(s) detected."))
         }
     }
-    def getRelativePath(f: File): String = {
-        //todo implement properly
-        f.getName
-    }
     protected def reportModifiedFiles(modifiedFiles: List[File],
                             messageType: MessageType = INFO,
                             responseWriter: ResponseWriterVim): Unit = {
@@ -57,7 +53,7 @@ class ListModified(writer: ResponseWriterVim) {
         responseWriter.println(msg)
 
         for(f <- modifiedFiles) {
-            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> getRelativePath(f))))
+            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> writer.getRelativePath(f))))
         }
         responseWriter.println("HAS_MODIFIED_FILES=true")
 
@@ -76,13 +72,13 @@ class ListModified(writer: ResponseWriterVim) {
         responseWriter.println(msg)
 
         for(f <- deletedFiles) {
-            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> getRelativePath(f))))
+            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> writer.getRelativePath(f))))
         }
         responseWriter.println("HAS_DELETED_FILES=true")
 
         responseWriter.startSection("DELETED FILE LIST")
         for(f <- deletedFiles) {
-            responseWriter.println("DELETED_FILE=" + getRelativePath(f))
+            responseWriter.println("DELETED_FILE=" + writer.getRelativePath(f))
         }
         responseWriter.endSection("DELETED FILE LIST")
     }

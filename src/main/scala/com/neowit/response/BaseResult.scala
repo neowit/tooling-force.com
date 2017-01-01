@@ -21,7 +21,7 @@ package com.neowit.response
 
 import java.io.File
 
-import com.neowit.apex.actions.ActionResult
+import com.neowit.apex.actions.{ActionResult, SyntaxError}
 import com.neowit.apex.parser.Member
 import com.neowit.utils.JsonSupport
 import spray.json._
@@ -53,3 +53,4 @@ case class ListCompletionsResult(members: List[Member]) extends BaseResult
 
 case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
 case class RefreshMetadataResult(modified: List[File]) extends BaseResult
+case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
