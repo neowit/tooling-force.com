@@ -193,7 +193,8 @@ class RunTests extends DeployModified {
                                     if (!log.isEmpty) {
                                         val logFile = getProjectConfig.getLogFile
                                         FileUtils.writeFile(log, logFile)
-                                        responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                                        //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                                        actionResultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
                                     }
                                 case None =>
                             }

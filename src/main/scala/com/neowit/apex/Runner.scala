@@ -23,7 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
 import com.neowit.apex.actions._
-import com.neowit.response.{ErrorMessage, FAILURE}
+import com.neowit.response.{ErrorMessage, FAILURE, SUCCESS}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -140,12 +140,13 @@ class Executor extends Logging {
                     Await.result(actionResultFuture, Duration.Inf)
                     actionResultFuture.map{
                         case ActionSuccess(messages) =>
-                            responseWriter.println("RESULT=SUCCESS")
+                            responseWriter.println(SUCCESS)
                             messages.foreach(responseWriter.println(_))
                         case ActionFailure(messages) =>
-                            responseWriter.println("RESULT=FAILURE")
+                            responseWriter.println(FAILURE)
                             messages.foreach(responseWriter.println(_))
                     }
+                    //responseWriter.close()
                 case None =>
             }
             //if operation took too little for usage report to complete, then do NOT delay user by waiting for usage report completion

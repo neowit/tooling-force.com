@@ -67,9 +67,9 @@ class DescribeTooling extends ApexActionWithReadOnlySession {
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //load from SFDC and dump to local file
         val resMap = loadFromRemote
-        responseWriter.println("RESULT=SUCCESS")
-        responseWriter.println("RESULT_FILE=" + getOutputFilePath)
-        responseWriter.println("FILE_COUNT=" + resMap.size)
+        //responseWriter.println("RESULT=SUCCESS")
+        //responseWriter.println("RESULT_FILE=" + getOutputFilePath)
+        //responseWriter.println("FILE_COUNT=" + resMap.size)
         val actionResult =
             ActionSuccess(
                     KeyValueMessage(Map("RESULT_FILE" -> getOutputFilePath, "FILE_COUNT" -> resMap.size))

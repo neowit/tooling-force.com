@@ -21,7 +21,6 @@ package com.neowit.apex.actions
 
 import com.neowit.utils._
 import com.neowit.apex._
-import com.neowit.response.ResponseWriter
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -135,11 +134,13 @@ abstract class ApexAction extends AsyncAction {
 
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _config = Some(new Config(basicConfig))
+        /*
         if (null != responseWriter) {
             // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
             // give Runner a chance to write into expected `--responseFile`
             basicConfig.setResponseWriter(responseWriter)
         }
+        */
         this.asInstanceOf[T]
     }
     //need to def (as opposed to val) to stop from failing when called for help() display without session
@@ -148,17 +149,17 @@ abstract class ApexAction extends AsyncAction {
         case None => throw new IllegalAccessError("call load(basicConfig) first")
     }
 
-    private var _providedResponseWriter: Option[ResponseWriter] = None
+    //private var _providedResponseWriter: Option[ResponseWriter] = None
 
     /**
      * use this method to provide alternative response writer
      * e.g. when one based on Config is not the right one
      * @param responseWriter - writer to use instead of specified in config
      */
-    def setResponseWriter(responseWriter: ResponseWriter): Unit = {
-        _providedResponseWriter = Some(responseWriter)
-    }
-    def responseWriter: ResponseWriter = _providedResponseWriter.getOrElse(config.responseWriter)
+    //def setResponseWriter(responseWriter: ResponseWriter): Unit = {
+    //    _providedResponseWriter = Some(responseWriter)
+    //}
+    //def responseWriter: ResponseWriter = _providedResponseWriter.getOrElse(config.responseWriter)
 
     def addToMap(originalMap: Map[String, Set[String]], key: String, value: String): Map[String, Set[String]] = {
         originalMap.get(key)  match {
@@ -183,11 +184,13 @@ abstract class ApexActionWithProject extends ApexAction {
     }
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _config = Some(new ConfigWithSfdcProject(basicConfig))
+        /*
         if (null != responseWriter) {
             // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
             // give Runner a chance to write into expected `--responseFile`
             basicConfig.setResponseWriter(responseWriter)
         }
+        */
         this.asInstanceOf[T]
     }
 }
@@ -200,11 +203,13 @@ abstract class ApexActionWithReadOnlySession extends ApexActionWithProject {
     }
     override def load[T <:Action](basicConfig: BasicConfig): T = {
         _session = Some(Session(basicConfig, isSessionReadOnly))
+        /*
         if (null != responseWriter) {
             // in case if command fails due to not command specific problem (e.g. can not get SFDC connection )
             // give Runner a chance to write into expected `--responseFile`
             basicConfig.setResponseWriter(responseWriter)
         }
+        */
         this.asInstanceOf[T]
     }
     override def load[T <:Action](existingSession: Session): T = {

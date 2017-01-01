@@ -551,9 +551,9 @@ class SaveModified extends DeployModified {
                 //config.responseWriter.println("FILE_COUNT=" + membersMap.size)
                 resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> membersMap.size)))
                 if (!getSessionConfig.isCheckOnly) {
-                    config.responseWriter.startSection("SAVED FILES")
-                    membersMap.values.foreach(f => config.responseWriter.println(f.getName))
-                    config.responseWriter.endSection("SAVED FILES")
+                    //config.responseWriter.startSection("SAVED FILES")
+                    //membersMap.values.foreach(f => config.responseWriter.println(f.getName))
+                    //config.responseWriter.endSection("SAVED FILES")
                     val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
                     resultBuilder.addDetails(membersMap.values.map(f => MessageDetailText(savedFilesMsg, f.getName)))
                 }

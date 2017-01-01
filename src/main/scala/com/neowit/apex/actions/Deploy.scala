@@ -480,12 +480,13 @@ class DeployModified extends Deploy {
     private def writeDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean, resultBuilder: ActionResultBuilder): Unit = {
 
         if (null != deployDetails) {
-            responseWriter.startSection("ERROR LIST")
+            //responseWriter.startSection("ERROR LIST")
 
             //display errors both as messages and as ERROR: lines
             val componentFailureMessage = WarnMessage("Component failures")
             if (deployDetails.getComponentFailures.nonEmpty) {
-                responseWriter.println(componentFailureMessage)
+                //responseWriter.println(componentFailureMessage)
+                resultBuilder.addMessage(componentFailureMessage)
             }
             for ( failureMessage <- deployDetails.getComponentFailures) {
                 val line = failureMessage.getLineNumber
@@ -497,8 +498,9 @@ class DeployModified extends Deploy {
                     case DeployProblemType.Error => ERROR
                     case _ => ERROR
                 }
-                responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                //responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                resultBuilder.addDetail( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)) )
             }
             //process test successes and failures
             val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
@@ -508,7 +510,8 @@ class DeployModified extends Deploy {
             val coverageReportFile = ApexTestUtils.processCodeCoverage(runTestResult, session, resultBuilder)
             coverageReportFile match {
                 case Some(coverageFile) =>
-                    responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                    //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
+                    resultBuilder.addMessage(KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)))
                 case _ =>
             }
         }
@@ -538,7 +541,8 @@ class DeployModified extends Deploy {
                         actionResultBuilder.setActionResult(FAILURE)
 
                         val msg = WarnMessage("Outdated file(s) detected.")
-                        responseWriter.println(msg)
+                        //responseWriter.println(msg)
+                        actionResultBuilder.addMessage(msg)
                         val checker = new ListConflicting().load[ListConflicting](session)
                         checker.generateConflictMessageDetails(conflictingFiles, msg).
                             foreach{detail => actionResultBuilder.addDetail(detail)}
@@ -806,7 +810,7 @@ class DeployAllDestructive extends DeployAll {
                 deployDestructiveAction.load[DeployDestructive](session)
 
                 //make sure that Delete operation appends to response file, rather than overwrites it
-                deployDestructiveAction.setResponseWriter(this.responseWriter)
+                //deployDestructiveAction.setResponseWriter(this.responseWriter)
 
                 deployDestructiveAction.act().map{
                     case result @ ActionSuccess(messages) =>
@@ -1019,7 +1023,7 @@ class ListModified extends ApexActionWithReadOnlySession {
                 val modifiedFiles = getModifiedFiles
                 val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(projectDir, _))
 
-                responseWriter.println(SUCCESS)
+                //responseWriter.println(SUCCESS)
                 val successBuilder = new ActionResultBuilder(SUCCESS)
                 //responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
                 successBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> (modifiedFiles.size + deletedFiles.size) )))

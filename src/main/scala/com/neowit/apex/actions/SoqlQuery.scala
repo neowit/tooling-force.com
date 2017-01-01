@@ -94,7 +94,8 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
 
                             if (queryResult.totalSize < 1 || queryResult.records.isEmpty) {
                                 //looks like there are no results or this is just a count() query
-                                responseWriter.println(InfoMessage("size=" + queryResult.totalSize))
+                                //responseWriter.println(InfoMessage("size=" + queryResult.totalSize))
+                                builderWithSuccess.addMessage(InfoMessage("size=" + queryResult.totalSize))
                             } else {
                                 val outputFilePath = config.getRequiredProperty("outputFilePath").get
                                 //make sure output file does not exist
@@ -129,7 +130,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
                                 case None =>
                             }
                         case _ =>
-                            responseWriter.println(ErrorMessage( result.getMessage))
+                            //responseWriter.println(ErrorMessage( result.getMessage))
                             builderWithFailure.addMessage(ErrorMessage(result.getMessage))
                     }
                     builderWithFailure

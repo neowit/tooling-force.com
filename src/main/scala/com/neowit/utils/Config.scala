@@ -130,6 +130,11 @@ class BasicConfig extends Logging {
             }
         }
 
+        responseFile match {
+            case Some(f) =>
+                setResponseWriter(new ResponseWriter(f))
+            case None =>
+        }
         //lastRunOutputFile
     }
 
@@ -200,6 +205,20 @@ regardless of whether it is also specified in config file or not
     }
 
     lazy val action: String = getRequiredProperty("action").get
+
+    private lazy val responseFile: Option[File] = {
+        getProperty("responseFilePath") match {
+            case Some(path) =>
+                val f = new File(path)
+                if (!f.exists()) {
+                    f.createNewFile()
+                }
+                Option(f)
+            case None =>
+                None
+        }
+    }
+
 }
 
 class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
@@ -209,7 +228,7 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
     //make BasicConfig methods available in Config
     def load(arglist: List[String]): Unit = {
         basicConfig.load(arglist)
-        basicConfig.setResponseWriter(responseWriter)
+        //basicConfig.setResponseWriter(responseWriter)
     }
     def isUnix: Boolean = basicConfig.isUnix
     def getProperty(key:String):Option[String] = basicConfig.getProperty(key)
@@ -230,16 +249,8 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
     }
     */
 
-    private lazy val responseFile = {
-        val path = getRequiredProperty("responseFilePath").get
-        val f = new File(path)
-        if (!f.exists()) {
-            f.createNewFile()
-        }
-        f
-    }
 
-    lazy val responseWriter = new ResponseWriter(responseFile)
+    //lazy val responseWriter = new ResponseWriter(responseFile)
 
 }
 
