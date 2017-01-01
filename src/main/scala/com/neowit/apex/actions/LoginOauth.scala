@@ -6,7 +6,7 @@ import java.util.UUID
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
-import com.neowit.utils.ResponseWriter.ErrorMessage
+import com.neowit.response.ResponseWriter.ErrorMessage
 import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
 import spray.json._
 

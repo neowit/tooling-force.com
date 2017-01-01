@@ -8,7 +8,7 @@ import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
 import com.neowit.apex.actions._
 import com.neowit.utils.{FileUtils, Logging}
-import com.neowit.utils.ResponseWriter._
+import com.neowit.response.ResponseWriter._
 import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._

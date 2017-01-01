@@ -1,7 +1,7 @@
 package com.neowit.apex
 
 import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionResultBuilder, ApexAction}
-import com.neowit.utils.ResponseWriter.{InfoMessage, MessageDetailMap, SUCCESS}
+import com.neowit.response.ResponseWriter.{InfoMessage, MessageDetailMap, SUCCESS}
 
 import scala.concurrent.{ExecutionContext, Future}
 

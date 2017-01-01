@@ -3,7 +3,7 @@ package com.neowit.apex.actions
 import java.io.{File, FileOutputStream}
 
 import com.neowit.apex.{MetaXml, MetadataType}
-import com.neowit.utils.ResponseWriter._
+import com.neowit.response.ResponseWriter._
 import com.neowit.utils._
 import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 
@@ -11,6 +11,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import spray.json._
 import DefaultJsonProtocol._
+import com.neowit.response.ResponseWriter
 
 import scala.concurrent.{ExecutionContext, Future}
 

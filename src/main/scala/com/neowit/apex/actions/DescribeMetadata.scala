@@ -13,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 import spray.json._
 import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
-import com.neowit.utils.ResponseWriter.KeyValueMessage
+import com.neowit.response.ResponseWriter.KeyValueMessage
 
 import scala.concurrent.{ExecutionContext, Future}
 

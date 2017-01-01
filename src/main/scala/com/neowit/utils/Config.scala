@@ -24,6 +24,7 @@ import java.io.{File, FileWriter, OutputStream}
 import java.nio.file.{Files, Paths}
 
 import com.neowit.auth._
+import com.neowit.response.ResponseWriter
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer

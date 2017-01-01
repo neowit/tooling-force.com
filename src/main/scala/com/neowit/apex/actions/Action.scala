@@ -21,6 +21,7 @@ package com.neowit.apex.actions
 
 import com.neowit.utils._
 import com.neowit.apex._
+import com.neowit.response.ResponseWriter
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}

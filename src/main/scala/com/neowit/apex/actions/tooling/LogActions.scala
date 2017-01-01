@@ -5,7 +5,7 @@ import java.io.File
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions._
-import com.neowit.utils.ResponseWriter.{InfoMessage, KeyValueMessage, SUCCESS}
+import com.neowit.response.ResponseWriter.{InfoMessage, KeyValueMessage, SUCCESS}
 import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 

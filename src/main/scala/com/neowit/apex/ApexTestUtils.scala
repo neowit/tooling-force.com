@@ -3,10 +3,11 @@ package com.neowit.apex
 import java.io.{File, PrintWriter}
 
 import com.neowit.apex.actions.{ActionError, ActionResultBuilder, Deploy, DescribeMetadata}
-import com.neowit.utils.{Config, FileUtils, ResponseWriter}
-import com.neowit.utils.ResponseWriter._
+import com.neowit.utils.{Config, FileUtils}
+import com.neowit.response.ResponseWriter._
 import spray.json._
 import DefaultJsonProtocol._
+import com.neowit.response.ResponseWriter
 import com.neowit.utils.JsonUtils._
 
 

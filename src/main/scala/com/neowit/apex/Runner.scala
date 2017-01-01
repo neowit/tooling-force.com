@@ -23,6 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
 import com.neowit.apex.actions._
+import com.neowit.response.ResponseWriter
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._

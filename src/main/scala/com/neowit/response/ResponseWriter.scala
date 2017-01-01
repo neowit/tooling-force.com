@@ -17,13 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.neowit.utils
+package com.neowit.response
 
-import java.io.{FileOutputStream, OutputStream, File, PrintWriter}
+import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
 
-import spray.json._
-import DefaultJsonProtocol._
 import com.neowit.utils.JsonUtils._
+import com.neowit.utils.Logging
+import spray.json.DefaultJsonProtocol._
+import spray.json._
 
 object ResponseWriter {
     sealed trait RESULT

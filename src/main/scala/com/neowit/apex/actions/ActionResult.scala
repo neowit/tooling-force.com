@@ -1,6 +1,6 @@
 package com.neowit.apex.actions
 
-import com.neowit.utils.ResponseWriter._
+import com.neowit.response.ResponseWriter._
 
 import scala.collection.mutable
 

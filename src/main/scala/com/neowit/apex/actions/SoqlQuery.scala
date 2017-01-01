@@ -4,7 +4,7 @@ import java.io.File
 import java.net.URLEncoder
 
 import com.neowit.apex.Session
-import com.neowit.utils.ResponseWriter._
+import com.neowit.response.ResponseWriter._
 import com.neowit.utils.FileUtils
 
 import scala.concurrent.{ExecutionContext, Future}
