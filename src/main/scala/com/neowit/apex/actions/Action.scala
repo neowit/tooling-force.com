@@ -263,18 +263,18 @@ abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySessi
                 super.execute()(ec)
             } catch {
                 case ex: ConfigValueException =>
-                    //responseWriter.error(ex.getMessage)
+                    //ERROR(ex.getMessage)
                     Future.successful(ActionFailure(ex.getMessage))
                 case ex: Throwable =>
-                    //responseWriter.error(ex)
+                    //ERROR(ex)
                     Future.successful(ActionFailure(ex.getMessage))
             } finally {
                 ApexActionWithWritableSession.unLockSession(this)
             }
         } else {
             //responseWriter.println("RESULT=FAILURE")
-            //responseWriter.println(new Message(ResponseWriter.ERROR, "Session is locked. Another action is already in progress. Please wait for that action to complete..."))
-            //responseWriter.error("Session is locked. Another action is already in progress. Please wait for that action to complete...")
+            //responseWriter.println(new Message(ERROR, "Session is locked. Another action is already in progress. Please wait for that action to complete..."))
+            //ERROR("Session is locked. Another action is already in progress. Please wait for that action to complete...")
             Future.successful(ActionFailure("Session is locked. Another action is already in progress. Please wait for that action to complete..."))
         }
     }

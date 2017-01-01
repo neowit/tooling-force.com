@@ -5,8 +5,7 @@ import java.io.File
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions._
-import com.neowit.response.ResponseWriter.{InfoMessage, KeyValueMessage}
-import com.neowit.response.SUCCESS
+import com.neowit.response.{InfoMessage, KeyValueMessage, SUCCESS}
 import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 
@@ -113,7 +112,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
             case Success(entityId) =>
                 entityId
             case Failure(e) =>
-                //messages += new ResponseWriter.Message(ResponseWriter.ERROR, e.getMessage)
+                //messages += new ResponseWriter.Message(ERROR, e.getMessage)
                 throw e
         }
         setupTrace(traceFlagMap, session, logger, config.getProperty("logType"), tracedEntityId) match {
@@ -399,7 +398,7 @@ class ListLogs extends ApexActionWithReadOnlySession {
         //responseWriter.println("RESULT_SIZE=" + queryIterator.size)
         builder.addMessage(InfoMessage("RESULT_SIZE=" + queryIterator.size))
         if (queryIterator.isEmpty) {
-            //responseWriter.println(new ResponseWriter.Message(ResponseWriter.INFO, "No Logs available"))
+            //responseWriter.println(new ResponseWriter.Message(INFO, "No Logs available"))
             builder.addMessage(InfoMessage("No Logs available"))
         } else {
             val outputFilePath = config.getRequiredProperty("outputFilePath").get

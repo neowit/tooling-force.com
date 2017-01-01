@@ -5,8 +5,7 @@ import java.io.File
 
 import com.neowit.apex.actions._
 import com.sforce.soap.tooling._
-import com.neowit.response.ResponseWriter._
-import com.neowit.response.{FAILURE, SUCCESS}
+import com.neowit.response._
 import com.neowit.utils.{FileUtils, ZipUtils, ZuluTime}
 
 import scala.concurrent._
@@ -693,7 +692,7 @@ class SaveSpecificFiles extends SaveModified {
     protected override def reportEmptyFileList(files: List[File]): ActionResult = {
         //responseWriter.println("RESULT=FAILURE")
         val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
-        //responseWriter.println(new Message(ResponseWriter.ERROR, "no valid files in " + fileListFile))
+        //responseWriter.println(new Message(ERROR, "no valid files in " + fileListFile))
         ActionFailure(
             List(
                 ErrorMessage("no valid files in " + fileListFile)

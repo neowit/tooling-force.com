@@ -23,7 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
 import com.neowit.apex.actions._
-import com.neowit.response.{FAILURE, ResponseWriter}
+import com.neowit.response.{ErrorMessage, FAILURE}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -98,7 +98,7 @@ class Executor extends Logging {
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
                     basicConfig.getResponseWriter.println(FAILURE)
-                    basicConfig.getResponseWriter.println(ResponseWriter.ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.getResponseWriter.println(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response

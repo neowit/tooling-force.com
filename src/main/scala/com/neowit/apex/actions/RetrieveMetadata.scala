@@ -3,7 +3,6 @@ package com.neowit.apex.actions
 import java.io.{File, FileOutputStream}
 
 import com.neowit.apex.{MetaXml, MetadataType}
-import com.neowit.response.ResponseWriter._
 import com.neowit.utils._
 import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 
@@ -11,7 +10,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import spray.json._
 import DefaultJsonProtocol._
-import com.neowit.response.{FAILURE, ResponseWriter, SUCCESS}
+import com.neowit.response._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -202,13 +201,13 @@ class RefreshMetadata extends RetrieveMetadata {
                 //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
                 actionResultBuilder.addMessage(DebugMessage("Use --skipModifiedFilesCheck=true command line option to force Refresh"))
 
-                modifiedFileChecker.reportModifiedFiles(modifiedFiles, ResponseWriter.WARN, actionResultBuilder)
+                modifiedFileChecker.reportModifiedFiles(modifiedFiles, WARN, actionResultBuilder)
             }
         } catch {
             case ex:Throwable =>
                 println(ex)
                 //responseWriter.println("RESULT=FAILURE")
-                //responseWriter.println(new Message(ResponseWriter.ERROR, ex.toString))
+                //responseWriter.println(new Message(ERROR, ex.toString))
                 actionResultBuilder.setActionResult(FAILURE)
                 actionResultBuilder.addMessage(ErrorMessage(ex.toString))
         }
@@ -348,7 +347,7 @@ class ListConflicting extends RetrieveMetadata {
                     //generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
                     generateConflictMessageDetails(fileProps, msg).foreach{detail => actionResultBuilder.addDetail(detail)}
                 } else {
-                    //config.responseWriter.println(new Message(ResponseWriter.INFO, "No outdated files detected."))
+                    //config.responseWriter.println(new Message(INFO, "No outdated files detected."))
                     actionResultBuilder.addMessage(InfoMessage("No outdated files detected."))
                 }
                 //fileProps.isEmpty
@@ -365,7 +364,7 @@ class ListConflicting extends RetrieveMetadata {
  * @param filePropsMapByXmlType - map that looks like so: "ApexClass" -> Map[String, FileProperties], "ApexPage" -> Map[String, FileProperties]
  *                              Map[String, FileProperties] is resolved like so: unpackaged/classes/MyClass.cls -> FileProperties
  */
-class BulkRetrieveResult(val errors: List[ResponseWriter.Message], val fileCountByType: Map[String, Int],
+class BulkRetrieveResult(val errors: List[Message], val fileCountByType: Map[String, Int],
                          val filePropsMapByXmlType: Map[String, Map[String, FileProperties]]) {
 
     private val filePropsByRelativePath = filePropsMapByXmlType.values.flatten.toMap
@@ -571,7 +570,7 @@ class BulkRetrieve extends RetrieveMetadata {
 
         val fileCountByType = Map.newBuilder[String, Int]
         val filePropsMapByXmlType = Map.newBuilder[String, Map[String, FileProperties]]
-        var errors = List[ResponseWriter.Message]()
+        var errors = List[Message]()
         val membersByXmlName = Map.newBuilder[String, List[String]]
 
 
@@ -801,7 +800,7 @@ class DiffWithRemote extends RetrieveMetadata {
             } else {
                 //failed to rename unpackaged/ into src/
                 //responseWriter.println("RESULT=FAILURE")
-                //responseWriter.println(new Message(ResponseWriter.ERROR,
+                //responseWriter.println(new Message(ERROR,
                 //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
                 actionResultBuilder.setActionResult(FAILURE)
                 actionResultBuilder.addMessage(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
@@ -910,7 +909,7 @@ class DiffWithRemote extends RetrieveMetadata {
 
         //responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
         actionResultBuilder.addMessage(KeyValueMessage(Map("REMOTE_SRC_FOLDER_PATH" -> remoteSrcFolderPath)))
-        //responseWriter.println(new Message(ResponseWriter.INFO, "Remote version is saved in: " + remoteSrcFolderPath))
+        //responseWriter.println(new Message(INFO, "Remote version is saved in: " + remoteSrcFolderPath))
         actionResultBuilder.addMessage(InfoMessage("Remote version is saved in: " + remoteSrcFolderPath))
 
         val conflictingFilesMap = report.getConflictingFiles
@@ -987,7 +986,7 @@ class DiffWithRemote extends RetrieveMetadata {
                 }
             }
         } else {
-            //responseWriter.println(new Message(ResponseWriter.INFO, "No differences between local version and remote Org detected"))
+            //responseWriter.println(new Message(INFO, "No differences between local version and remote Org detected"))
             actionResultBuilder.addMessage(InfoMessage("No differences between local version and remote Org detected"))
         }
 

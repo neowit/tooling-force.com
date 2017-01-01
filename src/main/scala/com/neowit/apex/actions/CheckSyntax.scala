@@ -3,8 +3,7 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.parser.SourceScanner
-import com.neowit.response.FAILURE
-import com.neowit.response.ResponseWriter._
+import com.neowit.response.{ErrorMessage, FAILURE, MessageDetailMap}
 import org.antlr.v4.runtime._
 
 import scala.concurrent.{ExecutionContext, Future}

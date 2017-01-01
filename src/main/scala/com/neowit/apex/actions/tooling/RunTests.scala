@@ -8,8 +8,7 @@ import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
 import com.neowit.apex.actions._
 import com.neowit.utils.{FileUtils, Logging}
-import com.neowit.response.ResponseWriter._
-import com.neowit.response.{FAILURE, SUCCESS}
+import com.neowit.response.{ErrorMessage, FAILURE, KeyValueMessage, SUCCESS}
 import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
@@ -133,7 +132,7 @@ class RunTests extends DeployModified {
                 if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true, actionResultBuilder)) {
                     //responseWriter.println("RESULT=FAILURE")
                     //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                    //responseWriter.println(new Message(ResponseWriter.ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
+                    //responseWriter.println(new Message(ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
 
                     return Future.successful(
                         ActionFailure(
@@ -206,7 +205,7 @@ class RunTests extends DeployModified {
                 ex.getRestErrorCode match {
                     case Some(code) if "ALREADY_IN_PROCESS" == code =>
                         //responseWriter.println("RESULT=FAILURE")
-                        //responseWriter.println(new Message(ResponseWriter.ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                        //responseWriter.println(new Message(ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
                         actionResultBuilder.setActionResult(FAILURE)
                         actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
                     case None =>

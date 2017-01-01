@@ -12,8 +12,8 @@ import java.io.{File, PrintWriter}
 import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionSuccess, ApexActionWithReadOnlySession}
 import spray.json._
 import DefaultJsonProtocol._
+import com.neowit.response.KeyValueMessage
 import com.neowit.utils.JsonUtils._
-import com.neowit.response.ResponseWriter.KeyValueMessage
 
 import scala.concurrent.{ExecutionContext, Future}
 

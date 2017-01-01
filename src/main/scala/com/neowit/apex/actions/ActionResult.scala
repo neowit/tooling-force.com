@@ -1,7 +1,7 @@
 package com.neowit.apex.actions
 
-import com.neowit.response.{FAILURE, RESULT, SUCCESS}
-import com.neowit.response.ResponseWriter._
+import com.neowit.response.Message.MessageId
+import com.neowit.response._
 
 import scala.collection.mutable
 

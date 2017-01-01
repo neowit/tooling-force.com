@@ -4,10 +4,9 @@ import java.io.{File, PrintWriter}
 
 import com.neowit.apex.actions.{ActionError, ActionResultBuilder, Deploy, DescribeMetadata}
 import com.neowit.utils.{Config, FileUtils}
-import com.neowit.response.ResponseWriter._
 import spray.json._
 import DefaultJsonProtocol._
-import com.neowit.response.ResponseWriter
+import com.neowit.response._
 import com.neowit.utils.JsonUtils._
 
 
@@ -91,7 +90,7 @@ object ApexTestUtils {
                         ": lines total " + coverageResult.getNumLocations +
                         "; lines not covered " + coverageResult.getNumLocationsNotCovered +
                         "; covered " + coveragePercent + "%"),
-                    "type" -> (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
+                    "type" -> (if (coveragePercent >= 75) INFO else WARN)
                 )
             )
 
@@ -212,7 +211,7 @@ object ApexTestUtils {
             actionResultBuilder.addMessage(testFailureMessage)
         }
         if (null == runTestResult || runTestResult.getFailures.isEmpty) {
-            //responseWriter.println(new Message(ResponseWriter.INFO, "Tests PASSED"))
+            //responseWriter.println(new Message(INFO, "Tests PASSED"))
             actionResultBuilder.addMessage(InfoMessage("Tests PASSED"))
         }
         for ( failureMessage <- runTestResult.getFailures) {
@@ -233,14 +232,14 @@ object ApexTestUtils {
                             val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
                             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
                             if (showProblem) {
-                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
+                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
                             }
                         case None => //failed to parse anything meaningful, fall back to simple message
                             //responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
                             if (showProblem) {
-                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
-                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> "", "text" -> problem)))
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
+                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
                             }
                     }
                     showProblem = false
@@ -250,8 +249,8 @@ object ApexTestUtils {
                 val fileName = failureMessage.getName
                 val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName, metadataByXmlName)
                 //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
-                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
+                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
+                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
             }
 
             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))

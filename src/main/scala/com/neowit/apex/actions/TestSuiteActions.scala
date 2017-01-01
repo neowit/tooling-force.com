@@ -104,7 +104,7 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
                 Future.successful(ActionSuccess())
             case Failure(ex) =>
                 //responseWriter.println("RESULT=FAILURE")
-                //responseWriter.println(new ResponseWriter.Message(ResponseWriter.ERROR, ex.getMessage))
+                //responseWriter.println(new ResponseWriter.Message(ERROR, ex.getMessage))
                 Future.successful(ActionFailure(ex.getMessage))
         }
     }

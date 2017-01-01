@@ -3,11 +3,10 @@ package com.neowit.apex.actions
 import com.neowit.apex.actions.Deploy.RunTestResultMetadata
 import com.neowit.apex.actions.tooling.AuraMember
 import com.neowit.apex._
-import com.neowit.response.ResponseWriter._
 import com.neowit.utils.{FileUtils, ZipUtils}
 import java.io.{File, FileWriter, PrintWriter}
 
-import com.neowit.response.{FAILURE, ResponseWriter, SUCCESS}
+import com.neowit.response._
 import com.sforce.soap.metadata._
 
 import scala.collection.mutable
@@ -64,13 +63,13 @@ object Deploy {
     /**
      * try to parse line and column number from error message looking like so
      * ... line 155, column 41: ....
-     * @param errorMessage - message returned by deploy operation
+     * @param ErrorMessage - message returned by deploy operation
      * @return
      */
-    def parseLineColumn(errorMessage: String): Option[(Int, Int)] = {
+    def parseLineColumn(ErrorMessage: String): Option[(Int, Int)] = {
 
         val pair = try {
-            val LineColumnRegex(line, column) = errorMessage
+            val LineColumnRegex(line, column) = ErrorMessage
             Some((line.toInt, column.toInt))
         } catch {
             case _:Throwable => None
@@ -494,9 +493,9 @@ class DeployModified extends Deploy {
                 val filePath = failureMessage.getFileName
                 val problem = failureMessage.getProblem
                 val problemType = failureMessage.getProblemType match {
-                    case DeployProblemType.Warning => ResponseWriter.WARN
-                    case DeployProblemType.Error => ResponseWriter.ERROR
-                    case _ => ResponseWriter.ERROR
+                    case DeployProblemType.Warning => WARN
+                    case DeployProblemType.Error => ERROR
+                    case _ => ERROR
                 }
                 responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
@@ -762,7 +761,7 @@ class DeployAllDestructive extends DeployAll {
                         //save response file
                         //execute DeployDestructive using list of blank files
                         deleteFiles(dummyFileByRelativePath.keys ++ keysToDeleteWithoutDummy.result())
-                        //responseWriter.println(new Message(ResponseWriter.INFO, "REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
+                        //responseWriter.println(new Message(INFO, "REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
                         resultBuilder.addMessage(InfoMessage("REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
                     }
                     resultBuilder.result()
@@ -958,7 +957,7 @@ class ListModified extends ApexActionWithReadOnlySession {
     }
 
     def reportModifiedFiles(modifiedFiles: List[File],
-                            messageType: ResponseWriter.MessageType = ResponseWriter.INFO,
+                            messageType: MessageType = INFO,
                             resultBuilder: ActionResultBuilder): ActionResultBuilder = {
         val msg = ArbitraryTypeMessage(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
         //responseWriter.println(msg)
@@ -1027,14 +1026,14 @@ class ListModified extends ApexActionWithReadOnlySession {
                 if (modifiedFiles.nonEmpty) {
                     reportModifiedFiles(modifiedFiles, INFO, successBuilder)
                 } else {
-                    //responseWriter.println(new Message(ResponseWriter.INFO, "No Modified file(s) detected."))
+                    //responseWriter.println(new Message(INFO, "No Modified file(s) detected."))
                     successBuilder.addMessage(InfoMessage("No Modified file(s) detected."))
                 }
 
                 if (deletedFiles.nonEmpty) {
                     reportDeletedFiles(deletedFiles, successBuilder)
                 } else {
-                    //responseWriter.println(new Message(ResponseWriter.INFO, "No Deleted file(s) detected."))
+                    //responseWriter.println(new Message(INFO, "No Deleted file(s) detected."))
                 }
                 Future.successful(successBuilder.result())
             case None =>
@@ -1112,7 +1111,7 @@ class DeployDestructive extends Deploy {
             if (components.isEmpty) {
                 //responseWriter.println("RESULT=FAILURE")
                 val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
-                //responseWriter.println(new Message(ResponseWriter.ERROR, "no valid components in " + componentListFile))
+                //responseWriter.println(new Message(ERROR, "no valid components in " + componentListFile))
                 ActionFailure("no valid components in " + componentListFile)
             } else {
 
@@ -1163,9 +1162,9 @@ class DeployDestructive extends Deploy {
                             }
                             val problemWithFilePath = if (filePath.isEmpty) failureMessage.getProblem else filePath + ": " + failureMessage.getProblem
                             val problemType = failureMessage.getProblemType match {
-                                case DeployProblemType.Warning => ResponseWriter.WARN
-                                case DeployProblemType.Error => ResponseWriter.ERROR
-                                case _ => ResponseWriter.ERROR
+                                case DeployProblemType.Warning => WARN
+                                case DeployProblemType.Error => ERROR
+                                case _ => ERROR
                             }
                             //responseWriter.println("ERROR", Map("type" -> problemType, "text" -> failureMessage.getProblem, "filePath" -> filePath))
                             //responseWriter.println(new MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "text" -> problemWithFilePath, "filePath" -> filePath)))
@@ -1335,7 +1334,7 @@ class DeployModifiedDestructive extends DeployModified {
                 actionResultBuilder.setActionResult(SUCCESS)
                 //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                 actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)))
-                //responseWriter.println(new Message(ResponseWriter.INFO, "no modified files detected."))
+                //responseWriter.println(new Message(INFO, "no modified files detected."))
                 actionResultBuilder.addMessage(InfoMessage("no modified files detected."))
                 false
             } else {

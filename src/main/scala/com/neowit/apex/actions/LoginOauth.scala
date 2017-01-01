@@ -6,7 +6,7 @@ import java.util.UUID
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
-import com.neowit.response.ResponseWriter.ErrorMessage
+import com.neowit.response.ErrorMessage
 import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
 import spray.json._
 
@@ -50,7 +50,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
             case Some(file) => file
             case None =>
                 //config.responseWriter.println("RESULT=FAILURE")
-                //val message = new Message(ResponseWriter.ERROR, "Missing or invalid value of --saveAuthPath parameter.")
+                //val message = new Message(ERROR, "Missing or invalid value of --saveAuthPath parameter.")
                 //config.responseWriter.println(message)
                 return Future.successful(ActionFailure(ErrorMessage("Missing or invalid value of --saveAuthPath parameter.")))
         }
@@ -98,7 +98,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                                 onCompletePromise.future
                             case Left(err) =>
                                 //config.responseWriter.println("RESULT=FAILURE")
-                                //val message = new Message(ResponseWriter.ERROR, err)
+                                //val message = new Message(ERROR, err)
                                 //config.responseWriter.println(message)
                                 Future.successful(ActionFailure(ErrorMessage(err)))
                         }
@@ -108,7 +108,7 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                 }
             case None =>
                 //config.responseWriter.println("RESULT=FAILURE")
-                //val message = new Message(ResponseWriter.ERROR, "Invalid jar file, missing consumer key/secret configuration")
+                //val message = new Message(ERROR, "Invalid jar file, missing consumer key/secret configuration")
                 //config.responseWriter.println(message)
                 Future.successful(ActionFailure(ErrorMessage("Invalid jar file, missing consumer key/secret configuration")))
         }

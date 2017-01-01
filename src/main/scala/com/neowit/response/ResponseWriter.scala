@@ -30,92 +30,6 @@ object ResponseWriter {
 
     def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.mapValues(value => if (null == value) "" else value)
 
-    type MessageId = Int
-    object Message {
-        private var COUNTER = 0
-        def getNextId(): MessageId = {
-            COUNTER += 1
-            COUNTER
-        }
-    }
-
-    sealed trait Message {
-        val id: MessageId = Message.getNextId()
-        val msgType: MessageType
-        val text: String
-        val data: Map[String, Any]
-        val details: List[MessageDetail]
-
-        def toJSONObject: JsObject = {
-            val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ensureNoNulls(data)
-            msgData.toJson.asJsObject
-        }
-    }
-    case class InfoMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-        override val msgType: MessageType = INFO
-    }
-    case class WarnMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-        override val msgType: MessageType = WARN
-    }
-    case class ErrorMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-        override val msgType: MessageType = ERROR
-    }
-    case class DebugMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-        override val msgType: MessageType = DEBUG
-    }
-    // text is section name, e.g. "ERROR"
-    /*
-    case class SectionMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
-        override val msgType: MessageType = SECTION
-    }
-    */
-    //case class SectionDetailText(message: SectionMessage, text: String)
-
-    case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message {
-        override val text: String = ""
-        override val details: List[MessageDetail] = Nil
-        override val msgType: MessageType = KEY_VALUE
-    }
-
-    sealed trait MessageDetail {
-        val parentMessage: Message
-    }
-    case class MessageDetailMap(parentMessage: Message, data: Map[String, Any]) extends MessageDetail {
-        def toJSONObject: JsObject = {
-            val msgData = Map("messageId"-> parentMessage.id) ++ ensureNoNulls(data)
-            msgData.toJson.asJsObject
-        }
-    }
-    case class MessageDetailText(parentMessage: Message, text: String) extends MessageDetail
-
-    case class ArbitraryTypeMessage(msgType: MessageType, text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message
-
-    sealed trait MessageType {
-        def getTypeString: String
-        override def toString: String = getTypeString
-    }
-    case object INFO extends MessageType {
-        def getTypeString: String = "INFO"
-    }
-    case object WARN extends MessageType {
-        def getTypeString: String = "WARN"
-    }
-    case object ERROR extends MessageType {
-        def getTypeString: String = "ERROR"
-    }
-    case object DEBUG extends MessageType {
-        def getTypeString: String = "DEBUG"
-    }
-    case object SECTION extends MessageType {
-        def getTypeString: String = "SECTION"
-    }
-    case object KEY_VALUE extends MessageType {
-        def getTypeString: String = "KEY_VALUE"
-    }
-    case class CustomMessageType(msgType: String) extends MessageType {
-        def getTypeString: String = msgType
-    }
-
     /**
      * slightly modified version of JSONFormat.quoteString
      * @param s - string to check and escape if required
@@ -146,7 +60,6 @@ object ResponseWriter {
 
 
 class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends Logging{
-    import ResponseWriter._
 
     private val _writer = new PrintWriter(out, autoFlush)
 
