@@ -9,7 +9,6 @@ import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveReques
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import spray.json._
-import DefaultJsonProtocol._
 import com.neowit.response._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -397,7 +396,7 @@ class BulkRetrieveResult(val errors: List[Message], val fileCountByType: Map[Str
  * --updatePackageXMLOnSuccess=true|false (defaults to false) - if true then update package.xml to add missing types (if any)
  * --updateSessionDataOnSuccess=true|false (defaults to false) - if true then update session data if deployment is successful
  */
-class BulkRetrieve extends RetrieveMetadata {
+class BulkRetrieve extends RetrieveMetadata with JsonSupport {
 
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String =
@@ -583,8 +582,8 @@ class BulkRetrieve extends RetrieveMetadata {
                 Try(line.parseJson) match {
                     case Success(jsonAst) =>
                         val data = jsonAst.asJsObject.fields
-                        val typeName = JsonUtils.AnyJsonFormat.read(data.getOrElse("XMLName", JsString(""))).asInstanceOf[String]
-                        val members = JsonUtils.AnyJsonFormat.read(data.getOrElse("members", JsArray())).asInstanceOf[Vector[String]].toList
+                        val typeName = AnyJsonFormat.read(data.getOrElse("XMLName", JsString(""))).asInstanceOf[String]
+                        val members = AnyJsonFormat.read(data.getOrElse("members", JsArray())).asInstanceOf[Vector[String]].toList
 
                         if (typeName.nonEmpty) {
                             membersByXmlName += typeName -> members

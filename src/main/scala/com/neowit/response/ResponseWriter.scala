@@ -21,9 +21,7 @@ package com.neowit.response
 
 import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
 
-import com.neowit.utils.JsonUtils._
-import com.neowit.utils.Logging
-import spray.json.DefaultJsonProtocol._
+import com.neowit.utils.{JsonSupport, Logging}
 import spray.json._
 
 object ResponseWriter {
@@ -59,7 +57,7 @@ object ResponseWriter {
 }
 
 
-class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends Logging{
+class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends Logging  with JsonSupport {
 
     private val _writer = new PrintWriter(out, autoFlush)
 
@@ -85,13 +83,13 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     }
     def println(msg: Message): Unit = {
         //TODO implement special treatment for KeyValueMessage and SectionMessage
-        println(s"MESSAGE: " + msg.toJSONObject.compactPrint)
+        println(/*s"MESSAGE: " + */msg.toJson.compactPrint)
     }
     def println(messageDetail: MessageDetailMap): Unit = {
-        println(s"MESSAGE DETAIL: " + messageDetail.toJSONObject.compactPrint)
+        println(/*s"MESSAGE DETAIL: " + */messageDetail.toJson.compactPrint)
     }
     def println(messageDetail: MessageDetailText): Unit = {
-        println(s"MESSAGE DETAIL: " + messageDetail.text)
+        println(/*s"MESSAGE DETAIL: " + */messageDetail.text)
     }
     def println(messageDetails: List[MessageDetail]): Unit = {
         messageDetails.foreach{
@@ -113,6 +111,7 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     }
 
     def close(): Unit = {
+        System.out.println("writer will be closed: " + needClosing)
         if (needClosing)
             _writer.close()
     }

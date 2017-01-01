@@ -20,15 +20,13 @@
 package com.neowit.utils
 
 import spray.json._
-import DefaultJsonProtocol._
-import com.neowit.utils.JsonUtils._
 /**
  * this is not TRUE JSON properties
  * this class allows values in two formats
  * - simple string
  * - JSON string
  */
-trait JsonProperties extends OptionProperties {
+trait JsonProperties extends OptionProperties with JsonSupport {
 
     type Data = Map[String, Any]
     /**

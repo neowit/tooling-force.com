@@ -25,6 +25,9 @@ case object SECTION extends MessageType {
 case object KEY_VALUE extends MessageType {
     def getTypeString: String = "KEY_VALUE"
 }
+case object JSON_VALUE extends MessageType {
+    def getTypeString: String = "JSON_VALUE"
+}
 case class CustomMessageType(msgType: String) extends MessageType {
     def getTypeString: String = msgType
 }

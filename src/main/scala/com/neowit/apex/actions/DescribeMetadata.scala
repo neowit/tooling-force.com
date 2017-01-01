@@ -7,13 +7,11 @@ import com.neowit.apex.Session
 import scala.collection.mutable
 import java.io.{File, PrintWriter}
 
-import com.neowit.utils.FileUtils
+import com.neowit.utils.{FileUtils, JsonSupport}
 
 import scala.util.{Failure, Success, Try}
 import spray.json._
-import DefaultJsonProtocol._
 import com.neowit.response.KeyValueMessage
-import com.neowit.utils.JsonUtils._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -138,7 +136,7 @@ object DescribeMetadata {
  * Extra command line params:
  * --allMetaTypesFilePath - path to file where results shall be saved
  */
-class DescribeMetadata extends ApexActionWithReadOnlySession {
+class DescribeMetadata extends ApexActionWithReadOnlySession with JsonSupport {
 
     case class MetadataTypeJSON(XMLName: String, HasMetaFile: Boolean, Suffix: String, ChildObjects: List[String], DirName: String, InFolder: Boolean)
 
@@ -271,7 +269,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession {
  * Extra command line params:
  * --specificTypes=/path/to/file with types list
  */
-class ListMetadata extends ApexActionWithWritableSession {
+class ListMetadata extends ApexActionWithWritableSession with JsonSupport {
     // sfdc is very inconsistent in the way of naming types needed to retrieve members
     // for example both Document and EmailTemplate return isFolder = true
     // but in order to listMetadata() Document must be named as DocumentFolder

@@ -1,9 +1,7 @@
 package com.neowit.response
 
 import com.neowit.response.Message.MessageId
-import com.neowit.utils.JsonUtils._
-
-import spray.json.DefaultJsonProtocol._
+import com.neowit.utils.JsonSupport
 import spray.json._
 /**
   * Author: Andrey Gavrikov
@@ -17,16 +15,16 @@ object Message {
         COUNTER
     }
 }
-sealed trait Message {
+sealed trait Message extends JsonSupport{
     val id: MessageId = Message.getNextId()
     val msgType: MessageType
     val text: String
     val data: Map[String, Any]
     val details: List[MessageDetail]
 
-    def toJSONObject: JsObject = {
+    def toJson: JsValue = {
         val msgData = Map("id"-> id, "text" -> text, "type" -> msgType) ++ ResponseWriter.ensureNoNulls(data)
-        msgData.toJson.asJsObject
+        msgData.toJson
     }
 }
 case class InfoMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil) extends Message {
@@ -54,14 +52,22 @@ case class KeyValueMessage(data: Map[String, Any] = Map()) extends Message {
     override val details: List[MessageDetail] = Nil
     override val msgType: MessageType = KEY_VALUE
 }
+case class JsonMessage(jsValue: JsValue) extends Message {
+    override val text: String = ""
+    override val details: List[MessageDetail] = Nil
+    override val data: Map[String, Any] = Map.empty[String, Any]
+    override val msgType: MessageType = JSON_VALUE
+
+    override def toJson: JsValue = jsValue
+}
 
 sealed trait MessageDetail {
     val parentMessage: Message
 }
-case class MessageDetailMap(parentMessage: Message, data: Map[String, Any]) extends MessageDetail {
-    def toJSONObject: JsObject = {
+case class MessageDetailMap(parentMessage: Message, data: Map[String, Any]) extends MessageDetail with JsonSupport {
+    def toJson: JsValue = {
         val msgData = Map("messageId"-> parentMessage.id) ++ ResponseWriter.ensureNoNulls(data)
-        msgData.toJson.asJsObject
+        msgData.toJson
     }
 }
 case class MessageDetailText(parentMessage: Message, text: String) extends MessageDetail

@@ -6,14 +6,12 @@ import scala.collection.mutable
 import com.neowit.apex.Session
 
 import scala.util.{Failure, Success, Try}
-import com.neowit.utils.FileUtils
+import com.neowit.utils.{FileUtils, JsonSupport}
 import java.io.{File, PrintWriter}
 
 import com.neowit.apex.actions.{ActionHelp, ActionResult, ActionSuccess, ApexActionWithReadOnlySession}
 import spray.json._
-import DefaultJsonProtocol._
 import com.neowit.response.KeyValueMessage
-import com.neowit.utils.JsonUtils._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -40,7 +38,7 @@ object DescribeTooling {
     }
 }
 
-class DescribeTooling extends ApexActionWithReadOnlySession {
+class DescribeTooling extends ApexActionWithReadOnlySession with JsonSupport {
     case class ToolingTypeJSON(isActivateable: Option[Boolean], isCustom: Option[Boolean], isCustomSetting: Option[Boolean],
                                isQueryable: Option[Boolean], keyPrefix: Option[String], name: Option[String])
 
