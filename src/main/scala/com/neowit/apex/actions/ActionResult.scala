@@ -1,5 +1,6 @@
 package com.neowit.apex.actions
 
+import com.neowit.response.{FAILURE, RESULT, SUCCESS}
 import com.neowit.response.ResponseWriter._
 
 import scala.collection.mutable

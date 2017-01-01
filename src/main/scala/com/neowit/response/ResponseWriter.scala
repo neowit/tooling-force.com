@@ -27,10 +27,6 @@ import spray.json.DefaultJsonProtocol._
 import spray.json._
 
 object ResponseWriter {
-    sealed trait RESULT
-
-    case object FAILURE extends RESULT
-    case object SUCCESS extends RESULT
 
     def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.mapValues(value => if (null == value) "" else value)
 

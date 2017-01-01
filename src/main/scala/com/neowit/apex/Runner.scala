@@ -23,7 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
 import com.neowit.apex.actions._
-import com.neowit.response.ResponseWriter
+import com.neowit.response.{FAILURE, ResponseWriter}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -90,14 +90,14 @@ class Executor extends Logging {
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
                     val _responseWriter = basicConfig.getResponseWriter//e.responseWriterOpt.getOrElse(basicConfig.getResponseWriter)
-                    _responseWriter.println(ResponseWriter.FAILURE)
+                    _responseWriter.println(FAILURE)
                     for (msg <- messages) {
                         _responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    basicConfig.getResponseWriter.println(ResponseWriter.FAILURE)
+                    basicConfig.getResponseWriter.println(FAILURE)
                     basicConfig.getResponseWriter.println(ResponseWriter.ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
@@ -112,7 +112,7 @@ class Executor extends Logging {
                     System.out.println(stackTraceStr)
                     //ex.printStackTrace(System.out)
 
-                    basicConfig.getResponseWriter.println(ResponseWriter.FAILURE)
+                    basicConfig.getResponseWriter.println(FAILURE)
                     basicConfig.getResponseWriter.println("ERROR", Map("text" -> ex.getMessage))
                     isGoodConfig = true
             } finally {

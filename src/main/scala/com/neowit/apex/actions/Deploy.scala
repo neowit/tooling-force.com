@@ -7,7 +7,7 @@ import com.neowit.response.ResponseWriter._
 import com.neowit.utils.{FileUtils, ZipUtils}
 import java.io.{File, FileWriter, PrintWriter}
 
-import com.neowit.response.ResponseWriter
+import com.neowit.response.{FAILURE, ResponseWriter, SUCCESS}
 import com.sforce.soap.metadata._
 
 import scala.collection.mutable

@@ -5,6 +5,7 @@ import java.net.URLEncoder
 
 import com.neowit.apex.Session
 import com.neowit.response.ResponseWriter._
+import com.neowit.response.{FAILURE, SUCCESS}
 import com.neowit.utils.FileUtils
 
 import scala.concurrent.{ExecutionContext, Future}

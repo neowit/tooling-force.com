@@ -11,7 +11,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import spray.json._
 import DefaultJsonProtocol._
-import com.neowit.response.ResponseWriter
+import com.neowit.response.{FAILURE, ResponseWriter, SUCCESS}
 
 import scala.concurrent.{ExecutionContext, Future}
 
