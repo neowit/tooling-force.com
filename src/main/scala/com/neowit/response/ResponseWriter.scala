@@ -21,6 +21,7 @@ package com.neowit.response
 
 import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
 
+import com.neowit.apex.actions.{ActionFailure, ActionResult, ActionSuccess}
 import com.neowit.utils.{JsonSupport, Logging}
 import spray.json._
 
@@ -51,7 +52,7 @@ object ResponseWriter {
              * Per RFC4627, section 2.5, we're not technically required to
              * encode the C1 codes, but we do to be safe.
              */
-            case c if ((c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f')) => "\\u%04x".format(c: Int)
+            case c if (c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f') => "\\u%04x".format(c: Int)
             case c => c
         }.mkString
 }
@@ -108,6 +109,28 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     }
     def endSection(sectionName: String): Unit = {
         println("#SECTION END: " + sectionName)
+    }
+
+    def println(result: BaseResult): Unit = {
+        result match {
+            case FindSymbolResult(Some(member)) => println(member.serialise.compactPrint)
+            case FindSymbolResult(None) => // do nothing
+            case ListCompletionsResult(members) => println(members.map(_.toJson).mkString("\n"))
+        }
+    }
+
+    def sendResponse(result: ActionResult): Unit = {
+        result match {
+            case ActionSuccess(messages, None) =>
+                println(SUCCESS)
+                messages.foreach(println(_))
+            case ActionSuccess(messages, Some(_result)) =>
+                println(SUCCESS)
+                println(_result)
+            case ActionFailure(messages) =>
+                println(FAILURE)
+                messages.foreach(println(_))
+        }
     }
 
     def close(): Unit = {

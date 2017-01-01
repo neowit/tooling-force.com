@@ -23,7 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 import com.neowit.utils._
 import com.neowit.apex.actions._
-import com.neowit.response.{ErrorMessage, FAILURE, SUCCESS}
+import com.neowit.response.{ErrorMessage, FAILURE}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -137,16 +137,9 @@ class Executor extends Logging {
             ActionFactory.getAction(basicConfig, basicConfig.action) match {
                 case Some(action) =>
                     val actionResultFuture = action.execute()
-                    val responseWriter = basicConfig.getResponseWriter
                     val result = Await.result(actionResultFuture, Duration.Inf)
-                    result match {
-                        case ActionSuccess(messages) =>
-                            responseWriter.println(SUCCESS)
-                            messages.foreach(responseWriter.println(_))
-                        case ActionFailure(messages) =>
-                            responseWriter.println(FAILURE)
-                            messages.foreach(responseWriter.println(_))
-                    }
+                    val responseWriter = basicConfig.getResponseWriter
+                    responseWriter.sendResponse(result)
 
                 case None =>
             }
