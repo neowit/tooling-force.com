@@ -84,13 +84,24 @@ class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boole
     }
     def println(msg: Message): Unit = {
         //TODO implement special treatment for KeyValueMessage and SectionMessage
-        println(/*s"MESSAGE: " + */msg.toJson.compactPrint)
+        println("MESSAGE: " + msg.toJson.compactPrint)
+        val details =
+            msg match {
+                case InfoMessage(_, _, _details) if _details.nonEmpty => _details
+                case WarnMessage(_, _, _details) if _details.nonEmpty => _details
+                case ErrorMessage(_, _, _details) if _details.nonEmpty => _details
+                case DebugMessage(_, _, _details) if _details.nonEmpty => _details
+                case _ => Nil
+            }
+        if (details.nonEmpty) {
+            println(details)
+        }
     }
-    def println(messageDetail: MessageDetailMap): Unit = {
-        println(/*s"MESSAGE DETAIL: " + */messageDetail.toJson.compactPrint)
+    private def println(messageDetail: MessageDetailMap): Unit = {
+        println("MESSAGE DETAIL: " + messageDetail.toJson.compactPrint)
     }
-    def println(messageDetail: MessageDetailText): Unit = {
-        println(/*s"MESSAGE DETAIL: " + */messageDetail.text)
+    private def println(messageDetail: MessageDetailText): Unit = {
+        println("MESSAGE DETAIL: " + messageDetail.text)
     }
     def println(messageDetails: List[MessageDetail]): Unit = {
         messageDetails.foreach{

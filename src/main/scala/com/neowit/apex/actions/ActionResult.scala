@@ -91,7 +91,7 @@ class ActionResultBuilder() {
         val messageId = detail.parentMessage.id
         val existingDetails = detailsByMessage.getOrElse(messageId, Nil)
         val allDetails = existingDetails ++ List(detail)
-        detailsByMessage.+=(detail.parentMessage.id -> allDetails)
+        detailsByMessage.+=(messageId -> allDetails)
     }
     def addDetails(details: Iterable[MessageDetail]): Unit = {
         details.foreach(addDetail(_))
@@ -122,12 +122,12 @@ class ActionResultBuilder() {
                 detailsByMessage.get(messageId) match {
                     case Some(details) if details.nonEmpty => //extra details have been added
                         msg match {
-                            case m @ InfoMessage(_, _, _) => m.copy(details = details)
-                            case m @ WarnMessage(_, _, _) => m.copy(details = details)
-                            case m @ ErrorMessage(_, _, _) => m.copy(details = details)
-                            case m @ DebugMessage(_, _, _) => m.copy(details = details)
+                            case m @ InfoMessage(_, _, _, id) => m.copy(details = details, id = id)
+                            case m @ WarnMessage(_, _, _, id) => m.copy(details = details, id = id)
+                            case m @ ErrorMessage(_, _, _, id) => m.copy(details = details, id = id)
+                            case m @ DebugMessage(_, _, _, id) => m.copy(details = details, id = id)
                             case m @ KeyValueMessage(_) => m
-                            case m @ ArbitraryTypeMessage(_, _, _, _) => m.copy(details = details)
+                            case m @ ArbitraryTypeMessage(_, _, _, _, id) => m.copy(details = details, id = id)
                         }
                     case _ => // no extra details have been added
                         msg
