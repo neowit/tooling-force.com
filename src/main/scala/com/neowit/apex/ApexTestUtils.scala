@@ -3,11 +3,9 @@ package com.neowit.apex
 import java.io.{File, PrintWriter}
 
 import com.neowit.apex.actions.{ActionError, ActionResultBuilder, Deploy, DescribeMetadata}
-import com.neowit.utils.{Config, FileUtils}
+import com.neowit.utils.{Config, FileUtils, JsonSupport}
 import spray.json._
-import DefaultJsonProtocol._
 import com.neowit.response._
-import com.neowit.utils.JsonUtils._
 
 
 trait RunTestsResult {
@@ -38,7 +36,7 @@ trait RunTestFailure {
     def getStackTrace: String
 }
 
-object ApexTestUtils {
+object ApexTestUtils extends JsonSupport {
     //Class.Test1: line 19, column 1
     private val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
     //Class.Test1.prepareData: line 13, column 1
