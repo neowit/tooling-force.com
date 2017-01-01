@@ -4,10 +4,12 @@ import java.io.File
 
 import com.neowit.apex.completion.AutoComplete
 import com.neowit.apex.parser.{ApexTree, Member}
+import com.neowit.response.KeyValueMessage
+import com.neowit.utils.JsonSupport
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ListCompletions extends ApexActionWithReadOnlySession {
+class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
 
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
@@ -37,7 +39,10 @@ class ListCompletions extends ApexActionWithReadOnlySession {
                 //dump completion options into a file - 1 line per option
                 //config.responseWriter.println(SUCCESS)
                 //config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
-                ActionSuccess(sortMembers(members).map(_.toJson).mkString("\n"))
+                //ActionSuccess(sortMembers(members).map(_.toJson).mkString("\n"))
+                val resultList = sortMembers(members).map(_.toJson.convertTo[Map[String, Any]]).map(m => KeyValueMessage(m))
+                ActionSuccess(resultList)
+
             }
         Future.successful(resultOpt.getOrElse(ActionFailure("Check command line parameters")))
     }

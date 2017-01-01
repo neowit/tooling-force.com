@@ -24,11 +24,13 @@ import java.nio.file.{Files, Paths}
 
 import com.neowit.apex.completion._
 import com.neowit.apex.parser._
-import com.neowit.utils.ConfigValueException
+import com.neowit.response.JsonMessage
+import com.neowit.utils.{ConfigValueException, JsonSupport}
 
 import scala.concurrent.{ExecutionContext, Future}
+import spray.json._
 
-class FindSymbol extends ApexActionWithReadOnlySession {
+class FindSymbol extends ApexActionWithReadOnlySession with JsonSupport {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
 
@@ -93,18 +95,18 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                                 getSymbol(definition, completion) match {
                                     case Some(member) =>
                                         //config.responseWriter.println(member.serialise.compactPrint)
-                                        member.serialise.compactPrint
+                                        member.serialise
                                     case None =>
                                         println("Not local resource, no location available")
                                         //config.responseWriter.println("{}")
-                                        "{}"
+                                        Map.empty[String, Any].toJson
                                 }
                             case None =>
                                 println("Definition not found")
                                 //config.responseWriter.println("{}")
-                                "{}"
+                                Map.empty[String, Any].toJson
                         }
-                    ActionSuccess(responseJson)
+                    ActionSuccess(JsonMessage(responseJson))
                 }
             }
         Future.successful(actionResultOpt.getOrElse(ActionSuccess()))
