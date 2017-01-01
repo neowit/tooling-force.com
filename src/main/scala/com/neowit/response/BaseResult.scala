@@ -1,5 +1,7 @@
 package com.neowit.response
 
+import java.io.File
+
 import com.neowit.apex.actions.ActionResult
 import com.neowit.apex.parser.Member
 import com.neowit.utils.JsonSupport
@@ -30,3 +32,5 @@ case class FindSymbolResult(memberOpt: Option[Member]) extends BaseResult with J
 
 case class ListCompletionsResult(members: List[Member]) extends BaseResult
 
+case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
+case class RefreshMetadataResult(modified: List[File]) extends BaseResult

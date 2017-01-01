@@ -943,8 +943,6 @@ class ListModified extends ApexActionWithReadOnlySession {
      * list locally modified files using data from session.properties
      */
     def getModifiedFiles:List[File] = {
-        val config = session.getConfig
-
         //logger.debug("packageXmlData=" + packageXmlData)
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
         val allFiles = getProjectConfig.srcDirOpt match {
@@ -960,6 +958,7 @@ class ListModified extends ApexActionWithReadOnlySession {
         modifiedFiles.toList
     }
 
+    /*
     def reportModifiedFiles(modifiedFiles: List[File],
                             messageType: MessageType = INFO,
                             resultBuilder: ActionResultBuilder): ActionResultBuilder = {
@@ -975,12 +974,12 @@ class ListModified extends ApexActionWithReadOnlySession {
         resultBuilder.addMessage(KeyValueMessage(Map("HAS_MODIFIED_FILES" -> "true")))
 
         //responseWriter.startSection("MODIFIED FILE LIST")
-        val deletedFileListMsg = InfoMessage("MODIFIED FILE LIST")
+        val modifiedFileListMsg = resultBuilder.addMessage(InfoMessage("MODIFIED FILE LIST"))
         for(f <- modifiedFiles) {
             //responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
             resultBuilder.addDetail(
                 MessageDetailMap(
-                    deletedFileListMsg,
+                    modifiedFileListMsg,
                     Map("MODIFIED_FILE" -> session.getRelativePath(f))
                 )
             )
@@ -1016,6 +1015,7 @@ class ListModified extends ApexActionWithReadOnlySession {
         //responseWriter.endSection("DELETED FILE LIST")
         resultBuilder
     }
+    */
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         getProjectConfig.projectDirOpt match {
@@ -1023,6 +1023,7 @@ class ListModified extends ApexActionWithReadOnlySession {
                 val modifiedFiles = getModifiedFiles
                 val deletedFiles = session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).map(new File(projectDir, _))
 
+                /*
                 //responseWriter.println(SUCCESS)
                 val successBuilder = new ActionResultBuilder(SUCCESS)
                 //responseWriter.println("FILE_COUNT=" + modifiedFiles.size + deletedFiles.size)
@@ -1040,6 +1041,8 @@ class ListModified extends ApexActionWithReadOnlySession {
                     //responseWriter.println(new Message(INFO, "No Deleted file(s) detected."))
                 }
                 Future.successful(successBuilder.result())
+                */
+                Future.successful(ActionSuccess(ListModifiedResult(modifiedFiles, deletedFiles)))
             case None =>
                 //responseWriter.println(FAILURE)
                 //responseWriter.println(ErrorMessage("Invalid or Missing Project Path"))

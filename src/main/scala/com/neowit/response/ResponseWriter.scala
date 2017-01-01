@@ -19,11 +19,8 @@
 
 package com.neowit.response
 
-import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
-
-import com.neowit.apex.actions.{ActionFailure, ActionResult, ActionSuccess}
+import com.neowit.apex.actions.ActionResult
 import com.neowit.utils.{JsonSupport, Logging}
-import spray.json._
 
 object ResponseWriter {
 
@@ -58,102 +55,14 @@ object ResponseWriter {
 }
 
 
-class ResponseWriter(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends Logging  with JsonSupport {
+trait ResponseWriter extends Logging  with JsonSupport {
 
-    private val _writer = new PrintWriter(out, autoFlush)
+    def sendResponse(result: ActionResult): Unit
+    def send(msg: Message): Unit
+    def send(msg: String): Unit
+    def send(msg: RESULT): Unit
 
-    var needClosing = false
-
-    def this(file: File) {
-        this(new FileOutputStream(file), autoFlush = true, append = false)
-    }
-    def this(file: File, append: Boolean) {
-        this(new FileOutputStream(file), autoFlush = true, append)
-    }
-
-    def println(result: RESULT): Unit = {
-        result match {
-            case SUCCESS => this.println("RESULT=SUCCESS")
-            case FAILURE => this.println("RESULT=FAILURE")
-        }
-    }
-    def println(p1: String): Unit = {
-        _writer.println(p1)
-        needClosing = true
-        logger.debug(p1)
-    }
-    def println(msg: Message): Unit = {
-        msg match {
-            case KeyValueMessage(data) =>
-                data.foreach{
-                    case (key, value) => println(key + "=" + value)
-                }
-            case _ =>
-                println("MESSAGE: " + msg.toJson.compactPrint)
-        }
-        val details =
-            msg match {
-                case InfoMessage(_, _, _details, _) if _details.nonEmpty => _details
-                case WarnMessage(_, _, _details, _) if _details.nonEmpty => _details
-                case ErrorMessage(_, _, _details, _) if _details.nonEmpty => _details
-                case DebugMessage(_, _, _details, _) if _details.nonEmpty => _details
-                case _ => Nil
-            }
-        if (details.nonEmpty) {
-            println(details)
-        }
-    }
-    private def println(messageDetail: MessageDetailMap): Unit = {
-        println("MESSAGE DETAIL: " + messageDetail.toJson.compactPrint)
-    }
-    private def println(messageDetail: MessageDetailText): Unit = {
-        println("MESSAGE DETAIL: " + messageDetail.text)
-    }
-    def println(messageDetails: List[MessageDetail]): Unit = {
-        messageDetails.foreach{
-            case msg @ MessageDetailMap(_, _) => println(msg)
-            case msg @ MessageDetailText(_, _) => println(msg)
-        }
-    }
-    def println(prefix: String, data: Map[String, Any]): Unit = {
-        println(prefix + ": " + ResponseWriter.ensureNoNulls(data).toJson.compactPrint)
-    }
-    def println(data: Map[String, Any]): Unit = {
-        println("", data)
-    }
-    def startSection(sectionName: String): Unit = {
-        println("#SECTION START: " + sectionName)
-    }
-    def endSection(sectionName: String): Unit = {
-        println("#SECTION END: " + sectionName)
-    }
-
-    def println(result: BaseResult): Unit = {
-        result match {
-            case FindSymbolResult(Some(member)) => println(member.serialise.compactPrint)
-            case FindSymbolResult(None) => // do nothing
-            case ListCompletionsResult(members) => println(members.map(_.toJson).mkString("\n"))
-        }
-    }
-
-    def sendResponse(result: ActionResult): Unit = {
-        result match {
-            case ActionSuccess(messages, None) =>
-                println(SUCCESS)
-                messages.foreach(println(_))
-            case ActionSuccess(messages, Some(_result)) =>
-                println(SUCCESS)
-                println(_result)
-            case ActionFailure(messages) =>
-                println(FAILURE)
-                messages.foreach(println(_))
-        }
-    }
-
-    def close(): Unit = {
-        if (needClosing)
-            _writer.close()
-    }
+    def close(): Unit
 
 
 }

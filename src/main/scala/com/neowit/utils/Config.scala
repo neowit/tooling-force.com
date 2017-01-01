@@ -25,6 +25,7 @@ import java.nio.file.{Files, Paths}
 
 import com.neowit.auth._
 import com.neowit.response.ResponseWriter
+import com.neowit.response.protocols.vim.ResponseWriterVim
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -47,7 +48,7 @@ class BasicConfig extends Logging {
     def setOutputStream(out: OutputStream): Unit = { this.out = out}
 
     private var providedResponseWriter: Option[ResponseWriter] =  None
-    private val internalResponseWriter =  new ResponseWriter(this.out)
+    private val internalResponseWriter =  new ResponseWriterVim(this.out)
     def setResponseWriter(writer: ResponseWriter): Unit = this.providedResponseWriter = Option(writer)
     lazy val getResponseWriter: ResponseWriter = providedResponseWriter.getOrElse(internalResponseWriter)
 
@@ -132,7 +133,7 @@ class BasicConfig extends Logging {
 
         responseFile match {
             case Some(f) =>
-                setResponseWriter(new ResponseWriter(f))
+                setResponseWriter(new ResponseWriterVim(f))
             case None =>
         }
         //lastRunOutputFile

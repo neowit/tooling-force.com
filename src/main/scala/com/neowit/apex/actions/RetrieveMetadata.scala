@@ -200,7 +200,8 @@ class RefreshMetadata extends RetrieveMetadata {
                 //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
                 actionResultBuilder.addMessage(DebugMessage("Use --skipModifiedFilesCheck=true command line option to force Refresh"))
 
-                modifiedFileChecker.reportModifiedFiles(modifiedFiles, WARN, actionResultBuilder)
+                //modifiedFileChecker.reportModifiedFiles(modifiedFiles, WARN, actionResultBuilder)
+                actionResultBuilder.setResult(RefreshMetadataResult(modifiedFiles))
             }
         } catch {
             case ex:Throwable =>

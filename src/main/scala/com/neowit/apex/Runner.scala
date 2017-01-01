@@ -55,7 +55,7 @@ class Executor extends Logging {
             } catch {
                 case ex: InvalidCommandLineException =>
                     if (null != ex.getMessage) {
-                        basicConfig.getResponseWriter.println(ex.getMessage)
+                        basicConfig.getResponseWriter.send(ex.getMessage)
                         logger.error(ex.getMessage)
                     }
                     basicConfig.help()
@@ -71,7 +71,7 @@ class Executor extends Logging {
                     System.out.println(stackTraceStr)
                     */
                     if (ex.message.nonEmpty) {
-                        basicConfig.getResponseWriter.println(ex.message)
+                        basicConfig.getResponseWriter.send(ex.message)
                         logger.error(ex.message)
                     }
                     help(ex.help)
@@ -91,15 +91,15 @@ class Executor extends Logging {
                 case e: RetrieveError =>
                     val messages = e.retrieveResult.getMessages
                     val _responseWriter = basicConfig.getResponseWriter//e.responseWriterOpt.getOrElse(basicConfig.getResponseWriter)
-                    _responseWriter.println(FAILURE)
+                    _responseWriter.send(FAILURE)
                     for (msg <- messages) {
-                        _responseWriter.println("ERROR", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem))
+                        _responseWriter.send(ErrorMessage("", Map("filePath" -> msg.getFileName, "text" -> msg.getProblem)))
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
                     logger.error(e)
-                    basicConfig.getResponseWriter.println(FAILURE)
-                    basicConfig.getResponseWriter.println(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    basicConfig.getResponseWriter.send(FAILURE)
+                    basicConfig.getResponseWriter.send(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
@@ -113,8 +113,8 @@ class Executor extends Logging {
                     System.out.println(stackTraceStr)
                     //ex.printStackTrace(System.out)
 
-                    basicConfig.getResponseWriter.println(FAILURE)
-                    basicConfig.getResponseWriter.println("ERROR", Map("text" -> ex.getMessage))
+                    basicConfig.getResponseWriter.send(FAILURE)
+                    basicConfig.getResponseWriter.send(ErrorMessage(ex.getMessage))
                     isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
