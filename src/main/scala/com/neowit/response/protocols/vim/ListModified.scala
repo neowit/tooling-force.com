@@ -31,7 +31,7 @@ object ListModified {
         responseWriter.send(msg)
 
         for(f <- modifiedFiles) {
-            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> writer.getRelativePath(f))))
+            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> ResponseWriter.getRelativePath(f))))
         }
         responseWriter.send("HAS_MODIFIED_FILES=true")
 
@@ -52,13 +52,13 @@ object ListModified {
         responseWriter.send(msg)
 
         for(f <- deletedFiles) {
-            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> writer.getRelativePath(f))))
+            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> ResponseWriter.getRelativePath(f))))
         }
         responseWriter.send("HAS_DELETED_FILES=true")
 
         responseWriter.startSection("DELETED FILE LIST")
         for(f <- deletedFiles) {
-            responseWriter.send("DELETED_FILE=" + writer.getRelativePath(f))
+            responseWriter.send("DELETED_FILE=" + ResponseWriter.getRelativePath(f))
         }
         responseWriter.endSection("DELETED FILE LIST")
     }

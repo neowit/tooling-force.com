@@ -23,7 +23,7 @@ import java.io.{File, FileOutputStream, OutputStream, PrintWriter}
 
 import com.neowit.apex.actions.{ActionFailure, ActionResult, ActionSuccess}
 import com.neowit.response._
-import com.neowit.utils.{FileUtils, JsonSupport}
+import com.neowit.utils.JsonSupport
 import spray.json._
 
 trait VimProtocol[A <: BaseResult] {
@@ -47,23 +47,6 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
 
     override def send(msg: RESULT): Unit = println(msg)
 
-
-    /**
-      * return relative path inside project folder
-      * this path is used as key in session
-      * @param file - resource under project folder
-      * @return - string, looks like: unpackaged/pages/Hello.page
-      */
-    def getRelativePath(file: File): String = {
-        //find parent src/ or unpackaged/
-        FileUtils.getParentByName(file, Set("src", "unpackaged")) match {
-            case Some(srcFolder) if null != srcFolder.getParentFile =>
-                val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
-                val res = file.getAbsolutePath.substring(projectPath.length)
-                FileUtils.normalizePath(res)
-            case None => file.getAbsolutePath
-        }
-    }
 
     private def println(result: RESULT): Unit = {
         result match {

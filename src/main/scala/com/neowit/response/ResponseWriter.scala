@@ -19,8 +19,10 @@
 
 package com.neowit.response
 
+import java.io.File
+
 import com.neowit.apex.actions.ActionResult
-import com.neowit.utils.{JsonSupport, Logging}
+import com.neowit.utils.{FileUtils, JsonSupport, Logging}
 
 object ResponseWriter {
 
@@ -52,6 +54,23 @@ object ResponseWriter {
             case c if (c >= '\u0000' && c <= '\u001f') || (c >= '\u007f' && c <= '\u009f') => "\\u%04x".format(c: Int)
             case c => c
         }.mkString
+
+    /**
+      * return relative path inside project folder
+      * this path is used as key in session
+      * @param file - resource under project folder
+      * @return - string, looks like: unpackaged/pages/Hello.page
+      */
+    def getRelativePath(file: File): String = {
+        //find parent src/ or unpackaged/
+        FileUtils.getParentByName(file, Set("src", "unpackaged")) match {
+            case Some(srcFolder) if null != srcFolder.getParentFile =>
+                val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
+                val res = file.getAbsolutePath.substring(projectPath.length)
+                FileUtils.normalizePath(res)
+            case None => file.getAbsolutePath
+        }
+    }
 }
 
 

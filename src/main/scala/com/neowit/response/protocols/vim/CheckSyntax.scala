@@ -22,7 +22,7 @@
 package com.neowit.response.protocols.vim
 
 
-import com.neowit.response.CheckSyntaxResult
+import com.neowit.response.{CheckSyntaxResult, ResponseWriter}
 
 /**
   * Author: Andrey Gavrikov
@@ -34,7 +34,7 @@ class CheckSyntax(writer: ResponseWriterVim) extends VimProtocol[CheckSyntaxResu
             val sourceFile = result.sourceFile
             writer.startSection("ERROR LIST")
 
-            val pathToReport = writer.getRelativePath(sourceFile)
+            val pathToReport = ResponseWriter.getRelativePath(sourceFile)
             errors.foreach{e =>
                 writer.println("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
             }
