@@ -19,11 +19,9 @@
 
 package com.neowit.apex
 
-import java.io.{File, PrintWriter}
 
-import com.neowit.apex.actions.{ActionError, ActionResultBuilder, Deploy, DescribeMetadata}
-import com.neowit.utils.{Config, FileUtils, JsonSupport}
-import spray.json._
+import com.neowit.apex.actions._
+import com.neowit.utils.JsonSupport
 import com.neowit.response._
 
 
@@ -55,6 +53,15 @@ trait RunTestFailure {
     def getStackTrace: String
 }
 
+case class ProcessedTestFailure(id: Option[String],
+                                `type`: String,
+                                line: Option[Int],
+                                column: Option[Int],
+                                filePath: Option[String],
+                                message: String,
+                                methodName: Option[String],
+                                parentId: Option[String])
+
 object ApexTestUtils extends JsonSupport {
     //Class.Test1: line 19, column 1
     private val TypeFileLineColumnRegex = """.*(Class|Trigger)\.(\w*).*line (\d+), column (\d+).*""".r
@@ -64,111 +71,43 @@ object ApexTestUtils extends JsonSupport {
     /**
      * process code coverage results
      * @param runTestResult - deployDetails.getRunTestResult
-     * @return set of file names (e.g. MyClass) for which we had coverage
+     * @return CodeCoverageReport
      */
-    def processCodeCoverage(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
-                            actionResultBuilder: ActionResultBuilder ): Option[File] = {
-        val config: Config = session.getConfig
-        val metadataByXmlName = DescribeMetadata.getMap(session)
-        val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
-            case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
-            case None => ("classes", "cls")
-        }
-        val (triggerDir, triggerExtension) = metadataByXmlName.get("ApexTrigger") match {
-            case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
-            case None => ("triggers", "trigger")
-        }
-        //only display coverage details of files included in deployment package
-        val coverageDetails = WarnMessage("Code coverage details")
-        val hasCoverageData = runTestResult.getCodeCoverage.nonEmpty
-        var coverageFile: Option[File] = None
-        val coverageWriter = config.getProperty("reportCoverage").getOrElse("false") match {
-            case "true" if hasCoverageData =>
-                coverageFile = Some(FileUtils.createTempFile("coverage", ".txt"))
-                val writer = new PrintWriter(coverageFile.get)
-                Some(writer)
-            case _ => None
-        }
-
-        if (runTestResult.getCodeCoverage.nonEmpty) {
-            //responseWriter.println(coverageDetails)
-            actionResultBuilder.addMessage(coverageDetails)
-        }
-
-        val reportedNames = Set.newBuilder[String]
-        val coverageRelatedMessages = Map.newBuilder[String, MessageDetail]
-        for ( coverageResult <- runTestResult.getCodeCoverage) {
-            reportedNames += coverageResult.getName
-            val linesCovered = coverageResult.getNumLocations - coverageResult.getNumLocationsNotCovered
-            val coveragePercent = if (coverageResult.getNumLocations > 0) linesCovered * 100 / coverageResult.getNumLocations else 0
-            coverageRelatedMessages += coverageResult.getName -> MessageDetailMap(coverageDetails,
-                Map("text" ->
-                    (coverageResult.getName +
-                        ": lines total " + coverageResult.getNumLocations +
-                        "; lines not covered " + coverageResult.getNumLocationsNotCovered +
-                        "; covered " + coveragePercent + "%"),
-                    "type" -> (if (coveragePercent >= 75) INFO else WARN)
-                )
-            )
-
-            coverageWriter match {
-                case Some(writer) =>
-                    val filePath = session.getRelativePath(classDir, coverageResult.getName + "." + classExtension) match {
-                        case Some(relPath) => Some(relPath)
-                        case None =>
-                            //check if this is a trigger name
-                            session.getRelativePath(triggerDir, coverageResult.getName + "." + triggerExtension) match {
-                                case Some(relPath) => Some(relPath)
-                                case None => None
-                            }
-                    }
-                    filePath match {
-                        case Some(relPath) =>
-                            val locations = List.newBuilder[Int]
-                            for (codeLocation <- coverageResult.getLocationsNotCovered) {
-                                locations += codeLocation.getLine
-                            }
-                            val coverageJSON: JsValue = Map("path" -> relPath, "linesTotalNum" -> coverageResult.getNumLocations,
-                                "linesNotCoveredNum" -> coverageResult.getNumLocationsNotCovered,
-                                "linesNotCovered" -> locations.result().toJson ).toJson
-                            // end result looks like so:
-                            // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
-                            writer.println(coverageJSON.compactPrint)
-                        case None =>
-                    }
-                case None =>
+    def processCodeCoverage(runTestResult: com.neowit.apex.RunTestsResult, session: Session ): Option[CodeCoverageReport] = {
+        if (runTestResult.getCodeCoverage.nonEmpty || runTestResult.getCodeCoverageWarnings.nonEmpty) {
+            val metadataByXmlName = DescribeMetadata.getMap(session)
+            val (classDir, classExtension) = metadataByXmlName.get("ApexClass") match {
+                case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+                case None => ("classes", "cls")
             }
-        }
-        //dump coverage related MessageDetail-s into the response file, making sure that messages are sorted by file name
-        val messageDetailsSortedByFileName = coverageRelatedMessages.result().toSeq.sortBy(_._1.toLowerCase).map(_._2).toList
-        //responseWriter.println(messageDetailsSortedByFileName)
-        actionResultBuilder.addDetails(messageDetailsSortedByFileName)
-
-        val coverageMessage = WarnMessage("Code coverage warnings")
-        if (runTestResult.getCodeCoverageWarnings.nonEmpty) {
-            //responseWriter.println(coverageMessage)
-            actionResultBuilder.addMessage(coverageMessage)
-        }
-        val reportedNamesSet = reportedNames.result()
-        for ( coverageWarning <- runTestResult.getCodeCoverageWarnings) {
-            if (null != coverageWarning.getName) {
-                if (!reportedNamesSet.contains(coverageWarning.getName)) {
-                    //responseWriter.println(MessageDetailMap(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
-                    actionResultBuilder.addDetail(MessageDetailMap(coverageMessage, Map("text" -> (coverageWarning.getName + ": " + coverageWarning.getMessage))))
+            val (triggerDir, triggerExtension) = metadataByXmlName.get("ApexTrigger") match {
+                case Some(describeObject) => (describeObject.getDirectoryName, describeObject.getSuffix)
+                case None => ("triggers", "trigger")
+            }
+            val coveragePerFile = List.newBuilder[SingleFileTestCoverage]
+            for ( coverageResult <- runTestResult.getCodeCoverage) {
+                val relativeFilePath = session.getRelativePath(classDir, coverageResult.getName + "." + classExtension) match {
+                    case Some(relPath) => Some(relPath)
+                    case None =>
+                        //check if this is a trigger name
+                        session.getRelativePath(triggerDir, coverageResult.getName + "." + triggerExtension) match {
+                            case Some(relPath) => Some(relPath)
+                            case None => None
+                        }
                 }
-            } else {
-                //responseWriter.println(MessageDetailMap(coverageMessage, Map("text" -> coverageWarning.getMessage)))
-                actionResultBuilder.addDetail(MessageDetailMap(coverageMessage, Map("text" -> coverageWarning.getMessage)))
+                relativeFilePath match {
+                    case Some(relPath) =>
+                        coveragePerFile +=
+                            SingleFileTestCoverage(relPath, coverageResult.getNumLocations, coverageResult.getNumLocationsNotCovered, coverageResult.getLocationsNotCovered)
+                    case None =>
+                }
+
             }
+            Option(CodeCoverageReport(coveragePerFile.result(), runTestResult.getCodeCoverageWarnings))
 
+        } else {
+            None
         }
-
-        coverageWriter match {
-            case Some(writer) =>
-                writer.close()
-            case _ =>
-        }
-        coverageFile
     }
     /**
      * --testsToRun="comma separated list of class.method names",
@@ -217,9 +156,10 @@ object ApexTestUtils extends JsonSupport {
         }
     }
 
-    def processTestResult(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
+    //todo - remove
+    def processTestResult2(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
                           actionResultBuilder: ActionResultBuilder): Unit = {
-        val metadataByXmlName = DescribeMetadata.getMap(session)
+        //val metadataByXmlName = DescribeMetadata.getMap(session)
 
 
         val testFailureMessage = ErrorMessage("Test failures")
@@ -243,8 +183,8 @@ object ApexTestUtils extends JsonSupport {
                 for (traceLine <- stackTrace.split("\n")) {
                     //Class.Test1.prepareData: line 13, column 1
                     parseStackTraceLine(traceLine) match {
-                        case Some((typeName, fileName, methodName, line, column)) =>
-                            val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName, metadataByXmlName)
+                        case Some(StackTraceLine(typeName, fileName, methodName, line, column)) =>
+                            val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
                             val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
                             val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
                             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
@@ -264,7 +204,7 @@ object ApexTestUtils extends JsonSupport {
             } else { //no stack trace, try to parse cine/column/filePath from error message
             val typeName = failureMessage.getType
                 val fileName = failureMessage.getName
-                val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName, metadataByXmlName)
+                val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
                 //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
                 actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
@@ -276,6 +216,97 @@ object ApexTestUtils extends JsonSupport {
 
         Unit
     }
+    def processTestResult(runTestResult: com.neowit.apex.RunTestsResult, session: Session): List[ProcessedTestFailure] = {
+        //val metadataByXmlName = DescribeMetadata.getMap(session)
+        val errorBuilder = List.newBuilder[ProcessedTestFailure]
+
+        for ( failureMessage <- runTestResult.getFailures) {
+
+            val problem = failureMessage.getMessage
+            //val className = failureMessage.getName
+            //now parse stack trace
+            val stackTrace = failureMessage.getStackTrace
+            if (null != stackTrace) {
+                //each line is separated by '\n'
+                var showProblem = true
+                for (traceLine <- stackTrace.split("\n")) {
+                    //Class.Test1.prepareData: line 13, column 1
+                    parseStackTraceLine(traceLine) match {
+                        case Some(StackTraceLine(typeName, fileName, methodName, line, column)) =>
+                            val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
+                            val inMethod = if (methodName.isEmpty) None else Option(methodName)
+                            val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod.getOrElse("")+ ". Details see above"
+                            //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
+                            errorBuilder +=
+                                ProcessedTestFailure(
+                                    id = None,
+                                    `type` = failureMessage.getType,
+                                    line = Option(line),
+                                    column = Option(column),
+                                    Option(filePath),
+                                    message = _problem,
+                                    methodName = inMethod,
+                                    parentId = None
+                                )
+                            if (showProblem) {
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
+                                //actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
+                                errorBuilder +=
+                                    ProcessedTestFailure(
+                                        id = None,
+                                        `type` = failureMessage.getType,
+                                        line = None,
+                                        column = None,
+                                        Option(filePath),
+                                        message = problem,
+                                        methodName = None,
+                                        parentId = Option(failureMessage.getId)
+                                    )
+                            }
+                        case None => //failed to parse anything meaningful, fall back to simple message
+                            //responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
+                            if (showProblem) {
+                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
+                                //actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
+                                errorBuilder +=
+                                    ProcessedTestFailure(
+                                        id = Option(failureMessage.getId),
+                                        `type` = failureMessage.getType,
+                                        line = None,
+                                        column = None,
+                                        filePath = None,
+                                        message = problem,
+                                        methodName = None,
+                                        parentId = None
+                                    )
+                            }
+                    }
+                    showProblem = false
+                }
+            } else { //no stack trace, try to parse cine/column/filePath from error message
+                val typeName = failureMessage.getType
+                val fileName = failureMessage.getName
+                val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
+                //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ResponseWriter.ERROR, "filePath" -> filePath, "text" -> problem)))
+                errorBuilder +=
+                    ProcessedTestFailure(
+                        id = Option(failureMessage.getId),
+                        `type` = failureMessage.getType,
+                        line = Option(line),
+                        column = Option(column),
+                        Option(filePath),
+                        message = problem,
+                        methodName = None,
+                        parentId = None
+                    )
+            }
+
+        }
+        //responseWriter.endSection("ERROR LIST")
+
+        errorBuilder.result()
+    }
     /**
      *
      * @param traceLine -
@@ -283,24 +314,24 @@ object ApexTestUtils extends JsonSupport {
      *                  Class.Test1: line 19, column 1
      * @return (typeName, fileName, methodName, line, column)
      */
-    protected def parseStackTraceLine(traceLine: String): Option[(String, String, String, Int, Int )] = {
+    protected def parseStackTraceLine(traceLine: String): Option[StackTraceLine] = {
 
         //Class.Test1.prepareData: line 13, column 1
         //val (typeName, fileName, methodName, line, column) =
         try {
             val TypeFileMethodLineColumnRegex(_typeName, _fileName, _methodName, _line, _column) = traceLine
-            Some((_typeName, _fileName, _methodName, _line.toInt, _column.toInt))
+            Some(StackTraceLine(_typeName, _fileName, _methodName, _line.toInt, _column.toInt))
         } catch {
             case _:scala.MatchError =>
                 //Class.Test1: line 19, column 1
                 try {
                     val TypeFileLineColumnRegex(_typeName, _fileName, _line, _column) = traceLine
-                    Some((_typeName, _fileName, "", _line.toInt, _column.toInt))
+                    Some(StackTraceLine(_typeName, _fileName, "", _line.toInt, _column.toInt))
                 } catch {
                     case _:scala.MatchError =>
                         //... line 155, column 41: ....
                         Deploy.parseLineColumn(traceLine)  match {
-                            case Some((_line, _column)) => Some(("", "", "", _line, _column))
+                            case Some((_line, _column)) => Some(StackTraceLine("", "", "", _line, _column))
                             case None => None
                         }
                     case _:Throwable => None
@@ -310,3 +341,5 @@ object ApexTestUtils extends JsonSupport {
     }
 
 }
+
+case class StackTraceLine(typeName: String, fileName: String, methodName: String, line: Int, column: Int)

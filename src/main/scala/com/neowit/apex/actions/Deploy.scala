@@ -99,8 +99,7 @@ object Deploy {
     /**
      * @return (line, column, relativeFilePath)
      */
-    def getMessageData(session: Session, problem: String, typeName: String, fileName: String,
-                       metadataByXmlName: Map[String, DescribeMetadataObject]): (Int, Int, String) = {
+    def getMessageData(session: Session, problem: String, typeName: String, fileName: String): (Int, Int, String) = {
         val suffix = typeName match {
             case "Class" => "cls"
             case "Trigger" => "trigger"
@@ -237,13 +236,21 @@ class DeployModified extends Deploy {
                 //first check if SFDC has newer version of files we are about to deploy
                 val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
 
-                val resultBuilder = new ActionResultBuilder()
-                val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles, resultBuilder) || hasTestsToRun
+                val conflictReport = if (ignoreConflicts) DeploymentConflictsReport(hasConflicts = false) else getConflicts(modifiedFiles)
 
-                if (canDeploy) {
-                    deploy(modifiedFiles, isUpdateSessionDataOnSuccess, resultBuilder)
+                val deploymentResult =
+                if (conflictReport.hasConflicts) {
+                    DeploymentResult(isSuccess = false, None, conflicts = conflictReport.conflicts)
+                } else {
+                    deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
+
                 }
-                resultBuilder.result()
+                if (deploymentResult.isSuccess) {
+                    ActionSuccess(DeployModifiedResult(deploymentResult))
+                } else {
+                    ActionFailure(DeployModifiedResult(deploymentResult))
+                }
+
             }
         Future.successful(actionResult)
     }
@@ -269,13 +276,11 @@ class DeployModified extends Deploy {
     /**
      * @return - true if deployment is successful
      */
-    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
-        deploy(files, updateSessionDataOnSuccess, resultBuilder, None)
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+        deploy(files, updateSessionDataOnSuccess, None)
     }
-    //TODO
-    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder, alternativeSrcDir: Option[File] = None): Boolean = {
 
-        var success = false //assume failure by default
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, alternativeSrcDir: Option[File] = None): DeploymentResult = {
 
         //for every modified file add its -meta.xml if exists
         val metaXmlFiles = for (file <- files;
@@ -353,41 +358,42 @@ class DeployModified extends Deploy {
         if (alternativeSrcDir.isEmpty && session.getConfig.srcDirOpt.isEmpty) {
             //responseWriter.println(FAILURE)
             //responseWriter.println(ErrorMessage("src folder not found"))
-            resultBuilder.setResultType(FAILURE)
-            resultBuilder.addMessage(ErrorMessage("src folder not found"))
-            return false
+            return DeploymentResult(isSuccess = false, None)
         }
         val srcDir = alternativeSrcDir.getOrElse(session.getConfig.srcDirOpt.get)
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(srcDir, excludeFileFromZip(allFilesToDeploySet, _),
             disableNotNeededTests(_, testMethodsByClassName)), deployOptions)
 
         val deployDetails = deployResult.getDetails
+
+        val result =
         if (!deployResult.isSuccess) {
             //responseWriter.println(FAILURE)
-            resultBuilder.setResultType(FAILURE)
             //dump details of failures into a response file
-            writeDeploymentFailureReport(deployDetails, isRunningTests, resultBuilder)
+            val failureReport = prepareDeploymentFailureReport(deployDetails, isRunningTests) //TODO
+
+            DeploymentResult( isSuccess = false, failureReport )
+
         } else { //deployResult.isSuccess = true
 
             val runTestResult = deployDetails.getRunTestResult
-            if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
-                //responseWriter.println(InfoMessage("Tests PASSED"))
-                resultBuilder.addMessage(InfoMessage("Tests PASSED"))
-            }
+            val testsPassedOpt =
+                if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
+                    //responseWriter.println(InfoMessage("Tests PASSED"))
+                    Option(true)
+                } else {
+                    None
+                }
             if (isRunningTests && (null != runTestResult) && runTestResult.getTotalTime > 0 ) {
                 logger.info(s"total cumulative time spent running tests: ${runTestResult.getTotalTime}")
             }
-            ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session, resultBuilder) match {
-                case Some(coverageFile) =>
-                    //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-                    resultBuilder.addMessage( KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)) )
-                case _ =>
-            }
+            val coverageReportOpt = ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
             //update session data for successful files
             if (updateSessionDataOnSuccess) {
                 updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
             }
             session.storeSessionData()
+            /*
             //responseWriter.println(SUCCESS)
             //responseWriter.println("FILE_COUNT=" + files.size)
             resultBuilder.setResultType(SUCCESS)
@@ -403,16 +409,27 @@ class DeployModified extends Deploy {
 
 
             }
-            success = true
+            */
+            DeploymentResult(
+                isSuccess = true,
+                failureReport = None,
+                files.length,
+                coverageReportOpt,
+                logFile = None,
+                deployedFiles = if (!checkOnly) files else Nil,
+                testsPassedOpt
+            )
         }
         if (!log.isEmpty) {
             val logFile = getProjectConfig.getLogFile
             FileUtils.writeFile(log, logFile)
             //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
-            resultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
+            //resultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
+            result.copy(logFile = Option(logFile))
+        } else {
+            result
         }
 
-        success
     }
 
     //update session data for successful files
@@ -496,43 +513,39 @@ class DeployModified extends Deploy {
         }
     }
 
-    private def writeDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean, resultBuilder: ActionResultBuilder): Unit = {
+    private def prepareDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Option[DeploymentFailureReport] = {
 
         if (null != deployDetails) {
             //responseWriter.startSection("ERROR LIST")
 
             //display errors both as messages and as ERROR: lines
-            val componentFailureMessage = WarnMessage("Component failures")
-            if (deployDetails.getComponentFailures.nonEmpty) {
-                //responseWriter.println(componentFailureMessage)
-                resultBuilder.addMessage(componentFailureMessage)
-            }
+            val failures = List.newBuilder[ErrorWithLocation]
             for ( failureMessage <- deployDetails.getComponentFailures) {
                 val line = failureMessage.getLineNumber
                 val column = failureMessage.getColumnNumber
                 val filePath = failureMessage.getFileName
                 val problem = failureMessage.getProblem
                 val problemType = failureMessage.getProblemType match {
-                    case DeployProblemType.Warning => WARN
-                    case DeployProblemType.Error => ERROR
-                    case _ => ERROR
+                    case DeployProblemType.Warning => GenericDeploymentWarning
+                    case DeployProblemType.Error => GenericDeploymentError
+                    case _ => GenericDeploymentError
                 }
                 //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 //responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
-                resultBuilder.addDetail( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)) )
+                failures += ErrorWithLocation(problemType, problem, Location(filePath, line, column))
             }
             //process test successes and failures
             val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
-            if (isRunningTests || (null != deployDetails.getRunTestResult && deployDetails.getRunTestResult.getFailures.nonEmpty) ) {
-                ApexTestUtils.processTestResult(runTestResult, session, resultBuilder)
-            }
-            val coverageReportFile = ApexTestUtils.processCodeCoverage(runTestResult, session, resultBuilder)
-            coverageReportFile match {
-                case Some(coverageFile) =>
-                    //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-                    resultBuilder.addMessage(KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)))
-                case _ =>
-            }
+            val testFailures =
+                if (isRunningTests || (null != deployDetails.getRunTestResult && deployDetails.getRunTestResult.getFailures.nonEmpty) ) {
+                    ApexTestUtils.processTestResult(runTestResult, session)
+                } else {
+                    Nil
+                }
+            val coverageReport = ApexTestUtils.processCodeCoverage(runTestResult, session)
+            Option(DeploymentFailureReport(failures.result(), testFailures, coverageReport))
+        } else {
+            None
         }
 
     }
@@ -550,30 +563,32 @@ class DeployModified extends Deploy {
         checker.getFilesNewerOnRemote(files)
     }
 
-    protected def hasConflicts(files: List[File], actionResultBuilder: ActionResultBuilder): Boolean = {
+    protected def getConflicts(files: List[File]): DeploymentConflictsReport = {
         if (files.nonEmpty) {
             logger.info("Check Conflicts with Remote")
             getFilesNewerOnRemote(files) match {
                 case Some(conflictingFiles) =>
                     if (conflictingFiles.nonEmpty) {
                         //responseWriter.println(FAILURE)
-                        actionResultBuilder.setResultType(FAILURE)
+                        //actionResultBuilder.setResultType(FAILURE)
 
-                        val msg = WarnMessage("Outdated file(s) detected.")
+                        //val msg = WarnMessage("Outdated file(s) detected.")
                         //responseWriter.println(msg)
-                        actionResultBuilder.addMessage(msg)
                         val checker = new ListConflicting().load[ListConflicting](session)
-                        checker.generateConflictMessageDetails(conflictingFiles, msg).
-                            foreach{detail => actionResultBuilder.addDetail(detail)}
+                        val conflictReport = checker.generateConflictMessageDetails(conflictingFiles)
+                        conflictReport
+
                         //responseWriter.println(WarnMessage("Use 'refresh' before 'deploy'."))
-                        actionResultBuilder.addMessage(WarnMessage("Use 'refresh' before 'deploy'."))
+                    } else {
+                        DeploymentConflictsReport(hasConflicts = false)
                     }
-                    conflictingFiles.nonEmpty
-                case None => false
+                    //conflictingFiles.nonEmpty
+                case None =>
+                    DeploymentConflictsReport(hasConflicts = false)
             }
         } else {
             logger.debug("File list is empty, nothing to check for Conflicts with Remote")
-            false
+            DeploymentConflictsReport(hasConflicts = false)
         }
     }
 
@@ -674,10 +689,13 @@ class DeployAll extends DeployModified {
 
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val allFiles = getAllFiles
-        val resultBuilder = new ActionResultBuilder()
-        deploy(allFiles, isUpdateSessionDataOnSuccess, resultBuilder)
+        val result = deploy(allFiles, isUpdateSessionDataOnSuccess)
 
-        Future.successful(resultBuilder.result())
+        if (result.isSuccess) {
+            Future.successful(ActionSuccess(DeployAllResult(result)))
+        } else {
+            Future.successful(ActionFailure(DeployAllResult(result)))
+        }
     }
 
     /**
@@ -744,12 +762,12 @@ class DeployAllDestructive extends DeployAll {
         diffWithRemote.load[DiffWithRemote](session)
 
         val resultBuilder = new ActionResultBuilder()
-        val actionResult =
+        val actionResultFuture =
             diffWithRemote.getDiffReport(resultBuilder) match {
                 case None =>
                     //responseWriter.println(FAILURE)
                     //responseWriter.println(ErrorMessage("Failed to load remote version of current project"))
-                    ActionFailure(ErrorMessage("Failed to load remote version of current project"))
+                    Future.successful(ActionFailure(ErrorMessage("Failed to load remote version of current project")))
 
                 case Some(diffReport) =>
                     val dummyFilesBuilder = Map.newBuilder[String, File]
@@ -779,18 +797,23 @@ class DeployAllDestructive extends DeployAll {
 
                     val (srcDir, filesToDeploy) = moveAllFilesUnderOneSrc(allFiles)
 
-                    val isDeploySuccessful = deploy(filesToDeploy, isUpdateSessionDataOnSuccess, resultBuilder, Some(srcDir))
-                    if (isDeploySuccessful) {
+                    val deploymentResult = deploy(filesToDeploy, isUpdateSessionDataOnSuccess, Some(srcDir))
+                    //val isDeploySuccessful = deploy(filesToDeploy, isUpdateSessionDataOnSuccess, resultBuilder, Some(srcDir))
+                    if (deploymentResult.isSuccess) {
                         //save response file
                         //execute DeployDestructive using list of blank files
-                        deleteFiles(dummyFileByRelativePath.keys ++ keysToDeleteWithoutDummy.result())
+                        deleteFiles(dummyFileByRelativePath.keys ++ keysToDeleteWithoutDummy.result()).map{
+                            case failure @ ActionFailure(_, _) => failure
+                            case _ =>
+                                ActionSuccess(DeployAllDestructiveResult(deploymentResult, Option(diffReport)))
+                        }
                         //responseWriter.println(new Message(INFO, "REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
-                        resultBuilder.addMessage(InfoMessage("REMOTE_VERSION_BACKUP_PATH=" + diffReport.remoteSrcFolderPath))
+                    } else {
+                        Future.successful(ActionFailure(DeployAllDestructiveResult(deploymentResult, None)))
                     }
-                    resultBuilder.result()
 
             }
-        Future.successful(actionResult)
+        actionResultFuture
     }
 
     /**
@@ -1007,7 +1030,7 @@ class ListModified extends ApexActionWithReadOnlySession {
         resultBuilder
 
     }
-    
+
     def reportDeletedFiles(deletedFiles: List[File], resultBuilder: ActionResultBuilder): ActionResultBuilder = {
         val msg = InfoMessage("Deleted file(s) detected.", Map("code" -> "HAS_DELETED_FILES"))
         //responseWriter.println(msg)
@@ -1351,45 +1374,52 @@ class DeployModifiedDestructive extends DeployModified {
         val modifiedFiles = listModified.getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml")
 
-        val actionResultBuilder = new ActionResultBuilder()
+        //val actionResultBuilder = new ActionResultBuilder()
 
-        val isOkToDelete =
-        if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
-            if (session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).isEmpty) {
-                //responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setResultType(SUCCESS)
-                //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)))
-                //responseWriter.println(new Message(INFO, "no modified files detected."))
-                actionResultBuilder.addMessage(InfoMessage("no modified files detected."))
-                false
+        val (isOkToDelete, deployResultOpt) =
+            if (!hasTestsToRun && filesWithoutPackageXml.isEmpty) {
+                if (session.getDeletedLocalFilePaths(extraSrcFoldersToLookIn = Nil).isEmpty) {
+                    //responseWriter.println("RESULT=SUCCESS")
+                    //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
+                    //responseWriter.println(new Message(INFO, "no modified files detected."))
+                    (false, Option(DeploymentResult(isSuccess = true, failureReport = None, fileCount = 0)))
+                } else {
+                    //process files that need to be deleted
+                    //deleteFiles()
+                    (true, None)
+                }
             } else {
-                //process files that need to be deleted
-                //deleteFiles()
-                true
-            }
-        } else {
-            //first check if SFDC has newer version of files we are about to deploy
-            val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
-            //val hasConflicts = hasConflicts(deletedFiles)
+                //first check if SFDC has newer version of files we are about to deploy
+                val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+                //val hasConflicts = hasConflicts(deletedFiles)
 
-            val canDeploy = ignoreConflicts || !hasConflicts(modifiedFiles, actionResultBuilder) || hasTestsToRun
+                val canDeploy = ignoreConflicts || !getConflicts(modifiedFiles).hasConflicts || hasTestsToRun
 
-            if (canDeploy && deploy(modifiedFiles, isUpdateSessionDataOnSuccess, actionResultBuilder)) {
-                //process files that need to be deleted
-                //deleteFiles()
-                true
-            } else {
-                false
+                if (canDeploy) {
+                    val deployResult = deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
+                    //process files that need to be deleted
+                    //deleteFiles()
+                    (true, Option(deployResult))
+                } else {
+                    (false, None)
+                }
             }
-        }
         if (isOkToDelete) {
-            deleteFiles().map{ deleteResult =>
-                actionResultBuilder.add(deleteResult)
-                actionResultBuilder.result()
+            deleteFiles().map{
+                case res @ ActionFailure(_, _) => res
+                case res @ ActionSuccess(_, _) => res
             }
         } else {
-            Future.successful(actionResultBuilder.result())
+            deployResultOpt match {
+                case Some(deployResult) if deployResult.isSuccess =>
+                    Future.successful(ActionSuccess(DeployModifiedDestructiveResult(deployResultOpt)))
+                case Some(deployResult) if !deployResult.isSuccess =>
+                    // deployment failed
+                    Future.successful(ActionFailure(DeployModifiedDestructiveResult(deployResultOpt)))
+                case None =>
+                    // nothing to delete
+                    Future.successful(ActionSuccess(DeployModifiedDestructiveResult(None)))
+            }
         }
     }
     private def deleteFiles()(implicit ec: ExecutionContext): Future[ActionResult] = {

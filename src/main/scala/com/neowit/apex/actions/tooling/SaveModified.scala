@@ -22,7 +22,7 @@ package com.neowit.apex.actions.tooling
 import com.neowit.apex.{MetadataType, Session}
 import java.io.File
 
-import com.neowit.apex.actions._
+import com.neowit.apex.actions.{ErrorWithLocation, _}
 import com.sforce.soap.tooling._
 import com.neowit.response._
 import com.neowit.utils.{FileUtils, ZipUtils, ZuluTime}
@@ -152,35 +152,94 @@ class SaveModified extends DeployModified {
     /**
      * @return - true if deployment is successful
      */
-    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
+    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
         logger.debug("Entered SaveModified.deploy()")
         if (!ToolingUtils.canUseTooling(session, files)) {
             //can not use tooling, fall back to metadata version - DeployModified
-            super.deploy(files, updateSessionDataOnSuccess, resultBuilder)
+            super.deploy(files, updateSessionDataOnSuccess)
         } else {
             val hasAuraFiles = files.exists(AuraMember.isSupportedType(_))
             if (!hasAuraFiles) {
                 //split file by MetadataContainer vs ContainerLess
                 val filesByContainerType = files.groupBy(f => if (ApexMember.isSupportedTypeWithMetadataContainer(f, session)) "MetadataContainer" else "ContainerLess")
                 //files to be saved in MetadataContainer
-                val res1 = filesByContainerType.get("MetadataContainer") match {
+                val containerResultOpt = filesByContainerType.get("MetadataContainer") match {
                   case Some(_files) =>
-                      deployWithMetadataContaner(_files, updateSessionDataOnSuccess, resultBuilder)
-                  case None => true
+                      Option(deployWithMetadataContainer(_files, updateSessionDataOnSuccess))
+                  case None => None
                 }
                 //files to be saved standalone
-                val res2 = filesByContainerType.get("ContainerLess") match {
+                val containerLessResultOpt = filesByContainerType.get("ContainerLess") match {
                     case Some(_files) =>
-                        saveContainerLessFiles(_files, updateSessionDataOnSuccess, resultBuilder)
-                    case None => true
+                        Option(saveContainerLessFiles(_files, updateSessionDataOnSuccess))
+                    case None =>
+                        None
                 }
-                res1 && res2
+                mergeDeploymentResults(containerResultOpt, containerLessResultOpt)
             } else {
                 //aura
-                deployAura(files, updateSessionDataOnSuccess, resultBuilder)
+                deployAura(files, updateSessionDataOnSuccess)
             }
         }
 
+    }
+
+    private def mergeDeploymentResults(result1: DeploymentResult, result2: DeploymentResult): DeploymentResult = {
+        mergeDeploymentResults(Option(result1), Option(result2))
+    }
+    private def mergeDeploymentResults(containerOpt: Option[DeploymentResult], containerLessOpt: Option[DeploymentResult]): DeploymentResult = {
+        containerOpt match {
+            case Some(containerResult) if containerLessOpt.nonEmpty =>
+                // merge
+                val containerLessResult = containerLessOpt.get
+                DeploymentResult(
+                    isSuccess = containerLessResult.isSuccess && containerResult.isSuccess,
+                    failureReport = mergeFailureReport(containerResult.failureReport, containerLessResult.failureReport),
+                    fileCount = containerResult.fileCount + containerLessResult.fileCount,
+                    coverageReport = mergeCoverageReport(containerResult.coverageReport, containerLessResult.coverageReport),
+                    logFile = containerResult.logFile.orElse(containerLessResult.logFile),
+                    deployedFiles = containerResult.deployedFiles ++ containerLessResult.deployedFiles,
+                    testsPassed = Option(containerResult.testsPassed.getOrElse(false) && containerLessResult.testsPassed.getOrElse(false)),
+                    errors = containerResult.errors ++ containerLessResult.errors,
+                    conflicts = containerResult.conflicts ++ containerLessResult.conflicts
+
+                )
+            case Some(containerResult) if containerLessOpt.isEmpty => containerResult
+            case None =>
+                containerLessOpt.getOrElse(DeploymentResult(isSuccess = true, failureReport = None))
+        }
+    }
+
+    private def mergeCoverageReport(report1Opt: Option[CodeCoverageReport], report2Opt: Option[CodeCoverageReport]): Option[CodeCoverageReport] = {
+        report1Opt match {
+            case Some(report1) if report2Opt.isEmpty=>
+                Some(report1)
+            case Some(report1) if report2Opt.nonEmpty=>
+                val report2 = report2Opt.get
+                Option(
+                    CodeCoverageReport(
+                        coveragePerFile = report1.coveragePerFile ++ report2.coveragePerFile,
+                        coverageWarnings = report1.coverageWarnings ++ report2.coverageWarnings
+                    )
+                )
+            case None => report2Opt
+        }
+    }
+    private def mergeFailureReport(report1Opt: Option[DeploymentFailureReport], report2Opt: Option[DeploymentFailureReport]): Option[DeploymentFailureReport] = {
+        report1Opt match {
+            case Some(report1) if report2Opt.isEmpty=>
+                Some(report1)
+            case Some(report1) if report2Opt.nonEmpty=>
+                val report2 = report2Opt.get
+                Option(
+                    DeploymentFailureReport(
+                        failures = report1.failures ++ report2.failures,
+                        testFailures = report1.testFailures ++ report2.testFailures,
+                        coverageReport = mergeCoverageReport(report1.coverageReport, report2.coverageReport)
+                    )
+                )
+            case None => report2Opt
+        }
     }
 
     /**
@@ -191,13 +250,17 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if session data needs to be updated at the end of successful save
      * @return - true if all files have been saved successfully
      */
-    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
-        val successByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
+    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+        val deploymentResultByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
             saveFilesOfSingleXmlType(files, fileToToolingInstance,
-                (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess, resultBuilder)
+                (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
+        }.seq.values
+
+        // merge all results into 1
+        val firstResult = deploymentResultByExtension.head
+        deploymentResultByExtension.foldLeft(firstResult){
+            case (res1, res2) => mergeDeploymentResults(Option(res1), Option(res2))
         }
-        val hasFailure = successByExtension.exists{case (extension, res) => !res}
-        !hasFailure
     }
 
     /**
@@ -208,8 +271,7 @@ class SaveModified extends DeployModified {
      */
     private def saveFilesOfSingleXmlType(files: List[File], sobjectInstanceCreator: (File) => SObject,
                                          sessionDataUpdater: (List[File]) => Unit,
-                                         updateSessionDataOnSuccess: Boolean,
-                                         resultBuilder: ActionResultBuilder): Boolean = {
+                                         updateSessionDataOnSuccess: Boolean): DeploymentResult = {
 
         val sObjects = files.map(sobjectInstanceCreator(_))
         val saveResults = session.updateTooling(sObjects.toArray)
@@ -240,16 +302,16 @@ class SaveModified extends DeployModified {
 
             if (errorByFileIndex.isEmpty) {
                 //config.responseWriter.println("RESULT=SUCCESS")
-                resultBuilder.setResultType(SUCCESS)
                 //config.responseWriter.println("FILE_COUNT=" + files.size)
-                resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> files.size)))
                 if (!getSessionConfig.isCheckOnly) {
                     //config.responseWriter.startSection("SAVED FILES")
                     //files.foreach(f => config.responseWriter.println(f.getName))
                     //config.responseWriter.endSection("SAVED FILES")
 
+                    /*
                     val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
                     files.foreach(f => resultBuilder.addDetail(MessageDetailText(savedFilesMsg, f.getName)))
+                    */
                 }
             }
 
@@ -259,44 +321,68 @@ class SaveModified extends DeployModified {
         if (errorByFileIndex.nonEmpty) {
             logger.debug("Request failed")
             //responseWriter.println("RESULT=FAILURE")
-            resultBuilder.setResultType(FAILURE)
 
             //config.responseWriter.startSection("ERROR LIST")
-            val errorListMsg = resultBuilder.addMessage(ErrorMessage("ERROR LIST"))
-            val problemType = "ERROR"
-            val componentFailureMessage = WarnMessage("Compiler errors")
+            //val problemType = "ERROR"
+            //val componentFailureMessage = WarnMessage("Compiler errors")
             //responseWriter.println(componentFailureMessage)
-            resultBuilder.addMessage(componentFailureMessage)
 
-            for (index <- errorByFileIndex.keys) {
-                val file = fileArray(index)
-                val filePath = session.getRelativePath(file)
-                val error = errorByFileIndex(index)
-                var problem = error.getMessage
-                if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
-                    problem = s"Stored Id of ${file.getName} is no longer valid. " +
-                        "You may want to call 'refresh' to make sure there are no aura files deleted and re-created with new Ids. " +
-                        "Alternatively (to force deployment) - use 'deploy' instead of 'save' to force using Metadata API. " +
-                        s"Original error: $problem"
+            val failures =
+                for (index <- errorByFileIndex.keys) yield {
+                    val file = fileArray(index)
+                    val filePath = session.getRelativePath(file)
+                    val error = errorByFileIndex(index)
+                    var problem = error.getMessage
+                    if (StatusCode.INVALID_ID_FIELD == error.getStatusCode) {
+                        problem = s"Stored Id of ${file.getName} is no longer valid. " +
+                            "You may want to call 'refresh' to make sure there are no aura files deleted and re-created with new Ids. " +
+                            "Alternatively (to force deployment) - use 'deploy' instead of 'save' to force using Metadata API. " +
+                            s"Original error: $problem"
+                    }
+                    val statusCode = error.getStatusCode.toString
+                    val fields = error.getFields
+                    //val (line, column) = parseLineColFromAuraError(error.getMessage)
+                    /*
+                    val errorMap =
+                        Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")) ++
+                            (parseLineColFromAuraError(error) match {
+                            case Some((line, column)) => Map("line" -> line, "column" -> column)
+                            case None => Map.empty
+                            })
+                    */
+                    parseLineColFromAuraError(error) match {
+                        case Some((line, column))  =>
+                            ErrorWithLocation(
+                                DeploymentCompileError,
+                                problem,
+                                Location(filePath, line, column = column),
+                                statusCode = if (statusCode.isEmpty) None else Option(statusCode),
+                                fields = fields.toList
+                            )
+                        case None =>
+                            ErrorWithLocation(
+                                DeploymentCompileError,
+                                problem,
+                                Location(filePath, line = -1, column = -1),
+                                statusCode = if (statusCode.isEmpty) None else Option(statusCode),
+                                fields = fields.toList
+                            )
+                    }
+                    //display errors both as messages and as ERROR: lines
+                    //responseWriter.println("ERROR", errorMap)
+                    //responseWriter.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
                 }
-                val statusCode = error.getStatusCode.toString
-                val fields = error.getFields
-                //val (line, column) = parseLineColFromAuraError(error.getMessage)
-                val errorMap =
-                    Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "fields" -> fields.mkString(",")) ++
-                        (parseLineColFromAuraError(error) match {
-                        case Some((line, column)) => Map("line" -> line, "column" -> column)
-                        case None => Map.empty
-                        })
-                //display errors both as messages and as ERROR: lines
-                //responseWriter.println("ERROR", errorMap)
-                resultBuilder.addDetail(MessageDetailMap(errorListMsg, errorMap))
-                //responseWriter.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
-                resultBuilder.addDetail(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
-            }
-            false
+            DeploymentResult(
+                isSuccess = false,
+                Option(DeploymentFailureReport(failures.toList, Nil, None))
+            )
         } else {
-            true
+            DeploymentResult(
+                isSuccess = true,
+                failureReport = None,
+                fileCount = successfulFiles.length,
+                deployedFiles = successfulFiles
+            )
         }
     }
 
@@ -365,20 +451,21 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
      * @return
      */
-    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
+    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
         saveFilesOfSingleXmlType(
             files,
             (file: File) => AuraMember.getInstanceUpdate(file, session),
             (files: List[File]) => updateFileModificationData(files, Some(AuraMember.XML_TYPE)),
-            updateSessionDataOnSuccess,
-            resultBuilder
+            updateSessionDataOnSuccess
         )
     }
 
-    private def deployWithMetadataContaner(files: List[File], updateSessionDataOnSuccess: Boolean, resultBuilder: ActionResultBuilder): Boolean = {
+    private def deployWithMetadataContainer(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
         logger.debug("Deploying with Metadata Container")
-        var allSuccess = true
+
+        var deploymentResultOpt: Option[DeploymentResult] = None
         withMetadataContainer(session) { container =>
+
             val membersMap = (for(f <- files) yield {
                 val member = ApexMember.getInstance(f, session)
                 member.setMetadataContainerId(container.getId)
@@ -388,50 +475,61 @@ class SaveModified extends DeployModified {
             val waitTimeMilliSecs = config.getProperty("pollWaitMillis").getOrElse("" + (ONE_SECOND * 3)).toLong
             val saveResults = session.createTooling(membersMap.map(_._1.asInstanceOf[SObject]).toArray)
             val res = saveResults.head
-            if (res.isSuccess) {
-                val request = new ContainerAsyncRequest()
-                request.setIsCheckOnly(session.getConfig.isCheckOnly)
-                request.setMetadataContainerId(container.getId)
-                val requestResults = session.createTooling(Array(request))
-                for (res <- requestResults) {
-                    if (res.isSuccess) {
-                        val requestId = res.getId
-                        val soql = "SELECT Id, State, DeployDetails, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
-                        val asyncQueryResult = session.queryTooling(soql)
-                        if (asyncQueryResult.getSize > 0) {
-                            var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
-                            var lastReportTime = System.currentTimeMillis()
-                            var attempts = 0
-                            while ("Queued" == _request.getState) {
-                                val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
-                                blocking {
-                                    Thread.sleep(waitTimeMilliSecs)
-                                    _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
-                                }
-                                //report only once every 3 seconds
-                                if (reportAttempt) {
-                                    logger.info("waiting result, poll #" + attempts)
-                                    lastReportTime = System.currentTimeMillis()
+
+            deploymentResultOpt =
+                if (res.isSuccess) {
+                    val request = new ContainerAsyncRequest()
+                    request.setIsCheckOnly(session.getConfig.isCheckOnly)
+                    request.setMetadataContainerId(container.getId)
+                    val requestResults = session.createTooling(Array(request))
+                    val deploymentResults =
+                        for (res <- requestResults) yield {
+                            if (res.isSuccess) {
+                                val requestId = res.getId
+                                val soql = "SELECT Id, State, DeployDetails, ErrorMsg FROM ContainerAsyncRequest where id = '" + requestId + "'"
+                                val asyncQueryResult = session.queryTooling(soql)
+                                if (asyncQueryResult.getSize > 0) {
+                                    var _request = asyncQueryResult.getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                    var lastReportTime = System.currentTimeMillis()
+                                    var attempts = 0
+                                    while ("Queued" == _request.getState) {
+                                        val reportAttempt = (System.currentTimeMillis() - lastReportTime) > (ONE_SECOND * 3)
+                                        blocking {
+                                            Thread.sleep(waitTimeMilliSecs)
+                                            _request = session.queryTooling(soql).getRecords.head.asInstanceOf[ContainerAsyncRequest]
+                                        }
+                                        //report only once every 3 seconds
+                                        if (reportAttempt) {
+                                            logger.info("waiting result, poll #" + attempts)
+                                            lastReportTime = System.currentTimeMillis()
+                                        } else {
+                                            logger.trace("waiting result, poll #" + attempts)
+                                        }
+                                        attempts += 1
+                                    }
+                                    processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
                                 } else {
-                                    logger.trace("waiting result, poll #" + attempts)
+                                    DeploymentResult(isSuccess = false)
                                 }
-                                attempts += 1
+                            } else {
+                                throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
                             }
-                            allSuccess &= processSaveResult(_request, membersMap, updateSessionDataOnSuccess, resultBuilder)
                         }
-                    } else {
-                        throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
-                    }
+                    // merge all results into a single result
+                    val firstResult = deploymentResults.head
+                    val mergedResult = deploymentResults.tail.foldLeft(firstResult)((result1, result2) => mergeDeploymentResults(result1, result2))
+                    Option(mergedResult)
+                } else {
+                    throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
                 }
-            } else {
-                throw new IllegalStateException("Failed to create Apex Member(s). " + res.getErrors.head.getMessage)
-            }
-
-
         }
 
         session.storeSessionData()
-        allSuccess
+        deploymentResultOpt match {
+            case Some(deploymentResult) => deploymentResult
+            case None =>
+                throw new IllegalStateException("Did not expect to arrive here without deployment result")
+        }
     }
 
     /**
@@ -539,8 +637,7 @@ class SaveModified extends DeployModified {
 
     private def processSaveResult(request: ContainerAsyncRequest,
                                   membersMap: Map[ApexMember, File],
-                                  updateSessionDataOnSuccess: Boolean,
-                                  resultBuilder: ActionResultBuilder): Boolean = {
+                                  updateSessionDataOnSuccess: Boolean): DeploymentResult = {
 
         request.getState match {
             case "Completed" =>
@@ -566,22 +663,30 @@ class SaveModified extends DeployModified {
                 session.storeSessionData()
 
                 //config.responseWriter.println("RESULT=SUCCESS")
-                resultBuilder.setResultType(SUCCESS)
                 //config.responseWriter.println("FILE_COUNT=" + membersMap.size)
-                resultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> membersMap.size)))
                 if (!getSessionConfig.isCheckOnly) {
                     //config.responseWriter.startSection("SAVED FILES")
                     //membersMap.values.foreach(f => config.responseWriter.println(f.getName))
                     //config.responseWriter.endSection("SAVED FILES")
-                    val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
-                    resultBuilder.addDetails(membersMap.values.map(f => MessageDetailText(savedFilesMsg, f.getName)))
+                    //val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
+                    //resultBuilder.addDetails(membersMap.values.map(f => MessageDetailText(savedFilesMsg, f.getName)))
+                    val deployedFiles = membersMap.values.toList
+                    DeploymentResult(
+                        isSuccess = true,
+                        fileCount = deployedFiles.length,
+                        deployedFiles = deployedFiles
+                    )
+                } else {
+                    DeploymentResult(
+                        isSuccess = true
+                    )
+
                 }
-                true
+
 
             case "Failed" =>
                 logger.debug("Request failed")
                 //responseWriter.println("RESULT=FAILURE")
-                resultBuilder.setResultType(FAILURE)
                 //config.responseWriter.startSection("ERROR LIST")
                 //val errorListMsg = resultBuilder.addMessage(InfoMessage("ERROR LIST"))
                 val deployDetails = request.getDeployDetails
@@ -589,28 +694,41 @@ class SaveModified extends DeployModified {
                     val deployMessages = deployDetails.getComponentFailures
                     logger.debug(deployMessages)
                     //display errors both as messages and as ERROR: lines
-                    val componentFailureMessage = WarnMessage("Compiler errors")
+                    //val componentFailureMessage = WarnMessage("Compiler errors")
                     //responseWriter.println(componentFailureMessage)
-                    resultBuilder.addMessage(componentFailureMessage)
 
-                    for (deployMessage <- deployMessages) {
+                    val compileErrors =
+                    for (deployMessage <- deployMessages) yield {
                         val line = deployMessage.getLineNumber
                         val column = deployMessage.getColumnNumber
                         val problem = deployMessage.getProblem
-                        val filePath =  getFilePath(deployMessage).getOrElse("")
+                        getFilePath(deployMessage) match {
+                            case Some(filePath) =>
+                                ErrorWithLocation(
+                                    DeploymentCompileError,
+                                    problem,
+                                    Location(filePath, line, column)
+                                )
+                            case None =>
+                                GenericError(
+                                    DeploymentCompileError,
+                                    problem
+                                )
+                        }
 
-                        val problemType = "CompileError"
+                        //val problemType = "CompileError"
                         //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                        resultBuilder.addDetail(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
                         //responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
-                    false
+                    DeploymentResult(
+                        isSuccess = false,
+                        failureReport = Option(DeploymentFailureReport(failures = compileErrors.toList, testFailures = Nil, coverageReport = None))
+                    )
                 } else {
                     //general error
                     //display errors both as messages and as ERROR: lines
                     val generalFailureMessage = WarnMessage("General failure")
                     //responseWriter.println(generalFailureMessage)
-                    resultBuilder.addMessage(generalFailureMessage)
                     val problem = request.getErrorMsg match {
                         case "Can't alter metadata in an active org" => //attempt to deploy using Tooling API into Production
                             request.getErrorMsg + "; If you are trying to deploy using Tooling API in Production org then switch to Metadata API."
@@ -618,18 +736,35 @@ class SaveModified extends DeployModified {
                     }
                     //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
                     //responseWriter.println(MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
-                    resultBuilder.addDetail(MessageDetailMap(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
+                    DeploymentResult(
+                        isSuccess = false,
+                        failureReport =
+                            Option(
+                                DeploymentFailureReport(
+                                    failures = List(GenericError(GenericDeploymentError, problem)),
+                                    testFailures = Nil,
+                                    coverageReport = None)
+                            )
+                    )
+
                 }
-                false
 
             case state =>
                 //responseWriter.println("RESULT=FAILURE")
-                resultBuilder.setResultType(FAILURE)
-                val msg = s"Async Request Failed with status: '$state'. Message: ${request.getErrorMsg}"
-                logger.error(msg)
+                val problem = s"Async Request Failed with status: '$state'. Message: ${request.getErrorMsg}"
+                logger.error(problem)
                 //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))
-                resultBuilder.addMessage(ErrorMessage(msg))
-                false
+
+                DeploymentResult(
+                    isSuccess = false,
+                    failureReport =
+                        Option(
+                            DeploymentFailureReport(
+                                failures = List(GenericError(GenericDeploymentError, problem)),
+                                testFailures = Nil,
+                                coverageReport = None)
+                        )
+                )
         }
     }
 

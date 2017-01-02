@@ -26,6 +26,9 @@ import com.neowit.response._
 import com.neowit.utils.{FileUtils, JsonSupport}
 import spray.json._
 
+trait VimProtocol[A <: BaseResult] {
+    def send(result: A): Unit
+}
 class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Boolean = false) extends ResponseWriter with JsonSupport {
     private val _writer = new PrintWriter(out, autoFlush)
 
@@ -124,15 +127,15 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case FindSymbolResult(Some(member)) => println(member.serialise.compactPrint)
             case FindSymbolResult(None) => // do nothing
             case ListCompletionsResult(members) => println(members.map(_.toJson).mkString("\n"))
-            case res @ ListModifiedResult(_, _) =>
-                val protocol = new ListModified(this)
-                protocol.send(res)
-            case res @ RefreshMetadataResult(_) =>
-                val protocol = new RefreshMetadata(this)
-                protocol.send(res)
-            case res @ CheckSyntaxResult(_, _) =>
-                val protocol = new CheckSyntax(this)
-                protocol.send(res)
+            case res @ ListModifiedResult(_, _) => new ListModified(this).send(res)
+            case res @ RefreshMetadataResult(_) => new RefreshMetadata(this).send(res)
+            case res @ CheckSyntaxResult(_, _) => new CheckSyntax(this).send(res)
+            case res @ DeployAllDestructiveResult(_, _) => new DeployAllDestructive(this).send(res)
+            case res @ DeployAllResult(_) => new DeployAll(this).send(res)
+            case res @ DeployModifiedResult(_) => new DeployModified(this).send(res)
+            case res @ DeployModifiedDestructiveResult(_) => new DeployModifiedDestructive(this).send(res)
+            case res @ ListConflictingResult(_) => new ListConflicting(this).send(res)
+            case res @ RunTestsResult(_, _, _, _, _) => new RunTests(this).send(res)
         }
     }
 

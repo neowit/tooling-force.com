@@ -21,7 +21,8 @@ package com.neowit.response
 
 import java.io.File
 
-import com.neowit.apex.actions.{ActionResult, SyntaxError}
+import com.neowit.apex.ProcessedTestFailure
+import com.neowit.apex.actions._
 import com.neowit.apex.parser.Member
 import com.neowit.utils.JsonSupport
 import spray.json._
@@ -54,3 +55,15 @@ case class ListCompletionsResult(members: List[Member]) extends BaseResult
 case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
 case class RefreshMetadataResult(modified: List[File]) extends BaseResult
 case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
+case class RunTestsResult(
+                             testFailures: List[ProcessedTestFailure],
+                             logFilePathByClassName: Map[String, String] = Map.empty,
+                             log: Option[File] = None,
+                             coverageReportOpt: Option[CodeCoverageReport] = None,
+                             deploymentFailureReport: Option[DeploymentFailureReport] = None
+                         ) extends BaseResult
+case class DeployAllDestructiveResult(deploymentResult: DeploymentResult, diffReport: Option[DiffWithRemoteReport]) extends BaseResult
+case class DeployModifiedDestructiveResult(deploymentResultOpt: Option[DeploymentResult]) extends BaseResult
+case class DeployModifiedResult(deploymentResultOpt: DeploymentResult) extends BaseResult
+case class DeployAllResult(deploymentResultOpt: DeploymentResult) extends BaseResult
+case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult

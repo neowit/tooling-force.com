@@ -27,7 +27,6 @@ import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions.tooling.RunTests.TestResultWithJobId
 import com.neowit.apex.actions._
 import com.neowit.utils.{FileUtils, Logging}
-import com.neowit.response.{ErrorMessage, FAILURE, KeyValueMessage, SUCCESS}
 import com.sforce.soap.tooling.{ApexTestQueueItem, AsyncApexJob}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
@@ -39,13 +38,13 @@ object RunTests {
 
     class TestResultWithJobId(val sourceTestResult: com.sforce.soap.tooling.RunTestsResult, val asyncJobId: Option[String], val useLastLog: Boolean = false )
 
-    class RunTestResultTooling(sourceTestResult: com.sforce.soap.tooling.RunTestsResult) extends RunTestsResult {
+    class RunTestResultTooling(sourceTestResult: com.sforce.soap.tooling.RunTestsResult) extends com.neowit.apex.RunTestsResult {
         override def getCodeCoverage: Array[CodeCoverageResult] = sourceTestResult.getCodeCoverage.map(new CodeCoverageResultTooling(_))
         override def getCodeCoverageWarnings: Array[CodeCoverageWarning] = sourceTestResult.getCodeCoverageWarnings.map(new CodeCoverageWarningTooling(_))
         override def getFailures: Array[com.neowit.apex.RunTestFailure] = sourceTestResult.getFailures.map(new RunTestFailure(_))
     }
 
-    class CodeCoverageResultTooling(sourceCoverageResult: com.sforce.soap.tooling.CodeCoverageResult) extends CodeCoverageResult {
+    class CodeCoverageResultTooling(sourceCoverageResult: com.sforce.soap.tooling.CodeCoverageResult) extends com.neowit.apex.CodeCoverageResult {
         override def getNumLocations: Int = sourceCoverageResult.getNumLocations
 
         override def getLocationsNotCovered: Array[CodeLocation] = sourceCoverageResult.getLocationsNotCovered.map(new CodeLocationTooling(_))
@@ -142,22 +141,29 @@ class RunTests extends DeployModified {
     }
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
 
-        val actionResultBuilder = new ActionResultBuilder()
         val modifiedFiles = getFiles
         if (modifiedFiles.nonEmpty ) {
             //check if we can save using tooling API
             if (ToolingUtils.canUseTooling(session, modifiedFiles)) {
                 val saveModified = new SaveModified().load[SaveModified](session)
-                if (!saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true, actionResultBuilder)) {
+                val deploymentResult = saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)
+                if (!deploymentResult.isSuccess) {
                     //responseWriter.println("RESULT=FAILURE")
                     //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                     //responseWriter.println(new Message(ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
 
                     return Future.successful(
                         ActionFailure(
+                            /*
                             List(
                                 KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)),
                                 ErrorMessage("Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first")
+                            )
+                            */
+                            com.neowit.response.RunTestsResult(
+                                testFailures = Nil,
+                                coverageReportOpt = deploymentResult.coverageReport,
+                                deploymentFailureReport = deploymentResult.failureReport
                             )
                         )
                     )
@@ -176,49 +182,68 @@ class RunTests extends DeployModified {
           case None => None
         }
 
+        val actionResult =
         try {
             val runTestsResultWithJobId = runTests()
             val runTestsResult = runTestsResultWithJobId.sourceTestResult
+            /*
             if (0 == runTestsResult.getNumFailures) {
                 //responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setResultType(SUCCESS)
             } else {
                 //responseWriter.println("RESULT=FAILURE")
-                actionResultBuilder.setResultType(FAILURE)
             }
+            */
             val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
-            ApexTestUtils.processCodeCoverage(toolingRunTestResult, session, actionResultBuilder) match {
+            val coverageReportOpt = ApexTestUtils.processCodeCoverage(toolingRunTestResult, session)
+            /*
+            ApexTestUtils.processCodeCoverage(toolingRunTestResult, session) match {
                 case Some(coverageFile) =>
                     //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
                     actionResultBuilder.addMessage(KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)))
                 case _ =>
             }
-            ApexTestUtils.processTestResult(toolingRunTestResult, session, actionResultBuilder)
+            */
+            val testFailures = ApexTestUtils.processTestResult(toolingRunTestResult, session)
 
-            if (traceIdOpt.isDefined) {
-                //retrieve log files
-                runTestsResultWithJobId.asyncJobId match {
-                    case Some(jobId) =>
-                        val logIdByClassName = getLogIds(jobId)
-                        val logFileByClassName = getLogFileByClassName(logIdByClassName)
-                        val logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
-                        //responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
-                        actionResultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE_BY_CLASS_NAME" -> logFilePathByClassName.toJson)))
-                    case None => //test was run in Synchronous mode
-                        if (runTestsResultWithJobId.useLastLog) {
-                            LogActions.getLastLogId(session) match {
-                                case Some(logId) =>
-                                    val log = LogActions.getLog(session, logId)
-                                    if (!log.isEmpty) {
-                                        val logFile = getProjectConfig.getLogFile
-                                        FileUtils.writeFile(log, logFile)
-                                        //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
-                                        actionResultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
+            val (logFilePathByClassName, logFileOpt) =
+                if (traceIdOpt.isDefined) {
+                    //retrieve log files
+                    runTestsResultWithJobId.asyncJobId match {
+                        case Some(jobId) =>
+                            val logIdByClassName = getLogIds(jobId)
+                            val logFileByClassName = getLogFileByClassName(logIdByClassName)
+                            val _logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
+                            //responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
+                            (_logFilePathByClassName, None)
+                        case None => //test was run in Synchronous mode
+                            val logOpt =
+                                if (runTestsResultWithJobId.useLastLog) {
+                                    LogActions.getLastLogId(session) match {
+                                        case Some(logId) =>
+                                            val log = LogActions.getLog(session, logId)
+                                            if (!log.isEmpty) {
+                                                val logFile = getProjectConfig.getLogFile
+                                                FileUtils.writeFile(log, logFile)
+                                                //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                                                Option(logFile)
+                                            } else {
+                                                None
+                                            }
+                                        case None =>
+                                            None
                                     }
-                                case None =>
-                            }
-                        }
+                                } else {
+                                    None
+                                }
+                            (Map.empty[String, String], logOpt)
+                    }
+                } else {
+                    (Map.empty[String, String], None)
                 }
+            if (testFailures.isEmpty) {
+                ActionSuccess(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName, logFileOpt, coverageReportOpt))
+            } else {
+                ActionFailure(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName, logFileOpt, coverageReportOpt))
             }
         } catch {
             case ex: Session.RestCallException =>
@@ -226,8 +251,9 @@ class RunTests extends DeployModified {
                     case Some(code) if "ALREADY_IN_PROCESS" == code =>
                         //responseWriter.println("RESULT=FAILURE")
                         //responseWriter.println(new Message(ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
-                        actionResultBuilder.setResultType(FAILURE)
-                        actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                        //actionResultBuilder.setResultType(FAILURE)
+                        //actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
+                        ActionFailure("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse(""))
                     case None =>
                         throw ex
                 }
@@ -238,7 +264,7 @@ class RunTests extends DeployModified {
               ChangeLogLevels.deleteTraceFlag(traceId, session, logger)
           case None =>
         }
-        Future.successful(actionResultBuilder.result())
+        Future.successful(actionResult)
     }
 
     private def runTests(): RunTests.TestResultWithJobId = {

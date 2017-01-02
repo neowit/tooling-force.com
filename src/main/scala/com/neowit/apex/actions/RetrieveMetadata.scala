@@ -326,53 +326,48 @@ class ListConflicting extends RetrieveMetadata {
      *        "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(props.getLastModifiedDate),
      *        "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
      *    )
-     * @param msg - parent message
      * @return
      */
-    def generateConflictMessageDetails(conflictingFiles: List[Map[String, Any]], msg: Message):List[MessageDetail] = {
-        conflictingFiles.map(
-            prop => {
-                var text = ""
-                val filePath = prop.get("file")  match {
-                    case Some(x) =>
-                        val f = x.asInstanceOf[File]
-                        text = f.getName
-                        text += " => Modified By: " + prop.getOrElse("LastModifiedByName", "")
-                        text += "; at: " + prop.getOrElse("Remote-LastModifiedDateStr", "")
-                        text += "; Local version saved at: " + prop.getOrElse("Local-LastModifiedDateStr", "")
-                        f.getAbsolutePath
-                    case None => ""
+    def generateConflictMessageDetails(conflictingFiles: List[Map[String, Any]]):DeploymentConflictsReport = {
+        val conflicts =
+            conflictingFiles.flatMap { prop =>
+                prop.get("file").map { x =>
+                    val f = x.asInstanceOf[File]
+                    SingleFileConflictDetail(
+                        file = f,
+                        lastModifiedByName = prop.get("LastModifiedByName").map(_.toString),
+                        lastModifiedById = prop.get("LastModifiedById").map(_.toString),
+                        remoteLastModifiedDate = prop.get("Remote-LastModifiedDateStr").map(_.toString),
+                        localLastModifiedDate = prop.get("Local-LastModifiedDateStr").map(_.toString)
+                    )
                 }
-                //config.responseWriter.println(new MessageDetail(msg, Map("filePath" -> filePath, "text" -> text)))
-                MessageDetailMap(msg, Map("filePath" -> filePath, "text" -> text))
             }
-        )
+        DeploymentConflictsReport(conflicts.nonEmpty, conflicts)
     }
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val checker = new ListModified().load[ListModified](session)
         val modifiedFiles = checker.getModifiedFiles
 
-        val actionResultBuilder = new ActionResultBuilder(SUCCESS)
 
         getFilesNewerOnRemote(modifiedFiles) match {
             case Some(fileProps) =>
                 //config.responseWriter.println("RESULT=SUCCESS")
-                actionResultBuilder.setResultType(SUCCESS)
+                val conflictReport =
                 if (fileProps.nonEmpty) {
                     val msg = InfoMessage("Outdated file(s) detected.")
                     //config.responseWriter.println(msg)
-                    actionResultBuilder.addMessage(msg)
                     //generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
-                    generateConflictMessageDetails(fileProps, msg).foreach{detail => actionResultBuilder.addDetail(detail)}
+                    generateConflictMessageDetails(fileProps)
                 } else {
                     //config.responseWriter.println(new Message(INFO, "No outdated files detected."))
-                    actionResultBuilder.addMessage(InfoMessage("No outdated files detected."))
+                    DeploymentConflictsReport(hasConflicts = false)
                 }
                 //fileProps.isEmpty
+                Future.successful(ActionSuccess(ListConflictingResult(conflictReport)))
             case None =>
+                Future.successful(ActionSuccess(ListConflictingResult(DeploymentConflictsReport(hasConflicts = false))))
         }
-        Future.successful(actionResultBuilder.result())
     }
 }
 

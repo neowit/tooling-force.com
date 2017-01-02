@@ -21,25 +21,10 @@
 
 package com.neowit.response.protocols.vim
 
+import com.neowit.response.DeployModifiedDestructiveResult
 
-import com.neowit.response.CheckSyntaxResult
-
-/**
-  * Author: Andrey Gavrikov
-  */
-class CheckSyntax(writer: ResponseWriterVim) extends VimProtocol[CheckSyntaxResult] {
-    def send(result: CheckSyntaxResult): Unit = {
-        val errors = result.errors
-        if (errors.nonEmpty) {
-            val sourceFile = result.sourceFile
-            writer.startSection("ERROR LIST")
-
-            val pathToReport = writer.getRelativePath(sourceFile)
-            errors.foreach{e =>
-                writer.println("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
-            }
-            writer.endSection("ERROR LIST")
-
-        }
+class DeployModifiedDestructive(writer: ResponseWriterVim) extends VimProtocol[DeployModifiedDestructiveResult] {
+    def send(result: DeployModifiedDestructiveResult): Unit = {
+        writer.println("NOT IMPLEMENTED")
     }
 }

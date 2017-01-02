@@ -24,11 +24,11 @@ import com.neowit.response.{INFO, RefreshMetadataResult}
 /**
   * Author: Andrey Gavrikov
   */
-class RefreshMetadata(writer: ResponseWriterVim) extends ListModified(writer){
+class RefreshMetadata(writer: ResponseWriterVim) extends VimProtocol[RefreshMetadataResult]{
     def send(result: RefreshMetadataResult): Unit = {
         val modifiedFiles = result.modified
         if (modifiedFiles.nonEmpty) {
-            reportModifiedFiles(modifiedFiles, INFO, writer)
+            ListModified.reportModifiedFiles(writer, modifiedFiles, INFO, writer)
         }
     }
 }
