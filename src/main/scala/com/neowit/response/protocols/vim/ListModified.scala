@@ -35,12 +35,14 @@ object ListModified {
         }
         responseWriter.send("HAS_MODIFIED_FILES=true")
 
+        /*
         responseWriter.startSection("MODIFIED FILE LIST")
         for(f <- modifiedFiles) {
             //responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
-            responseWriter.send("MODIFIED_FILE=" + f.getName)
+            responseWriter.send("MODIFIED_FILE=" + writer.getRelativePath(f))
         }
         responseWriter.endSection("MODIFIED FILE LIST")
+        */
         Unit
 
     }
