@@ -25,6 +25,6 @@ import com.neowit.response.RunTestsResult
 
 class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
     def send(result: RunTestsResult): Unit = {
-        writer.println("NOT IMPLEMENTED")
+        writer.send("NOT IMPLEMENTED")
     }
 }

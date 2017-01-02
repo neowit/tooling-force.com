@@ -25,6 +25,6 @@ import com.neowit.response.ListConflictingResult
 
 class ListConflicting(writer: ResponseWriterVim) extends VimProtocol[ListConflictingResult] {
     def send(result: ListConflictingResult): Unit = {
-        writer.println("NOT IMPLEMENTED")
+        writer.send("NOT IMPLEMENTED")
     }
 }

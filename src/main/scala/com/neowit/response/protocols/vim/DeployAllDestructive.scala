@@ -25,6 +25,6 @@ import com.neowit.response.DeployAllDestructiveResult
 
 class DeployAllDestructive(writer: ResponseWriterVim) extends VimProtocol[DeployAllDestructiveResult] {
     def send(result: DeployAllDestructiveResult): Unit = {
-        writer.println("NOT IMPLEMENTED")
+        writer.send("NOT IMPLEMENTED")
     }
 }

@@ -65,18 +65,18 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
         }
     }
 
-    def println(result: RESULT): Unit = {
+    private def println(result: RESULT): Unit = {
         result match {
             case SUCCESS => this.println("RESULT=SUCCESS")
             case FAILURE => this.println("RESULT=FAILURE")
         }
     }
-    def println(p1: String): Unit = {
+    private def println(p1: String): Unit = {
         _writer.println(p1)
         needClosing = true
         logger.debug(p1)
     }
-    def println(msg: Message): Unit = {
+    private def println(msg: Message): Unit = {
         msg match {
             case KeyValueMessage(data) =>
                 data.foreach{
@@ -122,7 +122,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
         println("#SECTION END: " + sectionName)
     }
 
-    def println(result: BaseResult): Unit = {
+    private def println(result: BaseResult): Unit = {
         result match {
             case FindSymbolResult(Some(member)) => println(member.serialise.compactPrint)
             case FindSymbolResult(None) => // do nothing

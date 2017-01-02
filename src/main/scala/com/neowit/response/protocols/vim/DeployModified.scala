@@ -25,6 +25,6 @@ import com.neowit.response.DeployModifiedResult
 
 class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifiedResult] {
     def send(result: DeployModifiedResult): Unit = {
-        writer.println("NOT IMPLEMENTED")
+        writer.send("NOT IMPLEMENTED")
     }
 }
