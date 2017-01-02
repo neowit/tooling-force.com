@@ -21,10 +21,35 @@
 
 package com.neowit.response.protocols.vim
 
-import com.neowit.response.ListConflictingResult
+import com.neowit.response.{InfoMessage, ListConflictingResult, MessageDetailMap}
 
 class ListConflicting(writer: ResponseWriterVim) extends VimProtocol[ListConflictingResult] {
     def send(result: ListConflictingResult): Unit = {
-        writer.send("NOT IMPLEMENTED")
+        if (result.conflictReport.hasConflicts) {
+            val msg = InfoMessage("Outdated file(s) detected.")
+            writer.send(msg)
+            result.conflictReport.conflicts
+                .foreach(conflict =>
+                    writer.println(
+                        MessageDetailMap(
+                            msg,
+                            Map(
+                            "filePath" -> conflict.file.getAbsolutePath,
+                            "text" ->
+                                (
+                                s"${conflict.file.getName} => " +
+                                   s"Modified By: ${conflict.lastModifiedByName.getOrElse("")}; " +
+                                   s"at: ${conflict.remoteLastModifiedDate.getOrElse("")}; " +
+                                   s"Local version saved at: ${conflict.localLastModifiedDate.getOrElse("")}"
+                                )
+                            )
+                        )
+                    )
+                )
+
+        } else {
+            writer.send(InfoMessage("No outdated files detected"))
+        }
+
     }
 }
