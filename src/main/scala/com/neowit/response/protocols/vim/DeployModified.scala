@@ -30,9 +30,7 @@ class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifi
             // report conflicts
             ListConflicting.sendConflictDetails(writer, report.conflictsReportOpt.get)
         } else {
-            if (report.failureReportOpt.nonEmpty) {
-                report.failureReportOpt.foreach(DeploymentReportUtils.sendDeploymentFailureReport(writer, _))
-            }
+            report.failureReportOpt.foreach(DeploymentReportUtils.sendDeploymentFailureReport(writer, _))
             if (report.otherErrors.nonEmpty) {
                 DeploymentReportUtils.sendOtherErrors(writer, report.otherErrors)
             }

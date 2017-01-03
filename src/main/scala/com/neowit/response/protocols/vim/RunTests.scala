@@ -21,10 +21,37 @@
 
 package com.neowit.response.protocols.vim
 
+import com.neowit.apex.ProcessedTestFailure
+import com.neowit.apex.actions.CodeCoverageReport
 import com.neowit.response.RunTestsResult
 
+object RunTests {
+    def printTestFailures(writer: ResponseWriterVim, failures: List[ProcessedTestFailure]): Unit = {
+        if (failures.nonEmpty) {
+            val section = writer.startSection("ERROR LIST")
+            for (failure <- failures) {
+                writer.println("ERROR", Map("line" -> failure.line, "column" -> failure.column, "filePath" -> failure.filePath, "text" -> failure.message))
+            }
+            writer.endSection(section)
+        }
+        Unit
+    }
+    def printCoverageReport(writerVim: ResponseWriterVim, coverageReportOpt: Option[CodeCoverageReport]): Unit = {
+        if (coverageReportOpt.nonEmpty) {
+
+        }
+        //TODO
+        Unit
+    }
+
+}
 class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
+    import RunTests._
     def send(result: RunTestsResult): Unit = {
+
+        printTestFailures(writer, result.testFailures)
+        printCoverageReport(writer, result.coverageReportOpt)
+
         writer.send("NOT IMPLEMENTED")
     }
 }

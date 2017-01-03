@@ -283,7 +283,7 @@ object ApexTestUtils extends JsonSupport {
                     }
                     showProblem = false
                 }
-            } else { //no stack trace, try to parse cine/column/filePath from error message
+            } else { //no stack trace, try to parse line/column/filePath from error message
                 val typeName = failureMessage.getType
                 val fileName = failureMessage.getName
                 val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)

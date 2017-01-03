@@ -23,7 +23,6 @@ package com.neowit.response.protocols.vim
 
 import java.io.File
 
-import com.neowit.apex.ProcessedTestFailure
 import com.neowit.apex.actions._
 import com.neowit.response.{ErrorMessage, InfoMessage, MessageDetailMap, WarnMessage}
 
@@ -31,12 +30,10 @@ object DeploymentReportUtils {
 
     def sendDeploymentFailureReport(writer: ResponseWriterVim, report: DeploymentFailureReport): Unit = {
 
-        if (report.failures.nonEmpty) {
-            printDeploymentFailures(writer, report.failures)
-        }
-        if (report.testFailures.nonEmpty) {
-            //print test failures
-        }
+        // component & syntax failures
+        printDeploymentFailures(writer, report.failures)
+        //print test failures
+        RunTests.printTestFailures(writer, report.testFailures)
 
         Unit
     }
@@ -78,10 +75,6 @@ object DeploymentReportUtils {
         Unit
     }
 
-    def printTestFailures(writer: ResponseWriterVim, failures: List[ProcessedTestFailure]): Unit = {
-        //TODO
-        Unit
-    }
 
     def sendOtherErrors(writer: ResponseWriterVim, errors: List[ErrorMessage]): Unit = {
         errors.foreach(writer.send(_))
@@ -90,14 +83,6 @@ object DeploymentReportUtils {
 
     def sendLogFile(writer: ResponseWriterVim, logFileOpt: Option[File]): Unit = {
         logFileOpt.foreach(logFile => writer.send("LOG_FILE=" + logFile.getAbsolutePath) )
-        Unit
-    }
-
-    def printCoverageReport(writerVim: ResponseWriterVim, coverageReportOpt: Option[CodeCoverageReport]): Unit = {
-        if (coverageReportOpt.nonEmpty) {
-
-        }
-        //TODO
         Unit
     }
 
@@ -116,7 +101,7 @@ object DeploymentReportUtils {
             if (report.testsPassedOpt.contains(true)) {
                 writer.send(InfoMessage("Tests PASSED"))
             }
-            printCoverageReport(writer, report.coverageReportOpt)
+            RunTests.printCoverageReport(writer, report.coverageReportOpt)
         }
 
         Unit
