@@ -74,10 +74,10 @@ object ResponseWriter {
 }
 
 
-trait ResponseWriter extends Logging  with JsonSupport {
+trait ResponseWriter extends Logging with JsonSupport {
 
     def sendResponse(result: ActionResult): Unit
-    def send(msg: Message): Unit
+    def send(msg: Message): Message
     def send(msg: String): Unit
     def send(msg: RESULT): Unit
 

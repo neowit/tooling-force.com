@@ -23,9 +23,11 @@ package com.neowit.response.protocols.vim
 
 import com.neowit.apex.ProcessedTestFailure
 import com.neowit.apex.actions.CodeCoverageReport
-import com.neowit.response.RunTestsResult
+import com.neowit.response._
+import com.neowit.utils.JsonSupport
+import spray.json._
 
-object RunTests {
+object RunTests extends JsonSupport {
     def printTestFailures(writer: ResponseWriterVim, failures: List[ProcessedTestFailure]): Unit = {
         if (failures.nonEmpty) {
             val section = writer.startSection("ERROR LIST")
@@ -33,25 +35,71 @@ object RunTests {
                 writer.println("ERROR", Map("line" -> failure.line.getOrElse(-1), "column" -> failure.column.getOrElse(-1), "filePath" -> failure.filePath.getOrElse(""), "text" -> failure.message))
             }
             writer.endSection(section)
+        } else {
+            writer.send(InfoMessage("Tests PASSED"))
         }
         Unit
     }
-    def printCoverageReport(writerVim: ResponseWriterVim, coverageReportOpt: Option[CodeCoverageReport]): Unit = {
-        if (coverageReportOpt.nonEmpty) {
+    def printCoverageReport(writer: ResponseWriterVim, coverageReportOpt: Option[CodeCoverageReport]): Unit = {
+        coverageReportOpt match {
+            case Some(coverageReport) =>
+                val coverageDetails = writer.send(WarnMessage("Code coverage details"))
+                val coveragePerFileSorted = coverageReport.coveragePerFile.sortBy(_.filePathInProject)
 
+                for (fileCoverage <- coveragePerFileSorted) {
+                    val linesCovered = fileCoverage.linesTotalNum - fileCoverage.linesNotCoveredNum
+                    val coveragePercent = if (fileCoverage.linesTotalNum > 0) linesCovered * 100 / fileCoverage.linesTotalNum else 0
+                    //val messageType = (if (coveragePercent >= 75) ResponseWriter.INFO else ResponseWriter.WARN)
+                    val fileName = fileCoverage.name
+
+                    writer.println(
+                        MessageDetailMap(
+                            coverageDetails,
+                            Map(
+                                "text" ->
+                                    (fileName +
+                                        ": lines total " + fileCoverage.linesTotalNum +
+                                        "; lines not covered " + fileCoverage.linesNotCoveredNum +
+                                        "; covered " + coveragePercent + "%"),
+                                "type" -> (if (coveragePercent >= 75) INFO else WARN)
+                            )
+                        )
+                    )
+                }
+                for (warning <- coverageReport.coverageWarnings) {
+                    val text =
+                        if (null != warning.getName && warning.getName.nonEmpty) {
+                            warning.getName + ": " + warning.getMessage
+                        } else {
+                            warning.getMessage
+                        }
+                    writer.println(MessageDetailMap(coverageDetails, Map("text" -> text)))
+                }
+            case None =>
         }
-        //TODO
         Unit
+    }
+
+    def printLogFiles(writer: ResponseWriterVim, result: RunTestsResult): Unit = {
+        result.log match {
+            case Some(logFile) =>
+                writer.send("LOG_FILE=" + logFile.getAbsolutePath)
+            case None =>
+        }
+        if (result.logFilePathByClassName.nonEmpty) {
+            writer.send("LOG_FILE_BY_CLASS_NAME=" + result.logFilePathByClassName.toJson.compactPrint)
+        }
     }
 
 }
 class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
     import RunTests._
-    def send(result: RunTestsResult): Unit = {
 
+    def send(result: RunTestsResult): Unit = {
         printTestFailures(writer, result.testFailures)
         printCoverageReport(writer, result.coverageReportOpt)
+        printLogFiles(writer, result)
 
-        writer.send("NOT IMPLEMENTED")
+        Unit
     }
 }

@@ -41,7 +41,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
         this(new FileOutputStream(file), autoFlush = true, append)
     }
 
-    override def send(msg: Message): Unit = println(msg)
+    override def send(msg: Message): Message = println(msg)
 
     override def send(msg: String): Unit = println(msg)
 
@@ -59,7 +59,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
         needClosing = true
         logger.debug(p1)
     }
-    private def println(msg: Message): Unit = {
+    private def println(msg: Message): Message = {
         msg match {
             case KeyValueMessage(data) =>
                 data.foreach{
@@ -79,6 +79,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
         if (details.nonEmpty) {
             println(details)
         }
+        msg
     }
     def println(messageDetail: MessageDetailMap): Unit = {
         println("MESSAGE DETAIL: " + messageDetail.toJson.compactPrint)

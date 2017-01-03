@@ -89,6 +89,7 @@ case class DeploymentFailureReport (
                                    )
 
 case class SingleFileTestCoverage(
+                                 name: String,
                                  filePathInProject: String,
                                  linesTotalNum: Int,
                                  linesNotCoveredNum: Int,

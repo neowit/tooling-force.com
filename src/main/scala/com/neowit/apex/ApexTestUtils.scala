@@ -98,7 +98,12 @@ object ApexTestUtils extends JsonSupport {
                 relativeFilePath match {
                     case Some(relPath) =>
                         coveragePerFile +=
-                            SingleFileTestCoverage(relPath, coverageResult.getNumLocations, coverageResult.getNumLocationsNotCovered, coverageResult.getLocationsNotCovered)
+                            SingleFileTestCoverage(
+                                coverageResult.getName,
+                                relPath,
+                                coverageResult.getNumLocations,
+                                coverageResult.getNumLocationsNotCovered,
+                                coverageResult.getLocationsNotCovered)
                     case None =>
                 }
 
