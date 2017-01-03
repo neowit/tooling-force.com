@@ -93,11 +93,11 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case msg @ MessageDetailText(_, _) => println(msg)
         }
     }
-    def println(prefix: String, data: Map[String, Any]): Unit = {
+    def send(prefix: String, data: Map[String, Any]): Unit = {
         println(prefix + ": " + ResponseWriter.ensureNoNulls(data).toJson.compactPrint)
     }
     def println(data: Map[String, Any]): Unit = {
-        println("", data)
+        send("", data)
     }
     def startSection(sectionName: String): String = {
         println("#SECTION START: " + sectionName)

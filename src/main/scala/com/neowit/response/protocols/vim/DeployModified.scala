@@ -37,8 +37,5 @@ class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifi
             DeploymentReportUtils.sendSuccessReport(writer, report)
         }
         DeploymentReportUtils.sendLogFile(writer, report.logFileOpt)
-
-
-        writer.send("NOT IMPLEMENTED")
     }
 }

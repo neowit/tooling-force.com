@@ -34,7 +34,7 @@ object RunTests extends JsonSupport {
         if (failures.nonEmpty) {
             val section = writer.startSection("ERROR LIST")
             for (failure <- failures) {
-                writer.println("ERROR", Map("line" -> failure.line.getOrElse(-1), "column" -> failure.column.getOrElse(-1), "filePath" -> failure.filePath.getOrElse(""), "text" -> failure.message))
+                writer.send("ERROR", Map("line" -> failure.line.getOrElse(-1), "column" -> failure.column.getOrElse(-1), "filePath" -> failure.filePath.getOrElse(""), "text" -> failure.message))
             }
             writer.endSection(section)
         } else {

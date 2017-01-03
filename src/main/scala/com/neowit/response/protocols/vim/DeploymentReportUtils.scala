@@ -57,7 +57,7 @@ object DeploymentReportUtils {
                         writer.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "text" -> problem)))
                     case ErrorWithLocation(problemType, problem, location, statusCodeOpt, fields) =>
                         // for vim quickfix
-                        writer.println(
+                        writer.send(
                                 "ERROR",
                                 Map("type" -> problemType,
                                     "filePath" -> location.filePath,
