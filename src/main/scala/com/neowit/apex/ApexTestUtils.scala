@@ -186,7 +186,7 @@ object ApexTestUtils extends JsonSupport {
                         case Some(StackTraceLine(typeName, fileName, methodName, line, column)) =>
                             val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
                             val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
-                            val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod+ ". Details see above"
+                            val _problem = if (showProblem) problem else "...continuing stack trace: " +inMethod+ ". Details see above"
                             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
                             if (showProblem) {
                                 //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
@@ -235,7 +235,7 @@ object ApexTestUtils extends JsonSupport {
                         case Some(StackTraceLine(typeName, fileName, methodName, line, column)) =>
                             val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
                             val inMethod = if (methodName.isEmpty) None else Option(methodName)
-                            val _problem = if (showProblem) problem else "...continuing stack trace" +inMethod.getOrElse("")+ ". Details see above"
+                            val _problem = if (showProblem) problem else "...continuing stack trace: " +inMethod.getOrElse("")+ ". Details see above"
                             //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
                             errorBuilder +=
                                 ProcessedTestFailure(
@@ -248,6 +248,7 @@ object ApexTestUtils extends JsonSupport {
                                     methodName = inMethod,
                                     parentId = None
                                 )
+                            /*
                             if (showProblem) {
                                 //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
                                 //actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
@@ -263,23 +264,26 @@ object ApexTestUtils extends JsonSupport {
                                         parentId = Option(failureMessage.getId)
                                     )
                             }
+                            */
                         case None => //failed to parse anything meaningful, fall back to simple message
                             //responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
+                            errorBuilder +=
+                                ProcessedTestFailure(
+                                    id = Option(failureMessage.getId),
+                                    `type` = failureMessage.getType,
+                                    line = None,
+                                    column = None,
+                                    filePath = None,
+                                    message = problem,
+                                    methodName = None,
+                                    parentId = None
+                                )
+                            /*
                             if (showProblem) {
                                 //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
                                 //actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
-                                errorBuilder +=
-                                    ProcessedTestFailure(
-                                        id = Option(failureMessage.getId),
-                                        `type` = failureMessage.getType,
-                                        line = None,
-                                        column = None,
-                                        filePath = None,
-                                        message = problem,
-                                        methodName = None,
-                                        parentId = None
-                                    )
                             }
+                            */
                     }
                     showProblem = false
                 }

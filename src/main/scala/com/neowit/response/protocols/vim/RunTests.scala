@@ -30,7 +30,7 @@ object RunTests {
         if (failures.nonEmpty) {
             val section = writer.startSection("ERROR LIST")
             for (failure <- failures) {
-                writer.println("ERROR", Map("line" -> failure.line, "column" -> failure.column, "filePath" -> failure.filePath, "text" -> failure.message))
+                writer.println("ERROR", Map("line" -> failure.line.getOrElse(-1), "column" -> failure.column.getOrElse(-1), "filePath" -> failure.filePath.getOrElse(""), "text" -> failure.message))
             }
             writer.endSection(section)
         }
