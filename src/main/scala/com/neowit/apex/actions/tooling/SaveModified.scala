@@ -152,7 +152,7 @@ class SaveModified extends DeployModified {
     /**
      * @return - true if deployment is successful
      */
-    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+    override def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         logger.debug("Entered SaveModified.deploy()")
         if (!ToolingUtils.canUseTooling(session, files)) {
             //can not use tooling, fall back to metadata version - DeployModified
@@ -184,33 +184,35 @@ class SaveModified extends DeployModified {
 
     }
 
-    private def mergeDeploymentResults(result1: DeploymentResult, result2: DeploymentResult): DeploymentResult = {
+    private def mergeDeploymentResults(result1: DeploymentReport, result2: DeploymentReport): DeploymentReport = {
         mergeDeploymentResults(Option(result1), Option(result2))
     }
-    private def mergeDeploymentResults(containerOpt: Option[DeploymentResult], containerLessOpt: Option[DeploymentResult]): DeploymentResult = {
+    private def mergeDeploymentResults(containerOpt: Option[DeploymentReport], containerLessOpt: Option[DeploymentReport]): DeploymentReport = {
+        val checkOnly = getSessionConfig.isCheckOnly
         containerOpt match {
             case Some(containerResult) if containerLessOpt.nonEmpty =>
                 // merge
                 val containerLessResult = containerLessOpt.get
-                DeploymentResult(
+                DeploymentReport(
                     isSuccess = containerLessResult.isSuccess && containerResult.isSuccess,
-                    failureReport = mergeFailureReport(containerResult.failureReport, containerLessResult.failureReport),
+                    isCheckOnly = checkOnly,
+                    failureReportOpt = mergeFailureReports(containerResult.failureReportOpt, containerLessResult.failureReportOpt),
                     fileCount = containerResult.fileCount + containerLessResult.fileCount,
-                    coverageReport = mergeCoverageReport(containerResult.coverageReport, containerLessResult.coverageReport),
-                    logFile = containerResult.logFile.orElse(containerLessResult.logFile),
+                    coverageReportOpt = mergeCoverageReports(containerResult.coverageReportOpt, containerLessResult.coverageReportOpt),
+                    logFileOpt = containerResult.logFileOpt.orElse(containerLessResult.logFileOpt),
                     deployedFiles = containerResult.deployedFiles ++ containerLessResult.deployedFiles,
-                    testsPassed = Option(containerResult.testsPassed.getOrElse(false) && containerLessResult.testsPassed.getOrElse(false)),
-                    errors = containerResult.errors ++ containerLessResult.errors,
-                    conflicts = containerResult.conflicts ++ containerLessResult.conflicts
+                    testsPassedOpt = Option(containerResult.testsPassedOpt.getOrElse(false) && containerLessResult.testsPassedOpt.getOrElse(false)),
+                    otherErrors = containerResult.otherErrors ++ containerLessResult.otherErrors,
+                    conflictsReportOpt = mergeConflictsReports(containerResult.conflictsReportOpt, containerLessResult.conflictsReportOpt)
 
                 )
             case Some(containerResult) if containerLessOpt.isEmpty => containerResult
             case None =>
-                containerLessOpt.getOrElse(DeploymentResult(isSuccess = true, failureReport = None))
+                containerLessOpt.getOrElse(DeploymentReport(isSuccess = true, isCheckOnly = checkOnly, failureReportOpt = None))
         }
     }
 
-    private def mergeCoverageReport(report1Opt: Option[CodeCoverageReport], report2Opt: Option[CodeCoverageReport]): Option[CodeCoverageReport] = {
+    private def mergeCoverageReports(report1Opt: Option[CodeCoverageReport], report2Opt: Option[CodeCoverageReport]): Option[CodeCoverageReport] = {
         report1Opt match {
             case Some(report1) if report2Opt.isEmpty=>
                 Some(report1)
@@ -225,7 +227,7 @@ class SaveModified extends DeployModified {
             case None => report2Opt
         }
     }
-    private def mergeFailureReport(report1Opt: Option[DeploymentFailureReport], report2Opt: Option[DeploymentFailureReport]): Option[DeploymentFailureReport] = {
+    private def mergeFailureReports(report1Opt: Option[DeploymentFailureReport], report2Opt: Option[DeploymentFailureReport]): Option[DeploymentFailureReport] = {
         report1Opt match {
             case Some(report1) if report2Opt.isEmpty=>
                 Some(report1)
@@ -234,8 +236,23 @@ class SaveModified extends DeployModified {
                 Option(
                     DeploymentFailureReport(
                         failures = report1.failures ++ report2.failures,
-                        testFailures = report1.testFailures ++ report2.testFailures,
-                        coverageReport = mergeCoverageReport(report1.coverageReport, report2.coverageReport)
+                        testFailures = report1.testFailures ++ report2.testFailures
+                    )
+                )
+            case None => report2Opt
+        }
+    }
+
+    private def mergeConflictsReports(report1Opt: Option[DeploymentConflictsReport], report2Opt: Option[DeploymentConflictsReport]): Option[DeploymentConflictsReport] = {
+        report1Opt match {
+            case Some(report1) if report2Opt.isEmpty=>
+                Some(report1)
+            case Some(report1) if report2Opt.nonEmpty=>
+                val report2 = report2Opt.get
+                Option(
+                    DeploymentConflictsReport(
+                        hasConflicts = report1.hasConflicts || report2.hasConflicts,
+                        conflicts = report1.conflicts ++ report2.conflicts
                     )
                 )
             case None => report2Opt
@@ -250,7 +267,7 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if session data needs to be updated at the end of successful save
      * @return - true if all files have been saved successfully
      */
-    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+    private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         val deploymentResultByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
             saveFilesOfSingleXmlType(files, fileToToolingInstance,
                 (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
@@ -271,10 +288,11 @@ class SaveModified extends DeployModified {
      */
     private def saveFilesOfSingleXmlType(files: List[File], sobjectInstanceCreator: (File) => SObject,
                                          sessionDataUpdater: (List[File]) => Unit,
-                                         updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+                                         updateSessionDataOnSuccess: Boolean): DeploymentReport = {
 
         val sObjects = files.map(sobjectInstanceCreator(_))
         val saveResults = session.updateTooling(sObjects.toArray)
+        val checkOnly = getSessionConfig.isCheckOnly
 
         val errorBuilderByFileIndex = Map.newBuilder[Int, com.sforce.soap.tooling.Error]
 
@@ -372,14 +390,16 @@ class SaveModified extends DeployModified {
                     //responseWriter.println("ERROR", errorMap)
                     //responseWriter.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem, "code" -> statusCode, "fields" -> fields.mkString(","))))
                 }
-            DeploymentResult(
+            DeploymentReport(
                 isSuccess = false,
-                Option(DeploymentFailureReport(failures.toList, Nil, None))
+                isCheckOnly = checkOnly,
+                Option(DeploymentFailureReport(failures.toList, Nil))
             )
         } else {
-            DeploymentResult(
+            DeploymentReport(
                 isSuccess = true,
-                failureReport = None,
+                isCheckOnly = checkOnly,
+                failureReportOpt = None,
                 fileCount = successfulFiles.length,
                 deployedFiles = successfulFiles
             )
@@ -451,7 +471,7 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
      * @return
      */
-    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+    private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         saveFilesOfSingleXmlType(
             files,
             (file: File) => AuraMember.getInstanceUpdate(file, session),
@@ -460,10 +480,11 @@ class SaveModified extends DeployModified {
         )
     }
 
-    private def deployWithMetadataContainer(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+    private def deployWithMetadataContainer(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         logger.debug("Deploying with Metadata Container")
+        val checkOnly = getSessionConfig.isCheckOnly
 
-        var deploymentResultOpt: Option[DeploymentResult] = None
+        var deploymentResultOpt: Option[DeploymentReport] = None
         withMetadataContainer(session) { container =>
 
             val membersMap = (for(f <- files) yield {
@@ -479,7 +500,7 @@ class SaveModified extends DeployModified {
             deploymentResultOpt =
                 if (res.isSuccess) {
                     val request = new ContainerAsyncRequest()
-                    request.setIsCheckOnly(session.getConfig.isCheckOnly)
+                    request.setIsCheckOnly(checkOnly)
                     request.setMetadataContainerId(container.getId)
                     val requestResults = session.createTooling(Array(request))
                     val deploymentResults =
@@ -509,7 +530,7 @@ class SaveModified extends DeployModified {
                                     }
                                     processSaveResult(_request, membersMap, updateSessionDataOnSuccess)
                                 } else {
-                                    DeploymentResult(isSuccess = false)
+                                    DeploymentReport(isSuccess = false, isCheckOnly = checkOnly)
                                 }
                             } else {
                                 throw new IllegalStateException("Failed to create ContainerAsyncRequest. " + res.getErrors.head.getMessage)
@@ -637,7 +658,8 @@ class SaveModified extends DeployModified {
 
     private def processSaveResult(request: ContainerAsyncRequest,
                                   membersMap: Map[ApexMember, File],
-                                  updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+                                  updateSessionDataOnSuccess: Boolean): DeploymentReport = {
+        val checkOnly = getSessionConfig.isCheckOnly
 
         request.getState match {
             case "Completed" =>
@@ -671,14 +693,16 @@ class SaveModified extends DeployModified {
                     //val savedFilesMsg = resultBuilder.addMessage(InfoMessage("SAVED FILES"))
                     //resultBuilder.addDetails(membersMap.values.map(f => MessageDetailText(savedFilesMsg, f.getName)))
                     val deployedFiles = membersMap.values.toList
-                    DeploymentResult(
+                    DeploymentReport(
                         isSuccess = true,
+                        isCheckOnly = checkOnly,
                         fileCount = deployedFiles.length,
                         deployedFiles = deployedFiles
                     )
                 } else {
-                    DeploymentResult(
-                        isSuccess = true
+                    DeploymentReport(
+                        isSuccess = true,
+                        isCheckOnly = checkOnly
                     )
 
                 }
@@ -720,14 +744,15 @@ class SaveModified extends DeployModified {
                         //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                         //responseWriter.println(MessageDetail(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
                     }
-                    DeploymentResult(
+                    DeploymentReport(
                         isSuccess = false,
-                        failureReport = Option(DeploymentFailureReport(failures = compileErrors.toList, testFailures = Nil, coverageReport = None))
+                        isCheckOnly = checkOnly,
+                        failureReportOpt = Option(DeploymentFailureReport(failures = compileErrors.toList, testFailures = Nil))
                     )
                 } else {
                     //general error
                     //display errors both as messages and as ERROR: lines
-                    val generalFailureMessage = WarnMessage("General failure")
+                    //val generalFailureMessage = WarnMessage("General failure")
                     //responseWriter.println(generalFailureMessage)
                     val problem = request.getErrorMsg match {
                         case "Can't alter metadata in an active org" => //attempt to deploy using Tooling API into Production
@@ -736,14 +761,15 @@ class SaveModified extends DeployModified {
                     }
                     //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> problem))
                     //responseWriter.println(MessageDetail(generalFailureMessage, Map("type" -> "Error", "text" -> problem)))
-                    DeploymentResult(
+                    DeploymentReport(
                         isSuccess = false,
-                        failureReport =
+                        isCheckOnly = checkOnly,
+                        failureReportOpt =
                             Option(
                                 DeploymentFailureReport(
                                     failures = List(GenericError(GenericDeploymentError, problem)),
-                                    testFailures = Nil,
-                                    coverageReport = None)
+                                    testFailures = Nil
+                                )
                             )
                     )
 
@@ -755,14 +781,15 @@ class SaveModified extends DeployModified {
                 logger.error(problem)
                 //responseWriter.println("ERROR", Map("type" -> "Error", "text" -> msg))
 
-                DeploymentResult(
+                DeploymentReport(
                     isSuccess = false,
-                    failureReport =
+                    isCheckOnly = checkOnly,
+                    failureReportOpt =
                         Option(
                             DeploymentFailureReport(
                                 failures = List(GenericError(GenericDeploymentError, problem)),
-                                testFailures = Nil,
-                                coverageReport = None)
+                                testFailures = Nil
+                            )
                         )
                 )
         }

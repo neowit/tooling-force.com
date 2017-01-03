@@ -162,8 +162,8 @@ class RunTests extends DeployModified {
                             */
                             com.neowit.response.RunTestsResult(
                                 testFailures = Nil,
-                                coverageReportOpt = deploymentResult.coverageReport,
-                                deploymentFailureReport = deploymentResult.failureReport
+                                coverageReportOpt = deploymentResult.coverageReportOpt,
+                                deploymentFailureReport = deploymentResult.failureReportOpt
                             )
                         )
                     )

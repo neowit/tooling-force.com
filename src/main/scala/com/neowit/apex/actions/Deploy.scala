@@ -240,7 +240,13 @@ class DeployModified extends Deploy {
 
                 val deploymentResult =
                 if (conflictReport.hasConflicts) {
-                    DeploymentResult(isSuccess = false, None, conflicts = conflictReport.conflicts)
+                    val checkOnly = getSessionConfig.isCheckOnly
+                    DeploymentReport(
+                        isSuccess = false,
+                        isCheckOnly = checkOnly,
+                        failureReportOpt = None,
+                        conflictsReportOpt = Option(conflictReport)
+                    )
                 } else {
                     deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
 
@@ -267,20 +273,23 @@ class DeployModified extends Deploy {
         //responseWriter.println("FILE_COUNT=" + files.size)
         //responseWriter.println(InfoMessage("no modified files detected."))
         ActionSuccess(
-            List(
-                KeyValueMessage(Map("FILE_COUNT" -> files.size)),
-                InfoMessage("no modified files detected.")
+            DeployModifiedResult(
+                DeploymentReport(
+                    isSuccess = true,
+                    isCheckOnly = session.getConfig.isCheckOnly,
+                    failureReportOpt = None
+                )
             )
         )
     }
     /**
      * @return - true if deployment is successful
      */
-    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentResult = {
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         deploy(files, updateSessionDataOnSuccess, None)
     }
 
-    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, alternativeSrcDir: Option[File] = None): DeploymentResult = {
+    def deploy(files: List[File], updateSessionDataOnSuccess: Boolean, alternativeSrcDir: Option[File] = None): DeploymentReport = {
 
         //for every modified file add its -meta.xml if exists
         val metaXmlFiles = for (file <- files;
@@ -358,7 +367,7 @@ class DeployModified extends Deploy {
         if (alternativeSrcDir.isEmpty && session.getConfig.srcDirOpt.isEmpty) {
             //responseWriter.println(FAILURE)
             //responseWriter.println(ErrorMessage("src folder not found"))
-            return DeploymentResult(isSuccess = false, None)
+            return DeploymentReport(isSuccess = false, isCheckOnly = checkOnly,  failureReportOpt = None, otherErrors = List(ErrorMessage("src folder not found")))
         }
         val srcDir = alternativeSrcDir.getOrElse(session.getConfig.srcDirOpt.get)
         val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(srcDir, excludeFileFromZip(allFilesToDeploySet, _),
@@ -366,66 +375,78 @@ class DeployModified extends Deploy {
 
         val deployDetails = deployResult.getDetails
 
-        val result =
-        if (!deployResult.isSuccess) {
-            //responseWriter.println(FAILURE)
-            //dump details of failures into a response file
-            val failureReport = prepareDeploymentFailureReport(deployDetails, isRunningTests) //TODO
-
-            DeploymentResult( isSuccess = false, failureReport )
-
-        } else { //deployResult.isSuccess = true
-
-            val runTestResult = deployDetails.getRunTestResult
-            val testsPassedOpt =
-                if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
-                    //responseWriter.println(InfoMessage("Tests PASSED"))
-                    Option(true)
-                } else {
-                    None
+        val runTestResult = deployDetails.getRunTestResult
+        val testsPassedOpt =
+            if (isRunningTests && (null == runTestResult || runTestResult.getFailures.isEmpty)) {
+                //responseWriter.println(InfoMessage("Tests PASSED"))
+                Option(true)
+            } else {
+                None
+            }
+        val coverageReportOpt =
+            if (isRunningTests && (null != runTestResult)) {
+                if (runTestResult.getTotalTime > 0 ) {
+                    logger.info(s"total cumulative time spent running tests: ${runTestResult.getTotalTime}")
                 }
-            if (isRunningTests && (null != runTestResult) && runTestResult.getTotalTime > 0 ) {
-                logger.info(s"total cumulative time spent running tests: ${runTestResult.getTotalTime}")
+                ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
+            } else {
+                None
             }
-            val coverageReportOpt = ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
-            //update session data for successful files
-            if (updateSessionDataOnSuccess) {
-                updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
-            }
-            session.storeSessionData()
-            /*
-            //responseWriter.println(SUCCESS)
-            //responseWriter.println("FILE_COUNT=" + files.size)
-            resultBuilder.setResultType(SUCCESS)
-            resultBuilder.addMessage( KeyValueMessage(Map("FILE_COUNT" -> files.size)) )
 
-            if (!checkOnly) {
-                //responseWriter.startSection("DEPLOYED FILES")
-                //files.foreach(f => responseWriter.println(f.getName))
-                //responseWriter.endSection("DEPLOYED FILES")
-                val deployedFilesMsg = InfoMessage("DEPLOYED FILES")
-                resultBuilder.addMessage(deployedFilesMsg)
-                files.foreach(f => resultBuilder.addDetail(MessageDetailText(deployedFilesMsg, f.getName)))
+        val result =
+            if (!deployResult.isSuccess) {
+                //responseWriter.println(FAILURE)
+                //dump details of failures into a response file
+                val failureReportOpt = prepareDeploymentFailureReport(deployDetails, isRunningTests) //TODO
+                DeploymentReport(
+                    isSuccess = false,
+                    isCheckOnly = checkOnly,
+                    failureReportOpt = failureReportOpt,
+                    coverageReportOpt = coverageReportOpt,
+                    testsPassedOpt = testsPassedOpt
+                )
+
+            } else { //deployResult.isSuccess = true
 
 
+                //val coverageReportOpt = ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
+                //update session data for successful files
+                if (updateSessionDataOnSuccess) {
+                    updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
+                }
+                session.storeSessionData()
+                /*
+                //responseWriter.println(SUCCESS)
+                //responseWriter.println("FILE_COUNT=" + files.size)
+
+                if (!checkOnly) {
+                    //responseWriter.startSection("DEPLOYED FILES")
+                    //files.foreach(f => responseWriter.println(f.getName))
+                    //responseWriter.endSection("DEPLOYED FILES")
+                    val deployedFilesMsg = InfoMessage("DEPLOYED FILES")
+                    resultBuilder.addMessage(deployedFilesMsg)
+                    files.foreach(f => resultBuilder.addDetail(MessageDetailText(deployedFilesMsg, f.getName)))
+
+
+                }
+                */
+                DeploymentReport(
+                    isSuccess = true,
+                    isCheckOnly = checkOnly,
+                    failureReportOpt = None,
+                    files.length,
+                    coverageReportOpt,
+                    logFileOpt = None,
+                    deployedFiles = if (!checkOnly) files else Nil,
+                    testsPassedOpt
+                )
             }
-            */
-            DeploymentResult(
-                isSuccess = true,
-                failureReport = None,
-                files.length,
-                coverageReportOpt,
-                logFile = None,
-                deployedFiles = if (!checkOnly) files else Nil,
-                testsPassedOpt
-            )
-        }
         if (!log.isEmpty) {
             val logFile = getProjectConfig.getLogFile
             FileUtils.writeFile(log, logFile)
             //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
             //resultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
-            result.copy(logFile = Option(logFile))
+            result.copy(logFileOpt = Option(logFile))
         } else {
             result
         }
@@ -542,8 +563,7 @@ class DeployModified extends Deploy {
                 } else {
                     Nil
                 }
-            val coverageReport = ApexTestUtils.processCodeCoverage(runTestResult, session)
-            Option(DeploymentFailureReport(failures.result(), testFailures, coverageReport))
+            Option(DeploymentFailureReport(failures.result(), testFailures ))
         } else {
             None
         }
@@ -1373,6 +1393,7 @@ class DeployModifiedDestructive extends DeployModified {
         val listModified = new ListModified().load[ListModified](session)
         val modifiedFiles = listModified.getModifiedFiles
         val filesWithoutPackageXml = modifiedFiles.filterNot(_.getName == "package.xml")
+        val checkOnly = getSessionConfig.isCheckOnly
 
         //val actionResultBuilder = new ActionResultBuilder()
 
@@ -1382,7 +1403,7 @@ class DeployModifiedDestructive extends DeployModified {
                     //responseWriter.println("RESULT=SUCCESS")
                     //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
                     //responseWriter.println(new Message(INFO, "no modified files detected."))
-                    (false, Option(DeploymentResult(isSuccess = true, failureReport = None, fileCount = 0)))
+                    (false, Option(DeploymentReport(isSuccess = true, isCheckOnly = checkOnly, failureReportOpt = None, fileCount = 0)))
                 } else {
                     //process files that need to be deleted
                     //deleteFiles()

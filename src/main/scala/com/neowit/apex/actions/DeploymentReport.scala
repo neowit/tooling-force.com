@@ -32,12 +32,21 @@ case class Location(
                    column: Int
                    )
 
-trait DeploymentProblemType
-case object GenericDeploymentError extends DeploymentProblemType
-case object GenericDeploymentWarning extends DeploymentProblemType
-case object DeploymentCompileError extends DeploymentProblemType
+sealed trait DeploymentProblemType {
+    def getDisplayName: String
+    override def toString: String = getDisplayName
+}
+case object GenericDeploymentError extends DeploymentProblemType {
+    override def getDisplayName: String = "ERROR"
+}
+case object GenericDeploymentWarning extends DeploymentProblemType {
+    override def getDisplayName: String = "WARN"
+}
+case object DeploymentCompileError extends DeploymentProblemType {
+    override def getDisplayName: String = "ERROR"
+}
 
-trait BaseError {
+sealed trait DeploymentError {
     val problemType: DeploymentProblemType
     val problem: String
     val statusCode: Option[String]
@@ -50,7 +59,7 @@ case class GenericError (
                             statusCode: Option[String] = None,
                             fields: List[String] = Nil
 
-                        ) extends BaseError
+                        ) extends DeploymentError
 
 
 case class ErrorWithLocation(
@@ -59,24 +68,24 @@ case class ErrorWithLocation(
                                 location: Location,
                                 statusCode: Option[String] = None,
                                 fields: List[String] = Nil
-                            ) extends BaseError
+                            ) extends DeploymentError
 
-case class DeploymentResult (
-                                isSuccess: Boolean,
-                                failureReport: Option[DeploymentFailureReport] = None,
-                                fileCount: Int = 0, // number of deployed files
-                                coverageReport: Option[CodeCoverageReport] = None,
-                                logFile: Option[File] = None,
-                                deployedFiles: List[File] = Nil,
-                                testsPassed: Option[Boolean] = None,
-                                errors: List[ErrorMessage] = Nil,
-                                conflicts: List[SingleFileConflictDetail] = Nil
+case class DeploymentReport(
+                               isSuccess: Boolean,
+                               isCheckOnly: Boolean,
+                               failureReportOpt: Option[DeploymentFailureReport] = None,
+                               fileCount: Int = 0, // number of deployed files
+                               coverageReportOpt: Option[CodeCoverageReport] = None,
+                               logFileOpt: Option[File] = None,
+                               deployedFiles: List[File] = Nil,
+                               testsPassedOpt: Option[Boolean] = None,
+                               otherErrors: List[ErrorMessage] = Nil, // use it only for errors not covered by DeploymentFailureReport
+                               conflictsReportOpt: Option[DeploymentConflictsReport] = None
                             )
 
 case class DeploymentFailureReport (
-                                       failures: List[BaseError],
-                                       testFailures: List[ProcessedTestFailure],
-                                       coverageReport: Option[CodeCoverageReport]
+                                       failures: List[DeploymentError], //syntax and metadata errors
+                                       testFailures: List[ProcessedTestFailure]
                                    )
 
 case class SingleFileTestCoverage(

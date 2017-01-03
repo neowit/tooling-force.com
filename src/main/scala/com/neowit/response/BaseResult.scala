@@ -62,8 +62,8 @@ case class RunTestsResult(
                              coverageReportOpt: Option[CodeCoverageReport] = None,
                              deploymentFailureReport: Option[DeploymentFailureReport] = None
                          ) extends BaseResult
-case class DeployAllDestructiveResult(deploymentResult: DeploymentResult, diffReport: Option[DiffWithRemoteReport]) extends BaseResult
-case class DeployModifiedDestructiveResult(deploymentResultOpt: Option[DeploymentResult]) extends BaseResult
-case class DeployModifiedResult(deploymentResultOpt: DeploymentResult) extends BaseResult
-case class DeployAllResult(deploymentResultOpt: DeploymentResult) extends BaseResult
+case class DeployAllDestructiveResult(deploymentResult: DeploymentReport, diffReport: Option[DiffWithRemoteReport]) extends BaseResult
+case class DeployModifiedDestructiveResult(deploymentResultOpt: Option[DeploymentReport]) extends BaseResult
+case class DeployModifiedResult(deploymentReport: DeploymentReport) extends BaseResult
+case class DeployAllResult(deploymentResult: DeploymentReport) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult

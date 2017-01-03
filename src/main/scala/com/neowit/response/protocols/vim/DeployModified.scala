@@ -25,6 +25,22 @@ import com.neowit.response.DeployModifiedResult
 
 class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifiedResult] {
     def send(result: DeployModifiedResult): Unit = {
+        val report = result.deploymentReport
+        if (report.conflictsReportOpt.exists(_.hasConflicts)) {
+            // report conflicts
+            ListConflicting.sendConflictDetails(writer, report.conflictsReportOpt.get)
+        } else {
+            if (report.failureReportOpt.nonEmpty) {
+                report.failureReportOpt.foreach(DeploymentReportUtils.sendDeploymentFailureReport(writer, _))
+            }
+            if (report.otherErrors.nonEmpty) {
+                DeploymentReportUtils.sendOtherErrors(writer, report.otherErrors)
+            }
+            DeploymentReportUtils.sendSuccessReport(writer, report)
+        }
+        DeploymentReportUtils.sendLogFile(writer, report.logFileOpt)
+
+
         writer.send("NOT IMPLEMENTED")
     }
 }
