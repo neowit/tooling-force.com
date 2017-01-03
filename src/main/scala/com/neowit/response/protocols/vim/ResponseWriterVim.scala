@@ -98,8 +98,9 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
     def println(data: Map[String, Any]): Unit = {
         println("", data)
     }
-    def startSection(sectionName: String): Unit = {
+    def startSection(sectionName: String): String = {
         println("#SECTION START: " + sectionName)
+        sectionName
     }
     def endSection(sectionName: String): Unit = {
         println("#SECTION END: " + sectionName)

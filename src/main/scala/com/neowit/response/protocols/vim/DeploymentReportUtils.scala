@@ -43,35 +43,36 @@ object DeploymentReportUtils {
 
     def printDeploymentFailures(writer: ResponseWriterVim, failures: List[DeploymentError]): Unit = {
         if (failures.nonEmpty) {
-            val componentFailureMessage = WarnMessage("Component failures")
             val hasGenericErrors = failures.exists{
                 case GenericError(_, _, _, _) => true
                 case _ => false
             }
 
+            val componentFailureMessage = WarnMessage("Component failures")
             if (hasGenericErrors) {
-                writer.startSection("ERROR LIST")
+                writer.send(componentFailureMessage)
             }
+            val section = writer.startSection("ERROR LIST")
             for (failure <- failures) {
                 failure match {
                     case GenericError(problemType, problem, statusCodeOpt, fields) =>
+                        // for :ApexMessages window
                         writer.println(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "text" -> problem)))
                     case ErrorWithLocation(problemType, problem, location, statusCodeOpt, fields) =>
+                        // for vim quickfix
                         writer.println(
-                            MessageDetailMap(
-                                componentFailureMessage,
+                                "ERROR",
                                 Map("type" -> problemType,
                                     "filePath" -> location.filePath,
                                     "line" -> location.line,
                                     "column" -> location.column,
                                     "text" -> problem
                                 )
-                            )
                         )
                 }
             }
             if (hasGenericErrors) {
-                writer.endSection("ERROR LIST")
+                writer.endSection(section)
             }
         }
         Unit
