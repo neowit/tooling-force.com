@@ -145,8 +145,23 @@ class RunTests extends DeployModified {
         if (modifiedFiles.nonEmpty ) {
             //check if we can save using tooling API
             if (ToolingUtils.canUseTooling(session, modifiedFiles)) {
-                val saveModified = new SaveModified().load[SaveModified](session)
-                val deploymentResult = saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)
+
+                val ignoreConflicts = config.getProperty("ignoreConflicts").getOrElse("false").toBoolean
+                val conflictReport = if (ignoreConflicts) DeploymentConflictsReport(hasConflicts = false) else getConflicts(modifiedFiles)
+
+                val deploymentResult =
+                    if (conflictReport.hasConflicts) {
+                        val checkOnly = getSessionConfig.isCheckOnly
+                        DeploymentReport(
+                            isSuccess = false,
+                            isCheckOnly = checkOnly,
+                            failureReportOpt = None,
+                            conflictsReportOpt = Option(conflictReport)
+                        )
+                    } else {
+                        val saveModified = new SaveModified().load[SaveModified](session)
+                        saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)
+                    }
                 if (!deploymentResult.isSuccess) {
                     //responseWriter.println("RESULT=FAILURE")
                     //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
@@ -160,10 +175,8 @@ class RunTests extends DeployModified {
                                 ErrorMessage("Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first")
                             )
                             */
-                            com.neowit.response.RunTestsResult(
-                                testFailures = Nil,
-                                coverageReportOpt = deploymentResult.coverageReportOpt,
-                                deploymentFailureReport = deploymentResult.failureReportOpt
+                            com.neowit.response.DeployModifiedResult(
+                                deploymentReport = deploymentResult
                             )
                         )
                     )
