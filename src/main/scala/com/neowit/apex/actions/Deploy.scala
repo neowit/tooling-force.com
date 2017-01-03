@@ -239,18 +239,18 @@ class DeployModified extends Deploy {
                 val conflictReport = if (ignoreConflicts) DeploymentConflictsReport(hasConflicts = false) else getConflicts(modifiedFiles)
 
                 val deploymentResult =
-                if (conflictReport.hasConflicts) {
-                    val checkOnly = getSessionConfig.isCheckOnly
-                    DeploymentReport(
-                        isSuccess = false,
-                        isCheckOnly = checkOnly,
-                        failureReportOpt = None,
-                        conflictsReportOpt = Option(conflictReport)
-                    )
-                } else {
-                    deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
+                    if (conflictReport.hasConflicts) {
+                        val checkOnly = getSessionConfig.isCheckOnly
+                        DeploymentReport(
+                            isSuccess = false,
+                            isCheckOnly = checkOnly,
+                            failureReportOpt = None,
+                            conflictsReportOpt = Option(conflictReport)
+                        )
+                    } else {
+                        deploy(modifiedFiles, isUpdateSessionDataOnSuccess)
 
-                }
+                    }
                 if (deploymentResult.isSuccess) {
                     ActionSuccess(DeployModifiedResult(deploymentResult))
                 } else {
