@@ -21,10 +21,12 @@
 
 package com.neowit.response.protocols.vim
 
+import java.io.{File, PrintWriter}
+
 import com.neowit.apex.ProcessedTestFailure
 import com.neowit.apex.actions.CodeCoverageReport
 import com.neowit.response._
-import com.neowit.utils.JsonSupport
+import com.neowit.utils.{FileUtils, JsonSupport}
 import spray.json._
 
 object RunTests extends JsonSupport {
@@ -80,6 +82,30 @@ object RunTests extends JsonSupport {
         Unit
     }
 
+    def prepareDetailedPerFileCoverage(coverageReportOpt: Option[CodeCoverageReport]): Option[File] = {
+        coverageReportOpt match {
+            case Some(coverageReport) =>
+                val coverageFile = FileUtils.createTempFile("coverage", ".txt")
+                val coverageWriter = new PrintWriter(coverageFile)
+                for (coverage <- coverageReport.coveragePerFile) {
+                    val locations = List.newBuilder[Int]
+                    for (codeLocation <- coverage.linesNotCovered) {
+                        locations += codeLocation.getLine
+                    }
+                    val coverageJSON: JsValue = Map("path" -> coverage.filePathInProject, "linesTotalNum" -> coverage.linesTotalNum,
+                        "linesNotCoveredNum" -> coverage.linesNotCoveredNum,
+                        "linesNotCovered" -> locations.result().toJson ).toJson
+                    // end result looks like so:
+                    // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
+                    coverageWriter.println(coverageJSON.compactPrint)
+                }
+                coverageWriter.close()
+                Option(coverageFile)
+            case None =>
+                None
+        }
+    }
+
     def printLogFiles(writer: ResponseWriterVim, result: RunTestsResult): Unit = {
         result.log match {
             case Some(logFile) =>
@@ -100,6 +126,11 @@ class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
         printCoverageReport(writer, result.coverageReportOpt)
         printLogFiles(writer, result)
 
+        prepareDetailedPerFileCoverage(result.coverageReportOpt) match {
+            case Some(resultFile) =>
+                writer.send("COVERAGE_FILE=" + resultFile.getAbsolutePath)
+            case None =>
+        }
         Unit
     }
 }
