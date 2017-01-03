@@ -22,31 +22,34 @@
 package com.neowit.response.protocols.vim
 
 import com.neowit.apex.actions.DeploymentConflictsReport
-import com.neowit.response.{InfoMessage, ListConflictingResult, MessageDetailMap}
+import com.neowit.response.{InfoMessage, ListConflictingResult, MessageDetailMap, WarnMessage}
 
 object ListConflicting {
 
     def sendConflictDetails(writer: ResponseWriterVim, conflictReport: DeploymentConflictsReport): Unit = {
-        val msg = InfoMessage("Outdated file(s) detected.")
-        writer.send(msg)
-        conflictReport.conflicts
-            .foreach(conflict =>
-                writer.println(
-                    MessageDetailMap(
-                        msg,
-                        Map(
-                            "filePath" -> conflict.file.getAbsolutePath,
-                            "text" ->
-                                (
-                                    s"${conflict.file.getName} => " +
-                                        s"Modified By: ${conflict.lastModifiedByName.getOrElse("")}; " +
-                                        s"at: ${conflict.remoteLastModifiedDate.getOrElse("")}; " +
-                                        s"Local version saved at: ${conflict.localLastModifiedDate.getOrElse("")}"
-                                    )
+        if (conflictReport.conflicts.nonEmpty) {
+            val msg = WarnMessage("Outdated file(s) detected.")
+            writer.send(msg)
+            conflictReport.conflicts
+                .foreach(conflict =>
+                    writer.println(
+                        MessageDetailMap(
+                            msg,
+                            Map(
+                                "filePath" -> conflict.file.getAbsolutePath,
+                                "text" ->
+                                    (
+                                        s"${conflict.file.getName} => " +
+                                            s"Modified By: ${conflict.lastModifiedByName.getOrElse("")}; " +
+                                            s"at: ${conflict.remoteLastModifiedDate.getOrElse("")}; " +
+                                            s"Local version saved at: ${conflict.localLastModifiedDate.getOrElse("")}"
+                                        )
+                            )
                         )
                     )
                 )
-            )
+            writer.send(WarnMessage("Use 'refresh' before 'deploy'."))
+        }
     }
 }
 class ListConflicting(writer: ResponseWriterVim) extends VimProtocol[ListConflictingResult] {

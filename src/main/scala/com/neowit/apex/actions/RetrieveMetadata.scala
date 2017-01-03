@@ -355,7 +355,7 @@ class ListConflicting extends RetrieveMetadata {
                 //config.responseWriter.println("RESULT=SUCCESS")
                 val conflictReport =
                 if (fileProps.nonEmpty) {
-                    val msg = InfoMessage("Outdated file(s) detected.")
+                    //val msg = InfoMessage("Outdated file(s) detected.")
                     //config.responseWriter.println(msg)
                     //generateConflictMessageDetails(fileProps, msg).foreach{detail => config.responseWriter.println(detail)}
                     generateConflictMessageDetails(fileProps)
