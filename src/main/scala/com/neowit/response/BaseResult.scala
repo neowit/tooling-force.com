@@ -31,17 +31,7 @@ import spray.json._
   * Author: Andrey Gavrikov
   * Date: 01/01/2017
   */
-sealed abstract class BaseResult {
-
-    def addToExisting(result: BaseResult): BaseResult = {
-        // by default do nothing
-        this
-    }
-    def addToExisting(result: ActionResult): BaseResult = {
-        // by default do nothing
-        this
-    }
-}
+sealed abstract class BaseResult
 
 case class FindSymbolResult(memberOpt: Option[Member]) extends BaseResult with JsonSupport {
     def toJson: JsValue = memberOpt match {
@@ -72,4 +62,5 @@ case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResul
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
+case class AppVersionResult(appName: String, appVersion: String, sfdcApiVersion: String) extends BaseResult
 
