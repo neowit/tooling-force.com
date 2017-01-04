@@ -71,4 +71,5 @@ case class DeployModifiedResult(deploymentReport: DeploymentReport) extends Base
 case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
+case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 

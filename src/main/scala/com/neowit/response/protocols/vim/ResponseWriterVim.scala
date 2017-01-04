@@ -123,6 +123,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ ListConflictingResult(_) => new ListConflicting(this).send(res)
             case res @ RunTestsResult(_, _, _, _, _) => new RunTests(this).send(res)
             case res @ ExecuteAnonymousResult(_, _, _) => new ExecuteAnonymous(this).send(res)
+            case res @ SoqlQueryResult(_) => new SoqlQuery(this).send(res)
         }
     }
 
