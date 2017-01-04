@@ -116,6 +116,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ RefreshMetadataResult(_) => new RefreshMetadata(this).send(res)
             case res @ CheckSyntaxResult(_, _) => new CheckSyntax(this).send(res)
             case res @ DeployAllDestructiveResult(_, _) => new DeployAllDestructive(this).send(res)
+            case res @ DeployDestructiveResult(_) => new DeployDestructive(this).send(res)
             case res @ DeployAllResult(_) => new DeployAll(this).send(res)
             case res @ DeployModifiedResult(_) => new DeployModified(this).send(res)
             case res @ DeployModifiedDestructiveResult(_) => new DeployModifiedDestructive(this).send(res)
