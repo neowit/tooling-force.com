@@ -19,12 +19,9 @@
 
 package com.neowit.apex.actions.tooling
 
-import java.io.File
-
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions._
-import com.neowit.response.{InfoMessage, KeyValueMessage, SUCCESS}
 import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 
@@ -349,6 +346,10 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
 }
 
 //TODO - this action is not implemented yet
+/*
+import java.io.File
+import com.neowit.response.{InfoMessage, KeyValueMessage, SUCCESS}
+
 class ListLogs extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -438,3 +439,5 @@ class ListLogs extends ApexActionWithReadOnlySession {
         Future.successful(builder.result())
     }
 }
+
+*/
