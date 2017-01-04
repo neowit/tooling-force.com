@@ -64,10 +64,10 @@ case class RunTestsResult(
                              deploymentFailureReport: Option[DeploymentFailureReport] = None
                          ) extends BaseResult
 
-case class DeployAllDestructiveResult(deploymentResult: DeploymentReport, diffReport: Option[DiffWithRemoteReport]) extends BaseResult
-case class DeployModifiedDestructiveResult(deploymentResultOpt: Option[DeploymentReport]) extends BaseResult
+case class DeployAllDestructiveResult(deploymentReport: DeploymentReport, diffReportOpt: Option[DiffWithRemoteReport]) extends BaseResult
+case class DeployModifiedDestructiveResult(deploymentReportOpt: Option[DeploymentReport]) extends BaseResult
 case class DeployModifiedResult(deploymentReport: DeploymentReport) extends BaseResult
-case class DeployAllResult(deploymentResult: DeploymentReport) extends BaseResult
+case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
 

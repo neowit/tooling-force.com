@@ -21,11 +21,11 @@
 
 package com.neowit.response.protocols.vim
 
+import com.neowit.apex.actions.DeploymentReport
 import com.neowit.response.DeployModifiedResult
 
-class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifiedResult] {
-    def send(result: DeployModifiedResult): Unit = {
-        val report = result.deploymentReport
+object DeployModified {
+    def sendDeploymentReport(writer: ResponseWriterVim, report: DeploymentReport): Unit = {
         if (report.conflictsReportOpt.exists(_.hasConflicts)) {
             // report conflicts
             ListConflicting.sendConflictDetails(writer, report.conflictsReportOpt.get)
@@ -37,5 +37,12 @@ class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifi
             DeploymentReportUtils.sendSuccessReport(writer, report)
         }
         DeploymentReportUtils.sendLogFile(writer, report.logFileOpt)
+    }
+
+}
+class DeployModified(writer: ResponseWriterVim) extends VimProtocol[DeployModifiedResult] {
+    def send(result: DeployModifiedResult): Unit = {
+        val report = result.deploymentReport
+        DeployModified.sendDeploymentReport(writer, report)
     }
 }
