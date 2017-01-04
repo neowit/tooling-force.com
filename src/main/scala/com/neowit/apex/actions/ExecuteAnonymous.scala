@@ -25,7 +25,6 @@ import com.neowit.utils.{FileUtils, JsonSupport}
 import com.neowit.response._
 
 import scala.concurrent.{ExecutionContext, Future}
-import spray.json._
 /**
  * 'executeAnonymous' action Executes the specified block of Apex anonymously and returns the result
  * Extra command line params:
@@ -56,64 +55,55 @@ class ExecuteAnonymous extends ApexActionWithReadOnlySession with JsonSupport {
         val (executeAnonymousResult, log) = session.executeAnonymous(apexCode)
 
 
-        val builderWithSuccess = new ActionResultBuilder(SUCCESS)
-        val builderWithFailure = new ActionResultBuilder(FAILURE)
-
-        val actionResultBuilder =
-            if (executeAnonymousResult.isSuccess) {
-                //responseWriter.println("RESULT=SUCCESS")
-                builderWithSuccess
-            } else {
-                //responseWriter.println("RESULT=FAILURE")
-
-                if (executeAnonymousResult.isCompiled) {
-                    //non compile error
-                    //responseWriter.startSection("ERROR LIST")
-                    val errorsMessage = InfoMessage("ERROR LIST")
-                    builderWithFailure.addMessage(errorsMessage)
-                    //responseWriter.println("ERROR", Map("text" -> executeAnonymousResult.getExceptionMessage))
-                    builderWithFailure.addDetail(
-                        MessageDetailMap(
-                            errorsMessage,
-                            Map("type" -> "ERROR", "text" -> executeAnonymousResult.getExceptionMessage)
-                        )
-                    )
-
-                    //config.responseWriter.endSection("ERROR LIST")
-                    //responseWriter.println("STACK_TRACE", Map("text" -> executeAnonymousResult.getExceptionStackTrace))
-                    val exceptionContentJson = Map("text" -> executeAnonymousResult.getExceptionStackTrace).toJson.compactPrint
-                    builderWithFailure.addMessage(
-                        KeyValueMessage(
-                            Map("STACK_TRACE" ->  exceptionContentJson)
-                        )
-                    )
-
-                } else {
-                    //compile error
-                    //responseWriter.startSection("ERROR LIST")
-                    val errorsMessage = InfoMessage("ERROR LIST")
-                    builderWithFailure.addMessage(errorsMessage)
-                    val line = executeAnonymousResult.getLine
-                    val column = executeAnonymousResult.getColumn
-                    val problem = executeAnonymousResult.getCompileProblem
-                    //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "text" -> problem))
-                    //config.responseWriter.endSection("ERROR LIST")
-                    builderWithFailure.addDetail(
-                        MessageDetailMap(
-                            errorsMessage,
-                            Map("type" -> "ERROR", "line" -> line, "column" -> column, "text" -> problem)
-                        )
-                    )
-                }
-                builderWithFailure
-            }
-
+        //val builderWithSuccess = new ActionResultBuilder(SUCCESS)
+        //val builderWithFailure = new ActionResultBuilder(FAILURE)
+        val logFileOpt =
         if (!log.isEmpty) {
             val logFile = getProjectConfig.getLogFile
             FileUtils.writeFile(log, logFile)
             //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
-            actionResultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
+            Option(logFile)
+        } else {
+            None
         }
-        Future.successful(actionResultBuilder.result())
+
+        val actionResult =
+            if (executeAnonymousResult.isSuccess) {
+                //responseWriter.println("RESULT=SUCCESS")
+                ActionSuccess(ExecuteAnonymousResult(errors = Nil, stackTraceOpt = None, logFileOpt = logFileOpt))
+            } else {
+                //responseWriter.println("RESULT=FAILURE")
+                val errorBuilder = List.newBuilder[DeploymentError]
+
+                if (executeAnonymousResult.isCompiled) {
+                    //non compile error
+                    //responseWriter.startSection("ERROR LIST")
+                    //responseWriter.println("ERROR", Map("text" -> executeAnonymousResult.getExceptionMessage))
+                    errorBuilder += GenericError(problemType = GenericDeploymentError, problem = executeAnonymousResult.getExceptionMessage)
+
+                    //config.responseWriter.endSection("ERROR LIST")
+                    //responseWriter.println("STACK_TRACE", Map("text" -> executeAnonymousResult.getExceptionStackTrace))
+
+                } else {
+                    //compile error
+                    //responseWriter.startSection("ERROR LIST")
+                    val line = executeAnonymousResult.getLine
+                    val column = executeAnonymousResult.getColumn
+                    val problem = executeAnonymousResult.getCompileProblem
+                    //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "text" -> problem))
+
+                    errorBuilder +=
+                        ErrorWithLocation(
+                            problemType = DeploymentCompileError,
+                            problem = problem,
+                            location = Location("", line, column)
+                        )
+                    //config.responseWriter.endSection("ERROR LIST")
+                }
+                ActionFailure(ExecuteAnonymousResult(errors = errorBuilder.result(), stackTraceOpt = Option(executeAnonymousResult.getExceptionStackTrace), logFileOpt = logFileOpt))
+            }
+
+
+        Future.successful(actionResult)
     }
 }
