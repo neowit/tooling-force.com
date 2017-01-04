@@ -27,22 +27,23 @@ object ListModified {
     def reportModifiedFiles(writer: ResponseWriterVim, modifiedFiles: List[File],
                                       messageType: MessageType = INFO,
                                       responseWriter: ResponseWriterVim): Unit = {
-        val msg = ArbitraryTypeMessage(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
-        responseWriter.send(msg)
+        if (modifiedFiles.nonEmpty) {
+            val msg = ArbitraryTypeMessage(messageType, "Modified file(s) detected.", Map("code" -> "HAS_MODIFIED_FILES"))
+            responseWriter.send(msg)
 
-        for(f <- modifiedFiles) {
-            responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> ResponseWriter.getRelativePath(f))))
-        }
-        responseWriter.send("HAS_MODIFIED_FILES=true")
+            // display messages in message window
+            for(f <- modifiedFiles) {
+                responseWriter.println(MessageDetailMap(msg, Map("filePath" -> f.getAbsolutePath, "text" -> ResponseWriter.getRelativePath(f))))
+            }
+            responseWriter.send("HAS_MODIFIED_FILES=true")
 
-        /*
-        responseWriter.startSection("MODIFIED FILE LIST")
-        for(f <- modifiedFiles) {
-            //responseWriter.println("MODIFIED_FILE=" + session.getRelativePath(f))
-            responseWriter.send("MODIFIED_FILE=" + writer.getRelativePath(f))
+            responseWriter.startSection("MODIFIED FILE LIST")
+            for(f <- modifiedFiles) {
+                // data for vim script to decide which route to take
+                responseWriter.send("MODIFIED_FILE=" + ResponseWriter.getRelativePath(f))
+            }
+            responseWriter.endSection("MODIFIED FILE LIST")
         }
-        responseWriter.endSection("MODIFIED FILE LIST")
-        */
         Unit
 
     }
