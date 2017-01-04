@@ -54,13 +54,14 @@ case class RunTestsResult(
                              deploymentFailureReport: Option[DeploymentFailureReport] = None
                          ) extends BaseResult
 
-case class DeployAllDestructiveResult(deploymentReport: DeploymentReport, diffReportOpt: Option[DiffWithRemoteReport]) extends BaseResult
-case class DeployModifiedDestructiveResult(deploymentReportOpt: Option[DeploymentReport]) extends BaseResult
-case class DeployDestructiveResult(deploymentReport: DeploymentReport) extends BaseResult
-case class DeployModifiedResult(deploymentReport: DeploymentReport) extends BaseResult
-case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
-case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
-case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
-case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 case class AppVersionResult(appName: String, appVersion: String, sfdcApiVersion: String) extends BaseResult
+case class DeployAllDestructiveResult(deploymentReport: DeploymentReport, diffReportOpt: Option[DiffWithRemoteReport]) extends BaseResult
+case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
+case class DeployDestructiveResult(deploymentReport: DeploymentReport) extends BaseResult
+case class DeployModifiedDestructiveResult(deploymentReportOpt: Option[DeploymentReport]) extends BaseResult
+case class DeployModifiedResult(deploymentReport: DeploymentReport) extends BaseResult
+case class DiffWithRemoteResult(report: DiffWithRemoteReport) extends BaseResult
+case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
+case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
+case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 

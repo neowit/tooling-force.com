@@ -21,12 +21,18 @@
 
 package com.neowit.response.protocols.vim
 
+import com.neowit.apex.actions.{DiffWithRemoteReportFailure, DiffWithRemoteReportSuccess}
 import com.neowit.response.{DeployAllDestructiveResult, InfoMessage}
 
 class DeployAllDestructive(writer: ResponseWriterVim) extends VimProtocol[DeployAllDestructiveResult] {
     def send(result: DeployAllDestructiveResult): Unit = {
         val deploymentReport = result.deploymentReport
         DeployModified.sendDeploymentReport(writer, deploymentReport)
-        result.diffReportOpt.foreach(d => writer.send(InfoMessage("REMOTE_VERSION_BACKUP_PATH=" + d.remoteSrcFolderPath)))
+        result.diffReportOpt.foreach{
+            case DiffWithRemoteReportSuccess(_, remoteSrcFolderPath) =>
+                writer.send(InfoMessage("REMOTE_VERSION_BACKUP_PATH=" + remoteSrcFolderPath))
+            case DiffWithRemoteReportFailure(errors) =>
+                errors.foreach(writer.send(_))
+        }
     }
 }

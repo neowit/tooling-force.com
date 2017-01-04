@@ -673,11 +673,31 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
 }
 
 
+class ConflictingFile(val fileLocal: File, val fileRemote: File, val remoteProp: FileProperties)
+trait DiffWithRemoteReport {
+    def hasSomethingToReport: Boolean
+
+    def getLocalFilesMissingOnRemote: Map[String, File]
+
+    def getRemoteFilesMissingLocally: Map[String, File]
+
+    def getConflictingFiles: Map[String, ConflictingFile]
+}
+
+case class DiffWithRemoteReportFailure(errors: List[Message]) extends DiffWithRemoteReport {
+    override def hasSomethingToReport: Boolean = false
+
+    override def getLocalFilesMissingOnRemote: Map[String, File] = Map.empty
+
+    override def getRemoteFilesMissingLocally: Map[String, File] = Map.empty
+
+    override def getConflictingFiles: Map[String, ConflictingFile] = Map.empty
+}
 /**
- * this is a helper class which serves as a container of information collected by DiffWithRemote command
- * @param remoteSrcFolderPath - path to src/ folder where remote version of current project is saved/dumped by BulkRetrieve
- */
-class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remoteSrcFolderPath: String) {
+  * this is a helper class which serves as a container of information collected by DiffWithRemote command
+  * @param remoteSrcFolderPath - path to src/ folder where remote version of current project is saved/dumped by BulkRetrieve
+  */
+case class DiffWithRemoteReportSuccess(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String) extends DiffWithRemoteReport {
     private var _hasSomethingToReport = false
     private val localFilesMissingOnRemoteBuilder = Map.newBuilder[String, File]
     private val remoteFilesMissingLocallyBuilder = Map.newBuilder[String, File]
@@ -692,7 +712,6 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
         _hasSomethingToReport = true
     }
 
-    class ConflictingFile(val fileLocal: File, val fileRemote: File, val remoteProp: FileProperties)
 
     def addConflictingFiles(relativePath: String, fileLocal: File, fileRemote: File, remoteProp: FileProperties): Unit = {
         conflictingFileMapBuilder += relativePath -> new ConflictingFile(fileLocal, fileRemote, remoteProp)
@@ -705,7 +724,7 @@ class DiffWithRemoteReport(val bulkRetrieveResult: BulkRetrieveResult, val remot
 
     def getRemoteFilesMissingLocally: Map[String, File] = remoteFilesMissingLocallyBuilder.result()
 
-    def getConflictingFiles = conflictingFileMapBuilder.result()
+    def getConflictingFiles: Map[String, ConflictingFile] = conflictingFileMapBuilder.result()
 }
 /**
  * 'diffWithRemote' action - using package.xml or list of specific files extract files from SFDC and list
@@ -755,14 +774,16 @@ class DiffWithRemote extends RetrieveMetadata {
     }
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
-        val actionResultBuilder = new ActionResultBuilder(SUCCESS)
-        getDiffReport(actionResultBuilder) match {
-          case Some(diffReport) =>
-              //responseWriter.println("RESULT=SUCCESS")
-              writeReportToResponseFile(diffReport, actionResultBuilder)
-          case None =>
-        }
-        Future.successful(actionResultBuilder.result())
+        val actionResult =
+            getDiffReport match {
+                case report @ DiffWithRemoteReportSuccess(_, _) =>
+                    //responseWriter.println("RESULT=SUCCESS")
+                    //writeReportToResponseFile(diffReport, actionResultBuilder)
+                    ActionSuccess(DiffWithRemoteResult(report))
+                case report @ DiffWithRemoteReportFailure(_) =>
+                    ActionFailure(DiffWithRemoteResult(report))
+            }
+        Future.successful(actionResult)
 
     }
 
@@ -772,7 +793,7 @@ class DiffWithRemote extends RetrieveMetadata {
      */
     def getTargetFolder: Option[String] = config.getProperty("targetFolder")
 
-    def getDiffReport(actionResultBuilder: ActionResultBuilder): Option[DiffWithRemoteReport] = {
+    def getDiffReport: DiffWithRemoteReport = {
         val tempFolder = getTargetFolder match {
             case Some(x) => new File(x)
             case None => FileUtils.createTempDir(config)
@@ -793,10 +814,10 @@ class DiffWithRemote extends RetrieveMetadata {
         bulkRetrieve.load[BulkRetrieve](session)
 
         val bulkRetrieveResult = bulkRetrieve.doRetrieve(tempFolder)
-        processRetrieveResult(tempFolder, bulkRetrieveResult, actionResultBuilder)
+        processRetrieveResult(tempFolder, bulkRetrieveResult)
     }
 
-    protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult, actionResultBuilder: ActionResultBuilder): Option[DiffWithRemoteReport] = {
+    protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): DiffWithRemoteReport = {
         val errors = bulkRetrieveResult.errors
 
         if (errors.isEmpty) {
@@ -809,23 +830,19 @@ class DiffWithRemote extends RetrieveMetadata {
             }
             if (remoteProjectDir.renameTo(new File(tempFolder, "src"))) {
                 val report = generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
-                Some(report)
+                report
 
             } else {
                 //failed to rename unpackaged/ into src/
                 //responseWriter.println("RESULT=FAILURE")
                 //responseWriter.println(new Message(ERROR,
                 //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
-                actionResultBuilder.setResultType(FAILURE)
-                actionResultBuilder.addMessage(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
-                None
+                DiffWithRemoteReportFailure(List(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder")))
             }
         } else {
             //config.responseWriter.println("RESULT=FAILURE")
             //errors.foreach(responseWriter.println(_))
-            actionResultBuilder.setResultType(FAILURE)
-            actionResultBuilder.addMessages(errors)
-            None
+            DiffWithRemoteReportFailure(errors)
         }
     }
 
@@ -855,7 +872,7 @@ class DiffWithRemote extends RetrieveMetadata {
      *                            by default retrieve dumps stuff in .../unpackaged/ rather than .../src/
      */
     def generateDiffReport(bulkRetrieveResult: BulkRetrieveResult, remoteSrcFolderPath: String): DiffWithRemoteReport = {
-        val report = new DiffWithRemoteReport(bulkRetrieveResult, remoteSrcFolderPath)
+        val report = DiffWithRemoteReportSuccess(bulkRetrieveResult, remoteSrcFolderPath)
 
         //local files
         val existingFileByRelativePath  = getLocalFiles.filter(
@@ -917,6 +934,8 @@ class DiffWithRemote extends RetrieveMetadata {
         report
     }
 
+
+    /*
     protected def writeReportToResponseFile(report: DiffWithRemoteReport, actionResultBuilder: ActionResultBuilder): Unit = {
         val bulkRetrieveResult: BulkRetrieveResult = report.bulkRetrieveResult
         val remoteSrcFolderPath: String = report.remoteSrcFolderPath
@@ -1006,4 +1025,5 @@ class DiffWithRemote extends RetrieveMetadata {
 
 
     }
+    */
 }

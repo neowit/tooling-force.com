@@ -782,15 +782,14 @@ class DeployAllDestructive extends DeployAll {
         }
         diffWithRemote.load[DiffWithRemote](session)
 
-        val resultBuilder = new ActionResultBuilder()
         val actionResultFuture =
-            diffWithRemote.getDiffReport(resultBuilder) match {
-                case None =>
+            diffWithRemote.getDiffReport match {
+                case report @ DiffWithRemoteReportFailure(_) =>
                     //responseWriter.println(FAILURE)
                     //responseWriter.println(ErrorMessage("Failed to load remote version of current project"))
-                    Future.successful(ActionFailure(ErrorMessage("Failed to load remote version of current project")))
+                    Future.successful(ActionFailure(DiffWithRemoteResult(report)))
 
-                case Some(diffReport) =>
+                case diffReport @ DiffWithRemoteReportSuccess(_, _)=>
                     val dummyFilesBuilder = Map.newBuilder[String, File]
                     val keysToDeleteWithoutDummy = List.newBuilder[String]
                     val dummyMetaFilesBuilder = List.newBuilder[File]
