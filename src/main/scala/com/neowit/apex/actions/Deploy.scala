@@ -159,6 +159,108 @@ abstract class Deploy extends ApexActionWithWritableSession {
         config.getProperty("deployOptions.rollbackOnError").foreach(opt => deployOptions.setRollbackOnError(opt.toBoolean))
     }
 
+    protected def prepareDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Option[DeploymentFailureReport] = {
+
+        if (null != deployDetails) {
+            //responseWriter.startSection("ERROR LIST")
+
+            //display errors both as messages and as ERROR: lines
+            val failures = List.newBuilder[ErrorWithLocation]
+            for ( failureMessage <- deployDetails.getComponentFailures) {
+                val line = failureMessage.getLineNumber
+                val column = failureMessage.getColumnNumber
+                val filePath = failureMessage.getFileName
+                val problem = failureMessage.getProblem
+                val problemType = failureMessage.getProblemType match {
+                    case DeployProblemType.Warning => GenericDeploymentWarning
+                    case DeployProblemType.Error => GenericDeploymentError
+                    case _ => GenericDeploymentError
+                }
+                //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
+                //responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
+                failures += ErrorWithLocation(problemType, problem, Location(filePath, line, column))
+            }
+            //process test successes and failures
+            val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
+            val testFailures =
+                if (isRunningTests || (null != deployDetails.getRunTestResult && deployDetails.getRunTestResult.getFailures.nonEmpty) ) {
+                    ApexTestUtils.processTestResult(runTestResult, session)
+                } else {
+                    Nil
+                }
+            Option(DeploymentFailureReport(failures.result(), testFailures ))
+        } else {
+            None
+        }
+
+    }
+    //update session data for successful files
+    protected def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult, auraFiles: List[File]): Unit = {
+        val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
+        val calculateMD5 = getSessionConfig.useMD5Hash
+        val calculateCRC32 = !calculateMD5  //by default use only CRC32
+
+        def processOneFile(f: File, successMessage: com.sforce.soap.metadata.DeployMessage, xmlType: String): Unit = {
+            val relativePath = session.getRelativePath(f) //successMessage.getFileName
+            val key = session.getKeyByRelativeFilePath(relativePath)
+            val localMills = f.lastModified()
+
+            val md5Hash = if (calculateMD5 && !f.isDirectory) FileUtils.getMD5Hash(f) else ""
+            val crc32Hash = if (calculateCRC32 && !f.isDirectory) FileUtils.getCRC32Hash(f) else -1L
+
+            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
+            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
+                (fMeta.lastModified(),
+                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
+                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
+            } else {
+                (-1L, "", -1L)
+            }
+
+            val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
+            val oldData = session.getData(key)
+            session.setData(key, oldData ++ newData)
+
+            ()
+        }
+
+        val deployDetails = deployResult.getDetails
+
+        for ( successMessage <- deployDetails.getComponentSuccesses) {
+            val relativePath = successMessage.getFileName
+            getProjectConfig.projectDirOpt match {
+                case Some(projectDir) =>
+                    val f = new File(projectDir, relativePath)
+                    if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
+                        //process bundle definition
+                        //for aura bundles Metadata API deploy() reports only bundle name, not individual files
+                        // process bundle dir
+                        processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
+                        // process individual files
+                        FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
+                            .filter(AuraMember.isSupportedType)
+                            .foreach(file =>
+                                processOneFile(file, successMessage, AuraMember.XML_TYPE)
+                            )
+                    } else {
+                        if (f.exists() && !f.isDirectory) {
+                            val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                                case None => "" //package.xml and -meta.xml do not have xmlType
+                            }
+                            processOneFile(f, successMessage, xmlType)
+                        }
+                    }
+                case None =>
+            }
+        }
+        //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
+        AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
+        //dump session data to disk
+        session.storeSessionData()
+    }
+
+
 }
 
 
@@ -414,7 +516,6 @@ class DeployModified extends Deploy {
                 if (updateSessionDataOnSuccess) {
                     updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
                 }
-                session.storeSessionData()
                 /*
                 //responseWriter.println(SUCCESS)
                 //responseWriter.println("FILE_COUNT=" + files.size)
@@ -438,7 +539,8 @@ class DeployModified extends Deploy {
                     coverageReportOpt,
                     logFileOpt = None,
                     deployedFiles = if (!checkOnly) files else Nil,
-                    testsPassedOpt
+                    deletedComponents = Nil, //DeployModified does not perform removal
+                    testsPassedOpt = testsPassedOpt
                 )
             }
         if (!log.isEmpty) {
@@ -453,76 +555,11 @@ class DeployModified extends Deploy {
 
     }
 
-    //update session data for successful files
-    private def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult, auraFiles: List[File]): Unit = {
-        val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
-        val calculateMD5 = getSessionConfig.useMD5Hash
-        val calculateCRC32 = !calculateMD5  //by default use only CRC32
-
-        def processOneFile(f: File, successMessage: com.sforce.soap.metadata.DeployMessage, xmlType: String): Unit = {
-            val relativePath = session.getRelativePath(f) //successMessage.getFileName
-            val key = session.getKeyByRelativeFilePath(relativePath)
-            val localMills = f.lastModified()
-
-            val md5Hash = if (calculateMD5 && !f.isDirectory) FileUtils.getMD5Hash(f) else ""
-            val crc32Hash = if (calculateCRC32 && !f.isDirectory) FileUtils.getCRC32Hash(f) else -1L
-
-            val fMeta = new File(f.getAbsolutePath + "-meta.xml")
-            val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
-                (fMeta.lastModified(),
-                    if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
-                    if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L)
-            } else {
-                (-1L, "", -1L)
-            }
-
-            val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-            val oldData = session.getData(key)
-            session.setData(key, oldData ++ newData)
-
-            ()
-        }
-
-        val deployDetails = deployResult.getDetails
-
-        for ( successMessage <- deployDetails.getComponentSuccesses) {
-            val relativePath = successMessage.getFileName
-            getProjectConfig.projectDirOpt match {
-                case Some(projectDir) =>
-                    val f = new File(projectDir, relativePath)
-                    if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
-                        //process bundle definition
-                        //for aura bundles Metadata API deploy() reports only bundle name, not individual files
-                        // process bundle dir
-                        processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
-                        // process individual files
-                        FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
-                            .filter(AuraMember.isSupportedType)
-                            .foreach(file =>
-                                processOneFile(file, successMessage, AuraMember.XML_TYPE)
-                            )
-                    } else {
-                        if (f.exists() && !f.isDirectory) {
-                            val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                                case None => "" //package.xml and -meta.xml do not have xmlType
-                            }
-                            processOneFile(f, successMessage, xmlType)
-                        }
-                    }
-                case None =>
-            }
-        }
-        //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
-        AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
-        //dump session data to disk
-        session.storeSessionData()
-    }
 
 
     /**
      * current version (v32.0) of metadata API fails to deploy packages if they contain incomplete Aura Bundle
-     * i.e. if any single file from aura bundle is included (e.g. <app-name>.css ) then *all* files in this bunde must be
+     * i.e. if any single file from aura bundle is included (e.g. <app-name>.css ) then *all* files in this bundle must be
      * part of deployment package, otherwise SFDC returns: UNKNOWN_EXCEPTION: An unexpected error occurred.
      * @param fileInBundle - file which belongs to Aura bundle
      * @return
@@ -532,42 +569,6 @@ class DeployModified extends Deploy {
           case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
           case None => Set()
         }
-    }
-
-    private def prepareDeploymentFailureReport(deployDetails: com.sforce.soap.metadata.DeployDetails, isRunningTests: Boolean): Option[DeploymentFailureReport] = {
-
-        if (null != deployDetails) {
-            //responseWriter.startSection("ERROR LIST")
-
-            //display errors both as messages and as ERROR: lines
-            val failures = List.newBuilder[ErrorWithLocation]
-            for ( failureMessage <- deployDetails.getComponentFailures) {
-                val line = failureMessage.getLineNumber
-                val column = failureMessage.getColumnNumber
-                val filePath = failureMessage.getFileName
-                val problem = failureMessage.getProblem
-                val problemType = failureMessage.getProblemType match {
-                    case DeployProblemType.Warning => GenericDeploymentWarning
-                    case DeployProblemType.Error => GenericDeploymentError
-                    case _ => GenericDeploymentError
-                }
-                //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                //responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))
-                failures += ErrorWithLocation(problemType, problem, Location(filePath, line, column))
-            }
-            //process test successes and failures
-            val runTestResult = new RunTestResultMetadata(deployDetails.getRunTestResult)
-            val testFailures =
-                if (isRunningTests || (null != deployDetails.getRunTestResult && deployDetails.getRunTestResult.getFailures.nonEmpty) ) {
-                    ApexTestUtils.processTestResult(runTestResult, session)
-                } else {
-                    Nil
-                }
-            Option(DeploymentFailureReport(failures.result(), testFailures ))
-        } else {
-            None
-        }
-
     }
 
     private val alwaysIncludeNames = Set("src", "package.xml")
@@ -1200,67 +1201,80 @@ class DeployDestructive extends Deploy {
                 val (deployResult, log) = session.deploy(ZipUtils.zipDirToBytes(tempDir), deployOptions)
 
                 val deployDetails = deployResult.getDetails
-                val resultBuilder = new ActionResultBuilder()
-                if (!deployResult.isSuccess) {
-                    //responseWriter.println("RESULT=FAILURE")
-                    resultBuilder.setResultType(FAILURE)
-                    if (null != deployDetails) {
-                        //responseWriter.startSection("ERROR LIST")
-
-                        //display errors both as messages and as ERROR: lines
-                        val componentFailureMessage = WarnMessage("Component failures")
-                        if (deployDetails.getComponentFailures.nonEmpty) {
-                            //responseWriter.println(componentFailureMessage)
-                            resultBuilder.addMessage(componentFailureMessage)
-                        }
-
-                        for ( failureMessage <- deployDetails.getComponentFailures) {
-                            //first part of the file usually looks like deleteMetadata/classes/AccountController.cls
-                            //make it src/classes/AccountController.cls
-                            val filePath = failureMessage.getFileName match {
-                                case null => ""
-                                case "" => ""
-                                case str =>
-                                    val pathSplit = str.split('/')
-                                    if (3 == pathSplit.length) {
-                                        //this is a standard 3 component path, make first part src/
-                                        "src" + str.dropWhile(_ != '/')
-                                    } else {
-                                        str
-                                    }
+                val deploymentReport =
+                    if (!deployResult.isSuccess) {
+                        //responseWriter.println("RESULT=FAILURE")
+                        val failureReportOpt = prepareDeploymentFailureReport(deployDetails, isRunningTests = false)
+                        DeploymentReport(
+                            isSuccess = false,
+                            isCheckOnly = checkOnly,
+                            failureReportOpt = failureReportOpt,
+                            coverageReportOpt = None,
+                            testsPassedOpt = None
+                        )
+                    } else {
+                        //responseWriter.println("RESULT=SUCCESS")
+                        //update session data for successful files
+                        if (isUpdateSessionDataOnSuccess) {
+                            for (componentPath <- components) {
+                                val pair = componentPath.split('/')
+                                session.findKey(pair(0), pair(1)) match {
+                                    case Some(key) =>
+                                        session.removeData(key)
+                                        logger.debug("Removed session data for key: " + key)
+                                        //responseWriter.debug("Removed session data for key: " + key)
+                                    case None =>
+                                }
                             }
-                            val problemWithFilePath = if (filePath.isEmpty) failureMessage.getProblem else filePath + ": " + failureMessage.getProblem
-                            val problemType = failureMessage.getProblemType match {
-                                case DeployProblemType.Warning => WARN
-                                case DeployProblemType.Error => ERROR
-                                case _ => ERROR
-                            }
-                            //responseWriter.println("ERROR", Map("type" -> problemType, "text" -> failureMessage.getProblem, "filePath" -> filePath))
-                            //responseWriter.println(new MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "text" -> problemWithFilePath, "filePath" -> filePath)))
-                            resultBuilder.addDetail(MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "text" -> problemWithFilePath, "filePath" -> filePath)))
+                            updateSessionDataForSuccessfulFiles(deployResult, auraFiles = Nil) //TODO - check if we need to do anything extra for auraFiles part
                         }
-                        //responseWriter.endSection("ERROR LIST")
+                        DeploymentReport(
+                            isSuccess = true,
+                            isCheckOnly = checkOnly,
+                            failureReportOpt = None,
+                            components.length,
+                            coverageReportOpt = None,
+                            logFileOpt = None,
+                            //deployedFiles = if (!checkOnly) files else Nil,
+                            deployedFiles = Nil,
+                            deletedComponents = components,
+                            testsPassedOpt = None
+                        )
+                        /*
+                        resultBuilder.setResultType(SUCCESS)
+                        if (isUpdateSessionDataOnSuccess) {
+                            //responseWriter.debug("Updating session data")
+                            resultBuilder.addMessage(DebugMessage("Updating session data"))
+                            for (componentPath <- components) {
+                                val pair = componentPath.split('/')
+                                session.findKey(pair(0), pair(1)) match {
+                                    case Some(key) =>
+                                        session.removeData(key)
+                                        //responseWriter.debug("Removed session data for key: " + key)
+                                        resultBuilder.addMessage(DebugMessage("Removed session data for key: " + key))
+                                    case None =>
+                                }
+                            }
+                            session.storeSessionData()
+                        }
+                        */
                     }
+                val finalReport =
+                    if (!log.isEmpty) {
+                        val logFile = getProjectConfig.getLogFile
+                        FileUtils.writeFile(log, logFile)
+                        //responseWriter.println("LOG_FILE=" + logFile.getAbsolutePath)
+                        //resultBuilder.addMessage(KeyValueMessage(Map("LOG_FILE" -> logFile.getAbsolutePath)))
+                        deploymentReport.copy(logFileOpt = Option(logFile))
+                    } else {
+                        deploymentReport
+                    }
+
+                if (deploymentReport.isSuccess) {
+                    ActionSuccess(DeployDestructiveResult(finalReport))
                 } else {
-                    //responseWriter.println("RESULT=SUCCESS")
-                    resultBuilder.setResultType(SUCCESS)
-                    if (isUpdateSessionDataOnSuccess) {
-                        //responseWriter.debug("Updating session data")
-                        resultBuilder.addMessage(DebugMessage("Updating session data"))
-                        for (componentPath <- components) {
-                            val pair = componentPath.split('/')
-                            session.findKey(pair(0), pair(1)) match {
-                                case Some(key) =>
-                                    session.removeData(key)
-                                    //responseWriter.debug("Removed session data for key: " + key)
-                                    resultBuilder.addMessage(DebugMessage("Removed session data for key: " + key))
-                                case None =>
-                            }
-                        }
-                        session.storeSessionData()
-                    }
+                    ActionFailure(DeployDestructiveResult(finalReport))
                 }
-                resultBuilder.result()
             }
 
         Future.successful(actionResult)

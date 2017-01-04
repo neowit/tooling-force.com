@@ -91,9 +91,16 @@ object DeploymentReportUtils {
             if (report.fileCount > 0) {
                 if (!report.isCheckOnly) {
                     writer.send("FILE_COUNT=" + report.fileCount)
-                    writer.startSection("DEPLOYED FILES")
-                    report.deployedFiles.foreach(f => writer.send(f.getName))
-                    writer.endSection("DEPLOYED FILES")
+                    if (report.deployedFiles.nonEmpty) {
+                        writer.startSection("DEPLOYED FILES")
+                        report.deployedFiles.foreach(f => writer.send(f.getName))
+                        writer.endSection("DEPLOYED FILES")
+                    }
+                    if (report.deletedComponents.nonEmpty) {
+                        writer.startSection("DELETED FILES")
+                        report.deletedComponents.foreach(component => writer.send(component))
+                        writer.endSection("DELETED FILES")
+                    }
                 }
             } else {
                 writer.send(InfoMessage("no modified files detected."))

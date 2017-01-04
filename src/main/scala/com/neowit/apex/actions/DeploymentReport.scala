@@ -78,6 +78,7 @@ case class DeploymentReport(
                                coverageReportOpt: Option[CodeCoverageReport] = None,
                                logFileOpt: Option[File] = None,
                                deployedFiles: List[File] = Nil,
+                               deletedComponents: List[String] = Nil,
                                testsPassedOpt: Option[Boolean] = None,
                                otherErrors: List[ErrorMessage] = Nil, // use it only for errors not covered by DeploymentFailureReport
                                conflictsReportOpt: Option[DeploymentConflictsReport] = None
