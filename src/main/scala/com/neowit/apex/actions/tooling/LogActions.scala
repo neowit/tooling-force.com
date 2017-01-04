@@ -347,6 +347,8 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
 
     }
 }
+
+//TODO - this action is not implemented yet
 class ListLogs extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
         override def getExample: String = ""
@@ -378,9 +380,9 @@ class ListLogs extends ApexActionWithReadOnlySession {
 
         override def getParamNames: List[String] = List("location", "logUserName", "request")
 
-        override def getSummary: String = "Setup TraceFlag that triggers an Apex debug log at the specified logging level"
+        override def getSummary: String = "TODO"
 
-        override def getName: String = "changeLogLevels"
+        override def getName: String = "TODO"
     }
 
     //this method should implement main logic of the action
