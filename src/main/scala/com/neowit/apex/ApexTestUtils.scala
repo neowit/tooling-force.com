@@ -22,7 +22,6 @@ package com.neowit.apex
 
 import com.neowit.apex.actions._
 import com.neowit.utils.JsonSupport
-import com.neowit.response._
 
 
 trait RunTestsResult {
@@ -161,66 +160,6 @@ object ApexTestUtils extends JsonSupport {
         }
     }
 
-    //todo - remove
-    def processTestResult2(runTestResult: com.neowit.apex.RunTestsResult, session: Session,
-                          actionResultBuilder: ActionResultBuilder): Unit = {
-        //val metadataByXmlName = DescribeMetadata.getMap(session)
-
-
-        val testFailureMessage = ErrorMessage("Test failures")
-        if (null != runTestResult && runTestResult.getFailures.nonEmpty) {
-            //responseWriter.println(testFailureMessage)
-            actionResultBuilder.addMessage(testFailureMessage)
-        }
-        if (null == runTestResult || runTestResult.getFailures.isEmpty) {
-            //responseWriter.println(new Message(INFO, "Tests PASSED"))
-            actionResultBuilder.addMessage(InfoMessage("Tests PASSED"))
-        }
-        for ( failureMessage <- runTestResult.getFailures) {
-
-            val problem = failureMessage.getMessage
-            //val className = failureMessage.getName
-            //now parse stack trace
-            val stackTrace = failureMessage.getStackTrace
-            if (null != stackTrace) {
-                //each line is separated by '\n'
-                var showProblem = true
-                for (traceLine <- stackTrace.split("\n")) {
-                    //Class.Test1.prepareData: line 13, column 1
-                    parseStackTraceLine(traceLine) match {
-                        case Some(StackTraceLine(typeName, fileName, methodName, line, column)) =>
-                            val (_line, _column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
-                            val inMethod = if (methodName.isEmpty) "" else " in method " +methodName
-                            val _problem = if (showProblem) problem else "...continuing stack trace: " +inMethod+ ". Details see above"
-                            //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem))
-                            if (showProblem) {
-                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
-                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> _problem)))
-                            }
-                        case None => //failed to parse anything meaningful, fall back to simple message
-                            //responseWriter.println("ERROR", Map("line" -> -1, "column" -> -1, "filePath" -> "", "text" -> problem))
-                            if (showProblem) {
-                                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
-                                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "filePath" -> "", "text" -> problem)))
-                            }
-                    }
-                    showProblem = false
-                }
-            } else { //no stack trace, try to parse cine/column/filePath from error message
-            val typeName = failureMessage.getType
-                val fileName = failureMessage.getName
-                val (line, column, filePath) = Deploy.getMessageData(session, problem, typeName, fileName)
-                //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-                //responseWriter.println(new MessageDetail(testFailureMessage, Map("type" -> ERROR, "filePath" -> filePath, "text" -> problem)))
-                actionResultBuilder.addDetail(MessageDetailMap(testFailureMessage, Map("type" -> ERROR, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem)))
-            }
-
-            //responseWriter.println("ERROR", Map("line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
-        }
-        //responseWriter.endSection("ERROR LIST")
-
-        Unit
-    }
     def processTestResult(runTestResult: com.neowit.apex.RunTestsResult, session: Session): List[ProcessedTestFailure] = {
         //val metadataByXmlName = DescribeMetadata.getMap(session)
         val errorBuilder = List.newBuilder[ProcessedTestFailure]
