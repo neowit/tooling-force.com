@@ -33,11 +33,7 @@ import scala.annotation.tailrec
 
 import spray.json._
 
-class InvalidCommandLineException(msg: String)  extends IllegalArgumentException(msg: String) {
-    def this() {
-        this(null)
-    }
-}
+class InvalidCommandLineException(msg: String)  extends IllegalArgumentException(msg: String)
 class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumentException(msg: String)
 
 class ConfigValueException(msg:String) extends IllegalArgumentException(msg: String)
@@ -67,7 +63,7 @@ class BasicConfig extends Logging {
     }
     def load(arglist: List[String]): Unit = {
         if (arglist.isEmpty) {
-            throw new InvalidCommandLineException
+            throw new InvalidCommandLineException("Empty command line")
         }
 
         /**
@@ -103,8 +99,9 @@ class BasicConfig extends Logging {
                         case _ => nextOption(configFilePaths, map ++ Map(key -> value), tail)
                     }
                 case x =>
-                    logger.debug("failed to parse command line param: " + x)
-                    throw new InvalidCommandLineException
+                    val msg = "failed to parse command line param: " + x
+                    logger.debug(msg)
+                    throw new InvalidCommandLineException(msg)
             }
         }
 
