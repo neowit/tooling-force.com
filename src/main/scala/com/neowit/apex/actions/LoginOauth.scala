@@ -25,7 +25,7 @@ import java.util.UUID
 
 import com.neowit.auth.{OAuth2JsonSupport, OAuthConsumer}
 import com.neowit.utils._
-import com.neowit.response.ErrorMessage
+import com.neowit.response.{ErrorMessage, LoginOauthResult}
 import com.neowit.webserver.{EmbeddedJetty, Oauth2Handler}
 import spray.json._
 
@@ -182,7 +182,9 @@ class LoginOauth extends ApexAction with OAuth2JsonSupport {
                                     FileUtils.writeFile(tokens.toJson.prettyPrint, outputFile)
                                     //config.responseWriter.println("RESULT=SUCCESS")
                                     //config.responseWriter.println(tokens.toJson.prettyPrint)
-                                    ActionSuccess(tokens.toJson.prettyPrint)
+                                    logger.debug(tokens.toJson.prettyPrint)
+
+                                    ActionSuccess(LoginOauthResult(tokens = Option(tokens), resultFileOpt = Option(outputFile)))
                                 case None =>
                                     //config.responseWriter.println("RESULT=FAILURE")
                                     ActionFailure()

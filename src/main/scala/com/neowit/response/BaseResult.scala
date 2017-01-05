@@ -24,6 +24,7 @@ import java.io.File
 import com.neowit.apex.ProcessedTestFailure
 import com.neowit.apex.actions._
 import com.neowit.apex.parser.Member
+import com.neowit.auth.Oauth2Tokens
 import com.neowit.utils.JsonSupport
 import spray.json._
 
@@ -63,5 +64,6 @@ case class DeployModifiedResult(deploymentReport: DeploymentReport) extends Base
 case class DiffWithRemoteResult(report: DiffWithRemoteReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
+case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 
