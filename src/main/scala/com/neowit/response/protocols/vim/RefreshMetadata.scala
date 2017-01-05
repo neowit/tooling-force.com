@@ -21,14 +21,15 @@ package com.neowit.response.protocols.vim
 
 import com.neowit.response.{INFO, RefreshMetadataResult}
 
-/**
-  * Author: Andrey Gavrikov
-  */
 class RefreshMetadata(writer: ResponseWriterVim) extends VimProtocol[RefreshMetadataResult]{
     def send(result: RefreshMetadataResult): Unit = {
-        val modifiedFiles = result.modified
+        val modifiedFiles = result.modifiedFiles
         if (modifiedFiles.nonEmpty) {
             ListModified.reportModifiedFiles(writer, modifiedFiles, INFO, writer)
+        }
+        result.retrieveResult.foreach{res =>
+            writer.send("RESULT_FOLDER=" +  res.resultFolder.getAbsolutePath)
+            writer.send("FILE_COUNT=" +  res.fileCount)
         }
     }
 }

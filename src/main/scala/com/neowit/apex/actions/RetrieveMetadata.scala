@@ -153,6 +153,7 @@ abstract class RetrieveMetadata extends ApexActionWithWritableSession {
 /**
  * 'refresh' action is 'retrieve' for all elements specified in package.xml into project folder
  */
+case class UpdateFromRetrieveResult(resultFolder: File, fileCount: Int)
 class RefreshMetadata extends RetrieveMetadata {
 
     override def getHelp: ActionHelp = new ActionHelp {
@@ -174,69 +175,69 @@ class RefreshMetadata extends RetrieveMetadata {
     }
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
-        val actionResultBuilder = new ActionResultBuilder()
-        try {
-            //first check if we have modified files
-            val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
-            val modifiedFileChecker = new ListModified().load[ListModified](session)
-            val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
+        val actionResult =
+            try {
+                //first check if we have modified files
+                val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
+                val modifiedFileChecker = new ListModified().load[ListModified](session)
+                val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
 
-            if (modifiedFiles.isEmpty) {
-                val retrieveRequest = new RetrieveRequest()
-                retrieveRequest.setApiVersion(config.apiVersion)
-                setUpackaged(retrieveRequest)
-                Try(session.retrieve(retrieveRequest)) match {
-                    case Success(retrieveResult) =>
-                        updateFromRetrieve(retrieveResult, actionResultBuilder)
-                    case Failure(err) =>
-                        err match {
-                            case e: RetrieveError =>
-                                err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
-                                    case messages if null != messages && messages.nonEmpty=>
-                                        //responseWriter.println("RESULT=FAILURE")
-                                        actionResultBuilder.setResultType(FAILURE)
-                                        for(msg <- messages) {
-                                            //responseWriter.println(msg.getFileName + ": " + msg.getProblem)
-                                            actionResultBuilder.addMessage(ErrorMessage(msg.getFileName + ": " + msg.getProblem))
-                                        }
-                                    case _ =>
-                                }
-                            case _ =>
-                                throw err
-                        }
-                }
-            } else {
-                //responseWriter.println("RESULT=FAILURE")
-                // in some cases reporting RESULT=FAILURE (if modified files detected) may not be desirable
-                // check if user requested alternative result code
-                config.getProperty("modifiedFilesResultCode") match {
-                    case Some("SUCCESS") =>
-                        actionResultBuilder.setResultType(SUCCESS)
-                    case _ =>
-                        actionResultBuilder.setResultType(FAILURE)
-                }
-                //responseWriter.println("RESULT=" + modifiedFilesResultCode)
-                //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
-                actionResultBuilder.addMessage(DebugMessage("Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+                if (modifiedFiles.isEmpty) {
+                    val retrieveRequest = new RetrieveRequest()
+                    retrieveRequest.setApiVersion(config.apiVersion)
+                    setUpackaged(retrieveRequest)
+                    Try(session.retrieve(retrieveRequest)) match {
+                        case Success(retrieveResult) =>
+                            val result = updateFromRetrieve(retrieveResult)
+                            ActionSuccess(RefreshMetadataResult(retrieveResult = Option(result), modifiedFiles = Nil))
+                        case Failure(err) =>
+                            val errorListBuilder = List.newBuilder[ErrorMessage]
+                            err match {
+                                case e: RetrieveError =>
+                                    err.asInstanceOf[RetrieveError].retrieveResult.getMessages match {
+                                        case messages if null != messages && messages.nonEmpty=>
+                                            //responseWriter.println("RESULT=FAILURE")
+                                            for(msg <- messages) {
+                                                //responseWriter.println(msg.getFileName + ": " + msg.getProblem)
+                                                errorListBuilder += ErrorMessage(msg.getFileName + ": " + msg.getProblem)
+                                            }
+                                        case _ =>
+                                    }
+                                case _ =>
+                                    throw err
+                            }
+                            ActionFailure(errorListBuilder.result())
+                    }
+                } else {
+                    //responseWriter.println("RESULT=FAILURE")
+                    // in some cases reporting RESULT=FAILURE (if modified files detected) may not be desirable
+                    // check if user requested alternative result code
+                    //responseWriter.println("RESULT=" + modifiedFilesResultCode)
+                    //responseWriter.println(new Message(ResponseWriter.DEBUG, "Use --skipModifiedFilesCheck=true command line option to force Refresh"))
 
-                //modifiedFileChecker.reportModifiedFiles(modifiedFiles, WARN, actionResultBuilder)
-                actionResultBuilder.setResult(RefreshMetadataResult(modifiedFiles))
+                    //modifiedFileChecker.reportModifiedFiles(modifiedFiles, WARN, actionResultBuilder)
+                    config.getProperty("modifiedFilesResultCode") match {
+                        case Some("SUCCESS") =>
+                            ActionSuccess(RefreshMetadataResult(retrieveResult = None, modifiedFiles))
+                        case _ =>
+                            ActionFailure(DebugMessage("Use --skipModifiedFilesCheck=true command line option to force Refresh"))
+                    }
+                }
+            } catch {
+                case ex:Throwable =>
+                    println(ex)
+                    //responseWriter.println("RESULT=FAILURE")
+                    //responseWriter.println(new Message(ERROR, ex.toString))
+                    ActionFailure(ErrorMessage(ex.toString))
             }
-        } catch {
-            case ex:Throwable =>
-                println(ex)
-                //responseWriter.println("RESULT=FAILURE")
-                //responseWriter.println(new Message(ERROR, ex.toString))
-                actionResultBuilder.setResultType(FAILURE)
-                actionResultBuilder.addMessage(ErrorMessage(ex.toString))
-        }
-        Future.successful(actionResultBuilder.result())
+        Future.successful(actionResult)
     }
+
     /**
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, actionResultBuilder: ActionResultBuilder): Unit = {
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult): UpdateFromRetrieveResult = {
         val tempFolder = FileUtils.createTempDir(config)
         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
         //clear Ids of all files not loaded from the Org
@@ -245,10 +246,8 @@ class RefreshMetadata extends RetrieveMetadata {
         //config.responseWriter.println("RESULT=SUCCESS")
         //config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
         //config.responseWriter.println("FILE_COUNT=" + filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))
-        actionResultBuilder.setResultType(SUCCESS)
-        actionResultBuilder.addMessage(KeyValueMessage(Map("RESULT_FOLDER" -> tempFolder.getAbsolutePath)))
-        actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT" -> filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml"))))
-
+        val fileCount = filePropsMap.values.count(props => !props.getFullName.endsWith("-meta.xml") && props.getFullName != "package.xml")
+        UpdateFromRetrieveResult(resultFolder = tempFolder, fileCount = fileCount)
     }
 }
 /**

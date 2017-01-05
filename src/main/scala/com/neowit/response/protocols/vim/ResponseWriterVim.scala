@@ -124,7 +124,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ ListConflictingResult(_) => new ListConflicting(this).send(res)
             case res @ ListModifiedResult(_, _) => new ListModified(this).send(res)
             case res @ LoginOauthResult(_, _) => new LoginOauth(this).send(res)
-            case res @ RefreshMetadataResult(_) => new RefreshMetadata(this).send(res)
+            case res @ RefreshMetadataResult(_, _) => new RefreshMetadata(this).send(res)
             case res @ RunTestsResult(_, _, _, _, _) => new RunTests(this).send(res)
             case res @ SoqlQueryResult(_) => new SoqlQuery(this).send(res)
         }

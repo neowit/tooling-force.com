@@ -44,7 +44,7 @@ case class FindSymbolResult(memberOpt: Option[Member]) extends BaseResult with J
 case class ListCompletionsResult(members: List[Member]) extends BaseResult
 
 case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
-case class RefreshMetadataResult(modified: List[File]) extends BaseResult
+case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
 case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
 
 case class RunTestsResult(
