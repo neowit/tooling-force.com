@@ -209,6 +209,9 @@ regardless of whether it is also specified in config file or not
             case Some(path) =>
                 val f = new File(path)
                 if (!f.exists()) {
+                    // make sure path exists
+                    f.getParentFile.mkdirs()
+                    // create actual file
                     f.createNewFile()
                 }
                 Option(f)
