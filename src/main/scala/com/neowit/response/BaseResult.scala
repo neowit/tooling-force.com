@@ -43,9 +43,6 @@ case class FindSymbolResult(memberOpt: Option[Member]) extends BaseResult with J
 
 case class ListCompletionsResult(members: List[Member]) extends BaseResult
 
-case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
-case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
-case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
 
 case class RunTestsResult(
                              testFailures: List[ProcessedTestFailure],
@@ -55,7 +52,10 @@ case class RunTestsResult(
                              deploymentFailureReport: Option[DeploymentFailureReport] = None
                          ) extends BaseResult
 
+
 case class AppVersionResult(appName: String, appVersion: String, sfdcApiVersion: String) extends BaseResult
+case class BulkRetrieveActionResult(resultFolder: File, fileCountByType: Map[String, Int], errors: List[Message]) extends BaseResult
+case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
 case class DeployAllDestructiveResult(deploymentReport: DeploymentReport, diffReportOpt: Option[DiffWithRemoteReport]) extends BaseResult
 case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
 case class DeployDestructiveResult(deploymentReport: DeploymentReport) extends BaseResult
@@ -64,6 +64,8 @@ case class DeployModifiedResult(deploymentReport: DeploymentReport) extends Base
 case class DiffWithRemoteResult(report: DiffWithRemoteReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
+case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
 case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[File]) extends BaseResult
+case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 

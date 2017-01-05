@@ -556,18 +556,12 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
             //config.responseWriter.println("RESULT=SUCCESS")
             //config.responseWriter.println("RESULT_FOLDER=" + tempFolder.getAbsolutePath)
             //config.responseWriter.println("FILE_COUNT_BY_TYPE=" + fileCountByType.toJson.compactPrint)
-            val actionResultBuilder = new ActionResultBuilder(SUCCESS)
-            actionResultBuilder.addMessage(KeyValueMessage(Map("RESULT_FOLDER" -> tempFolder.getAbsolutePath)))
-            actionResultBuilder.addMessage(KeyValueMessage(Map("FILE_COUNT_BY_TYPE" -> fileCountByType.toJson.compactPrint)))
-
-            Future.successful(actionResultBuilder.result())
+            Future.successful(ActionSuccess(BulkRetrieveActionResult(resultFolder = tempFolder, fileCountByType = fileCountByType, errors)))
         } else {
             //config.responseWriter.println("RESULT=FAILURE")
             //errors.foreach(responseWriter.println(_))
-            val actionResultBuilder = new ActionResultBuilder(FAILURE)
-            actionResultBuilder.addMessages(errors)
 
-            Future.successful(actionResultBuilder.result())
+            Future.successful(ActionFailure(BulkRetrieveActionResult(resultFolder = tempFolder, fileCountByType = fileCountByType, errors)))
         }
 
     }

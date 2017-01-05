@@ -113,6 +113,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case FindSymbolResult(None) => // do nothing
             case ListCompletionsResult(members) => println(members.map(_.toJson).mkString("\n"))
             case res @ AppVersionResult(_, _, _) => new AppVersion(this).send(res)
+            case res @ BulkRetrieveActionResult(_, _, _) => new BulkRetrieve(this).send(res)
             case res @ CheckSyntaxResult(_, _) => new CheckSyntax(this).send(res)
             case res @ DeployAllDestructiveResult(_, _) => new DeployAllDestructive(this).send(res)
             case res @ DeployAllResult(_) => new DeployAll(this).send(res)
