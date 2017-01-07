@@ -26,10 +26,10 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-    "com.force.api" % "force-wsc" % "36.2.0",
-    "com.force.api" % "force-partner-api" % "36.0.0",
-    "com.force.api" % "force-metadata-api" % "36.0.0",
-    "com.force.api" % "force-apex-api" % "36.0.0"
+    "com.force.api" % "force-wsc" % "38.0.4",
+    "com.force.api" % "force-partner-api" % "38.0.0",
+    "com.force.api" % "force-metadata-api" % "38.0.0",
+    "com.force.api" % "force-apex-api" % "38.0.0"
 )
 
 libraryDependencies ++= Seq(

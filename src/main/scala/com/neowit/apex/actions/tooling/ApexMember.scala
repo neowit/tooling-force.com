@@ -19,7 +19,7 @@
 
 package com.neowit.apex.actions.tooling
 
-import com.sforce.soap.tooling._
+import com.sforce.soap.tooling.sobject._
 import com.neowit.apex.Session
 import java.io.File
 import com.neowit.apex.actions.DescribeMetadata

@@ -24,6 +24,7 @@ import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions._
 import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
+import com.sforce.soap.tooling.sobject._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}

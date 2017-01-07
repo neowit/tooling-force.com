@@ -243,7 +243,7 @@ object SoqlQuery {
     }
 
     def getQueryIteratorTyped[A](session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[A] = {
-        import com.sforce.soap.tooling._
+        import com.sforce.soap.tooling.sobject._
 
         def queryMore(queryResult: com.sforce.soap.tooling.QueryResult, records: Array[SObject]): Iterator[A] = {
             if (queryResult.isDone) {

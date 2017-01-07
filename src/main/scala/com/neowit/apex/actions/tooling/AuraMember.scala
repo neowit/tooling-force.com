@@ -25,7 +25,7 @@ import com.neowit.apex.{MetadataType, MetaXml, Session}
 import com.neowit.apex.actions.BulkRetrieve
 import com.neowit.utils.FileUtils
 import com.sforce.soap.metadata.{FileProperties, AuraDefinitionBundle}
-import com.sforce.soap.tooling.AuraDefinition
+import com.sforce.soap.tooling.sobject.AuraDefinition
 
 object AuraMember {
     val EXTENSIONS = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc")

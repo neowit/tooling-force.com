@@ -24,7 +24,7 @@ import java.io.File
 import com.neowit.apex.Session
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.utils.FileUtils
-import com.sforce.soap.tooling.{ApexClass, ApexTestSuite, TestSuiteMembership}
+import com.sforce.soap.tooling.sobject.{ApexClass, ApexTestSuite, TestSuiteMembership}
 import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -155,7 +155,7 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
 
     private def getTestSuiteClassesByTestSuite(session: Session): Map[String, TestSuite] = {
         val soql = s"select Id, ApexClass.Id, ApexTestSuite.Id, ApexClass.Name, ApexTestSuite.TestSuiteName from TestSuiteMembership"
-        val memberships = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.TestSuiteMembership](session, session.queryTooling(soql))
+        val memberships = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.sobject.TestSuiteMembership](session, session.queryTooling(soql))
         val mapBuilder = Map.newBuilder[TestSuite, List[ApexClass]]
 
         val testSuitePerClass =
@@ -284,7 +284,7 @@ object TestSuiteActions {
     }
     def getTestSuiteList(session: Session): List[ApexTestSuite] = {
         val soql = s"select Id, TestSuiteName from ApexTestSuite"
-        val iterator = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.ApexTestSuite](session, session.queryTooling(soql))
+        val iterator = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.sobject.ApexTestSuite](session, session.queryTooling(soql))
         if (iterator.nonEmpty) {
             //records.map(sobject => sobject.asInstanceOf[ApexTestSuite]).toList
             iterator.toList

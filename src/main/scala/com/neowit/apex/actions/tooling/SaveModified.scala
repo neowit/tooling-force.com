@@ -23,6 +23,7 @@ import com.neowit.apex.{MetadataType, Session}
 import java.io.File
 
 import com.neowit.apex.actions.{ErrorWithLocation, _}
+import com.sforce.soap.tooling.sobject._
 import com.sforce.soap.tooling._
 import com.neowit.response._
 import com.neowit.utils.{FileUtils, ZipUtils, ZuluTime}
@@ -447,7 +448,7 @@ class SaveModified extends DeployModified {
 
     }
 
-    private def fileToToolingInstance(file: File): com.sforce.soap.tooling.SObject = {
+    private def fileToToolingInstance(file: File): com.sforce.soap.tooling.sobject.SObject = {
         val sobject = FileUtils.getExtension(file).toLowerCase match {
             case "resource" =>
                 val resource = new StaticResource

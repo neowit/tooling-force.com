@@ -985,7 +985,11 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                 case Failure(ex) => throw ex
             }
         }.asInstanceOf[JsValue]
-        Some(jsonAst)
+
+        if (jsonAst == JsNull)
+            None
+        else
+            Some(jsonAst)
     }
     def describeTooling:com.sforce.soap.tooling.DescribeGlobalResult = {
         val describeResult = withRetry {
@@ -995,14 +999,14 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         describeResult
     }
 
-    def createTooling(objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+    def createTooling(objects: Array[com.sforce.soap.tooling.sobject.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
         val saveResult = withRetry {
             val conn = getToolingConnection
             conn.create(objects)
         }.asInstanceOf[Array[com.sforce.soap.tooling.SaveResult]]
         saveResult
     }
-    def updateTooling(objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
+    def updateTooling(objects: Array[com.sforce.soap.tooling.sobject.SObject]):Array[com.sforce.soap.tooling.SaveResult] = {
         val saveResult = withRetry {
             val conn = getToolingConnection
             conn.update(objects)
@@ -1010,7 +1014,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         saveResult
     }
 
-    def upsertTooling(fieldName: String, objects: Array[com.sforce.soap.tooling.SObject]):Array[com.sforce.soap.tooling.UpsertResult] = {
+    def upsertTooling(fieldName: String, objects: Array[com.sforce.soap.tooling.sobject.SObject]):Array[com.sforce.soap.tooling.UpsertResult] = {
         val saveResult = withRetry {
             val conn = getToolingConnection
             conn.upsert(fieldName, objects)
@@ -1044,11 +1048,11 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         queryResult
     }
 
-    def retrieveTooling(fields: List[String], xmlTypeName: String, ids: List[String]):Array[com.sforce.soap.tooling.SObject] = {
+    def retrieveTooling(fields: List[String], xmlTypeName: String, ids: List[String]):Array[com.sforce.soap.tooling.sobject.SObject] = {
         val sobjects = withRetry {
             val conn = getToolingConnection
             conn.retrieve(fields.mkString(","), xmlTypeName, ids.toArray)
-        }.asInstanceOf[Array[com.sforce.soap.tooling.SObject]]
+        }.asInstanceOf[Array[com.sforce.soap.tooling.sobject.SObject]]
         sobjects
     }
 
@@ -1087,6 +1091,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
 //        runTestsResult
 //    }
 //
+    /*
     def runTestsAsyncTooling(classIds: String, testSuiteIds: String, maxFailedTests: Int):(String) = {
         val runTestsResult = withRetry {
             val conn = getToolingConnection
@@ -1096,6 +1101,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         }.asInstanceOf[String]
         runTestsResult
     }
+    */
 
     ////////////////////////////////////////////////////////////////////////////////////
     private val ONE_SECOND = 1000
