@@ -272,7 +272,8 @@ abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySessi
                     Future.successful(ActionFailure(ex.getMessage))
                 case ex: Throwable =>
                     //ERROR(ex)
-                    Future.successful(ActionFailure(ex.getMessage))
+                    //Future.successful(ActionFailure(ex.getMessage))
+                    throw ex
             } finally {
                 ApexActionWithWritableSession.unLockSession(this)
             }
