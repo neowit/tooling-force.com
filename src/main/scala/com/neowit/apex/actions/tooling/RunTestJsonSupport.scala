@@ -41,7 +41,7 @@ trait RunTestJsonSupport extends JsonSupport {
 object RunTestJsonSupport {
 
     case class RunTestsSynchronousResult(codeCoverageWarnings: List[CoverageWarning],
-                                         apexLogId: String,
+                                         apexLogId: Option[String],
                                          successes: List[RunTestSuccess],
                                          codeCoverage: List[TestCodeCoverage],
                                          failures: List[TestFailure],

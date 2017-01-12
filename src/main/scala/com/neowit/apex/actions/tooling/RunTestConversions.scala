@@ -30,7 +30,7 @@ object RunTestConversions {
 
     def toRunTestResult(res: RunTestsSynchronousResult): com.sforce.soap.tooling.RunTestsResult = {
         val result = new com.sforce.soap.tooling.RunTestsResult()
-        result.setApexLogId(res.apexLogId)
+        res.apexLogId.foreach(result.setApexLogId(_))
         result.setCodeCoverage(toCodeCoverageResult(res.codeCoverage))
         result.setCodeCoverageWarnings(toCodeCoverageWarnings(res.codeCoverageWarnings))
         result.setFailures(toRunTestFailures(res.failures))
