@@ -221,7 +221,12 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                 }
                 */
                 val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
-                val coverageReportOpt = ApexTestUtils.processCodeCoverage(toolingRunTestResult, session)
+                val coverageReportOpt = config.getProperty("reportCoverage") match {
+                    case Some("true") =>
+                        ApexTestUtils.processCodeCoverage(toolingRunTestResult, session)
+                    case _ =>
+                        None
+                }
                 /*
                 ApexTestUtils.processCodeCoverage(toolingRunTestResult, session) match {
                     case Some(coverageFile) =>
@@ -385,7 +390,7 @@ class RunTests extends DeployModified with RunTestJsonSupport {
       * @return
       */
     private def generateRunTestResult(jsonAst: JsValue): com.sforce.soap.tooling.RunTestsResult = {
-        logger.debug(jsonAst.prettyPrint)
+        //logger.debug(jsonAst.prettyPrint)
         val internalResult = jsonAst.convertTo[RunTestJsonSupport.RunTestsSynchronousResult]
         RunTestConversions.toRunTestResult(internalResult)
     }
