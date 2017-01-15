@@ -433,6 +433,7 @@ statement
     |   'continue' Identifier? ';'
     |   ';'
     |   statementExpression ';'
+    |   runas_expression
     |   Identifier ':' statement
     ;
 
@@ -491,10 +492,16 @@ forUpdate
     :   expressionList
     ;
 
+// EXPRESSIONS
+
 db_shortcut_expression
     :   (DB_UPDATE | DB_UPSERT | DB_DELETE | DB_INSERT | DB_UNDELETE) expression;
 
-// EXPRESSIONS
+/* System.runAs(user) { ... test code here ... } */
+runas_expression
+    :   SYSTEM_RUNAS '(' expressionList? ')' block
+    ;
+
 
 parExpression
     :   '(' expression ')'
@@ -713,6 +720,7 @@ DB_UPSERT     : U P S E R T WS;
 DB_DELETE     : D E L E T E WS;
 DB_INSERT     : I N S E R T WS;
 DB_UNDELETE   : U N D E L E T E WS;
+SYSTEM_RUNAS  : S Y S T E M '.' R U N A S;
 
 
 // §3.10.1 Integer Literals
