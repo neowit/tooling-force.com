@@ -25,6 +25,11 @@ import com.neowit.response.LoginOauthResult
 
 class LoginOauth(writer: ResponseWriterVim) extends VimProtocol[LoginOauthResult] {
     def send(result: LoginOauthResult): Unit = {
-        result.resultFileOpt.foreach(f => writer.send("RESULT_FILE=" + f.getAbsolutePath))
+
+        result.resultFileOpt.foreach{f =>
+            // make sure all path folders exist
+            f.getParentFile.mkdirs()
+            writer.send("RESULT_FILE=" + f.getAbsolutePath)
+        }
     }
 }

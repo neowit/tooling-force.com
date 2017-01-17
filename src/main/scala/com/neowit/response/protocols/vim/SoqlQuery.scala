@@ -30,7 +30,11 @@ class SoqlQuery(writer: ResponseWriterVim) extends VimProtocol[SoqlQueryResult] 
             writer.send("RESULT_SIZE=" + size)
             writer.send(InfoMessage("Record Count: " + size))
         }
-        report.resultFileOpt.foreach(file => writer.send("RESULT_FILE=" + file.getAbsolutePath))
+        report.resultFileOpt.foreach{file =>
+            // make sure all path folders exist
+            file.getParentFile.mkdirs()
+            writer.send("RESULT_FILE=" + file.getAbsolutePath)
+        }
         report.errors.foreach(writer.send(_))
     }
 }
