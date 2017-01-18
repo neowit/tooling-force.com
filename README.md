@@ -28,6 +28,7 @@ Also supported a "project like" mode - where relevant metadata about deployments
 - List Modified files
 - Conflict checking before deployment (test if file(s) you are trying to deploy have been modified by someone else in SFDC since your last Refresh or Deployment.
 - list candidates for [Apex](http://youtu.be/u-6JQNuWRdE) and [SOQL](http://youtu.be/rzqgXV3Gx0s) auto-completion (note: current version is "work in progress")
+- find definition (go-to-symbol) in apex classes
 
 
 ## System requirements
