@@ -1,6 +1,17 @@
 /*
+ * This file is part of https://github.com/neowit/tooling-force.com
+ *
+ * An Apexcode grammar derived from Java 1.7 grammar for ANTLR v4.
+ * Uses ANTLR v4's left-recursive expression notation.
+ *
+ * @maintainer: Andrey Gavrikov
+*/
+
+/*
+
  [The "BSD licence"]
- Copyright (c) 2013 Terence Parr, Sam Harwell
+ Original (Java 1.7 grammar) Copyright (c) 2013 Terence Parr, Sam Harwell
+ Modified (Apexcode grammar) Copyright 2014-2017 Andrey Gavrikov
  All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
@@ -27,11 +38,6 @@
 */
 
 /** 
- *  An Apexcode grammar derived from Java 1.7 grammar for ANTLR v4.
- *  Uses ANTLR v4's left-recursive expression notation.
- *  
- *  @maintainer: Andrey Gavrikov
- *
  *  You can test with
  *
  *  $ antlr4 Apexcode.g4
