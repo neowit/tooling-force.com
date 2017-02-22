@@ -332,7 +332,13 @@ literal
     |   BooleanLiteral
     |   'null'
     // have to define Trigger.new as a special case of literal, otherwise parser "thinks" it is inner creator (instance.new)
-    |   TRIGGER_NEW
+    |   triggerContextVariable
+    ;
+
+triggerContextVariable
+    : TRIGGER '.' 'new' ('[' expression ']')?
+    | TRIGGER '.' expression
+    ;
     ;
 
 // ANNOTATIONS
@@ -714,13 +720,13 @@ GLOBAL	      : G L O B A L;
 WEBSERVICE    : W E B S E R V I C E;
 SELECT        : S E L E C T;
 TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
-TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' ([nN][eE][wW]|[nN][eE][wW][mM][aA][pP]);
 DB_UPDATE     : U P D A T E WS;
 DB_UPSERT     : U P S E R T WS;
 DB_DELETE     : D E L E T E WS;
 DB_INSERT     : I N S E R T WS;
 DB_UNDELETE   : U N D E L E T E WS;
 SYSTEM_RUNAS  : S Y S T E M '.' R U N A S;
+TRIGGER       : T R I G G E R;
 
 
 // §3.10.1 Integer Literals
