@@ -710,9 +710,9 @@ VOLATILE      : 'volatile';
 WHILE         : 'while';
 
 // Apexcode specific
-GLOBAL	      : 'global';
-WEBSERVICE    : 'webservice';
-SELECT        : 'select';
+GLOBAL	      : G L O B A L;
+WEBSERVICE    : W E B S E R V I C E;
+SELECT        : S E L E C T;
 TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
 TRIGGER_NEW   : [tT][rR][iI][gG][gG][eE][rR] '.' ([nN][eE][wW]|[nN][eE][wW][mM][aA][pP]);
 DB_UPDATE     : U P D A T E WS;
