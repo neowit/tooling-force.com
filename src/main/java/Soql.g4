@@ -1,5 +1,5 @@
 /**
- *  Copyright (c) 2015, Andrey Gavrikov. All rights reserved.
+ *  Copyright (c) 2015-2017, Andrey Gavrikov. All rights reserved.
  *
  *  License: LGPL v3 <http://www.gnu.org/licenses/>
  *
