@@ -48,6 +48,7 @@ import java.util.*;
 // starting point for parsing a apexcode file
 compilationUnit
     :   packageDeclaration? importDeclaration* typeDeclaration* EOF
+    |   triggerDeclaration EOF
     ;
 
 packageDeclaration
@@ -64,6 +65,11 @@ typeDeclaration
     |   classOrInterfaceModifier* interfaceDeclaration
     |   classOrInterfaceModifier* annotationTypeDeclaration
     |   ';'
+    ;
+
+triggerDeclaration
+    :   TRIGGER Identifier 'on' Identifier triggerScope
+        triggerBody
     ;
 
 modifier
@@ -320,6 +326,10 @@ constructorBody
     :   block
     ;
 
+triggerBody
+    :   '{' ( blockStatement | methodDeclaration )*'}'
+    ;
+
 qualifiedName
     :   Identifier ('.' Identifier)*
     ;
@@ -339,6 +349,22 @@ triggerContextVariable
     : TRIGGER '.' 'new' ('[' expression ']')?
     | TRIGGER '.' expression
     ;
+
+triggerScope
+    : '(' triggerEvent (',' triggerEvent)* ')'
+    ;
+
+triggerEvent
+    :   triggerEventBefore
+    |   triggerEventAfter
+    ;
+
+triggerEventBefore
+    : 'before' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' )
+    ;
+
+triggerEventAfter
+    : 'after' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' )
     ;
 
 // ANNOTATIONS
@@ -1044,6 +1070,10 @@ URSHIFT_ASSIGN  : '>>>=';
 
 Identifier
     :   JavaLetter JavaLetterOrDigit*
+    ;
+
+ObjectType
+    :   Identifier
     ;
 
 fragment
