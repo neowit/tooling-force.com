@@ -558,11 +558,6 @@ statementExpression
     |   db_shortcut_expression
     ;
 
-constantExpression
-    :   expression
-    ;
-
-	
 expression
     :   primary
     |   expression '.' 'get' '(' expressionList? ')'
