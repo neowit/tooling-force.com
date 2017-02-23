@@ -76,7 +76,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val scanner = new ScanSource().load[ScanSource](session)
                     //provide alternative location for current file (it may not be saved in project location)
                     val currentFilePath = config.getRequiredProperty("currentFilePath")
-                    val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
+                    val classes = scanner.getRecognisedApexFiles.filterNot(_.getAbsolutePath == currentFilePath) ++ List(new File(filePath))
                     scanner.scan(classes)
 
                     val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {

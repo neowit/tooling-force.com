@@ -44,7 +44,7 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 val scanner = new ScanSource().load[ScanSource](session)
                 //exclude current file
                 val currentFilePath = config.getRequiredProperty("currentFilePath")
-                val classes = scanner.getClassFiles.filterNot(_.getAbsolutePath == currentFilePath)
+                val classes = scanner.getRecognisedApexFiles.filterNot(_.getAbsolutePath == currentFilePath)
                 //scan all project files (except the current one)
                 //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
                 scanner.scan(classes)

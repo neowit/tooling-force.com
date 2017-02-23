@@ -44,7 +44,7 @@ class ScanSource extends ApexActionWithReadOnlySession {
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //val config = session.getConfig
 
-        val classes = getClassFiles
+        val classes = getRecognisedApexFiles
         val actionResult = scan(classes)
         Future.successful(actionResult)
     }
@@ -98,5 +98,20 @@ class ScanSource extends ApexActionWithReadOnlySession {
 
         val classFiles = allFiles.filter("cls" == FileUtils.getExtension(_))
         classFiles.toList
+    }
+
+    def getRecognisedApexFiles:List[File] = {
+        val config = session.getConfig
+
+        val allFiles = config.srcDirOpt match {
+            case Some(srcDir) =>
+                FileUtils.listFiles(srcDir).filter(
+                    //remove all non apex files
+                    file => APEX_EXTENSIONS.contains(FileUtils.getExtension(file))
+                ).toSet
+            case None => Set()
+        }
+
+        allFiles.toList
     }
 }
