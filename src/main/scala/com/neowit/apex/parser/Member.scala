@@ -1316,7 +1316,7 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext, filePath: Path) 
         if (identity.toLowerCase == getIdentity.toLowerCase) {
             Some(this)
         } else {
-            None
+            super.getChild(identity, withHierarchy)
         }
     }
 
