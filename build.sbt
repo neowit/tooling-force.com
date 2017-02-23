@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-actor" % "2.4.3"
 )
 
-libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.6"
+libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
 
