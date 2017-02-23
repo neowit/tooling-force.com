@@ -605,6 +605,26 @@ case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) ext
     }
 }
 
+case class TriggerMember(ctx: TriggerDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
+    // e.g. MyTrigger.Opportunity
+    def getIdentity:String = {
+        ctx.Identifier().map(_.getText).mkString(".")
+    }
+    override def getType: String = getIdentity
+
+    override def getSignature: String = {
+        ApexParserUtils.getChildren[TerminalNode](ctx, n => n.isInstanceOf[TerminalNode]).map(_.getText).mkString(" ")
+    }
+
+    override def isStatic: Boolean = false
+
+    override protected def getChildInternal(identity: String, withHierarchy: Boolean): Option[Member] = {
+        // check if identity represents inner class
+        super.getChildInternal(InnerInterfaceMember.getIdentityPrefix + identity)
+            .orElse(super.getChildInternal(identity))
+    }
+}
+
 abstract class InnerClassLikeMember(ctx: ParserRuleContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     protected def getIdentityPrefix: String
 
@@ -1200,6 +1220,46 @@ class InterfaceMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, file
     }
     override def getArgs:List[MethodParameter] = {
         val paramsContext = ApexParserUtils.findChildren(ctx, classOf[InterfaceMethodDeclarationContext])
+        if (paramsContext.nonEmpty) {
+            getFormalParams(paramsContext.head.formalParameters(), filePath)
+        } else {
+            List()
+        }
+    }
+}
+
+object TriggerMethodMember {
+    def unapply(ctx: ParseTree): Option[ParseTree] = {
+        if (ClassBodyMember.isMethodOfClass(ctx)) Some(ctx) else None
+    }
+}
+class TriggerMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, filePath: Path)
+    extends MethodMember(ctx.asInstanceOf[TriggerBodyDeclarationContext], parser, filePath) {
+
+    def getMethodMemberClass: Class[_ <: ParserRuleContext] = classOf[MethodDeclarationContext]
+
+    override def getMethodName:String = {
+        //... <Type> methodName (formalParameters)
+        val methodDeclarationContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
+        if (methodDeclarationContext.nonEmpty) {
+            methodDeclarationContext.head.Identifier().getText
+        } else {
+            ""
+        }
+    }
+
+    override def getType: String = {
+        val declarationContexts = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
+        if (declarationContexts.nonEmpty) {
+            val declarationContext = declarationContexts.head
+            if (null != declarationContext.`type`())
+                return parser.getTokenStream.getText(declarationContext.`type`())
+        }
+        "void"
+    }
+
+    override def getArgs:List[MethodParameter] = {
+        val paramsContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (paramsContext.nonEmpty) {
             getFormalParams(paramsContext.head.formalParameters(), filePath)
         } else {

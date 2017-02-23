@@ -70,6 +70,20 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
     override def exitClassDeclaration(ctx: ApexcodeParser.ClassDeclarationContext): Unit = {
         memberScopeStack.pop()
     }
+
+    override def enterTriggerDeclaration(ctx: TriggerDeclarationContext): Unit = {
+        val member = new TriggerMember(ctx, filePath)
+        registerMember(member)
+        //only top level classes/triggers shall be registered in the root of main tree
+        tree.addMember(member)
+
+        memberScopeStack.push(member)
+    }
+
+    override def exitTriggerDeclaration(ctx: TriggerDeclarationContext): Unit = {
+        memberScopeStack.pop()
+    }
+
     override def enterInterfaceDeclaration(ctx: ApexcodeParser.InterfaceDeclarationContext): Unit ={
         val member = if (ClassBodyMember.isInnerInterface(ctx)) new InnerInterfaceMember(ctx, filePath) else InterfaceMember(ctx, filePath)
         registerMember(member)
@@ -161,6 +175,32 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
             case _ =>
         }
     }
+
+
+
+    override def enterTriggerBodyDeclaration(ctx: TriggerBodyDeclarationContext): Unit = {
+        val member = ctx match {
+            case TriggerMethodMember(context) => new TriggerMethodMember(ctx, parser, filePath)
+            case _ => null;//new ClassBodyMember(ctx)
+        }
+        if (null != member) {
+            registerMember(member)
+        }
+        member match {
+            case m: TriggerMethodMember =>
+                memberScopeStack.push(m)
+            case _ =>
+        }
+    }
+
+    override def exitTriggerBodyDeclaration(ctx: TriggerBodyDeclarationContext): Unit = {
+        ctx match {
+            case TriggerMethodMember(context) =>
+                memberScopeStack.pop()
+            case _ =>
+        }
+    }
+
     override def enterStatement(ctx: StatementContext): Unit = {
         val member = new StatementMember(ctx)
         registerMember(member)
