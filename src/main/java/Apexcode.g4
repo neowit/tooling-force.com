@@ -370,11 +370,13 @@ triggerEvent
     ;
 
 triggerEventBefore
-    : 'before' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' )
+    //: 'before' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' ) // this conflicts with db_shortcut_expression
+    :   'before' ( Identifier )
     ;
 
 triggerEventAfter
-    : 'after' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' )
+    //: 'after' ('insert' | 'update' | 'delete' | 'undelete' | 'upsert' | 'merge' ) // this conflicts with db_shortcut_expression
+    : 'after' ( Identifier )
     ;
 
 // ANNOTATIONS
