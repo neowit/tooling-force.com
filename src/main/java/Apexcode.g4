@@ -333,7 +333,11 @@ constructorBody
     ;
 
 triggerBody
-    :   '{' ( blockStatement | methodDeclaration )*'}'
+    :   '{' triggerBodyDeclaration '}'
+    ;
+
+triggerBodyDeclaration
+    : ( blockStatement | methodDeclaration )*
     ;
 
 qualifiedName
