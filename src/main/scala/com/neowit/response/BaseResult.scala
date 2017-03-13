@@ -62,7 +62,7 @@ case class DeployDestructiveResult(deploymentReport: DeploymentReport) extends B
 case class DeployModifiedDestructiveResult(deploymentReportOpt: Option[DeploymentReport]) extends BaseResult
 case class DeployModifiedResult(deploymentReport: DeploymentReport) extends BaseResult
 case class DiffWithRemoteResult(report: DiffWithRemoteReport) extends BaseResult
-case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File]) extends BaseResult
+case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File], repeatCount: Int) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
 case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
 case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[File]) extends BaseResult

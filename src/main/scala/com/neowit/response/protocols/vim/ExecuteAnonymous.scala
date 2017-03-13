@@ -43,6 +43,9 @@ class ExecuteAnonymous(writer: ResponseWriterVim) extends VimProtocol[ExecuteAno
             }
         }
         result.logFileOpt.foreach(f => writer.send("LOG_FILE=" + f.getAbsolutePath))
+        if (result.repeatCount > 1) {
+            writer.info("Execution count: " + result.repeatCount)
+        }
 
     }
 }
