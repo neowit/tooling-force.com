@@ -615,6 +615,7 @@ primary
     |   'void' '.' 'class'
     |   nonWildcardTypeArguments (explicitGenericInvocationSuffix | 'this' arguments)
     |   SoqlLiteral
+    |   SoslLiteral
     ;
 
 creator
@@ -688,7 +689,12 @@ arguments
 SoqlLiteral
     : '[' WS* SELECT (SelectRestNoInnerBrackets | SelectRestAllowingInnerBrackets)*? ']'
 	;
-	
+
+// [ FIND ... ]
+SoslLiteral
+    : '[' WS* FIND  (SelectRestNoInnerBrackets | SelectRestAllowingInnerBrackets)*? ']'
+    ;
+
 fragment SelectRestAllowingInnerBrackets
 	:  '[' ~']' .*? ']'
 	|  '[' ']'  // e.g. [ select ... where field in :new String[] {...} ]
@@ -751,6 +757,7 @@ WHILE         : 'while';
 // Apexcode specific
 GLOBAL	      : G L O B A L;
 WEBSERVICE    : W E B S E R V I C E;
+FIND          : F I N D;
 SELECT        : S E L E C T;
 TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
 DB_UPDATE     : U P D A T E WS;
