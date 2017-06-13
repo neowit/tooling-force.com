@@ -579,9 +579,11 @@ expression
     |   expression ('*'|'/'|'%') expression
     |   expression ('+'|'-') expression
     |   expression ('<' '<' | '>' '>' '>' | '>' '>') expression
-    |   expression ('<=' | '>=' | '>' | '<') expression
+    //|   expression ('<=' | '>=' | '>' | '<') expression
+       // Apex allows '> =' and '< =' instead of '>=' and '<='
+    |   expression ('<' WS? '=' | '>' WS? '=' | '>' | '<') expression
     |   expression 'instanceof' type
-    |   expression ('==' | '!=') expression
+    |   expression ('===' | '==' | '!=' | '<>') expression
     |   expression '&' expression
     |   expression '^' expression
     |   expression '|' expression
