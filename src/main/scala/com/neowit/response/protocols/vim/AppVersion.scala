@@ -25,7 +25,13 @@ import com.neowit.response.{AppVersionResult, InfoMessage, MessageDetailMap}
 
 class AppVersion(writer: ResponseWriterVim) extends VimProtocol[AppVersionResult] {
     def send(result: AppVersionResult): Unit = {
-        val versionMessage = writer.send(InfoMessage(result.appName + " - version: " + result.appVersion + "; SFDC API Version: " + result.sfdcApiVersion))
+        val msg = InfoMessage(
+            result.appName + " - version: " + result.appVersion +
+                "; SFDC API Version: " + result.sfdcApiVersion +
+                "; java: " + result.javaVersion +
+                "; OS: " + result.os
+        )
+        val versionMessage = writer.send(msg)
         val mb = 1024*1024
         val runtime = Runtime.getRuntime
         writer.println( MessageDetailMap(versionMessage, Map("type" -> "DEBUG", "text" -> s"Used Memory: ${(runtime.totalMemory - runtime.freeMemory) / mb} MB")))

@@ -41,7 +41,9 @@ class AppVersion extends ApexAction {
                 AppVersionResult(
                     appName = AppVersion.APP_NAME,
                     appVersion = AppVersion.VERSION,
-                    sfdcApiVersion = String.valueOf(config.apiVersion)
+                    sfdcApiVersion = String.valueOf(config.apiVersion),
+                    javaVersion = System.getProperty("java.version"),
+                    os = System.getProperty("os.name")
                 )
             )
         )
