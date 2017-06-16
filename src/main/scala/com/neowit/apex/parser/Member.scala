@@ -1163,7 +1163,14 @@ class ClassMethodMember(ctx: ParserRuleContext, parser: ApexcodeParser, filePath
         //... <Type> methodName (formalParameters)
         val methodDeclarationContext = ApexParserUtils.findChildren(ctx, classOf[MethodDeclarationContext])
         if (methodDeclarationContext.nonEmpty) {
-            methodDeclarationContext.head.Identifier().getText
+            val identifier = methodDeclarationContext.head.Identifier()
+            if (null != identifier) {
+                identifier.getText
+            } else {
+                // this situation can happen when method has name matching reserved keyword
+                // people should not be using such names, but let's allow these anyway
+                ""
+            }
         } else {
             ""
         }
