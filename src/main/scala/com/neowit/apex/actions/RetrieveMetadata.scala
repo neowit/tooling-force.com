@@ -19,7 +19,7 @@
 
 package com.neowit.apex.actions
 
-import java.io.{File, FileOutputStream}
+import java.io.{File, FileOutputStream, PrintWriter, StringWriter}
 
 import com.neowit.apex.{MetaXml, MetadataType}
 import com.neowit.utils._
@@ -225,7 +225,12 @@ class RefreshMetadata extends RetrieveMetadata {
                 }
             } catch {
                 case ex:Throwable =>
-                    println(ex)
+                    val sw = new StringWriter
+                    ex.printStackTrace(new PrintWriter(sw))
+                    val stackTraceStr = sw.toString
+                    // dump exception information to log
+                    logger.error(ex)
+                    logger.error(stackTraceStr)
                     //responseWriter.println("RESULT=FAILURE")
                     //responseWriter.println(new Message(ERROR, ex.toString))
                     ActionFailure(ErrorMessage(ex.toString))
