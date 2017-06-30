@@ -734,7 +734,6 @@ IMPORT        : 'import';
 INSTANCEOF    : 'instanceof';
 INT           : 'int';
 INTERFACE     : 'interface';
-LONG          : 'long';
 NATIVE        : 'native';
 NEW           : 'new';
 PACKAGE       : 'package';
