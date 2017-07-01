@@ -282,16 +282,11 @@ enumConstantName
 
 type
     :   classOrInterfaceType ('[' ']')*
-    |   primitiveType ('[' ']')*
     ;
 
 classOrInterfaceType
     :   Identifier typeArguments? ('.' Identifier typeArguments? )*
     |   'set' typeArguments // 'set <' has to be defined explicitly, otherwise it clashes with 'set' of property setter
-    ;
-
-primitiveType
-    :   'there_are_no_primitives_in_apex'
     ;
 
 typeArguments
@@ -627,7 +622,6 @@ creator
 
 createdName
     :   Identifier typeArgumentsOrDiamond? ('.' Identifier typeArgumentsOrDiamond?)*
-    |   primitiveType
     |   'set' typeArgumentsOrDiamond // 'set <' has to be defined explicitly, otherwise it clashes with 'set' of property setter
     ;
 
