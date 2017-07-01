@@ -3,6 +3,7 @@
  */
 public with sharing class OtherClass1 {
 
+    private Long lng;
 	private String privateProperty {get; set;}
 	public String publicProperty {get; set;}
 

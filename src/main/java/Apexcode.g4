@@ -708,66 +708,21 @@ fragment SelectRestNoInnerBrackets
 	;
 // LEXER
 
-// §3.9 Keywords
-
-ABSTRACT      : 'abstract';
-BREAK         : 'break';
-BYTE          : 'byte';
-CATCH         : 'catch';
-CHAR          : 'char';
-CLASS         : 'class';
-CONST         : 'const';
-CONTINUE      : 'continue';
-DEFAULT       : 'default';
-DO            : 'do';
-ELSE          : 'else';
-ENUM          : 'enum';
-EXTENDS       : 'extends';
-FINAL         : 'final';
-FINALLY       : 'finally';
-FLOAT         : 'float';
-FOR           : 'for';
-IF            : 'if';
-GOTO          : 'goto';
-IMPLEMENTS    : 'implements';
-IMPORT        : 'import';
-INSTANCEOF    : 'instanceof';
-INT           : 'int';
-INTERFACE     : 'interface';
-NATIVE        : 'native';
-NEW           : 'new';
-PACKAGE       : 'package';
-PRIVATE       : 'private';
-PROTECTED     : 'protected';
-PUBLIC        : 'public';
-RETURN        : 'return';
-SHORT         : 'short';
-STATIC        : 'static';
-
-SUPER         : 'super';
-SYNCHRONIZED  : 'synchronized';
-THIS          : 'this';
-THROW         : 'throw';
-THROWS        : 'throws';
-TRANSIENT     : 'transient';
-TRY           : 'try';
-VOID          : 'void';
-VOLATILE      : 'volatile';
-WHILE         : 'while';
-
-// Apexcode specific
-GLOBAL	      : G L O B A L;
-WEBSERVICE    : W E B S E R V I C E;
-FIND          : F I N D;
-SELECT        : S E L E C T;
-TESTMETHOD    : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
-DB_UPDATE     : U P D A T E WS;
-DB_UPSERT     : U P S E R T WS;
-DB_DELETE     : D E L E T E WS;
-DB_INSERT     : I N S E R T WS;
-DB_UNDELETE   : U N D E L E T E WS;
-SYSTEM_RUNAS  : S Y S T E M '.' R U N A S;
-TRIGGER       : T R I G G E R;
+// Keywords
+ENUM            : E N U M;
+// Apexcode specific Keywords
+GLOBAL	        : G L O B A L;
+WEBSERVICE      : W E B S E R V I C E;
+FIND            : F I N D;
+SELECT          : S E L E C T;
+TESTMETHOD      : [tT][eE][sS][tT][mM][eE][tT][hH][oO][dD];
+DB_UPDATE       : U P D A T E WS;
+DB_UPSERT       : U P S E R T WS;
+DB_DELETE       : D E L E T E WS;
+DB_INSERT       : I N S E R T WS;
+DB_UNDELETE     : U N D E L E T E WS;
+SYSTEM_RUNAS    : S Y S T E M '.' R U N A S;
+TRIGGER         : T R I G G E R;
 
 
 // §3.10.1 Integer Literals
