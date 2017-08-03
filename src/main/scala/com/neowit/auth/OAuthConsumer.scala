@@ -150,8 +150,8 @@ class OAuthConsumer(appConfig: BasicConfig,
             Try{
                 val in = conn.getInputStream
                 val text = conn.getContentEncoding match {
-                    case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
-                    case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+                    case "gzip" => scala.io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                    case _ => scala.io.Source.fromInputStream(in)("UTF-8").mkString("")
                 }
 
                 in.close()

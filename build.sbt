@@ -11,7 +11,7 @@ scalacOptions ++= Seq(
     "-encoding", "UTF-8",
     "-feature",
     "-unchecked",
-    "-Xfatal-warnings",
+    //"-Xfatal-warnings", //TODO - once CaseInsensitiveInputStream has been removed - uncomment this setting
     //"-Xlint",
     //"-Yno-adapted-args",
     //"-Ywarn-numeric-widen",
@@ -19,6 +19,16 @@ scalacOptions ++= Seq(
     "-Xfuture",
     "-Ywarn-unused-import"
 )
+
+// disable generation of scala-<version> folders, we do not need cross compilation
+crossPaths := false
+
+sources in doc in Compile := List() // do NOT generate Scaladoc, it is a waste of time
+
+// Get rid of scala-{version} folders
+sourceDirectories in Compile ~= ( dirs =>
+        dirs.filterNot(_.absolutePath.endsWith("-2.11")).filterNot(_.absolutePath.endsWith("-2.12"))
+    )
 
 resolvers ++= Seq(
     "Sonatype OSS Releases"  at "http://oss.sonatype.org/content/repositories/releases/",
@@ -39,7 +49,6 @@ libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-actor" % "2.5.3"
 )
 
-libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
 
@@ -50,3 +59,11 @@ libraryDependencies ++= Seq(
 )
 
 //exportJars := true
+
+lazy val apexScanner = RootProject(file("../ApexScanner"))
+
+lazy val main = Project(id = "tooling-force-com", base = file("."))
+    .dependsOn(apexScanner)
+    .settings(
+        libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
+    )

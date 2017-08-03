@@ -78,7 +78,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         wr.flush()
         wr.close()
         val in = conn.getInputStream
-        logger.trace("usage service responded: " + io.Source.fromInputStream( in ).mkString(""))
+        logger.trace("usage service responded: " + scala.io.Source.fromInputStream( in ).mkString(""))
         in.close()
     }
     def report(): Unit = {

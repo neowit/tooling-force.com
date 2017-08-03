@@ -46,7 +46,7 @@ object Session {
 
     case class ConnectionException(connection: HttpURLConnection) extends RuntimeException
     case class RestCallException(connection: HttpURLConnection) extends RuntimeException {
-        private val jsonAst = Try(io.Source.fromInputStream(connection.getErrorStream)("UTF-8").getLines().mkString("")) match {
+        private val jsonAst = Try(scala.io.Source.fromInputStream(connection.getErrorStream)("UTF-8").getLines().mkString("")) match {
             case Success(responseDetails) => Try(responseDetails.parseJson) match {
                 case Success(_ast) => Some(_ast)
                 case _ => None
@@ -626,8 +626,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         if (200 == responseCode) {
             val in = conn.getInputStream
             val text = conn.getContentEncoding match {
-                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
-                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+                case "gzip" => scala.io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                case _ => scala.io.Source.fromInputStream(in)("UTF-8").mkString("")
             }
             //TODO consider saving into file, as whole stream may not fit in RAM
             in.close()
@@ -685,8 +685,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         if (200 == responseCode) {
             val in = conn.getInputStream
             val text = conn.getContentEncoding match {
-                case "gzip" => io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
-                case _ => io.Source.fromInputStream(in)("UTF-8").mkString("")
+                case "gzip" => scala.io.Source.fromInputStream(new GZIPInputStream(in))("UTF-8").mkString("")
+                case _ => scala.io.Source.fromInputStream(in)("UTF-8").mkString("")
             }
 
             in.close()
