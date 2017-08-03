@@ -26,7 +26,7 @@ import com.neowit.apex.parser.antlr.{SoqlParser, SoqlLexer}
 import com.neowit.apex.parser._
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 
 class SoqlAutoComplete (session: Session) {
@@ -351,7 +351,7 @@ class SoqlAutoComplete (session: Session) {
             case Some(soqlStatement) =>
                 val objTypeMembers = ApexParserUtils.findChild(soqlStatement, classOf[FromStatementContext]) match {
                   case Some(fromStatement) =>
-                      fromStatement.objectType().map(new FromTypeMember(_, session))
+                      fromStatement.objectType().asScala.map(new FromTypeMember(_, session))
                   case None => Nil
                 }
                 objTypeMembers.toList
@@ -373,7 +373,7 @@ class SoqlAutoComplete (session: Session) {
         val membersWithoutDuplicates = finalContext match {
             case ctx: SelectItemContext if ctx.getParent.isInstanceOf[SelectStatementContext] =>
                 //started new field in Select part
-                val existingFieldNames =
+                val existingFieldNames: Set[String] =
                     ApexParserUtils.findChild(tree, classOf[SelectStatementContext]) match {
                   case Some(selectStatementContext) =>
                       ApexParserUtils.findChildren(selectStatementContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
@@ -382,7 +382,7 @@ class SoqlAutoComplete (session: Session) {
                 members.filter(m => !existingFieldNames.contains(m.getIdentity) || isReferenceMember(m))
             case ctx: FromStatementContext =>
                 // check if we are dealing with last field in main SELECT mistakenly associated with FROM context
-                val existingFieldNames =
+                val existingFieldNames: Set[String] =
                     ApexParserUtils.getParent(ctx, classOf[SoqlStatementContext]) match {
                         case Some(soqlStatementContext) =>
                             ApexParserUtils.findChildren(soqlStatementContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet
@@ -392,7 +392,7 @@ class SoqlAutoComplete (session: Session) {
 
             case ctx: FieldItemContext if ApexParserUtils.getParent(ctx, classOf[SubqueryContext]).isDefined   =>
                 //sub-query
-                val existingFieldNames =
+                val existingFieldNames: Set[String] =
                     ApexParserUtils.getParent(ctx, classOf[SubqueryContext]) match {
                         case Some(subqueryContext) =>
                             ApexParserUtils.findChildren(subqueryContext, classOf[FieldNameContext]).map(fNameNode => fNameNode.Identifier(0).toString).toSet

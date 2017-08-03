@@ -4,7 +4,7 @@ name := "tooling-force.com"
 
 version := "0.1-SNAPSHOT"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.3"
 
 scalacOptions ++= Seq(
     "-deprecation",
@@ -35,8 +35,8 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
     "commons-logging" %  "commons-logging" % "1.1.3",
-    "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.4.3"
+    "org.scalatest" %% "scalatest" % "3.0.1" % "test",
+    "com.typesafe.akka" %% "akka-actor" % "2.5.3"
 )
 
 libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"

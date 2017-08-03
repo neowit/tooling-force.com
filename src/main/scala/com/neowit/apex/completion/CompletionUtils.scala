@@ -26,6 +26,7 @@ import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext, Token, TokenStream}
 
+import scala.collection.mutable
 import scala.util.matching.Regex
 
 object AToken {
@@ -291,18 +292,21 @@ object CompletionUtils {
         if (!ApexParserUtils.isRightParenthesis(scopeEnd)) {
             scopeEnd.getTokenIndex
         } else {
-            val brackets = new scala.collection.mutable.Stack[String]()
+            //val brackets = new scala.collection.mutable.Stack[String]()
+            var brackets = new mutable.ListBuffer[String]()
             var index = scopeEnd.getTokenIndex
             while (index > 0) {
                 index -= 1
                 val token = tokenStream.get(index)
                 if (ApexParserUtils.isRightParenthesis(token)) {
-                    brackets.push(")")
+                    //brackets.push(")")
+                    brackets = ")" +: brackets
                 } else if (ApexParserUtils.isLeftParenthesis(token)) {
                     if (brackets.isEmpty) {
                         return index
                     } else {
-                        brackets.pop()
+                        //brackets.pop()
+                        brackets = brackets.tail
                     }
                 }
             }

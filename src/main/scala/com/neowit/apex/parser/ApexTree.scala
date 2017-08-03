@@ -22,7 +22,6 @@ package com.neowit.apex.parser
 
 
 import scala.collection.mutable
-import scala.collection.JavaConversions._
 
 class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClassName: mutable.LinkedHashMap[String, ClassLikeMember]) {
 
@@ -90,16 +89,16 @@ class ApexTree(val tree: mutable.LinkedHashMap[String, Member], val classByClass
             classByClassName ++= anotherTree.classByClassName
         } else {
             // keep own keys
-            tree ++= anotherTree.tree.filterKeys(k => !tree.containsKey(k))
-            classByClassName ++= anotherTree.classByClassName.filterKeys(k => !classByClassName.containsKey(k))
+            tree ++= anotherTree.tree.filterKeys(k => !tree.contains(k))
+            classByClassName ++= anotherTree.classByClassName.filterKeys(k => !classByClassName.contains(k))
         }
     }
 
     override def clone: ApexTree = {
         val _tree = new mutable.LinkedHashMap[String, Member]()//identity -> member, e.g. TopLevelClass -> Member
         val _classByClassName = new mutable.LinkedHashMap[String, ClassLikeMember]() //class-name.toLowerCase => ClassMember
-        _tree.putAll(this.tree)
-        _classByClassName.putAll(this.classByClassName)
+        _tree ++= this.tree
+        _classByClassName ++= this.classByClassName
         new ApexTree(_tree, _classByClassName)
     }
 }

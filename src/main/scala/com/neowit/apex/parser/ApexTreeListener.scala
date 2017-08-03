@@ -28,7 +28,7 @@ import org.antlr.v4.runtime.tree.{ErrorNode, TerminalNode}
 import com.neowit.apex.parser.antlr.{ApexcodeBaseListener, ApexcodeParser}
 
 import scala.collection.mutable
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = -1, column: Int = -1, caret: Option[Caret] = None) extends ApexcodeBaseListener {
     val tree = new ApexTree()//path -> member, e.g. ParentClass.InnerClass -> ClassMember
@@ -240,7 +240,7 @@ class ApexTreeListener (val parser: ApexcodeParser, filePath: Path, line: Int = 
     override def enterLocalVariableDeclaration(ctx: LocalVariableDeclarationContext): Unit = {
         //cycle through all variables declared in the current expression
         //String a, b, c;
-        for (varDeclaratorCtx <- ctx.variableDeclarators().variableDeclarator()) {
+        for (varDeclaratorCtx <- ctx.variableDeclarators().variableDeclarator().asScala) {
             val member = new LocalVariableMember(ctx, varDeclaratorCtx, filePath)
             registerMember(member)
         }

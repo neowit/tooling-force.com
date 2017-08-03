@@ -27,7 +27,7 @@ import org.antlr.v4.runtime.tree.{ParseTree, TerminalNode, TerminalNodeImpl}
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 
 import scala.collection.mutable
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import spray.json._
 import DefaultJsonProtocol._
 
@@ -193,7 +193,7 @@ trait AnonymousMember {
                         val superTypeChildren = superTypeMember.getChildrenWithInheritance(apexTree)
                         val myChildrenMap = getChildren.map(m => m.getIdentity.toLowerCase -> m).toMap
                         val superTypeChildrenMinusMyChildren = superTypeChildren.filterNot(
-                            superChild => myChildrenMap.containsKey(superChild.getIdentity.toLowerCase)
+                            superChild => myChildrenMap.contains(superChild.getIdentity.toLowerCase)
                         )
                         superTypeChildrenMinusMyChildren ++ getChildren
                     case None => getChildren
@@ -608,7 +608,7 @@ case class InterfaceMember(ctx: InterfaceDeclarationContext, filePath: Path) ext
 case class TriggerMember(ctx: TriggerDeclarationContext, filePath: Path) extends ClassLikeMember(ctx, filePath) {
     // e.g. MyTrigger.Opportunity
     def getIdentity:String = {
-        ctx.Identifier().map(_.getText).mkString(".")
+        ctx.Identifier().asScala.map(_.getText).mkString(".")
     }
     override def getType: String = getIdentity
 
@@ -779,7 +779,7 @@ object ClassBodyMember {
     def getVisibility(ctx: ParseTree): String = {
         ctx match {
             case _cxt: ClassBodyDeclarationContext =>
-                val modifier = _cxt.modifier().find(
+                val modifier = _cxt.modifier().asScala.find(
                     m => VISIBILITIES.contains(
                         m.classOrInterfaceModifier().getChild(0).getText.toLowerCase))
                 modifier match {
@@ -914,7 +914,7 @@ object PropertyMember {
     def getModifiers(ctx: ParseTree): List[String] = {
         ApexParserUtils.getParent(ctx, classOf[ClassBodyDeclarationContext]) match {
             case Some(classBodyDeclarationCtx) =>
-                classBodyDeclarationCtx.modifier().filter(null != _.classOrInterfaceModifier()).map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
+                classBodyDeclarationCtx.modifier().asScala.filter(null != _.classOrInterfaceModifier()).map(m => m.classOrInterfaceModifier().getChild(0).getText).toList
             case None => List()
         }
     }
@@ -923,7 +923,7 @@ object PropertyMember {
 class PropertyMember(ctx: PropertyDeclarationContext, filePath: Path) extends Member {
 
     override def getIdentity: String = {
-        ctx.variableDeclarators().variableDeclarator().find(null != _.variableDeclaratorId()) match {
+        ctx.variableDeclarators().variableDeclarator().asScala.find(null != _.variableDeclaratorId()) match {
             case Some(variableDeclaratorIdContext) => variableDeclaratorIdContext.getText
             case None => ""
         }
@@ -1366,7 +1366,7 @@ class CatchClauseMember(ctx: ApexcodeParser.CatchClauseContext, filePath: Path) 
      *
      * @return
      */
-    override def getType: String = ctx.catchType().qualifiedName(0).Identifier().mkString(".")
+    override def getType: String = ctx.catchType().qualifiedName(0).Identifier().asScala.mkString(".")
 
     override def getSignature: String = getType + " " + getIdentity
 

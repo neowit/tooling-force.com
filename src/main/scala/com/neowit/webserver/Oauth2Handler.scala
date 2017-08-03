@@ -25,7 +25,7 @@ import com.neowit.auth.OAuthConsumer
 import org.eclipse.jetty.server.Request
 
 import scala.concurrent.Future
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class Oauth2Handler(
@@ -55,7 +55,7 @@ class Oauth2Handler(
                 // signal that request has been handled
                 baseRequest.setHandled(true)
                 // initiate asynchronous callback
-                onResponseCallback(request.getParameterMap.mapValues(_.toList).toMap)
+                onResponseCallback(request.getParameterMap.asScala.mapValues(_.toList).toMap)
                     .map(_ => Handled)
             case _ =>
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST)

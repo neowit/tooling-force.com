@@ -25,7 +25,7 @@ import java.util.regex.Pattern
 import com.neowit.utils.FileUtils
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime._
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object ApexParserUtils {
@@ -89,7 +89,7 @@ object ApexParserUtils {
      * @param parser - ApexcodeParser from which to remove console error listener
      */
     def removeConsoleErrorListener(parser: Parser): Unit = {
-        parser.getErrorListeners.find(_.isInstanceOf[ConsoleErrorListener]) match {
+        parser.getErrorListeners.asScala.find(_.isInstanceOf[ConsoleErrorListener]) match {
           case Some(consoleErrorListener) =>
               parser.removeErrorListener(consoleErrorListener)
           case None =>
@@ -201,7 +201,7 @@ object ApexParserUtils {
                 None
             } else {
                 val index = currentToken.getTokenIndex
-                val hiddenTokens = tokens.getHiddenTokensToLeft(index)
+                val hiddenTokens = tokens.getHiddenTokensToLeft(index).asScala
                 if (null != hiddenTokens && hiddenTokens.nonEmpty && tokenType == hiddenTokens.head.getType) {
                     Some(hiddenTokens.head)
                 } else {
