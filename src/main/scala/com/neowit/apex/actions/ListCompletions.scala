@@ -21,52 +21,84 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apex.completion.AutoComplete
-import com.neowit.apex.parser.{ApexTree, Member}
+import com.neowit.apex.parser.{Member, MemberJsonSupport}
 import com.neowit.response.ListCompletionsResult
 import com.neowit.utils.JsonSupport
+import com.neowit.apexscanner.{FileBasedDocument, Project}
+import com.neowit.apexscanner.symbols.Symbol
 
 import scala.concurrent.{ExecutionContext, Future}
 
+object ListCompletions {
+    private val _projectByPath = new collection.mutable.HashMap[File, Project]()
+    def getProject(projectDir: File)(implicit ec: ExecutionContext): Option[Project] = {
+        _projectByPath.get(projectDir) match {
+            case projectOpt @ Some(_) => projectOpt
+            case None =>
+                val project = new Project(projectDir.toPath)
+                project.loadStdLib()
+                _projectByPath += projectDir -> project
+                Option(project)
+        }
+    }
+}
 class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
 
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
 
         val resultOpt =
-            for (
-                projectDir <- config.projectDirOpt;
-                filePath <- config.getRequiredProperty("currentFileContentPath");
-                line <- config.getRequiredProperty("line");
+            for {
+                projectDir <- config.projectDirOpt
+                project <- ListCompletions.getProject(projectDir)
+                filePath <- config.getRequiredProperty("currentFileContentPath")
+                line <- config.getRequiredProperty("line")
                 column <- config.getRequiredProperty("column")
-            ) yield {
+            } yield {
+                // path to file in project
+                //val currentFilePath = config.getRequiredProperty("currentFilePath")
+                // path to current file content (file in project may not be saved)
                 val inputFile = new File(filePath)
-                val scanner = new ScanSource().load[ScanSource](session)
-                //exclude current file
-                val currentFilePath = config.getRequiredProperty("currentFilePath")
-                val classes = scanner.getRecognisedApexFiles.filterNot(_.getAbsolutePath == currentFilePath)
-                //scan all project files (except the current one)
-                //val scanner = new ScanSource().load[ScanSource](session.basicConfig)
-                scanner.scan(classes)
-
-                val cachedTree:ApexTree = SourceScannerCache.getScanResult(projectDir)  match {
-                    case Some(sourceScanner) => sourceScanner.getTree
-                    case None => new ApexTree
+                val inputFilePath = inputFile.toPath
+                val document = FileBasedDocument(inputFilePath)
+                val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
+                completions.list(document, line.toInt, column.toInt - 1).map{res =>
+                    val members = res.options.map(symbolToMember)
+                    val resultList = sortMembers(members.toList)
+                    ActionSuccess(ListCompletionsResult(resultList))
                 }
-                val completion = new AutoComplete(inputFile, line.toInt, column.toInt, cachedTree, session)
-                val members = completion.listOptions()
-                //dump completion options into a file - 1 line per option
-                //config.responseWriter.println(SUCCESS)
-                //config.responseWriter.println(sortMembers(members).map(_.toJson).mkString("\n"))
-                //ActionSuccess(sortMembers(members).map(_.toJson).mkString("\n"))
-                //val resultList = sortMembers(members).map(_.toJson.convertTo[Map[String, Any]]).map(m => KeyValueMessage(m))
-                val resultList = sortMembers(members)
-                ActionSuccess(ListCompletionsResult(resultList))
-
             }
-        Future.successful(resultOpt.getOrElse(ActionFailure("Check command line parameters")))
+        resultOpt match {
+            case Some(actionSuccess) => actionSuccess
+            case None =>
+                Future.successful(ActionFailure("Check command line parameters"))
+        }
     }
 
+    private def symbolToMember(symbol: Symbol): Member = {
+        new Member {
+            override def getLocation: Option[MemberJsonSupport.Location] = {
+
+                //     case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
+                val location =
+                    MemberJsonSupport.Location(
+                        symbol.symbolLocation.path,
+                        Option(symbol.symbolLocation.range.start.line),
+                        Option(symbol.symbolLocation.range.start.col),
+                        symbol.symbolName
+                    )
+                Option(location)
+            }
+
+            override def isStatic: Boolean = symbol.symbolIsStatic
+
+            override def getSignature: String = symbol.symbolLabel
+
+            override def getType: String = symbol.symbolValueType.getOrElse("")
+
+            override def getIdentity: String = symbol.symbolName
+        }
+    }
     private def sortMembers(members: List[Member]): List[Member] = {
         val res = members.sortWith(
             (m1, m2) => {
