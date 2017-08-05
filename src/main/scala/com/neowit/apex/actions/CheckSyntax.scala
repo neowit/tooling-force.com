@@ -21,9 +21,8 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apex.parser.SourceScanner
+import com.neowit.apexscanner.scanner.actions.SyntaxChecker
 import com.neowit.response.CheckSyntaxResult
-import org.antlr.v4.runtime._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -61,63 +60,31 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
         val actionResultOpt =
             for (   filePath <- config.getRequiredProperty("currentFileContentPath");
                     sourceFilePath <- config.getRequiredProperty("currentFilePath")
-            //line <- config.getProperty("line");
-            //column <- config.getProperty("column")
             ) yield {
                 val inputFile = new File(filePath)
-                val scanner = new SourceScanner(List(inputFile))
-                val errorListener = new SyntaxErrorListener()
-                scanner.parseOne(inputFile, Some(errorListener))
-                val errors = errorListener.result
-                if (errors.isEmpty) {
-                    //config.responseWriter.println("RESULT=SUCCESS")
-                    ActionSuccess()
+                if (!filePath.endsWith(".cls") && !filePath.endsWith(".trigger")) {
+                    // unsupported file extension
+                    Future.successful(ActionFailure("Only .cls and .trigger files supported"))
                 } else {
-                    /*
-                    //responseWriter.println("RESULT=FAILURE")
-                    val actionResultBuilder = new ActionResultBuilder(FAILURE)
+                    val checker = new SyntaxChecker()
+                    val path = inputFile.toPath
 
-                    //responseWriter.startSection("ERROR LIST")
-                    val errorsMessage = ErrorMessage("ERROR LIST")
-                    actionResultBuilder.addMessage(errorsMessage)
-
-                    val pathToReport = session.getRelativePath(new File(sourceFilePath))
-                    errors.foreach{e =>
-                        //responseWriter.println("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
-                        actionResultBuilder.addDetail(
-                            MessageDetailMap(
-                                errorsMessage,
-                                Map("type" -> "ERROR", "filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg)
-                            )
-                        )
+                    checker.check(path, _ => false, _ => Unit).map{results =>
+                        val syntaxErrors = results.headOption.map(_.errors).getOrElse(Seq.empty).toList
+                        if (syntaxErrors.isEmpty) {
+                            ActionSuccess()
+                        } else {
+                            ActionFailure(CheckSyntaxResult(inputFile, syntaxErrors))
+                        }
                     }
-                    //config.responseWriter.endSection("ERROR LIST")
-                    actionResultBuilder.result()
-                    */
-                    ActionFailure(CheckSyntaxResult(inputFile, errors))
                 }
             }
-        Future.successful(actionResultOpt.getOrElse(ActionFailure("Check command line parameters")))
+
+        actionResultOpt match {
+            case Some(actionSuccess) => actionSuccess
+            case None =>
+                Future.successful(ActionFailure("Check command line parameters"))
+        }
     }
 
-    class SyntaxErrorListener extends BaseErrorListener {
-        private val errors = List.newBuilder[SyntaxError]
-        override def syntaxError(
-                                    recognizer: Recognizer[_, _],
-                                    offendingSymbol: scala.Any,
-                                    line: Int,
-                                    charPositionInLine: Int,
-                                    msg: String, e: RecognitionException
-                                ): Unit = {
-            //super.syntaxError(recognizer, offendingSymbol, line, charPositionInLine, msg, e)
-            logger.error(s"Syntax error:: line: $line, pos: $charPositionInLine, msg: $msg")
-            errors += SyntaxError(offendingSymbol, line, charPositionInLine, msg)
-            ()
-        }
-        def result: List[SyntaxError] = errors.result()
-    }
 }
-case class SyntaxError(offendingSymbol: scala.Any,
-                       line: Int,
-                       charPositionInLine: Int,
-                       msg: String)

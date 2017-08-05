@@ -55,7 +55,7 @@ case class RunTestsResult(
 
 case class AppVersionResult(appName: String, appVersion: String, sfdcApiVersion: String, javaVersion: String, os: String) extends BaseResult
 case class BulkRetrieveActionResult(resultFolder: File, fileCountByType: Map[String, Int], errors: List[Message]) extends BaseResult
-case class CheckSyntaxResult(sourceFile: File, errors: List[SyntaxError]) extends BaseResult
+case class CheckSyntaxResult(sourceFile: File, errors: List[com.neowit.apexscanner.scanner.actions.SyntaxError]) extends BaseResult
 case class DeployAllDestructiveResult(deploymentReport: DeploymentReport, diffReportOpt: Option[DiffWithRemoteReport]) extends BaseResult
 case class DeployAllResult(deploymentReport: DeploymentReport) extends BaseResult
 case class DeployDestructiveResult(deploymentReport: DeploymentReport) extends BaseResult
