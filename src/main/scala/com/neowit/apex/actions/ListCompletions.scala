@@ -21,6 +21,8 @@ package com.neowit.apex.actions
 
 import java.io.File
 
+import com.neowit.apex.Session
+import com.neowit.apex.completion.SObjectLibrary
 import com.neowit.apex.parser.{Member, MemberJsonSupport}
 import com.neowit.response.ListCompletionsResult
 import com.neowit.utils.JsonSupport
@@ -31,12 +33,16 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object ListCompletions {
     private val _projectByPath = new collection.mutable.HashMap[File, Project]()
-    def getProject(projectDir: File)(implicit ec: ExecutionContext): Option[Project] = {
+    def getProject(projectDir: File, session:Session)(implicit ec: ExecutionContext): Option[Project] = {
         _projectByPath.get(projectDir) match {
             case projectOpt @ Some(_) => projectOpt
             case None =>
                 val project = new Project(projectDir.toPath)
                 project.loadStdLib()
+                // add SObjectLibrary
+                val sobjectLib = new SObjectLibrary(session)
+                project.addExternalLibrary(sobjectLib)
+
                 _projectByPath += projectDir -> project
                 Option(project)
         }
@@ -50,7 +56,7 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
         val resultOpt =
             for {
                 projectDir <- config.projectDirOpt
-                project <- ListCompletions.getProject(projectDir)
+                project <- ListCompletions.getProject(projectDir, session)
                 filePath <- config.getRequiredProperty("currentFileContentPath")
                 line <- config.getRequiredProperty("line")
                 column <- config.getRequiredProperty("column")

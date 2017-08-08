@@ -21,7 +21,6 @@ package com.neowit.apex.completion
 
 import com.neowit.TcpServer
 import com.neowit.apex.Session
-import com.neowit.apex.completion.models.ApexModel
 import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.MemberJsonSupport._
 import com.neowit.utils.Logging
@@ -154,7 +153,7 @@ class DatabaseModelRefreshActor extends Actor with Logging {
 }
 
 trait DatabaseModelMember extends Member {
-    protected def isLoaded: Boolean
+    def isLoaded: Boolean
 
     /**
       * DatabaseModelMember members do not come from local file and can not have location
@@ -199,7 +198,7 @@ trait DatabaseModelMember extends Member {
  */
 class SObjectMember(val sObjectApiName: String, val session: Session) extends DatabaseModelMember {
     private var isDoneLoading = false
-    override protected def isLoaded: Boolean = isDoneLoading
+    override def isLoaded: Boolean = isDoneLoading
 
     private var childRelationships: Array[com.sforce.soap.partner.ChildRelationship] = Array()
 
@@ -247,11 +246,12 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
      * every DB object extends SObject, so we need to add SObject methods to each DB Object type
      */
     private def extendSObject(): Unit = {
+        /*
         ApexModel.getSystemTypeMember("SObject") match {
           case Some(member) => member.getChildren.map(m => this.addChild(m))
           case None =>
         }
-
+        */
     }
 
     override def refresh(): Unit = {
@@ -262,10 +262,12 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
     def getChildRelationships: Array[com.sforce.soap.partner.ChildRelationship]  = {
         childRelationships
     }
+
+    override def toString: String = this.getIdentity
 }
 
 class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseModelMember {
-    override protected def isLoaded: Boolean = true //field does not have children to load
+    override def isLoaded: Boolean = true //field does not have children to load
 
     override def getType: String =
         field.getSoapType.name().replaceFirst("_", "") //some fields have type like "_double"
