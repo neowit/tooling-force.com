@@ -47,41 +47,8 @@ object ListCompletions {
                 Option(project)
         }
     }
-}
-class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
 
-    protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
-        val config = session.getConfig
-
-        val resultOpt =
-            for {
-                projectDir <- config.projectDirOpt
-                project <- ListCompletions.getProject(projectDir, session)
-                filePath <- config.getRequiredProperty("currentFileContentPath")
-                line <- config.getRequiredProperty("line")
-                column <- config.getRequiredProperty("column")
-            } yield {
-                // path to file in project
-                //val currentFilePath = config.getRequiredProperty("currentFilePath")
-                // path to current file content (file in project may not be saved)
-                val inputFile = new File(filePath)
-                val inputFilePath = inputFile.toPath
-                val document = FileBasedDocument(inputFilePath)
-                val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
-                completions.list(document, line.toInt, column.toInt - 1).map{res =>
-                    val members = res.options.map(symbolToMember)
-                    val resultList = sortMembers(members.toList)
-                    ActionSuccess(ListCompletionsResult(resultList))
-                }
-            }
-        resultOpt match {
-            case Some(actionSuccess) => actionSuccess
-            case None =>
-                Future.successful(ActionFailure("Check command line parameters"))
-        }
-    }
-
-    private def symbolToMember(symbol: Symbol): Member = {
+    def symbolToMember(symbol: Symbol): Member = {
         new Member {
             override def getLocation: Option[MemberJsonSupport.Location] = {
 
@@ -105,6 +72,41 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
             override def getIdentity: String = symbol.symbolName
         }
     }
+}
+class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
+
+    protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        val config = session.getConfig
+
+        val resultOpt =
+            for {
+                projectDir <- config.projectDirOpt
+                project <- ListCompletions.getProject(projectDir, session)
+                filePath <- config.getRequiredProperty("currentFileContentPath")
+                line <- config.getRequiredProperty("line")
+                column <- config.getRequiredProperty("column")
+            } yield {
+                // path to file in project
+                //val currentFilePath = config.getRequiredProperty("currentFilePath")
+                // path to current file content (file in project may not be saved)
+                val inputFile = new File(filePath)
+                val inputFilePath = inputFile.toPath
+                val document = FileBasedDocument(inputFilePath)
+                val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
+                completions.list(document, line.toInt, column.toInt - 1).map{res =>
+                    val members = res.options.map(ListCompletions.symbolToMember)
+                    val resultList = sortMembers(members.toList)
+                    ActionSuccess(ListCompletionsResult(resultList))
+                }
+            }
+        resultOpt match {
+            case Some(actionSuccess) => actionSuccess
+            case None =>
+                Future.successful(ActionFailure("Check command line parameters"))
+        }
+    }
+
+
     private def sortMembers(members: List[Member]): List[Member] = {
         val res = members.sortWith(
             (m1, m2) => {

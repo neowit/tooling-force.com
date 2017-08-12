@@ -20,10 +20,13 @@
 package com.neowit.apex.actions
 
 import java.io.File
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
-import com.neowit.apex.completion._
-import com.neowit.apex.parser._
+import com.neowit.apex.parser.CompoundMember
+import com.neowit.apexscanner.{FileBasedDocument, Project}
+import com.neowit.apexscanner.nodes._
+import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
+import com.neowit.apexscanner.symbols._
 import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
 
@@ -52,7 +55,98 @@ class FindSymbol extends ApexActionWithReadOnlySession {
 
         override def getName: String = "findSymbol"
     }
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        val config = session.getConfig
+        if (config.projectDirOpt.isEmpty) {
+            // this action is not applicable when project is not provided
+            throw new ConfigValueException("Invalid or Missing --projectPath parameter")
+        }
+        val projectDir = config.projectDirOpt.get
 
+        val actionResultOptOfFuture: Option[Future[ActionResult]] =
+            for (   filePath <- config.getRequiredProperty("currentFileContentPath");
+                    currentFilePath <- config.getRequiredProperty("currentFilePath");
+                    line <- config.getRequiredProperty("line");
+                    column <- config.getRequiredProperty("column");
+                    project <- ListCompletions.getProject(projectDir, session)
+            ) yield {
+                if (! Files.isReadable(Paths.get(filePath))) {
+                    //config.responseWriter.println(FAILURE)
+                    //config.responseWriter.println(ErrorMessage(s"'currentFileContentPath' must point to readable file"))
+                    Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
+                } else {
+                    val inputFile = new File(filePath)
+                    val inputFilePath = inputFile.toPath
+                    val document = FileBasedDocument(inputFilePath)
+                    val position = Position(line.toInt, column.toInt - 1)
+                    val sourceFile = new File(currentFilePath)
+                    //val caret = new CaretInDocument(position, document)
+                    project.getAst(document).map{
+                        case Some(result) =>
+                            val finder = new AscendingDefinitionFinder()
+                            finder.findDefinition(result.rootNode, position)  match {
+                                case nodes if nodes.nonEmpty =>
+                                    val members =
+                                        nodes.filter {
+                                            case defNode: AstNode with IsTypeDefinition if Range.INVALID_LOCATION != defNode.range => true
+                                            case _ => false
+                                        }.map {
+                                            case defNode: AstNode with IsTypeDefinition =>
+                                                val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
+                                                ListCompletions.symbolToMember(s)
+                                        }
+
+                                    if (members.nonEmpty) {
+                                        ActionSuccess(FindSymbolResult(Option(CompoundMember(members.toList))))
+                                    } else {
+                                        ActionSuccess(FindSymbolResult(None))
+                                    }
+
+                            }
+                        case _ => ActionSuccess(FindSymbolResult(None))
+                    }
+
+                }
+            }
+        actionResultOptOfFuture match {
+            case Some(actionSuccess) => actionSuccess
+            case None =>
+                Future.successful(ActionSuccess())
+        }
+    }
+
+    private def nodeToSymbol(defNode: AstNode with IsTypeDefinition, inputFilePath: Path, sourceFilePath: Path): Symbol = {
+        new Symbol {
+
+            override def symbolLocation: com.neowit.apexscanner.nodes.Location = {
+                defNode.getFileNode  match {
+                    case Some(fileNode) =>
+                        new com.neowit.apexscanner.nodes.Location {
+                            def project: Project = fileNode.project
+                            def range: Range = defNode.range
+                            def path: Path = {
+                                if (fileNode.file.toFile.getName == inputFilePath.toFile.getName) {
+                                    // this is a file in the current active buffer
+                                    // return path to buffer source
+                                    sourceFilePath
+                                } else {
+                                    // this is not currently open file, return path as is
+                                    fileNode.file
+                                }
+                            }
+                        }
+                    case None => LocationUndefined
+                }
+            }
+            override def symbolName: String = defNode.qualifiedName.map(_.toString).getOrElse("")
+            // all other methods are not used presently in FindSymbolResult
+            override def parentSymbol: Option[Symbol] = ???
+            override def symbolValueType: Option[String] = ???
+            override def symbolKind: SymbolKind = ???
+            override def symbolIsStatic: Boolean = ???
+        }
+    }
+    /*
     //this method should implement main logic of the action
     override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
@@ -132,5 +226,6 @@ class FindSymbol extends ApexActionWithReadOnlySession {
     private def findSymbolDefinition(apexTokenDefinition: ApexTokenDefinitionWithContext, completion: AutoComplete): Option[Member] = {
         completion.resolveApexDefinition(Option(apexTokenDefinition))
     }
+    */
 }
 
