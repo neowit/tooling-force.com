@@ -25,7 +25,7 @@ import java.nio.file.{Files, Path, Paths}
 import com.neowit.apex.parser.CompoundMember
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
-import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
+import com.neowit.apexscanner.resolvers.{AscendingDefinitionFinder, QualifiedNameDefinitionFinder}
 import com.neowit.apexscanner.symbols._
 import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
@@ -71,8 +71,6 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     project <- ListCompletions.getProject(projectDir, session)
             ) yield {
                 if (! Files.isReadable(Paths.get(filePath))) {
-                    //config.responseWriter.println(FAILURE)
-                    //config.responseWriter.println(ErrorMessage(s"'currentFileContentPath' must point to readable file"))
                     Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
                 } else {
                     val inputFile = new File(filePath)
@@ -80,30 +78,49 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val document = FileBasedDocument(inputFilePath)
                     val position = Position(line.toInt, column.toInt - 1)
                     val sourceFile = new File(currentFilePath)
-                    //val caret = new CaretInDocument(position, document)
-                    project.getAst(document).map{
+
+                    val qualifiedNameDefinitionFinder = new QualifiedNameDefinitionFinder(project)
+
+                    project.getAst(document).flatMap{
                         case Some(result) =>
                             val finder = new AscendingDefinitionFinder()
-                            finder.findDefinition(result.rootNode, position)  match {
-                                case nodes if nodes.nonEmpty =>
-                                    val members =
-                                        nodes.filter {
-                                            case defNode: AstNode with IsTypeDefinition if Range.INVALID_LOCATION != defNode.range => true
-                                            case _ => false
-                                        }.map {
-                                            case defNode: AstNode with IsTypeDefinition =>
-                                                val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
-                                                ListCompletions.symbolToMember(s)
-                                        }
+                            val nodes = finder.findDefinition(result.rootNode, position)
 
+                            val futureResults: Seq[Future[Option[AstNode]]] =
+                                nodes.map{
+                                    case n: DataTypeNode =>
+                                        //this is a type defining node - check if this type is defined in available source
+                                        n.qualifiedName match {
+                                            case Some(qualifiedName) =>
+                                                qualifiedNameDefinitionFinder.findDefinition(qualifiedName)
+                                            case None => Future.successful(Option(n)) //do not really expect this
+                                        }
+                                    case n => Future.successful(Option(n)) // assume this node is the target
+                                }
+
+                            // convert Seq[Future[Option[AstNode]]] to Future[Seq[Option[AstNode]]]
+                            val res: Future[ActionResult] =
+                                Future.sequence(futureResults).map{ nodeOpts =>
+                                    val allDefNodes = nodeOpts.filter(_.isDefined).map(_.get)
+                                    allDefNodes.filter {
+                                        case defNode: AstNode with IsTypeDefinition if Range.INVALID_LOCATION != defNode.range => true
+                                        case _ => false
+                                    }.map {
+                                        case defNode: AstNode with IsTypeDefinition =>
+                                            val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
+                                            ListCompletions.symbolToMember(s)
+                                    }
+                                }.map{members =>
                                     if (members.nonEmpty) {
                                         ActionSuccess(FindSymbolResult(Option(CompoundMember(members.toList))))
                                     } else {
                                         ActionSuccess(FindSymbolResult(None))
                                     }
+                                }
 
-                            }
-                        case _ => ActionSuccess(FindSymbolResult(None))
+                            res
+
+                        case _ => Future.successful(ActionSuccess(FindSymbolResult(None)))
                     }
 
                 }
@@ -127,7 +144,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                             def path: Path = {
                                 if (fileNode.file.toFile.getName == inputFilePath.toFile.getName) {
                                     // this is a file in the current active buffer
-                                    // return path to buffer source
+                                    // return path to buffer source (as opposed to temp file path passed in inputFilePath)
                                     sourceFilePath
                                 } else {
                                     // this is not currently open file, return path as is
@@ -138,7 +155,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     case None => LocationUndefined
                 }
             }
-            override def symbolName: String = defNode.qualifiedName.map(_.toString).getOrElse("")
+            override def symbolName: String = defNode.qualifiedName.map(_.getLastComponent).getOrElse("")
             // all other methods are not used presently in FindSymbolResult
             override def parentSymbol: Option[Symbol] = ???
             override def symbolValueType: Option[String] = ???
