@@ -22,41 +22,13 @@ package com.neowit.apex.actions
 import java.io.File
 
 import com.neowit.apex.ProjectsCache
-import com.neowit.apex.parser.{Member, MemberJsonSupport}
+import com.neowit.apex.parser.Member
 import com.neowit.response.ListCompletionsResult
 import com.neowit.utils.JsonSupport
 import com.neowit.apexscanner.FileBasedDocument
-import com.neowit.apexscanner.symbols.Symbol
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object ListCompletions {
-
-    def symbolToMember(symbol: Symbol): Member = {
-        new Member {
-            override def getLocation: Option[MemberJsonSupport.Location] = {
-
-                //     case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
-                val location =
-                    MemberJsonSupport.Location(
-                        symbol.symbolLocation.path,
-                        Option(symbol.symbolLocation.range.start.line),
-                        Option(symbol.symbolLocation.range.start.col),
-                        symbol.symbolName
-                    )
-                Option(location)
-            }
-
-            override def isStatic: Boolean = symbol.symbolIsStatic
-
-            override def getSignature: String = symbol.symbolLabel
-
-            override def getType: String = symbol.symbolValueType.getOrElse("")
-
-            override def getIdentity: String = symbol.symbolName
-        }
-    }
-}
 class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
 
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
@@ -78,7 +50,7 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 val document = FileBasedDocument(inputFilePath)
                 val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
                 completions.list(document, line.toInt, column.toInt - 1).map{res =>
-                    val members = res.options.map(ListCompletions.symbolToMember)
+                    val members = res.options.map(Member.symbolToMember)
                     val resultList = sortMembers(members.toList)
                     ActionSuccess(ListCompletionsResult(resultList))
                 }

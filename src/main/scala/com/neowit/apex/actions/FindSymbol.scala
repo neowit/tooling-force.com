@@ -23,7 +23,7 @@ import java.io.File
 import java.nio.file.{Files, Path, Paths}
 
 import com.neowit.apex.ProjectsCache
-import com.neowit.apex.parser.CompoundMember
+import com.neowit.apex.parser.{CompoundMember, Member}
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
 import com.neowit.apexscanner.resolvers.{AscendingDefinitionFinder, QualifiedNameDefinitionFinder}
@@ -109,7 +109,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                                     }.map {
                                         case defNode: AstNode with IsTypeDefinition =>
                                             val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
-                                            ListCompletions.symbolToMember(s)
+                                            Member.symbolToMember(s)
                                     }
                                 }.map{members =>
                                     if (members.nonEmpty) {

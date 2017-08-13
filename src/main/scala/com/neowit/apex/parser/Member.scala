@@ -30,8 +30,8 @@ import scala.collection.mutable
 import scala.collection.JavaConverters._
 import spray.json._
 import DefaultJsonProtocol._
-
 import MemberJsonSupport._
+import com.neowit.apexscanner.symbols.Symbol
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None
@@ -243,6 +243,33 @@ trait AnonymousMember {
 
 class StatementMember(ctx: StatementContext) extends AnonymousMember
 
+
+object Member {
+    def symbolToMember(symbol: Symbol): Member = {
+        new Member {
+            override def getLocation: Option[MemberJsonSupport.Location] = {
+
+                //     case class Location ( file: Path, line: Option[Int], column: Option[Int], identity: String )
+                val location =
+                    MemberJsonSupport.Location(
+                        symbol.symbolLocation.path,
+                        Option(symbol.symbolLocation.range.start.line),
+                        Option(symbol.symbolLocation.range.start.col),
+                        symbol.symbolName
+                    )
+                Option(location)
+            }
+
+            override def isStatic: Boolean = symbol.symbolIsStatic
+
+            override def getSignature: String = symbol.symbolLabel
+
+            override def getType: String = symbol.symbolValueType.getOrElse("")
+
+            override def getIdentity: String = symbol.symbolName
+        }
+    }
+}
 
 trait Member extends AnonymousMember {
 
