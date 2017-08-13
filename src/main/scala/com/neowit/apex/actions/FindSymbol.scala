@@ -22,6 +22,7 @@ package com.neowit.apex.actions
 import java.io.File
 import java.nio.file.{Files, Path, Paths}
 
+import com.neowit.apex.ProjectsCache
 import com.neowit.apex.parser.CompoundMember
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
@@ -68,7 +69,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     currentFilePath <- config.getRequiredProperty("currentFilePath");
                     line <- config.getRequiredProperty("line");
                     column <- config.getRequiredProperty("column");
-                    project <- ListCompletions.getProject(projectDir, session)
+                    project <- ProjectsCache.getProject(projectDir, session)
             ) yield {
                 if (! Files.isReadable(Paths.get(filePath))) {
                     Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
