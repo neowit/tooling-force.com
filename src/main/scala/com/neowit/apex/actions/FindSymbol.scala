@@ -26,7 +26,7 @@ import com.neowit.apex.ProjectsCache
 import com.neowit.apex.parser.{CompoundMember, Member}
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
-import com.neowit.apexscanner.resolvers.{AscendingDefinitionFinder, QualifiedNameDefinitionFinder}
+import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
 import com.neowit.apexscanner.symbols._
 import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
@@ -80,36 +80,17 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val position = Position(line.toInt, column.toInt - 1)
                     val sourceFile = new File(currentFilePath)
 
-                    val qualifiedNameDefinitionFinder = new QualifiedNameDefinitionFinder(project)
-
                     project.getAst(document).flatMap{
                         case Some(result) =>
                             val finder = new AscendingDefinitionFinder()
-                            val nodes = finder.findDefinition(result.rootNode, position)
-
-                            val futureResults: Seq[Future[Option[AstNode]]] =
-                                nodes.map{
-                                    case n: DataTypeNode =>
-                                        //this is a type defining node - check if this type is defined in available source
-                                        n.qualifiedName match {
-                                            case Some(qualifiedName) =>
-                                                qualifiedNameDefinitionFinder.findDefinition(qualifiedName)
-                                            case None => Future.successful(Option(n)) //do not really expect this
-                                        }
-                                    case n => Future.successful(Option(n)) // assume this node is the target
-                                }
-
-                            // convert Seq[Future[Option[AstNode]]] to Future[Seq[Option[AstNode]]]
                             val res: Future[ActionResult] =
-                                Future.sequence(futureResults).map{ nodeOpts =>
-                                    val allDefNodes = nodeOpts.filter(_.isDefined).map(_.get)
+                                finder.findUltimateDefinition(result.rootNode, position, project).map{allDefNodes =>
                                     allDefNodes.filter {
-                                        case defNode: AstNode with IsTypeDefinition if Range.INVALID_LOCATION != defNode.range => true
+                                        case defNode: AstNode if Range.INVALID_LOCATION != defNode.range => true
                                         case _ => false
-                                    }.map {
-                                        case defNode: AstNode with IsTypeDefinition =>
-                                            val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
-                                            Member.symbolToMember(s)
+                                    }.map { defNode =>
+                                        val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
+                                        Member.symbolToMember(s)
                                     }
                                 }.map{members =>
                                     if (members.nonEmpty) {
@@ -118,7 +99,6 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                                         ActionSuccess(FindSymbolResult(None))
                                     }
                                 }
-
                             res
 
                         case _ => Future.successful(ActionSuccess(FindSymbolResult(None)))
@@ -158,10 +138,10 @@ class FindSymbol extends ApexActionWithReadOnlySession {
             }
             override def symbolName: String = defNode.qualifiedName.map(_.getLastComponent).getOrElse("")
             // all other methods are not used presently in FindSymbolResult
-            override def parentSymbol: Option[Symbol] = ???
-            override def symbolValueType: Option[String] = ???
-            override def symbolKind: SymbolKind = ???
-            override def symbolIsStatic: Boolean = ???
+            override def parentSymbol: Option[Symbol] = None
+            override def symbolValueType: Option[String] = None
+            override def symbolKind: SymbolKind = null
+            override def symbolIsStatic: Boolean = false
         }
     }
     /*
