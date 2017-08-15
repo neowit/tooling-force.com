@@ -41,7 +41,7 @@ object ProjectsCache {
       * @param ec execution context used to initialise project
       * @return
       */
-    def getProject(projectDir: File, session:Session)(implicit ec: ExecutionContext): Option[Project] = {
+    def getProject(projectDir: File, session:Session, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true)(implicit ec: ExecutionContext): Option[Project] = {
         _projectByPath.get(projectDir) match {
             case projectOpt @ Some(_) => projectOpt
             case None =>
