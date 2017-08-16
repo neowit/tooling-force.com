@@ -70,7 +70,6 @@ class ListCompletionsTest extends FunSuite {
 
     }
 
-    var _projectWithStdLib: Option[Project] = None
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Future[Seq[com.neowit.apexscanner.symbols.Symbol]] = {
         val projectOpt =
             if (loadSobjectLib) {
@@ -90,6 +89,7 @@ class ListCompletionsTest extends FunSuite {
             } else {
                 Option(Project(projectPath))
             }
+
         projectOpt match {
             case Some(project) =>
                 val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
