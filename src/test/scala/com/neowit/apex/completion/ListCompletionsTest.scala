@@ -67,7 +67,6 @@ class ListCompletionsTest extends FunSuite {
         val resultNodes = Await.result(listCompletions(text, loadSobjectLib = true), Duration.Inf)
         assert(resultNodes.length > 1, "Expected to find non empty result")
         assert(resultNodes.exists(_.symbolName == "Amount"), "Expected symbol not found")
-
     }
 
     test("ListCompletions: `User - `usr.<CARET>`") {
@@ -82,6 +81,21 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.length > 1, "Expected to find non empty result")
         assert(resultNodes.exists(_.symbolName == "CreatedDate"), "Expected symbol not found")
         assert(resultNodes.exists(_.symbolName == "Username"), "Expected symbol not found")
+    }
+
+    test("ListCompletions: `User - `usr.profile.<CARET>`") {
+        val text =
+            """
+              |class CompletionTester {
+              | User usr;
+              | usr.profile.<CARET>
+              |}
+            """.stripMargin
+        val resultNodes = Await.result(listCompletions(text, loadSobjectLib = true), Duration.Inf)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "CreatedDate"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Description"), "Expected symbol not found")
 
     }
 

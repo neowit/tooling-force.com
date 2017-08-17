@@ -98,6 +98,7 @@ class SObjectLibrary(session: Session) extends CodeLibrary {
 
         override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
 
+        override def supportsInnerClasses: Boolean = false
 
         override def name: Option[String] = Option(sobject.getIdentity)
 
