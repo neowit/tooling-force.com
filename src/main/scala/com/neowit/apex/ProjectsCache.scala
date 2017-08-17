@@ -46,10 +46,11 @@ object ProjectsCache {
             case projectOpt @ Some(_) => projectOpt
             case None =>
                 val project = new Project(projectDir.toPath)
-                project.loadStdLib()
                 // add SObjectLibrary
                 val sobjectLib = new SObjectLibrary(session)
                 project.addExternalLibrary(sobjectLib)
+                // add StdLib (must go after SObject library because some Objects in DB may confict with names in StdLib)
+                project.loadStdLib()
 
                 _projectByPath += projectDir -> project
                 Option(project)
