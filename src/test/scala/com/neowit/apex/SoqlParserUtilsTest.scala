@@ -19,7 +19,6 @@
 
 package com.neowit.apex
 
-import com.neowit.apex.parser.SoqlParserUtils
 import org.antlr.v4.runtime.{Token, TokenStream}
 import org.scalatest.FunSuite
 
@@ -99,10 +98,14 @@ class SoqlParserUtilsTest extends FunSuite {
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////
     private def getFromObjectTypes(soqlStatement: String): List[String] = {
+        //TODO - reimplement
+        /*
         val (tokens, caretToken) = getTest(soqlStatement)
         val fromToken = SoqlParserUtils.findFromToken(tokens, caretToken)
         assert(fromToken.isDefined, "failed to find FROM Token in: " + soqlStatement)
         List(tokens.get(fromToken.get.getTokenIndex + 1).getText)
+        */
+        throw new NotImplementedError("This test class  needs to be migrated to ApexScanner")
 
     }
 

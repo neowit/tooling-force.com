@@ -22,8 +22,7 @@ package com.neowit.apex.parser
 import com.neowit.apex.Session
 import com.neowit.apex.completion.models.{SoqlFunction, SoqlModel}
 import com.neowit.apex.completion.{SObjectMember, DatabaseModel, DatabaseModelMember}
-import com.neowit.apex.parser.antlr.SoqlParser
-import com.neowit.apex.parser.antlr.SoqlParser.ObjectTypeContext
+import com.neowit.apexscanner.antlr.SoqlParser
 import com.neowit.apex.parser.MemberJsonSupport._
 import com.sforce.soap.partner.ChildRelationship
 import org.antlr.v4.runtime.Token
@@ -40,9 +39,6 @@ trait SoqlMember extends Member {
 
 class FromTypeMember(objectTypeToken: Token, session: Session) extends SoqlMember {
 
-    def this(ctx: ObjectTypeContext, session: Session) {
-        this(ctx.Identifier().getSymbol, session)
-    }
     override def getIdentity: String = objectTypeToken.getText
 
     override def getType: String = getIdentity

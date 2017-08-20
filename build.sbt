@@ -65,5 +65,4 @@ lazy val apexScanner = RootProject(file("../ApexScanner"))
 lazy val main = Project(id = "tooling-force-com", base = file("."))
     .dependsOn(apexScanner)
     .settings(
-        libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.5.3"
     )

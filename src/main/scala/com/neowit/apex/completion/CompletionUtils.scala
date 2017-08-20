@@ -22,7 +22,7 @@ package com.neowit.apex.completion
 import java.io.File
 
 import com.neowit.apex.parser.ApexParserUtils
-import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
+import com.neowit.apexscanner.antlr.{ApexcodeLexer, ApexcodeParser}
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext, Token, TokenStream}
 
