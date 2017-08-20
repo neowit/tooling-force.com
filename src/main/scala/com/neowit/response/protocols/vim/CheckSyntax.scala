@@ -36,7 +36,7 @@ class CheckSyntax(writer: ResponseWriterVim) extends VimProtocol[CheckSyntaxResu
 
             val pathToReport = ResponseWriter.getRelativePath(sourceFile)
             errors.foreach{e =>
-                writer.send("ERROR", Map("filePath" -> pathToReport, "line" -> e.line, "column" -> e.charPositionInLine, "text" -> e.msg))
+                writer.send("ERROR", Map("filePath" -> pathToReport, "line" -> e.getAdjustedLine, "column" -> e.getAdjustedCharPositionInLine, "text" -> e.msg))
             }
             writer.endSection("ERROR LIST")
 
