@@ -11,7 +11,7 @@ scalacOptions ++= Seq(
     "-encoding", "UTF-8",
     "-feature",
     "-unchecked",
-    //"-Xfatal-warnings", //TODO - once CaseInsensitiveInputStream has been removed - uncomment this setting
+    "-Xfatal-warnings",
     //"-Xlint",
     //"-Yno-adapted-args",
     //"-Ywarn-numeric-widen",
