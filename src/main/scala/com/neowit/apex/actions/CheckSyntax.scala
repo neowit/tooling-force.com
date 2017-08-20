@@ -21,6 +21,7 @@ package com.neowit.apex.actions
 
 import java.io.File
 
+import com.neowit.apexscanner.nodes.Language
 import com.neowit.apexscanner.scanner.actions.SyntaxChecker
 import com.neowit.response.CheckSyntaxResult
 
@@ -66,11 +67,11 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                     // unsupported file extension
                     Future.successful(ActionFailure("Only .cls and .trigger files supported"))
                 } else {
-                    val checker = new SyntaxChecker()
+                    val checker = new SyntaxChecker(secondaryLanguages = Set(Language.SOQL))
                     val path = inputFile.toPath
 
                     checker.check(path, _ => false, _ => Unit).map{results =>
-                        val syntaxErrors = results.headOption.map(_.errors).getOrElse(Seq.empty).toList
+                        val syntaxErrors = results.map(_.errors).fold(Seq.empty)(_ ++ _).toList
                         if (syntaxErrors.isEmpty) {
                             ActionSuccess()
                         } else {
