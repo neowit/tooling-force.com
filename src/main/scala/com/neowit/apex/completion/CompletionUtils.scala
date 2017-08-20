@@ -19,9 +19,9 @@
 
 package com.neowit.apex.completion
 
-import java.io.{File, FileInputStream}
+import java.io.File
 
-import com.neowit.apex.parser.{ApexParserUtils, CaseInsensitiveInputStream}
+import com.neowit.apex.parser.ApexParserUtils
 import com.neowit.apex.parser.antlr.{ApexcodeLexer, ApexcodeParser}
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.{CommonTokenStream, ParserRuleContext, Token, TokenStream}
@@ -343,7 +343,7 @@ object CompletionUtils {
       * @param lexerFun - use it provide alternative ApexcodeLexer
       * @return
       */
-    def getCaretStatement(file: File, line: Int, column: Int, lexerFun: File => ApexcodeLexer = getDefaultLexer): (List[AToken], Option[CaretReachedException]) = {
+    def getCaretStatement(file: File, line: Int, column: Int, lexerFun: File => ApexcodeLexer): (List[AToken], Option[CaretReachedException]) = {
         val caret = new CaretInFile(line, column, file)
         val tokenSource = new CodeCompletionTokenSource(lexerFun(file), caret)
         val tokens: CommonTokenStream = new CommonTokenStream(tokenSource)  //Actual
@@ -369,15 +369,4 @@ object CompletionUtils {
         (List(), None)
     }
 
-    /**
-      * default case insensitive ApexCode lexer
-      * @param file - file to parse
-      * @return case insensitive ApexcodeLexer
-      */
-    def getDefaultLexer(file: File): ApexcodeLexer = {
-        //val input = new ANTLRInputStream(new FileInputStream(file))
-        val input = new CaseInsensitiveInputStream(new FileInputStream(file))
-        val lexer = new ApexcodeLexer(input)
-        lexer
-    }
 }

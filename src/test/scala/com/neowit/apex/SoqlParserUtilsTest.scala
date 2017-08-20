@@ -20,8 +20,7 @@
 package com.neowit.apex
 
 import com.neowit.apex.parser.SoqlParserUtils
-import com.neowit.apex.parser.antlr.SoqlLexer
-import org.antlr.v4.runtime.{Token, TokenStream, ANTLRInputStream, CommonTokenStream}
+import org.antlr.v4.runtime.{Token, TokenStream}
 import org.scalatest.FunSuite
 
 class SoqlParserUtilsTest extends FunSuite {
@@ -108,11 +107,15 @@ class SoqlParserUtilsTest extends FunSuite {
     }
 
     private def getTokens(soqlStatement: String): TokenStream = {
+        //TODO - reimplement
+        /*
         val input = new ANTLRInputStream(soqlStatement)
         val lexer = new SoqlLexer(input)
         val tokens = new CommonTokenStream(lexer)
         tokens.fill()
         tokens
+        */
+        throw new NotImplementedError("This test class  needs to be migrated to ApexScanner")
     }
 
     private def getTest(soqlStr: String):(TokenStream, Token) = {
