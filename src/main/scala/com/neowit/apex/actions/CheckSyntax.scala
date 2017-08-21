@@ -21,8 +21,9 @@ package com.neowit.apex.actions
 
 import java.io.File
 
-import com.neowit.apexscanner.nodes.Language
+import com.neowit.apexscanner.scanner.{ApexcodeScanner, Scanner, SoqlScanner, SyntaxCheckScanner}
 import com.neowit.apexscanner.scanner.actions.SyntaxChecker
+import com.neowit.apexscanner.server.handlers.DidSaveHandler
 import com.neowit.response.CheckSyntaxResult
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -67,10 +68,21 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                     // unsupported file extension
                     Future.successful(ActionFailure("Only .cls and .trigger files supported"))
                 } else {
-                    val checker = new SyntaxChecker(secondaryLanguages = Set(Language.SOQL))
+                    val apexcodeScanner = new ApexcodeScanner(
+                        file => !DidSaveHandler.isSupportedPath(file),
+                        res => res,
+                        SyntaxChecker.errorListenerCreator)
+
+                    val soqlScanner = new SoqlScanner(
+                        p => true,
+                        Scanner.defaultOnEachResult,
+                        SyntaxChecker.errorListenerCreator
+                    )
+                    val scanner = new SyntaxCheckScanner(Seq(apexcodeScanner, soqlScanner))
+                    val checker = new SyntaxChecker(scanner)
                     val path = inputFile.toPath
 
-                    checker.check(path, _ => false, _ => Unit).map{results =>
+                    checker.check(path).map{results =>
                         val syntaxErrors = results.map(_.errors).fold(Seq.empty)(_ ++ _).toList
                         if (syntaxErrors.isEmpty) {
                             ActionSuccess()
