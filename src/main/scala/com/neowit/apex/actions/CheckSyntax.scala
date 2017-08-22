@@ -20,8 +20,10 @@
 package com.neowit.apex.actions
 
 import java.io.File
+import java.nio.file.Path
 
-import com.neowit.apexscanner.scanner.{ApexcodeScanner, Scanner, SoqlScanner, SyntaxCheckScanner}
+import com.neowit.apexscanner.VirtualDocument
+import com.neowit.apexscanner.scanner._
 import com.neowit.apexscanner.scanner.actions.SyntaxChecker
 import com.neowit.apexscanner.server.handlers.DidSaveHandler
 import com.neowit.response.CheckSyntaxResult
@@ -68,21 +70,21 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                     // unsupported file extension
                     Future.successful(ActionFailure("Only .cls and .trigger files supported"))
                 } else {
-                    val apexcodeScanner = new ApexcodeScanner(
-                        file => !DidSaveHandler.isSupportedPath(file),
-                        res => res,
-                        SyntaxChecker.errorListenerCreator)
-
-                    val soqlScanner = new SoqlScanner(
-                        p => true,
-                        Scanner.defaultOnEachResult,
-                        SyntaxChecker.errorListenerCreator
-                    )
-                    val scanner = new SyntaxCheckScanner(Seq(apexcodeScanner, soqlScanner))
-                    val checker = new SyntaxChecker(scanner)
+                    val apexcodeScanner = new ApexcodeScanner() {
+                        override def isIgnoredPath(path: Path): Boolean = !DidSaveHandler.isSupportedPath(path)
+                        override def onEachResult(result: DocumentScanResult): DocumentScanResult = result
+                        override def errorListenerFactory(document: VirtualDocument): ApexErrorListener = SyntaxChecker.errorListenerCreator(document)
+                    }
+                    val soqlScanner = new SoqlScanner() {
+                        override def isIgnoredPath(path: Path): Boolean = true
+                        override def onEachResult(result: DocumentScanResult): DocumentScanResult = Scanner.defaultOnEachResult(result)
+                        override def errorListenerFactory(document: VirtualDocument): ApexErrorListener = SyntaxChecker.errorListenerCreator(document)
+                    }
+                    val checker = new SyntaxCheckScanner(Seq(apexcodeScanner, soqlScanner))
                     val path = inputFile.toPath
 
-                    checker.check(path).map{results =>
+                    checker.scan(path).map{_ =>
+                        val results = checker.getResult
                         val syntaxErrors = results.map(_.errors).fold(Seq.empty)(_ ++ _).toList
                         if (syntaxErrors.isEmpty) {
                             ActionSuccess()
