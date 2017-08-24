@@ -122,7 +122,7 @@ class ListCompletionsTest extends FunSuite {
         projectOpt match {
             case Some(project) =>
                 val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
-                project.getAst(caretInDocument.document).flatMap {
+                project.getAst(caretInDocument.document) match {
                     case Some(result) =>
                         val completionFinder = new CompletionFinder(project)
                         completionFinder.listCompletions(caretInDocument)

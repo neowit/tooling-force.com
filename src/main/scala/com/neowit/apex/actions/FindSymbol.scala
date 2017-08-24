@@ -80,7 +80,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val position = Position(line.toInt, column.toInt - 1)
                     val sourceFile = new File(currentFilePath)
 
-                    project.getAst(document).flatMap{
+                    project.getAst(document) match {
                         case Some(result) =>
                             val finder = new AscendingDefinitionFinder()
                             val res: Future[ActionResult] =
