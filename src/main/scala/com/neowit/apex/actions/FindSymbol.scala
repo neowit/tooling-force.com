@@ -83,23 +83,20 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     project.getAst(document) match {
                         case Some(result) =>
                             val finder = new AscendingDefinitionFinder()
-                            val res: Future[ActionResult] =
-                                finder.findUltimateDefinition(result.rootNode, position, project).map{allDefNodes =>
-                                    allDefNodes.filter {
-                                        case defNode: AstNode if Range.INVALID_LOCATION != defNode.range => true
-                                        case _ => false
-                                    }.map { defNode =>
-                                        val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
-                                        Member.symbolToMember(s)
-                                    }
-                                }.map{members =>
-                                    if (members.nonEmpty) {
-                                        ActionSuccess(FindSymbolResult(Option(CompoundMember(members.toList))))
-                                    } else {
-                                        ActionSuccess(FindSymbolResult(None))
-                                    }
-                                }
-                            res
+                            val allDefNodes = finder.findUltimateDefinition(result.rootNode, position, project)
+                            val members = allDefNodes.filter {
+                                case defNode: AstNode if Range.INVALID_LOCATION != defNode.range => true
+                                case _ => false
+                            }.map { defNode =>
+                                val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
+                                Member.symbolToMember(s)
+                            }
+
+                            if (members.nonEmpty) {
+                                Future.successful(ActionSuccess(FindSymbolResult(Option(CompoundMember(members.toList)))))
+                            } else {
+                                Future.successful(ActionSuccess(FindSymbolResult(None)))
+                            }
 
                         case _ => Future.successful(ActionSuccess(FindSymbolResult(None)))
                     }
