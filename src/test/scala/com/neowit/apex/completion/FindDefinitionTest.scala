@@ -53,8 +53,8 @@ class FindDefinitionTest extends FunSuite {
         assertResult(1,"Wrong number of results found") (resultNodes.length)
         resultNodes.head match {
             case typeDefinition: IsTypeDefinition =>
-                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
-                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+                assertResult(Option(QualifiedName(Array("Account", "Name"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("String"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
                 fail( "Failed to locate correct node. Expected method1()")
         }
@@ -72,8 +72,8 @@ class FindDefinitionTest extends FunSuite {
         assertResult(1,"Wrong number of results found") (resultNodes.length)
         resultNodes.head match {
             case typeDefinition: IsTypeDefinition =>
-                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
-                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+                assertResult(Option(QualifiedName(Array("Account", "Name"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("String"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
                 fail( "Failed to locate correct node. Expected method1()")
         }
