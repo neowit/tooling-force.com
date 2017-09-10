@@ -23,10 +23,9 @@ package com.neowit.apex
 
 import java.io.File
 
-import com.neowit.apex.completion.SObjectLibrary
+import com.neowit.apex.completion.{DatabaseModel, SObjectLibrary}
 import com.neowit.apexscanner.Project
 
-import scala.concurrent.ExecutionContext
 
 /**
   * Created by Andrey Gavrikov 
@@ -38,18 +37,21 @@ object ProjectsCache {
       * return previously initialised project or new one if no loaded project for given path exists
       * @param projectDir @see ConfigWithSfdcProject.projectDirOpt
       * @param session session related to current project/action
-      * @param ec execution context used to initialise project
       * @return
       */
-    def getProject(projectDir: File, session:Session, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true)(implicit ec: ExecutionContext): Option[Project] = {
+    def getProject(projectDir: File, session:Session, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true): Option[Project] = {
         _projectByPath.get(projectDir) match {
             case projectOpt @ Some(_) => projectOpt
             case None =>
                 val project = new Project(projectDir.toPath)
                 // add SObjectLibrary
                 val sobjectLib = new SObjectLibrary(session)
+                // make sure model is not loaded for this session (e.g. when running tests in parallel)
+                // different test classes can not re-use same DatabaseModel because their projects have different Ast Trees
+                DatabaseModel.removeModelBySession(session)
+                // load SObject library
                 project.addExternalLibrary(sobjectLib)
-                // add StdLib (must go after SObject library because some Objects in DB may confict with names in StdLib)
+                // add StdLib (must go after SObject library because some Objects in DB may conflict with names in StdLib)
                 project.loadStdLib()
 
                 _projectByPath += projectDir -> project

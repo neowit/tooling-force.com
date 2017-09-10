@@ -35,7 +35,7 @@ import scala.util.{Failure, Success, Try}
 object DatabaseModel {
     def REFRESH_INTERVAL_SECONDS = 30 //content of previously loaded fields will be refreshed over this period of time
 
-    private val modelBySession = Map.newBuilder[Session, DatabaseModel]
+    private val modelBySession = new collection.mutable.HashMap[Session, DatabaseModel]
 
     /**
       * @param sObjectApiName - full SObject API Name
@@ -81,6 +81,9 @@ object DatabaseModel {
                 modelBySession += session -> model
                 Some(model)
         }
+    }
+    def removeModelBySession(session: Session): Option[DatabaseModel] = {
+        modelBySession.remove(session)
     }
 
     def sortNamespaceLast[A](collection: Array[A], getApiName: A => String): Array[A] = {
