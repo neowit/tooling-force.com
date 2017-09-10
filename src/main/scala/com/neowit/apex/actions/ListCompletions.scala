@@ -49,14 +49,14 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 val inputFilePath = inputFile.toPath
                 val document = FileBasedDocument(inputFilePath)
                 val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
-                completions.list(document, line.toInt, column.toInt - 1).map{res =>
-                    val members = res.options.map(Member.symbolToMember)
-                    val resultList = sortMembers(members.toList)
-                    ActionSuccess(ListCompletionsResult(resultList))
-                }
+                val res = completions.list(document, line.toInt, column.toInt - 1)
+                val members = res.options.map(Member.symbolToMember)
+                val resultList = sortMembers(members.toList)
+                ActionSuccess(ListCompletionsResult(resultList))
+
             }
         resultOpt match {
-            case Some(actionSuccess) => actionSuccess
+            case Some(actionSuccess) => Future.successful(actionSuccess)
             case None =>
                 Future.successful(ActionFailure("Check command line parameters"))
         }
