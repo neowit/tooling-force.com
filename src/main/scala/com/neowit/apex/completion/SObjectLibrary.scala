@@ -144,6 +144,8 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
             }
             super.children
         }
+
+        override def symbolIsStatic: Boolean = false
     }
 
     private case class SObjectFieldNode(override val name: Option[String], valueType: ValueType) extends VariableLike with ClassOrInterfaceBodyMember { self =>
@@ -168,7 +170,8 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
 
         override def parentSymbol: Option[symbols.Symbol] = Option(getClassOrInterfaceNode)
 
-        override def symbolIsStatic: Boolean = modifiers.exists(_.modifierType == ModifierNode.STATIC)
+        //override def symbolIsStatic: Boolean = modifiers.exists(_.modifierType == ModifierNode.STATIC)
+        override def symbolIsStatic: Boolean = false
 
         override def symbolValueType: Option[String] = getValueType.map(_.qualifiedName.toString)
 
