@@ -21,7 +21,7 @@
 
 package com.neowit.apex.completion
 
-import java.io.FileInputStream
+import java.io.{File, FileInputStream}
 import java.nio.file.{Path, Paths}
 import java.util.Properties
 
@@ -34,13 +34,11 @@ import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
 import com.neowit.utils.BasicConfig
 import org.scalatest.FunSuite
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 /**
   * Created by Andrey Gavrikov 
   */
 class FindDefinitionTest extends FunSuite {
-    private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir"))
+    private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "FindDefinitionTest")
 
     test("findDefinition: inside SOQL statement: Name") {
         val text =

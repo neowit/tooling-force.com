@@ -21,7 +21,7 @@
 
 package com.neowit.apex.completion
 
-import java.io.FileInputStream
+import java.io.{File, FileInputStream}
 import java.nio.file.{Path, Paths}
 import java.util.Properties
 
@@ -43,7 +43,7 @@ import scala.concurrent.duration.Duration
 class ListCompletionsTest extends FunSuite {
 
 
-    private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir"))
+    private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "ListCompletionsTest")
 
     test("ListCompletions: `new Opportunity(<CARET>`") {
         val text =
