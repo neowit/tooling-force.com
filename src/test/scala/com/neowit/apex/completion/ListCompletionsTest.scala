@@ -113,6 +113,23 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "User"), "Expected symbol not found")
 
     }
+    test("ListCompletions: `select <CARET> from Account`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select <CARET> from Account]);
+              |}
+            """.stripMargin
+        val resultNodes = Await.result(listCompletions(text, loadSobjectLib = true), Duration.Inf)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "CreatedDate"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Description"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Future[Seq[com.neowit.apexscanner.symbols.Symbol]] = {
         val projectOpt =
             if (loadSobjectLib) {
