@@ -83,7 +83,7 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Username"), "Expected symbol not found")
     }
 
-    test("ListCompletions: `User - `usr.profile.<CARET>`") {
+    test("ListCompletions: User - `usr.profile.<CARET>`") {
         val text =
             """
               |class CompletionTester {
@@ -99,6 +99,20 @@ class ListCompletionsTest extends FunSuite {
 
     }
 
+    test("ListCompletions: `select from <CARET>`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select from <CARET> ]);
+              |}
+            """.stripMargin
+        val resultNodes = Await.result(listCompletions(text, loadSobjectLib = true), Duration.Inf)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Account"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Contact"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "User"), "Expected symbol not found")
+
+    }
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Future[Seq[com.neowit.apexscanner.symbols.Symbol]] = {
         val projectOpt =
             if (loadSobjectLib) {

@@ -27,19 +27,25 @@ import com.neowit.apexscanner.ast.QualifiedName
 import com.neowit.apexscanner.{Project, symbols}
 import com.neowit.apexscanner.extlib.CodeLibrary
 import com.neowit.apexscanner.nodes._
+import com.neowit.apexscanner.nodes.soql.SoqlQueryNode
 import com.neowit.apexscanner.symbols.SymbolKind
 
 /**
   * Created by Andrey Gavrikov 
   */
-class SObjectLibrary(session: Session) extends CodeLibrary {
+class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsTypeDefinition {
     private var _isLoaded = false
-    override def getName: String = "SObjectLibrary"
+    override def getName: String = SoqlQueryNode.LIBRARY_NAME
+    private val _sobjectNodes = new collection.mutable.ListBuffer[AstNode]
 
     override def load(project: Project): CodeLibrary = {
         DatabaseModel.getModelBySession(session) match {
             case Some(dbModel) =>
-                dbModel.getSObjectMembers.foreach(m => addByQualifiedName(sObjectToAstNode(m)))
+                dbModel.getSObjectMembers.foreach{m =>
+                    val node = sObjectToAstNode(m)
+                    _sobjectNodes += node
+                    addByQualifiedName(node)
+                }
                 _isLoaded = true
             case None =>
         }
@@ -86,6 +92,33 @@ class SObjectLibrary(session: Session) extends CodeLibrary {
         */
         cls
     }
+
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+    override def range: Range = Range.INVALID_LOCATION
+    override def nodeType: AstNodeType = InterfaceNodeType
+
+    //override standard AstNode.findChildrenInAst because we need
+    override def findChildrenInAst(filter: (AstNode) => Boolean, recursively: Boolean = false): Seq[AstNode] = {
+        _sobjectNodes.filter(filter)
+    }
+
+    override def getValueType: Option[ValueType] = Option(ValueTypeSimple(QualifiedName(getName)))
+
+    override def qualifiedName: Option[QualifiedName] = Option(QualifiedName(getName))
+
+    override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+
+    // override standard getByQualifiedName in order to allow retrieval by name: "SObjectLibrary"
+    override def getByQualifiedName(qualifiedName: QualifiedName): Option[AstNode] = {
+        if (1 == qualifiedName.length && qualifiedName.getFirstComponent == getName) {
+            // requested whole SObjectLibrary
+            Option(this)
+        } else {
+            super.getByQualifiedName(qualifiedName)
+        }
+    }
+    //////////////////////////////////////////////////////////////////////////////////////////////////
 
     private case class SObjectNode(sobject: DatabaseModelMember) extends ClassLike {
         override def symbolKind: SymbolKind = SymbolKind.Class
