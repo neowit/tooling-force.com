@@ -108,13 +108,58 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Account"), "Expected symbol not found")
         assert(resultNodes.exists(_.symbolName == "Contact"), "Expected symbol not found")
         assert(resultNodes.exists(_.symbolName == "User"), "Expected symbol not found")
-
     }
-    test("ListCompletions: `select <CARET> from Account`") {
+
+    test("ListCompletions: `select from A<CARET>`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select from A<CARET> ]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Account"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "AccountHistory"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Attachment"), "Expected symbol not found")
+    }
+
+    test("ListCompletions: `select from A<CARET>` - multiline") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select from
+              | A<CARET> ]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Account"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "AccountHistory"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Attachment"), "Expected symbol not found")
+    }
+
+    test("ListCompletions: `select <CARET> from Account` - single line") {
         val text =
             """
               |class CompletionTester {
               | System.debug([select <CARET> from Account]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "CreatedDate"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Description"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
+
+    }
+    test("ListCompletions: `select <CARET> from Account` - multi line") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select
+              |<CARET> from Account]);
               |}
             """.stripMargin
         val resultNodes = listCompletions(text, loadSobjectLib = true)
