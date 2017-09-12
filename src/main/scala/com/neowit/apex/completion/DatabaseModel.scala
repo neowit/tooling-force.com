@@ -293,6 +293,10 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
 
 class SObjectRelationshipFieldMember(field: com.sforce.soap.partner.Field) extends SObjectFieldMember(field) {
 
+    override def toString: String = {
+        this.getIdentity // super.toString causes StackOverflow for some reason, even though it also calls getIdentity
+    }
+
     override def getIdentity: String = {
         if (null != field.getRelationshipName)
             field.getRelationshipName
@@ -305,6 +309,13 @@ class SObjectRelationshipFieldMember(field: com.sforce.soap.partner.Field) exten
     override def getSignature: String = {
         field.getLabel + " (reference to: " + field.getReferenceTo.mkString(",") + ")"
     }
+
+    /**
+      * @return
+      *     for Account.Parent - return: Array(Account)
+      *     for polymorphic fields like Event.Owner - return: Array(User, Group)
+      */
+    def getReferenceTo: Array[String] = field.getReferenceTo
 
     override def getChild(identity: String, withHierarchy: Boolean): Option[Member] = {
         getParent match {

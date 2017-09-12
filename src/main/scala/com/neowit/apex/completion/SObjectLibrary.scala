@@ -64,7 +64,7 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
     }
 
    private def sObjectMemberToAstNode(sobject: SObjectMember): AstNode with HasQualifiedName = {
-       val cls = SObjectNode(sobject)
+       val cls = SObjectNode(this, sobject)
 
        cls.addChildToAst(IdentifierNode(sobject.getIdentity, Range.INVALID_LOCATION))
 
@@ -81,7 +81,7 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
         n
     }
     private def sObjectRelationshipFieldMemberToAstNode(relField: SObjectRelationshipFieldMember): AstNode with HasQualifiedName = {
-        val cls = SObjectNode(relField)
+        val cls = SObjectRelationshipFieldNode(this, relField)
         cls.addChildToAst(IdentifierNode(relField.getIdentity, Range.INVALID_LOCATION))
 
         /*
@@ -120,10 +120,10 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
     }
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
-    private case class SObjectNode(sobject: DatabaseModelMember) extends ClassLike {
+    private abstract class SObjectNodeBase(library: SObjectLibrary, sobject: DatabaseModelMember) extends ClassLike {
         override def symbolKind: SymbolKind = SymbolKind.Class
 
-        override def getValueType: Option[ValueType] = Option(ValueTypeClass(QualifiedName(Array(sobject.getIdentity))))
+        override def getValueType: Option[ValueType] = Option(ValueTypeClass(QualifiedName(Array(sobject.getType))))
 
         override def range: Range = Range.INVALID_LOCATION
 
@@ -147,6 +147,31 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
 
         override def symbolIsStatic: Boolean = false
     }
+
+    private case class SObjectNode(library: SObjectLibrary, sobject: DatabaseModelMember) extends SObjectNodeBase(library, sobject)
+
+    private case class SObjectRelationshipFieldNode(library: SObjectLibrary, relField: SObjectRelationshipFieldMember) extends SObjectNodeBase(library, relField) {
+        override def getValueType: Option[ValueType] = {
+            val referenceTo = relField.getReferenceTo
+            if (null != referenceTo && 1 == referenceTo.length) {
+                val relatedSobjectType = referenceTo(0)
+                Option(ValueTypeClass(QualifiedName(Array(relatedSobjectType))))
+            } else {
+               // looks like this is a polymorphic field (e.g. Event.Owner) and can point to more than 1 object type
+                None
+            }
+        }
+
+        override def children: Seq[AstNode] = {
+            getValueType match {
+                case Some(valueType) =>
+                    library.getByQualifiedName(valueType.qualifiedName).map(_.children).getOrElse(super.children)
+                case None => super.children
+            }
+        }
+        override def symbolKind: SymbolKind = SymbolKind.Field
+    }
+
 
     private case class SObjectFieldNode(override val name: Option[String], valueType: ValueType) extends VariableLike with ClassOrInterfaceBodyMember { self =>
         override def getClassOrInterfaceNode: ClassLike = {

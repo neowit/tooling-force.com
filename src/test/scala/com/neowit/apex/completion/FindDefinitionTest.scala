@@ -56,7 +56,7 @@ class FindDefinitionTest extends FunSuite {
                 assertResult(Option(QualifiedName(Array("Account", "Name"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
                 assertResult(Option(QualifiedName(Array("String"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
-                fail( "Failed to locate correct node. Expected method1()")
+                fail( "Failed to locate correct node.")
         }
     }
     test("findDefinition: inside SOQL statement: a.Name") {
@@ -75,6 +75,46 @@ class FindDefinitionTest extends FunSuite {
                 assertResult(Option(QualifiedName(Array("Account", "Name"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
                 assertResult(Option(QualifiedName(Array("String"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: relationship field: CreatedBy") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Creat<CARET>edBy from Account a];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName(Array("Account", "CreatedBy"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("User"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node. Expected method1()")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: relationship field: Parent.CreatedBy") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Parent.Creat<CARET>edBy from Account];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName(Array("Account", "CreatedBy"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("User"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
                 fail( "Failed to locate correct node. Expected method1()")
         }
     }
@@ -85,7 +125,7 @@ class FindDefinitionTest extends FunSuite {
             if (loadStdLib || loadSobjectLib) {
                 _projectWithLibs match {
                     case Some(_project) =>
-                        // re-use previously loaded project because loading StdLib takes a lot of time
+                        // re-use previously loaded project because loading StdLib & SobjectLib takes considerable time
                         Option(_project)
                     case None =>
                         val is = getClass.getClassLoader.getResource("paths.properties").openStream()
@@ -109,7 +149,7 @@ class FindDefinitionTest extends FunSuite {
         projectOpt match {
             case Some(project) =>
                 val caretInDocument = CaretUtils.getCaret(text, Paths.get("test"))
-                project.getAst(caretInDocument.document) match {
+                project.getAst(caretInDocument.document, forceRebuild = true) match {
                     case Some(result) =>
                         val finder = new AscendingDefinitionFinder()
                         finder.findDefinition(result.rootNode, caretInDocument.position)
