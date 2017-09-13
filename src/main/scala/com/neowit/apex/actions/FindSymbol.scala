@@ -139,6 +139,8 @@ class FindSymbol extends ApexActionWithReadOnlySession {
             override def symbolValueType: Option[String] = None
             override def symbolKind: SymbolKind = null
             override def symbolIsStatic: Boolean = false
+
+            override def visibility: Option[String] = None
         }
     }
     /*

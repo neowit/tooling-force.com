@@ -134,11 +134,15 @@ object Member {
 
             override def isStatic: Boolean = symbol.symbolIsStatic
 
-            override def getSignature: String = symbol.symbolLabel
+            override def getSignature: String = getVisibility.toLowerCase + " " + symbol.symbolLabel
 
             override def getType: String = symbol.symbolValueType.getOrElse("")
 
             override def getIdentity: String = symbol.symbolName
+
+            override def getVisibility: String = {
+                symbol.visibility.map(_.toString).getOrElse("private")
+            }
         }
     }
 }
@@ -218,7 +222,7 @@ trait Member extends AnonymousMember {
     def toJson: JsValue = {
         val data = Map("identity" -> getIdentityToDisplay, "realIdentity" -> getIdentity,
             "signature" -> getSignature, "type" -> getType,
-            "visibility" -> getVisibility, "doc" -> getDoc)
+            "visibility" -> getVisibility.toLowerCase, "doc" -> getDoc)
         //JSONObject(data)
         data.toJson
     }
@@ -227,7 +231,7 @@ trait Member extends AnonymousMember {
         o.isInstanceOf[Member] && this.getClass == o.getClass &&
             this.getIdentity.toLowerCase == o.asInstanceOf[Member].getIdentity.toLowerCase
     }
-    override def hashCode = getIdentity.toLowerCase.hashCode
+    override def hashCode(): Int = getIdentity.toLowerCase.hashCode
 
 }
 
