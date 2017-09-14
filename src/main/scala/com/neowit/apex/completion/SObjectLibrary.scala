@@ -148,7 +148,43 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
         override def symbolIsStatic: Boolean = false
     }
 
-    private case class SObjectNode(library: SObjectLibrary, sobject: DatabaseModelMember) extends SObjectNodeBase(library, sobject)
+    private case class SObjectNode(library: SObjectLibrary, sobject: SObjectMember) extends SObjectNodeBase(library, sobject) {
+        // Child relationships will be recorded inside AstNode: SObjectChildRelationshipNode
+        // SObjectRelationshipsContainerNode is not a Symbol (so can not be returned as part of ListCompletions)
+        // SObjectRelationshipsContainerNode has QualifiedName like (Account._Relationships)
+        override def children: Seq[AstNode] = {
+            if (!sobject.isLoaded) {
+                super.children // force children load and get added to AST
+                /*
+                sobject.getChildRelationships.foreach{childRelationship =>
+                    val relName = childRelationship.getRelationshipName
+                    if (null != relName && !relName.isEmpty) {
+                        val sObjectMember = new SObjectMember(childRelationship.getChildSObject, sobject.session)
+                        val node = SObjectChildRelationshipNode(library, this, childRelationship.getRelationshipName, sObjectMember)
+                        this.addChildToAst(node)
+                    }
+
+                }
+                */
+            }
+            super.children
+        }
+    }
+
+    private case class SObjectChildRelationshipNode(library: SObjectLibrary, sobjectNode: SObjectNode,
+                                                    relationshipName: String, childSObject: SObjectMember)
+                                                    extends AstNode with IsTypeDefinition {
+
+        override def qualifiedName: Option[QualifiedName] = sobjectNode.qualifiedName.map(parentQName => QualifiedName(parentQName, relationshipName))
+
+        override def getValueType: Option[ValueType] = Option(ValueTypeClass(QualifiedName(childSObject.getType)))
+
+        override def range: Range = Range.INVALID_LOCATION
+
+        override def nodeType: AstNodeType = SObjectChildRelationshipNodeType
+
+        override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+    }
 
     private case class SObjectRelationshipFieldNode(library: SObjectLibrary, relField: SObjectRelationshipFieldMember) extends SObjectNodeBase(library, relField) {
         override def getValueType: Option[ValueType] = {

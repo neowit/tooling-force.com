@@ -79,7 +79,7 @@ class FindDefinitionTest extends FunSuite {
         }
     }
 
-    test("findDefinition: inside SOQL statement: relationship field: CreatedBy") {
+    test("findDefinition: inside SOQL statement: relationship field: Select CreatedBy") {
         val text =
             """
               |class CompletionTester {
@@ -99,7 +99,7 @@ class FindDefinitionTest extends FunSuite {
         }
     }
 
-    test("findDefinition: inside SOQL statement: relationship field: Parent.CreatedBy") {
+    test("findDefinition: inside SOQL statement: relationship field: Select Parent.CreatedBy") {
         val text =
             """
               |class CompletionTester {
