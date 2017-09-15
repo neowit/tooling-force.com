@@ -119,6 +119,66 @@ class FindDefinitionTest extends FunSuite {
         }
     }
 
+    test("findDefinition: subquery:  (select Na<CARET>me from Contacts) from Account") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Id, (select Na<CARET>me from Contacts) from Account];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName(Array("Contact", "Name"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("String"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: relationship field: WHERE Pa<CARET>ent") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Id from Account where Pa<CARET>ent];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName(Array("Parent"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: relationship field: WHERE Own<CARET>er") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Id from Account where Own<CARET>er];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName(Array("Owner"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("User"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
     var _projectWithLibs: Option[Project] = None
     private def findDefinition(text: String, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true): scala.Seq[AstNode] = {
         val projectOpt: Option[Project] =
