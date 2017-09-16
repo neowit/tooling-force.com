@@ -135,7 +135,7 @@ object SObjectLibrary {
     // Single Child Relationship definition
     private case class SObjectChildRelationshipNode(library: SObjectLibrary, sobjectNode: SObjectNode,
                                                     relationshipName: String, childSObject: SObjectMember)
-        extends AstNode with IsTypeDefinition {
+        extends AstNode with IsTypeDefinition with com.neowit.apexscanner.symbols.Symbol  {
 
         override def qualifiedName: Option[QualifiedName] = sobjectNode.qualifiedName.map(parentQName => QualifiedName(parentQName, relationshipName))
 
@@ -146,6 +146,22 @@ object SObjectLibrary {
         override def nodeType: AstNodeType = SObjectChildRelationshipNodeType
 
         override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+
+        override def isSymbol: Boolean = true
+
+        override def symbolName: String = relationshipName
+
+        override def symbolKind: SymbolKind = SymbolKind.Field
+
+        override def symbolLocation: Location = LocationUndefined
+
+        override def parentSymbol: Option[symbols.Symbol] = Option(sobjectNode)
+
+        override def symbolIsStatic: Boolean = false
+
+        override def symbolValueType: Option[String] = Option(childSObject.sObjectApiName)
+
+        override def visibility: Option[String] = Option("public")
     }
 
     private case class SObjectRelationshipFieldNode(library: SObjectLibrary, relField: SObjectRelationshipFieldMember)
