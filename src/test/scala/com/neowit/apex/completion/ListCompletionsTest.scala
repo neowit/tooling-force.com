@@ -154,6 +154,23 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
 
     }
+
+    test("ListCompletions: `select CreAtedDatE, <CARET>, DescRiption from Account` - single line") {
+        // check that existing fields are filtered out
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select CreAtedDatE, <CARET>, DescRiption from Account]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert( !resultNodes.exists(_.symbolName == "CreatedDate"), "Did not expect to find CreatedDate because it is already specified in this query")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert( !resultNodes.exists(_.symbolName == "Description"), "Did not expect to find Description because it is already specified in this query")
+        assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
+
+    }
     test("ListCompletions: `select <CARET> from Account` - multi line") {
         val text =
             """
