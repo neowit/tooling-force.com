@@ -60,6 +60,10 @@ object SObjectLibrary {
     private abstract class SObjectNodeBase(library: SObjectLibrary, sobject: DatabaseModelMember) extends ClassLike {
         override def symbolKind: SymbolKind = SymbolKind.Class
 
+        override def visibility: Option[String] = Option("public")
+
+        override def modifiers: Set[ModifierNode] = Set.empty
+
         override def getValueType: Option[ValueType] = Option(ValueTypeClass(QualifiedName(Array(sobject.getType))))
 
         override def range: Range = Range.INVALID_LOCATION
