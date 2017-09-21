@@ -243,6 +243,32 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
         assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
     }
+
+    test("ListCompletions: `Subquery with alias`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Name, (select FirstName from a.<CARET>) from Account a]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Contacts"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "ChildAccounts"), "Expected symbol not found")
+    }
+
+    test("ListCompletions: `Subquery with parent object name`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Name, (select FirstName from Account.<CARET>) from Account a]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Contacts"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "ChildAccounts"), "Expected symbol not found")
+    }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
         val projectOpt =
