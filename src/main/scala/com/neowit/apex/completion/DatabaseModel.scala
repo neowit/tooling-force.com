@@ -24,8 +24,7 @@ import com.neowit.apex.Session
 import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.MemberJsonSupport._
 import com.neowit.utils.Logging
-import akka.actor.Actor
-import akka.actor.Props
+import akka.actor.{Actor, ActorRef, Props}
 import com.sforce.soap.partner.FieldType
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -33,7 +32,8 @@ import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
 object DatabaseModel {
-    def REFRESH_INTERVAL_SECONDS = 30 //content of previously loaded fields will be refreshed over this period of time
+    val REFRESH_INTERVAL_SECONDS: Int = 30 //content of previously loaded fields will be refreshed over this period of time
+    lazy val databaseModelRefreshActor: ActorRef = TcpServer.system.actorOf(Props(new DatabaseModelRefreshActor(REFRESH_INTERVAL_SECONDS)))
 
     private val modelBySession = new collection.mutable.HashMap[Session, DatabaseModel]
 
@@ -143,19 +143,34 @@ class DatabaseModel(session: Session) {
 
 case class RefreshMessage(dbModelMember: DatabaseModelMember)
 
-class DatabaseModelRefreshActor extends Actor with Logging {
-    def receive = {
+class DatabaseModelRefreshActor(refreshIntervalSeconds: Int) extends Actor with Logging {
+    // used to avoid flood of scheduled refresh calls for the same DB object
+    private val _lastRefreshTimeById = new collection.mutable.HashMap[String, Long]()
+    def receive: Receive = {
         case RefreshMessage(dbModel) => runRefresh(dbModel)
         case _ => println("DatabaseModelRefreshActor: huh?")
     }
 
     def runRefresh(dbModelMember: DatabaseModelMember): Unit = {
-        logger.trace("refreshing DB Model: " + dbModelMember.getSignature)
-        dbModelMember.refresh()
+        val id = dbModelMember.getSignature
+        val isOkToRefresh: Boolean =
+        _lastRefreshTimeById.get(id) match {
+            case Some(lastRefreshTime) =>
+                (System.currentTimeMillis() - lastRefreshTime ) / 1000 >= refreshIntervalSeconds
+            case None => true
+        }
+
+        if (isOkToRefresh) {
+            logger.trace("refreshing DB Model: " + id)
+            _lastRefreshTimeById += id -> System.currentTimeMillis()
+            dbModelMember.refresh()
+        } else {
+            logger.trace("SKIP refreshing DB Model: " + id)
+        }
     }
 }
 
-trait DatabaseModelMember extends Member {
+trait DatabaseModelMember extends Member with Logging{
     def isLoaded: Boolean
 
     /**
@@ -186,10 +201,9 @@ trait DatabaseModelMember extends Member {
     }
 
     def scheduleRefresh(): Unit = {
-        val databaseModelRefreshActor = TcpServer.system.actorOf(Props[DatabaseModelRefreshActor])
-        //val duration = FiniteDuration(DatabaseModel.REFRESH_INTERVAL_SECONDS, scala.concurrent.duration.SECONDS)
-        val duration = FiniteDuration(15, scala.concurrent.duration.SECONDS)
-        TcpServer.system.scheduler.scheduleOnce(duration, databaseModelRefreshActor, new RefreshMessage(this))
+        logger.trace("scheduleRefresh " + this.getIdentity)
+        val duration = FiniteDuration(DatabaseModel.REFRESH_INTERVAL_SECONDS, scala.concurrent.duration.SECONDS)
+        TcpServer.system.scheduler.scheduleOnce(duration, DatabaseModel.databaseModelRefreshActor, RefreshMessage(this))
     }
 
 }
