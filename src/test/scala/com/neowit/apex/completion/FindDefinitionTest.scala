@@ -139,11 +139,11 @@ class FindDefinitionTest extends FunSuite {
         }
     }
 
-    test("findDefinition: inside SOQL statement: relationship field: WHERE Pa<CARET>ent") {
+    test("findDefinition: inside SOQL statement: WHERE Par<CARET>ent") {
         val text =
             """
               |class CompletionTester {
-              | Integer i = [select Id from Account where Pa<CARET>ent];
+              | Integer i = [select Id from Account where Par<CARET>ent];
               |}
             """.stripMargin
         //val resultNodes = findDefinition(text).futureValue
@@ -152,14 +152,14 @@ class FindDefinitionTest extends FunSuite {
         assertResult(1,"Wrong number of results found") (resultNodes.length)
         resultNodes.head match {
             case typeDefinition: IsTypeDefinition =>
-                assertResult(Option(QualifiedName(Array("Parent"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName("Account", "Parent")), "Wrong caret type detected.")(typeDefinition.qualifiedName)
                 assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
                 fail( "Failed to locate correct node.")
         }
     }
 
-    test("findDefinition: inside SOQL statement: relationship field: WHERE Own<CARET>er") {
+    test("findDefinition: inside SOQL statement: WHERE Own<CARET>er") {
         val text =
             """
               |class CompletionTester {
@@ -172,8 +172,48 @@ class FindDefinitionTest extends FunSuite {
         assertResult(1,"Wrong number of results found") (resultNodes.length)
         resultNodes.head match {
             case typeDefinition: IsTypeDefinition =>
-                assertResult(Option(QualifiedName(Array("Owner"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("Account", "Owner"))), "Wrong caret type detected.")(typeDefinition.qualifiedName)
                 assertResult(Option(QualifiedName(Array("User"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: WHERE Name = '' and Na<CARET>me <> 'test'") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Id from Account where Name = '' and Na<CARET>me <> 'test'];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName("Account", "Name")), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName("String")), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
+            case _ =>
+                fail( "Failed to locate correct node.")
+        }
+    }
+
+    test("findDefinition: inside SOQL statement: WHERE <CARET>") {
+        val text =
+            """
+              |class CompletionTester {
+              | Integer i = [select Id from Account where <CARET>];
+              |}
+            """.stripMargin
+        //val resultNodes = findDefinition(text).futureValue
+        val resultNodes = findDefinition(text)
+        assert(resultNodes.nonEmpty, "Expected to find non empty result")
+        assertResult(1,"Wrong number of results found") (resultNodes.length)
+        resultNodes.head match {
+            case typeDefinition: IsTypeDefinition =>
+                assertResult(Option(QualifiedName("Account")), "Wrong caret type detected.")(typeDefinition.qualifiedName)
+                assertResult(Option(QualifiedName(Array("Account"))), "Wrong caret type detected.")(typeDefinition.getValueType.map(_.qualifiedName))
             case _ =>
                 fail( "Failed to locate correct node.")
         }

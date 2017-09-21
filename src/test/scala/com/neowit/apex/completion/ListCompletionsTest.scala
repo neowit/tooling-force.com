@@ -171,6 +171,23 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
 
     }
+
+    test("ListCompletions: `select CreAtedDatE, <CARET>, DescRiption from Account where Name = ''`") {
+        // check that presence of field in other parts, e.g. WHERE does not cause it to be filtered out in Select ... part
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select CreAtedDatE, <CARET>, DescRiption from Account where Name = '' ]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert( !resultNodes.exists(_.symbolName == "CreatedDate"), "Did not expect to find CreatedDate because it is already specified in this query")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(! resultNodes.exists(_.symbolName == "Description"), "Did not expect to find Description because it is already specified in this query")
+        assert(resultNodes.exists(_.symbolName == "ParentId"), "Expected symbol not found")
+
+    }
     test("ListCompletions: `select <CARET> from Account` - multi line") {
         val text =
             """
@@ -201,6 +218,31 @@ class ListCompletionsTest extends FunSuite {
 
     }
 
+    test("ListCompletions: `select id from Account WHERE <CARET>`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select id from Account WHERE <CARET>]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+    }
+
+    test("ListCompletions: `select id from Account WHERE Name = '' and <CARET>`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select id from Account WHERE Name = '' and <CARET>]);
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "Name"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+    }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
         val projectOpt =
