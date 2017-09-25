@@ -27,7 +27,7 @@ import com.neowit.apex.parser.{CompoundMember, Member}
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
 import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
-import com.neowit.apexscanner.scanner.actions.{ActionContext, FindSymbolActionType, ListCompletionsActionType}
+import com.neowit.apexscanner.scanner.actions.{ActionContext, FindSymbolActionType}
 import com.neowit.apexscanner.symbols._
 import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
@@ -47,6 +47,12 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                 case "line" => "--line - line of cursor position in the current code file, starts with 1"
                 case "column" => "--column - column of cursor position in the current code file, starts with 1"
                 case "responseFilePath" => "--responseFilePath - path to file where completion candidates will be saved in JSON format"
+                case "actionId" =>
+                    """--actionId - Id of this action.
+                      |     Can be used later to cancel this action using:
+                      |         --action=cancel --actionId=<specific-action-id>
+                      |     if --actionId is not provided in findSymbol call then all previously submitted 'findSymbol' actions will be cancelled
+                      """.stripMargin
                 case _ => ""
             }
         }
@@ -81,11 +87,15 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val document = FileBasedDocument(inputFilePath)
                     val position = Position(line.toInt, column.toInt - 1)
                     val sourceFile = new File(currentFilePath)
+
                     // create ActionContext
                     val actionIdOpt = config.getProperty("actionId")
                     val actionContext: ActionContext = actionIdOpt match {
-                        case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
-                        case None => ActionContext("FindSymbol-temp-" + Random.nextString(5), FindSymbolActionType)
+                        case Some(actionId) => ActionContext(actionId, FindSymbolActionType)
+                        case None =>
+                            // cancel all running actions of FindSymbolActionType
+                            ActionContext.cancelAll(FindSymbolActionType)
+                            ActionContext("FindSymbol-temp-" + Random.nextString(5), FindSymbolActionType)
                     }
                     project.getAst(document) match {
                         case Some(result) =>

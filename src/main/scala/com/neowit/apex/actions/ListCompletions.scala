@@ -55,7 +55,10 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 val actionIdOpt = config.getProperty("actionId")
                 val actionContext: ActionContext = actionIdOpt match {
                     case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
-                    case None => ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
+                    case None =>
+                        // cancel all running actions of FindSymbolActionType
+                        ActionContext.cancelAll(ListCompletionsActionType)
+                        ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
                 }
                 val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
 
@@ -101,6 +104,12 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 case "line" => "--line - line of cursor position in the current code file, starts with 1"
                 case "column" => "--column - column of cursor position in the current code file, starts with 1"
                 case "responseFilePath" => "--responseFilePath - path to file where completion candidates will be saved in JSON format"
+                case "actionId" =>
+                    """--actionId - Id of this action.
+                      |     Can be used later to cancel this action using:
+                      |         --action=cancel --actionId=<specific-action-id>
+                      |     if --actionId is not provided in 'listCompletions' call then all previously submitted 'listCompletions' actions will be cancelled
+                    """.stripMargin
                 case _ => ""
             }
         }
