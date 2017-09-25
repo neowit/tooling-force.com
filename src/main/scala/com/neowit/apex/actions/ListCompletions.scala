@@ -26,8 +26,10 @@ import com.neowit.apex.parser.Member
 import com.neowit.response.ListCompletionsResult
 import com.neowit.utils.JsonSupport
 import com.neowit.apexscanner.FileBasedDocument
+import com.neowit.apexscanner.scanner.actions.{ActionContext, ListCompletionsActionType}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Random
 
 class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
 
@@ -48,8 +50,16 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 val inputFile = new File(filePath)
                 val inputFilePath = inputFile.toPath
                 val document = FileBasedDocument(inputFilePath)
+
+                // create ActionContext
+                val actionIdOpt = config.getProperty("actionId")
+                val actionContext: ActionContext = actionIdOpt match {
+                    case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
+                    case None => ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
+                }
                 val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
-                val res = completions.list(document, line.toInt, column.toInt - 1)
+
+                val res = completions.list(document, line.toInt, column.toInt - 1, actionContext)
                 val members = res.options.map(Member.symbolToMember)
                 val resultList = sortMembers(members.toList)
                 ActionSuccess(ListCompletionsResult(resultList))

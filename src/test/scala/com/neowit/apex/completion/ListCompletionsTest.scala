@@ -29,8 +29,11 @@ import com.neowit.apex.{ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.antlr.CaretUtils
 import com.neowit.apexscanner.completion.CompletionFinder
+import com.neowit.apexscanner.scanner.actions.{ActionContext, ListCompletionsActionType}
 import com.neowit.utils.BasicConfig
 import org.scalatest.FunSuite
+
+import scala.util.Random
 
 /**
   * Created by Andrey Gavrikov
@@ -295,8 +298,9 @@ class ListCompletionsTest extends FunSuite {
                 val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
                 project.getAst(caretInDocument.document) match {
                     case Some(result) =>
+                        val context = ActionContext("ListCompletionsTest-" + Random.nextString(5), ListCompletionsActionType)
                         val completionFinder = new CompletionFinder(project)
-                        completionFinder.listCompletions(caretInDocument)
+                        completionFinder.listCompletions(caretInDocument, context)
                     case _ =>
                         Seq.empty
                 }

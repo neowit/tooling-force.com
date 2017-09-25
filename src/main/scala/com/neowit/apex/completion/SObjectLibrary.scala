@@ -70,7 +70,7 @@ object SObjectLibrary {
 
         override def nodeType: AstNodeType = ClassNodeType
 
-        override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+        override protected def resolveDefinitionImpl(actionContext: _root_.com.neowit.apexscanner.scanner.actions.ActionContext): Option[AstNode] = Option(this)
 
         override def supportsInnerClasses: Boolean = false
 
@@ -149,7 +149,7 @@ object SObjectLibrary {
 
         override def nodeType: AstNodeType = SObjectChildRelationshipNodeType
 
-        override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+        override protected def resolveDefinitionImpl(actionContext: _root_.com.neowit.apexscanner.scanner.actions.ActionContext): Option[AstNode] = Option(this)
 
         override def isSymbol: Boolean = true
 
@@ -206,7 +206,7 @@ object SObjectLibrary {
 
         override def nodeType: AstNodeType = ClassVariableNodeType
 
-        override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+        override protected def resolveDefinitionImpl(actionContext: _root_.com.neowit.apexscanner.scanner.actions.ActionContext): Option[AstNode] = Option(this)
 
         override def symbolName: String = name.getOrElse("")
 
@@ -278,7 +278,7 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
 
     override def qualifiedName: Option[QualifiedName] = Option(QualifiedName(getName))
 
-    override protected def resolveDefinitionImpl(): Option[AstNode] = Option(this)
+    override protected def resolveDefinitionImpl(actionContext: _root_.com.neowit.apexscanner.scanner.actions.ActionContext): Option[AstNode] = Option(this)
 
     // override standard getByQualifiedName in order to allow retrieval by name: "SObjectLibrary"
     override def getByQualifiedName(qualifiedName: QualifiedName): Option[AstNode] = {

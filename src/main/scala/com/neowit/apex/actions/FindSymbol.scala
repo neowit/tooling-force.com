@@ -27,11 +27,13 @@ import com.neowit.apex.parser.{CompoundMember, Member}
 import com.neowit.apexscanner.{FileBasedDocument, Project}
 import com.neowit.apexscanner.nodes._
 import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
+import com.neowit.apexscanner.scanner.actions.{ActionContext, FindSymbolActionType, ListCompletionsActionType}
 import com.neowit.apexscanner.symbols._
 import com.neowit.response.FindSymbolResult
 import com.neowit.utils.ConfigValueException
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Random
 
 class FindSymbol extends ApexActionWithReadOnlySession {
     override def getHelp: ActionHelp = new ActionHelp {
@@ -79,10 +81,18 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     val document = FileBasedDocument(inputFilePath)
                     val position = Position(line.toInt, column.toInt - 1)
                     val sourceFile = new File(currentFilePath)
-
+                    // create ActionContext
+                    val actionIdOpt = config.getProperty("actionId")
+                    val actionContext: ActionContext = actionIdOpt match {
+                        case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
+                        case None => ActionContext("FindSymbol-temp-" + Random.nextString(5), FindSymbolActionType)
+                    }
                     project.getAst(document) match {
                         case Some(result) =>
-                            val finder = new AscendingDefinitionFinder()
+                            if (actionContext.isCancelled) {
+                                return Future.successful(ActionSuccess(FindSymbolResult(None)))
+                            }
+                            val finder = new AscendingDefinitionFinder(actionContext)
                             val allDefNodes = finder.findUltimateDefinition(result.rootNode, position, project)
                             val members = allDefNodes.filter {
                                 case defNode: AstNode if Range.INVALID_LOCATION != defNode.range => true
