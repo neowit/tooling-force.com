@@ -27,12 +27,12 @@ import java.util.regex.Matcher
 
 object FileUtils {
 
-    val regexSafeSeparator = Matcher.quoteReplacement(File.separator)
+    val regexSafeSeparator: String = Matcher.quoteReplacement(File.separator)
     /**
      * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
      * @return turns path\\to\file into path/to/file
      */
-    def normalizePath(filePath: String) = filePath.replaceAll(FileUtils.regexSafeSeparator, "/")
+    def normalizePath(filePath: String): String = filePath.replaceAll(FileUtils.regexSafeSeparator, "/")
 
     /**
      * using provided folder try to find src/ or unpackaged/ child folder
@@ -42,13 +42,14 @@ object FileUtils {
      */
     def findSrcFolder(folder: File): Option[File] = {
         if (folder.isDirectory) {
-            val files = folder.listFiles(new FilenameFilter {
-                override def accept(dir: File, name: String): Boolean = "unpackaged" == name || "src" == name
-            })
-            if (files.isEmpty)
-                None
-            else
-                Some(files.head)
+            if ("src" == folder.getName) {
+                Option(folder)
+            } else {
+                val files = folder.listFiles(new FilenameFilter {
+                    override def accept(dir: File, name: String): Boolean = "unpackaged" == name || "src" == name
+                })
+                files.headOption
+            }
         } else {
             None
         }

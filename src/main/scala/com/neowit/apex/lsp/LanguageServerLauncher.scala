@@ -19,69 +19,48 @@
 
 package com.neowit.apex.lsp
 
-import java.nio.file.{Files, Paths}
+import java.net.ServerSocket
+import java.util.concurrent.{ExecutorService, Executors}
 
-import com.neowit.apex.AppVersion
-import com.neowit.apexscanner.server.{SocketServer, StdInOutServer}
 import com.typesafe.scalalogging.LazyLogging
+
+import scala.concurrent.ExecutionContext
 
 /**
   * Created by Andrey Gavrikov 
   */
 object LanguageServerLauncher extends LazyLogging {
-    case class Config (
-                          communicationMethod:String = "socket",
-                          host:String = "localhost",
-                          port:Int = -1,
-                          authConfigDirPath: String = ""
-                      )
+    private implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
+
 
     def main(args: Array[String]): Unit = {
         logger.debug("command line: " + args.mkString(" "))
 
-        // configure
-        val parser = new scopt.OptionParser[Config]("LanguageServerLauncher") {
-            head(AppVersion.APP_NAME, AppVersion.VERSION)
-
-            opt[String]('c', "communicationMethod").action( (x, c) =>
-                c.copy(communicationMethod = x) ).text("Connection Type - socket | stdio")
-            opt[String]('h', "host").action( (x, c) =>
-                c.copy(host = x) ).text("Host address. Ignored if Connection Type is not socket")
-            opt[Int]('p', "port").action( (x, c) =>
-                c.copy(port = x) ).text("Socket Port. Ignored if Connection Type is not socket")
-                    .required()
-                    .validate(p =>
-                        if (p > 0 && p <= 65535) success else failure("invalid 'port' ")
-                    )
-            opt[String]('a', "authConfigDirPath").action( (x, c) =>
-                c.copy(authConfigDirPath = x) )
-                    .text(
-                        "Full path to directory containing oauth2 configuration files. "
-                    )
-                    .required()
-                    .validate(p => if (Files.exists(Paths.get(p))) success else failure("Check 'authConfigDirPath'"))
-
-        }
+        import LanguageServerConfig._
 
         // consume arguments
-        parser.parse(args, Config()) match {
+        LanguageServerConfig.parse(args, LanguageServerConfig()) match {
             case Some(config) =>
-                config.communicationMethod match {
-                    case "socket" =>
-                        val port = config.port
-                        val server = new SocketServer(port, 2)
-                        server.start()
-                    case "stdio" =>
-                        // when using STDIO we have to disable STDOUT log otherwise LSP Client gets confused
-                        //val loggerContext: LoggerContext = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]
-                        //val rootLogger = loggerContext.getLogger("root")
-                        //rootLogger.setLevel(Level.DEBUG)
-                        System.setProperty("STDOUT_LEVEL", "debug")
+                if (config.authConfigDirPath.isEmpty && config.authConfigPath.isEmpty) {
+                    parser.reportError("'authConfigDirPath' or 'authConfigPath' is required.")
+                } else {
+                    config.communicationMethod match {
+                        case "socket" =>
+                            val port = config.port
+                            val server = new SocketServer(poolSize = 2, config)
+                            server.start()
+                        case "stdio" =>
+                            // when using STDIO we have to disable STDOUT log otherwise LSP Client gets confused
+                            //val loggerContext: LoggerContext = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]
+                            //val rootLogger = loggerContext.getLogger("root")
+                            //rootLogger.setLevel(Level.DEBUG)
+                            System.setProperty("STDOUT_LEVEL", "debug")
 
-                        val server = new StdInOutServer(System.in, System.out)
-                        server.start()
-                    case _ =>
-                        parser.showUsageAsError()
+                            val server = new ApexLanguageServerBase(System.in, System.out, config)
+                            server.start()
+                        case _ =>
+                            parser.showUsageAsError()
+                    }
                 }
             case None =>
                 // bad config
@@ -89,4 +68,45 @@ object LanguageServerLauncher extends LazyLogging {
         }
     }
 
+}
+
+private class SocketServer(poolSize: Int, config: LanguageServerConfig)(implicit val ex: ExecutionContext) {thisServer =>
+    val serverSocket = new ServerSocket(config.port)
+    private val pool: ExecutorService = Executors.newFixedThreadPool(poolSize)
+
+    def start(): Unit = {
+        println(s"READY to accept connection on localhost:${config.port}") // this line is important, otherwise client does not know that server has started
+        try {
+            while (true) {
+                // This will block until a connection comes in.
+                val socket = serverSocket.accept()
+                //pool.execute(new SocketLanguageServer(socket))
+                val langServer = new ApexLanguageServerBase(socket.getInputStream, socket.getOutputStream, config) with Runnable {
+                    override implicit val ex: ExecutionContext = thisServer.ex
+
+                    override protected def isConnectionOpen: Boolean = super.isConnectionOpen && !socket.isClosed
+
+                    override def shutdown(): Unit = {
+                        socket.close()
+                        super.shutdown()
+                    }
+
+                    override def run(): Unit = start()
+
+                    override def start(): Unit = {
+                        logger.debug("Starting SocketServer")
+                        super.start()
+                    }
+                }
+                pool.execute(langServer)
+            }
+        } finally {
+            shutdown()
+        }
+    }
+
+    def shutdown(): Unit = {
+        if (!pool.isShutdown)
+            pool.shutdown()
+    }
 }
