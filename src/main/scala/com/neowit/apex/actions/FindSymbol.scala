@@ -19,7 +19,7 @@
 
 package com.neowit.apex.actions
 
-import java.io.File
+import java.io.{File, FileInputStream, InputStream}
 import java.nio.file.{Files, Path, Paths}
 
 import com.neowit.apex.ProjectsCache
@@ -82,11 +82,12 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                 if (! Files.isReadable(Paths.get(filePath))) {
                     Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
                 } else {
-                    val inputFile = new File(filePath)
-                    val inputFilePath = inputFile.toPath
-                    val document = FileBasedDocument(inputFilePath)
+                    val inputFile = new File(filePath) // temp file - has latest content
+                    val sourceFile = new File(currentFilePath) // real file (may not have latest content)
+                    val document = new FileBasedDocument(sourceFile.toPath) {
+                        override def inputStream: InputStream = new FileInputStream(inputFile)
+                    }
                     val position = Position(line.toInt, column.toInt - 1)
-                    val sourceFile = new File(currentFilePath)
 
                     // create ActionContext
                     val actionIdOpt = config.getProperty("actionId")
@@ -108,7 +109,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                                 case defNode: AstNode if Range.INVALID_LOCATION != defNode.range => true
                                 case _ => false
                             }.map { defNode =>
-                                val s = nodeToSymbol(defNode, inputFilePath, sourceFile.toPath)
+                                val s = nodeToSymbol(defNode)
                                 Member.symbolToMember(s)
                             }
 
@@ -130,7 +131,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
         }
     }
 
-    private def nodeToSymbol(defNode: AstNode with IsTypeDefinition, inputFilePath: Path, sourceFilePath: Path): Symbol = {
+    private def nodeToSymbol(defNode: AstNode with IsTypeDefinition): Symbol = {
         new Symbol {
 
             override def symbolLocation: com.neowit.apexscanner.nodes.Location = {
@@ -139,16 +140,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                         new com.neowit.apexscanner.nodes.Location {
                             def project: Project = fileNode.project
                             def range: Range = defNode.range
-                            def path: Path = {
-                                if (fileNode.file.toFile.getName == inputFilePath.toFile.getName) {
-                                    // this is a file in the current active buffer
-                                    // return path to buffer source (as opposed to temp file path passed in inputFilePath)
-                                    sourceFilePath
-                                } else {
-                                    // this is not currently open file, return path as is
-                                    fileNode.file
-                                }
-                            }
+                            def path: Path = fileNode.file
                         }
                     case None => LocationUndefined
                 }

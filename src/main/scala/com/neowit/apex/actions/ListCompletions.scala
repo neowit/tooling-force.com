@@ -19,7 +19,8 @@
 
 package com.neowit.apex.actions
 
-import java.io.File
+import java.io.{File, FileInputStream, InputStream}
+import java.nio.file.{Files, Paths}
 
 import com.neowit.apex.ProjectsCache
 import com.neowit.apex.parser.Member
@@ -41,32 +42,35 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                 projectDir <- config.projectDirOpt
                 project <- ProjectsCache.getProject(projectDir, session)
                 filePath <- config.getRequiredProperty("currentFileContentPath")
+                currentFilePath <- config.getRequiredProperty("currentFilePath")
                 line <- config.getRequiredProperty("line")
                 column <- config.getRequiredProperty("column")
             } yield {
-                // path to file in project
-                //val currentFilePath = config.getRequiredProperty("currentFilePath")
-                // path to current file content (file in project may not be saved)
-                val inputFile = new File(filePath)
-                val inputFilePath = inputFile.toPath
-                val document = FileBasedDocument(inputFilePath)
+                if (! Files.isReadable(Paths.get(filePath))) {
+                    ActionFailure(s"'currentFileContentPath' must point to readable file")
+                } else {
+                    val inputFile = new File(filePath) // temp file - has latest content
+                    val sourceFile = new File(currentFilePath) // real file (may not have latest content)
+                    val document = new FileBasedDocument(sourceFile.toPath) {
+                        override def inputStream: InputStream = new FileInputStream(inputFile)
+                    }
 
-                // create ActionContext
-                val actionIdOpt = config.getProperty("actionId")
-                val actionContext: ActionContext = actionIdOpt match {
-                    case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
-                    case None =>
-                        // cancel all running actions of FindSymbolActionType
-                        ActionContext.cancelAll(ListCompletionsActionType)
-                        ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
+                    // create ActionContext
+                    val actionIdOpt = config.getProperty("actionId")
+                    val actionContext: ActionContext = actionIdOpt match {
+                        case Some(actionId) => ActionContext(actionId, ListCompletionsActionType)
+                        case None =>
+                            // cancel all running actions of FindSymbolActionType
+                            ActionContext.cancelAll(ListCompletionsActionType)
+                            ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
+                    }
+                    val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
+
+                    val res = completions.list(document, line.toInt, column.toInt - 1, actionContext)
+                    val members = res.options.map(Member.symbolToMember)
+                    val resultList = sortMembers(members.toList)
+                    ActionSuccess(ListCompletionsResult(resultList))
                 }
-                val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
-
-                val res = completions.list(document, line.toInt, column.toInt - 1, actionContext)
-                val members = res.options.map(Member.symbolToMember)
-                val resultList = sortMembers(members.toList)
-                ActionSuccess(ListCompletionsResult(resultList))
-
             }
         resultOpt match {
             case Some(actionSuccess) => Future.successful(actionSuccess)
