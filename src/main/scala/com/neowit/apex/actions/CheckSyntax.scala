@@ -22,6 +22,7 @@ package com.neowit.apex.actions
 import java.io.File
 import java.nio.file.Path
 
+import com.neowit.apex.ProjectsCache
 import com.neowit.apexscanner.VirtualDocument
 import com.neowit.apexscanner.scanner._
 import com.neowit.apexscanner.scanner.actions.SyntaxChecker
@@ -62,9 +63,12 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
         val config = session.getConfig
 
         val actionResultOpt =
-            for (   filePath <- config.getRequiredProperty("currentFileContentPath");
-                    sourceFilePath <- config.getRequiredProperty("currentFilePath")
-            ) yield {
+            for {
+                filePath <- config.getRequiredProperty("currentFileContentPath")
+                sourceFilePath <- config.getRequiredProperty("currentFilePath")
+                projectDir <- config.projectDirOpt
+                project <- ProjectsCache.getProject(projectDir, session)
+            } yield {
                 val inputFile = new File(filePath)
                 if (!filePath.endsWith(".cls") && !filePath.endsWith(".trigger")) {
                     // unsupported file extension
@@ -72,7 +76,11 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                 } else {
                     val apexcodeScanner = new ApexcodeScanner() {
                         override def isIgnoredPath(path: Path): Boolean = !DidSaveHandler.isSupportedPath(path)
-                        override def onEachResult(result: DocumentScanResult): DocumentScanResult = result
+                        override def onEachResult(result: DocumentScanResult): DocumentScanResult = {
+                            // document has been saved, its AST may have changed, purge AST from cache
+                            result.document.fileOpt.map(filePath => project.clearFileContent(filePath))
+                            result
+                        }
                         override def errorListenerFactory(document: VirtualDocument): ApexErrorListener = SyntaxChecker.errorListenerCreator(document)
                     }
                     val soqlScanner = new SoqlScanner() {
