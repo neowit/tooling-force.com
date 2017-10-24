@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Andrey Gavrikov.
+ * Copyright (c) 2017 Andrey Gavrikov.
  * this file is part of tooling-force.com application
  * https://github.com/neowit/tooling-force.com
  *
@@ -19,107 +19,82 @@
 
 package com.neowit.apex.metadata
 
-import org.scalatest.{FunSuite, PrivateMethodTester}
-import java.io.{File, FileWriter}
-import com.neowit.utils.{BasicConfig, Config}
+import com.neowit.apex.{MetaXml, NodeIterator}
+import com.neowit.utils.FileUtils
+import org.scalatest.FunSuite
 
-class MetaXmlTest extends FunSuite with PrivateMethodTester {
-    val appConfig = new Config(new BasicConfig)
 
-    def withPropertiesFile(testCode: (File, FileWriter) => Any): Unit = {
-        val file = File.createTempFile("test", ".properties") // create the fixture
-        val writer = new FileWriter(file)
-        try {
-            testCode(file, writer) // "loan" the fixture to the test
-        } finally {
-            // clean up the fixture
-            writer.close()
-            file.delete()
+class MetaXmlTest extends FunSuite {
+
+    test("getPackage") {
+        val is = getClass.getClassLoader.getResource("meta-xml/package.xml").openStream()
+        val _package = MetaXml.getPackage(is)
+
+        for (name <- List("ApexPage", "ApexComponent", "ApexTrigger", "CustomLabels", "DataCategoryGroup",
+                            "Scontrol", "StaticResource")) {
+            assert( _package.getTypes.exists(_.getName == name), s"'$name' missing in package.xml")
         }
-        Unit
-    }
-    def withPackageXmlFile(testCode: (File, FileWriter) => Any): Unit = {
-        val file = File.createTempFile("test", ".xml") // create the fixture
-        val writer = new FileWriter(file)
-        //there must be no blank line at th etop of xml file defined with
-        //<?xml version="1.0" ...
-        //otherwise get: The processing instruction target matching "[xX][mM][lL]" is not allowed
-        val packageXmlText =
-            """<?xml version="1.0" encoding="UTF-8"?>
-              |<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-              |    <types>
-              |        <members>*</members>
-              |        <name>ApexClass</name>
-              |    </types>
-              |    <types>
-              |        <members>Component1</members>
-              |        <members>Component2</members>
-              |        <members>ComponentX</members>
-              |        <name>ApexComponent</name>
-              |    </types>
-              |    <types>
-              |        <members>*</members>
-              |        <name>ApexPage</name>
-              |    </types>
-              |    <types>
-              |        <members>*</members>
-              |        <name>ApexTrigger</name>
-              |    </types>
-              |    <types>
-              |        <members>*</members>
-              |        <name>CustomLabels</name>
-              |    </types>
-              |    <types>
-              |        <members>*</members>
-              |        <name>Scontrol</name>
-              |    </types>
-              |    <types>
-              |        <members>*</members>
-              |        <name>StaticResource</name>
-              |    </types>
-              |    <version>19.0</version>
-              |</Package>
-              |
-            """.stripMargin
-        writer.write(packageXmlText)
-        writer.flush()
-        //writer.close()
-        try {
-            testCode(file, writer) // "loan" the fixture to the test
-        } finally {
-            // clean up the fixture
-            writer.close()
-            file.delete()
-        }
-        Unit
-    }
+        assertResult("33.0")(_package.getVersion)
 
-    /*
-    test("Package generation") {
-        withPackageXmlFile { (file, writer) =>
-
-            appConfig.load(List("--projectPath=" + file.getAbsolutePath))
-            val metaXml = new MetaXml(appConfig) {
-                override def getPackageXml = file
-            }
-            val mTypes = metaXml.listMetadataTypes()
-
-            //check couple of types which must be present
-            assert( mTypes.exists(_.xmlName == "ApexClass") , "Expected To find ApexClass in the list of types")
-            assert( mTypes.exists(_.xmlName == "CustomLabels"), "Expected To find CustomLabels in the list of types")
-
-            val _package = metaXml.getPackage
-            assertResult("19.0", "Wrong API version") {_package.getVersion}
-            assertResult(7, "Wrong number of types returned") {_package.getTypes.length}
-            //check if correct members were set
-            assertResult(List("*"), "Wrong wildcard member list returned") {
-                _package.getTypes.find(_.getName == "ApexClass").get.getMembers.toList
-            }
-            assertResult(List[String]("Component1", "Component2", "ComponentX"), "Wrong named member list returned") {
-                _package.getTypes.find(_.getName == "ApexComponent").get.getMembers.toList
-            }
-
+        val names = _package.getTypes.find(_.getName =="ApexComponent")
+        assert(names.isDefined, "Expected members of ApexComponent")
+        for (name <- List("MyComponent1", "MyComponent2", "*")) {
+            assert(names.get.getMembers.contains(name), s"expected ApexComponent: member = '$name'")
         }
     }
-    */
+
+
+    test("packageToXml") {
+        val is = getClass.getClassLoader.getResource("meta-xml/package.xml").openStream()
+        val _existingPackage = MetaXml.getPackage(is)
+
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+        val docBuilder = factory.newDocumentBuilder()
+        val etalonDocument = docBuilder.parse(getClass.getClassLoader.getResource("meta-xml/package.xml").openStream())
+        etalonDocument.getDocumentElement.normalize()
+
+        val packageXml = MetaXml.packageToXml(_existingPackage)
+        val outXmlFile = FileUtils.createTempFile("package", "xml")
+        FileUtils.writeFile(packageXml, outXmlFile)
+
+        val testDocument = docBuilder.parse(outXmlFile)
+        testDocument.getDocumentElement.normalize()
+
+
+        assertResult("Package", "Top document element must be Package") (testDocument.getDocumentElement.getNodeName)
+
+        assertResult(_existingPackage.getTypes.length, "Number of <types> elements")(testDocument.getElementsByTagName("types").getLength)
+
+        assert(packageXml.contains("<version>33.0</version>"), "Version attribute not found")
+
+        for (name <- List("ApexPage", "ApexComponent", "ApexTrigger", "CustomLabels", "DataCategoryGroup",
+            "Scontrol", "StaticResource")) {
+            assert(packageXml.contains(s"<name>$name</name>"), s"Type $name not found")
+        }
+
+
+        val allTypes = Set("ApexClass", "ApexPage", "ApexComponent", "ApexTrigger", "CustomLabels", "DataCategoryGroup",
+            "Scontrol", "StaticResource")
+        val typesIterator = new NodeIterator(testDocument.getElementsByTagName("types"))
+
+        val foundTypes = List.newBuilder[String]
+        for (_type <- typesIterator) {
+            val members = NodeIterator(_type.getChildNodes).filter(n => n.getNodeName == "members").toList
+            val typeName = NodeIterator(_type.getChildNodes).find(n => n.getNodeName == "name") match {
+                case Some(node) => node.getTextContent
+                case None => ""
+            }
+            //check that ApexComponent has all relevant members
+            if ("ApexComponent" == typeName) {
+                assert(members.exists(_.getTextContent == "MyComponent1"), "Expected to find MyComponent1")
+                assert(members.exists(_.getTextContent == "MyComponent2"), "Expected to find MyComponent2")
+                assert(members.exists(_.getTextContent == "*"), "Expected to find '*'")
+            }
+            foundTypes += typeName
+        }
+        val foundTypesSet = foundTypes.result().toSet
+        val diff = allTypes -- foundTypesSet
+        assert(diff.isEmpty, "No all expected types found in package.xml. Missing types: " + diff.mkString(", "))
+    }
+
 }
