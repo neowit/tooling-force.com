@@ -63,6 +63,6 @@ libraryDependencies ++= Seq(
 lazy val apexScanner = RootProject(file("../ApexScanner"))
 
 lazy val main = Project(id = "tooling-force-com", base = file("."))
-    .dependsOn(apexScanner)
+    .dependsOn(apexScanner % "compile->compile;test->test") // "compile->compile;test->test" is needed to allow referencing test code from ApexScanner from "tooling-force-com" module
     .settings(
     )
