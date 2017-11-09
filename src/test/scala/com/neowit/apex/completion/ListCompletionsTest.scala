@@ -354,4 +354,34 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
         assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
     }
+
+    test("ListCompletions: `SOQL: Caret in front of Subquery` #1") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Id, <CARET> (select Id from Contacts ) from Account a]);
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "AccountNumber"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+        assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
+    }
+
+    test("ListCompletions: `SOQL: Caret in front of Subquery` #2" ) {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Id, Parent.<CARET> (select Id from Contacts ) from Account a]);
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "AccountNumber"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+        assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
+    }
 }
