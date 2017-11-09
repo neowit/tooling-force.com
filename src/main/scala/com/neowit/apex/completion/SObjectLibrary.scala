@@ -60,7 +60,7 @@ object SObjectLibrary {
     private abstract class SObjectNodeBase(library: SObjectLibrary, sobject: DatabaseModelMember) extends ClassLike {
         override def symbolKind: SymbolKind = SymbolKind.Class
 
-        override def visibility: Option[String] = Option("public")
+        override def visibility: Option[String] = Option("") // all available SObjects are "public" - hide visibility to avoid unnecessary clutter
 
         override def modifiers: Set[ModifierNode] = Set.empty
 
@@ -165,7 +165,7 @@ object SObjectLibrary {
 
         override def symbolValueType: Option[String] = Option(childSObject.sObjectApiName)
 
-        override def visibility: Option[String] = Option("public")
+        override def visibility: Option[String] = Option("") // all available Relationships are "public" - hide visibility to avoid unnecessary clutter
     }
 
     private case class SObjectRelationshipFieldNode(library: SObjectLibrary, relField: SObjectRelationshipFieldMember)
@@ -219,7 +219,7 @@ object SObjectLibrary {
 
         override def symbolValueType: Option[String] = getValueType.map(_.qualifiedName.toString)
 
-
+        override def visibility: Option[String] = Option("") // all available Fields are "public" - hide visibility to avoid unnecessary clutter
 
         override def getValueType: Option[ValueType] = Option(valueType)
 
