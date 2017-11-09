@@ -45,6 +45,44 @@ class ListCompletionsTest extends FunSuite {
 
     private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "ListCompletionsTest")
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
+        val projectOpt =
+            if (loadSobjectLib) {
+                val is = getClass.getClassLoader.getResource("paths.properties").openStream()
+                val paths = new Properties()
+                paths.load(is)
+
+                val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
+                val loginProperties = new Properties()
+                loginProperties.load(new FileInputStream(loginCredentialsPath))
+
+                val basicConfig: BasicConfig = new BasicConfig()
+                basicConfig.setProperty("authConfigPath", loginCredentialsPath)
+                //val config: ConfigWithSfdcProject = new ConfigWithSfdcProject(basicConfig)
+                val session: Session = new Session(basicConfig, isReadOnly = true)
+                ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib )
+            } else {
+                Option(Project(projectPath))
+            }
+
+        projectOpt match {
+            case Some(project) =>
+                val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
+                project.getAst(caretInDocument.document) match {
+                    case Some(result) =>
+                        val context = ActionContext("ListCompletionsTest-" + Random.nextString(5), ListCompletionsActionType)
+                        val completionFinder = new CompletionFinder(project)
+                        completionFinder.listCompletions(caretInDocument, context)
+                    case _ =>
+                        Seq.empty
+                }
+            case None =>
+                throw new IllegalStateException("Failed to initialise Project & Session")
+        }
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     test("ListCompletions: `new Opportunity(<CARET>`") {
         val text =
             """
@@ -272,40 +310,48 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Contacts"), "Expected symbol not found")
         assert(resultNodes.exists(_.symbolName == "ChildAccounts"), "Expected symbol not found")
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
-        val projectOpt =
-            if (loadSobjectLib) {
-                val is = getClass.getClassLoader.getResource("paths.properties").openStream()
-                val paths = new Properties()
-                paths.load(is)
 
-                val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
-                val loginProperties = new Properties()
-                loginProperties.load(new FileInputStream(loginCredentialsPath))
+    test("ListCompletions: `Field from Subquery`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Id, (select Id, <CARET> from Contacts  ) from Account a]);
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "FirstName"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "LastName"), "Expected symbol not found")
+    }
 
-                val basicConfig: BasicConfig = new BasicConfig()
-                basicConfig.setProperty("authConfigPath", loginCredentialsPath)
-                //val config: ConfigWithSfdcProject = new ConfigWithSfdcProject(basicConfig)
-                val session: Session = new Session(basicConfig, isReadOnly = true)
-                ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib )
-            } else {
-                Option(Project(projectPath))
-            }
+    test("ListCompletions: `Relationship Field in Query`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Id, Account.<CARET> from Contact]);
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "AccountNumber"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+        assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
+    }
 
-        projectOpt match {
-            case Some(project) =>
-                val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
-                project.getAst(caretInDocument.document) match {
-                    case Some(result) =>
-                        val context = ActionContext("ListCompletionsTest-" + Random.nextString(5), ListCompletionsActionType)
-                        val completionFinder = new CompletionFinder(project)
-                        completionFinder.listCompletions(caretInDocument, context)
-                    case _ =>
-                        Seq.empty
-                }
-            case None =>
-                throw new IllegalStateException("Failed to initialise Project & Session")
-        }
+    test("ListCompletions: `Relationship Field in Subquery`") {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug([select Id, (select Id, Account.<CARET> from Contacts  ) from Account a]);
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "AccountNumber"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+        assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
     }
 }
