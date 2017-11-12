@@ -68,12 +68,12 @@ object ChangeLogLevels {
      * @param traceFlagConfigPath - Option[path to temp file with trace flag json]
      * @return trace flag Id
      */
-    def setupTraceFlag(traceFlagConfigPath: Option[String], session: Session, logger: com.neowit.utils.Logging,
+    def setupTraceFlag(traceFlagConfigPath: Option[String], session: Session, logger: com.typesafe.scalalogging.Logger,
                        logType: Option[String], tracedEntityId: String): Try[String] = {
         val action = new ChangeLogLevels().load[ChangeLogLevels](session)
         action.setupTrace(loadTraceFlagConfig(traceFlagConfigPath, session), session, logger, logType, tracedEntityId)
     }
-    def deleteTraceFlag(traceFlagId: String, session: Session, logger: com.neowit.utils.Logging): Unit = {
+    def deleteTraceFlag(traceFlagId: String, session: Session, logger: com.typesafe.scalalogging.Logger): Unit = {
         session.deleteTooling(traceFlagId)
     }
 
@@ -210,7 +210,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
             check("Workflow", debugLevel.getWorkflow)
     }
 
-    def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.neowit.utils.Logging,
+    def setupTrace(traceFlagMap: Map[String, String], session:Session, logger: com.typesafe.scalalogging.Logger,
                    logType: Option[String], tracedEntityId: String): Try[String] = {
 
         logger.debug("Setup TraceFlag")

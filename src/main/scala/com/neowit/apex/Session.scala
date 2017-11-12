@@ -710,13 +710,13 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         } catch {
             case ex:com.sforce.ws.SoapFaultException if "INVALID_SESSION_ID" == ex.getFaultCode.getLocalPart =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
-                logger.trace(ex)
+                logger.trace("", ex)
                 reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex:com.sforce.ws.ConnectionException =>
                 //sometimes WSC library returns ConnectionException instead of SoapFaultException when session is invalid
-                logger.trace(ex)
+                logger.trace("", ex)
                 reset(allowWrite = true)
                 //run once again
                 codeBlock
@@ -736,12 +736,12 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         } catch {
             case ex:Session.UnauthorizedConnectionException =>
                 logger.debug("Session is invalid or has expired. Will run the process again with brand new connection. ")
-                logger.trace(ex)
+                logger.trace("", ex)
                 reset(allowWrite = true)
                 //run once again
                 codeBlock
             case ex: Session.ConnectionException =>
-                logger.trace(ex)
+                logger.trace("", ex)
                 reset(allowWrite = true)
                 //run once again
                 codeBlock

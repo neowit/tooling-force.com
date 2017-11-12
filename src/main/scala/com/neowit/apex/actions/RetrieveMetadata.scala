@@ -229,7 +229,7 @@ class RefreshMetadata extends RetrieveMetadata {
                     ex.printStackTrace(new PrintWriter(sw))
                     val stackTraceStr = sw.toString
                     // dump exception information to log
-                    logger.error(ex)
+                    logger.error("", ex)
                     logger.error(stackTraceStr)
                     //responseWriter.println("RESULT=FAILURE")
                     //responseWriter.println(new Message(ERROR, ex.toString))

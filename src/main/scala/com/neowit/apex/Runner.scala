@@ -97,7 +97,7 @@ class Executor extends Logging {
                     }
                     isGoodConfig = true
                 case e: com.sforce.soap.partner.fault.ApiFault =>
-                    logger.error(e)
+                    logger.error("", e)
                     basicConfig.getResponseWriter.send(FAILURE)
                     basicConfig.getResponseWriter.send(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
@@ -107,7 +107,7 @@ class Executor extends Logging {
                     ex.printStackTrace(new PrintWriter(sw))
                     val stackTraceStr = sw.toString
                     // dump exception information to log
-                    logger.error(ex)
+                    logger.error("", ex)
                     logger.error(stackTraceStr)
                     // dump exception information to System.out
                     System.out.println(stackTraceStr)

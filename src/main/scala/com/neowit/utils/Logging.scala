@@ -22,59 +22,22 @@ package com.neowit.utils
 import java.io.{PrintStream, PrintWriter, StringWriter}
 import java.util.concurrent.TimeUnit
 
-import org.apache.commons.logging.impl.SimpleLog
-import org.apache.commons.logging.{Log, LogFactory}
+import com.typesafe.scalalogging.StrictLogging
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 /**
- * a simple "logger".
- * Used to conserve .jar size
- * A proper logger like Logback and its dependencies add 3MB+ to .jar size
- * In the future, if necessary, it shall be very easy to switch to something like typesafe.scalalogging
+  * this used to be custom/simple log implementation
+  * now it is just an alias for com.typesafe.scalalogging.Logger
  */
-trait Logging {
-    private[this] val log: Log = LogFactory.getLog( this.getClass )
-
-    def fatal(msg: Any) = if (log.isFatalEnabled) log.fatal(msg)
-    def fatal(msg: Any, ex: Throwable) = if (log.isFatalEnabled) log.fatal(msg, ex)
-
-    //def error(msg: Any) = if (log.isErrorEnabled) log.error(msg)
-    //def error(msg: Any, ex: Throwable) = if (log.isErrorEnabled) log.error(msg, ex)
-    def error(msg: String) = if (log.isErrorEnabled) log.error(msg)
-    def error(ex: Throwable) = if (log.isErrorEnabled) Logging.log(ex, log.error)
-    def error(msg: String, ex: Throwable) = if (log.isErrorEnabled) Logging.log(msg, ex, log.error)
-
-    def warn(msg: Any) = if (log.isWarnEnabled) log.warn(msg)
-    def warn(msg: Any, ex: Throwable) = if (log.isWarnEnabled) log.warn(msg, ex)
-
-    def info(msg: Any) = if (log.isInfoEnabled) log.info(msg)
-    def info(msg: Any, ex: Throwable) = if (log.isInfoEnabled) log.info(msg, ex)
-
-    //def debug(msg: Any) = if (log.isDebugEnabled) log.debug(msg)
-    //def debug(msg: Any, ex: Throwable) = if (log.isDebugEnabled) log.debug(msg, ex)
-    def debug(msg: String) = if (log.isDebugEnabled) log.debug(msg)
-    def debug[T](msgArr: Array[T]) = if (log.isDebugEnabled) log.debug(msgArr)
-    def debug(ex: Throwable) = if (log.isDebugEnabled) Logging.log(ex, log.debug)
-    def debug(msg: String, ex: Throwable) = if (log.isDebugEnabled) Logging.log(msg, ex, log.debug)
-
-    //def trace(msg: Any) = if (log.isTraceEnabled) log.trace(msg)
-    //def trace(msg: Any, ex: Throwable) = if (log.isTraceEnabled) log.trace(msg, ex)
-    def trace(msg: String) = if (log.isTraceEnabled) log.trace(msg)
-    def trace[T](msgArr: Array[T]) = if (log.isTraceEnabled) log.trace(msgArr)
-    def trace(ex: Throwable) = if (log.isTraceEnabled) Logging.log(ex, log.trace)
-    def trace(msg: String, ex: Throwable) = if (log.isTraceEnabled) Logging.log(msg, ex, log.trace)
-
-    def isInfoEnabled: Boolean = log.isInfoEnabled
-
-    def logger = this
+trait Logging extends StrictLogging {
 }
 
 object Logging {
 
     /**
       * repeatedly log same message to display progress of long running/blocking operation
-      * @param logger - logger to use
+      * @param log - logger to use
       * @param codeBlock - keep logging provided msg while codeBlock is running
       * @param msg - message to log
       * @param out - output stream to use for log output
@@ -82,18 +45,18 @@ object Logging {
       * @param repeatEveryNSec - how frequently to log new message, in seconds
       * @param scheduler - scheduler to use
       */
-    def repeatingInfo(logger: Logging, codeBlock: => Any, msg: Any, out: PrintStream,
+    def repeatingInfo(log: com.typesafe.scalalogging.Logger, codeBlock: => Any, msg: Any, out: PrintStream,
                       repeatEveryNSec: Int = 3 )
                      (implicit scheduler: akka.actor.Scheduler): Unit = {
         val startTime = System.currentTimeMillis()
-        if (logger.isInfoEnabled) {
+        //if (logger.isInfoEnabled) {
             val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
                 scala.Console.withOut(out) {
                     val diff = (System.currentTimeMillis - startTime) / 1000
                     if (diff > 0) {
-                        logger.info(msg + s" # elapsed: ${diff}s")
+                        log.info(msg + s" # elapsed: ${diff}s")
                     } else {
-                        logger.info(msg)
+                        log.info("", msg)
                     }
                 }
             }
@@ -102,7 +65,7 @@ object Logging {
             } finally {
                 cancellable.cancel()
             }
-        }
+        //}
     }
 
     def getStackTrace(ex: Throwable): Iterable[String] = {
@@ -128,6 +91,7 @@ object Logging {
 /**
  * the only purpose of custom LogImpl is to use Console.out instead of System.err which SimpleLog uses
  */
+/*
 class LogImpl(logName: String) extends SimpleLog (logName) {
     /**
      * SimpleLog writes to System.err which is not suitable in multi-thread environment
@@ -139,3 +103,4 @@ class LogImpl(logName: String) extends SimpleLog (logName) {
     }
 }
 
+*/

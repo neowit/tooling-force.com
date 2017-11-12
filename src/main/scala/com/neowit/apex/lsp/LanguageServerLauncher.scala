@@ -22,14 +22,14 @@ package com.neowit.apex.lsp
 import java.net.ServerSocket
 import java.util.concurrent.{ExecutorService, Executors}
 
-import com.typesafe.scalalogging.LazyLogging
+import com.neowit.utils.Logging
 
 import scala.concurrent.ExecutionContext
 
 /**
   * Created by Andrey Gavrikov 
   */
-object LanguageServerLauncher extends LazyLogging {
+object LanguageServerLauncher extends Logging {
     private implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
 
 

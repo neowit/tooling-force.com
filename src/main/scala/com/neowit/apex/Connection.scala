@@ -109,7 +109,6 @@ object Connection extends Logging {
                         consumer.refreshTokens(oauth2RefreshToken) match {
                             case Right(tokens) =>
                                 appConfig.saveAccessToken(tokens)
-                                println()
                                 val connectionConfig = getConnectionConfig(appConfig)
                                 Right(connectionConfig)
                             case Left(ex) =>

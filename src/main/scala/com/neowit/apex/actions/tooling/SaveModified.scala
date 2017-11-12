@@ -100,7 +100,7 @@ class SaveModified extends DeployModified {
             codeBlock(getMetadataContainer(session))
         } catch {
             case ex:Throwable =>
-                logger.debug(ex)
+                logger.debug("", ex)
                 //delete container
                 deleteMetadataContainer(session)
                 //and try again
@@ -717,7 +717,7 @@ class SaveModified extends DeployModified {
                 val deployDetails = request.getDeployDetails
                 if (deployDetails.getComponentFailures.nonEmpty ) {
                     val deployMessages = deployDetails.getComponentFailures
-                    logger.debug(deployMessages)
+                    logger.debug("", deployMessages)
                     //display errors both as messages and as ERROR: lines
                     //val componentFailureMessage = WarnMessage("Compiler errors")
                     //responseWriter.println(componentFailureMessage)

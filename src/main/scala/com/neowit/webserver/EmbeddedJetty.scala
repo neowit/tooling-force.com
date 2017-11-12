@@ -22,6 +22,7 @@ package com.neowit.webserver
 import java.util.concurrent.TimeUnit
 import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
+import com.neowit.utils.Logging
 import org.eclipse.jetty.server.handler.AbstractHandler
 import org.eclipse.jetty.server.{Handler, Request, Server}
 
@@ -42,7 +43,7 @@ trait EmbeddedJettyHandler {
 }
 
 //http://www.eclipse.org/jetty/documentation/current/embedding-jetty.html
-object EmbeddedJetty {
+object EmbeddedJetty extends Logging {
     private var serverOpt: Option[EmbeddedJetty] = None
     private val handlersMap = new collection.mutable.HashMap[String, EmbeddedJettyHandler]()
 
@@ -70,7 +71,7 @@ object EmbeddedJetty {
                 if ( isOkToStop ) {
                     //1sec delay to give server a chance to complete current response
                     delayedExecution(1) {
-                        println("stopping server")
+                        logger.debug("stopping server")
                         _server.stop()
                     }
                     serverOpt = None

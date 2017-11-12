@@ -20,14 +20,13 @@
 package com.neowit.apex.lsp
 
 import java.io.{File, InputStream, OutputStream}
-import java.nio.file.{FileSystems, Path }
+import java.nio.file.{FileSystems, Path}
 
 import com.neowit.apex.{ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.server.LanguageServerDefault
 import com.neowit.apexscanner.server.protocol.messages.MessageParams
 import com.neowit.utils.{BasicConfig, FileUtils}
-import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
 
@@ -58,7 +57,7 @@ object ApexLanguageServerBase {
     }
 }
 class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStream, config: LanguageServerConfig)(implicit val ex: ExecutionContext)
-                    extends LanguageServerDefault(inputStream, outputStream) with LSPJsonSupport with LazyLogging {
+                    extends LanguageServerDefault(inputStream, outputStream) with LSPJsonSupport {
 
     override protected def initialiseProjectImpl(params: MessageParams.InitializeParams): Option[Project] = {
         params.initializationOptions match {

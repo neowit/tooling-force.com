@@ -156,7 +156,7 @@ class OAuthConsumer(appConfig: BasicConfig,
 
                 in.close()
                 val json = text.parseJson
-                println(json.prettyPrint)
+                logger.debug(json.prettyPrint)
                 json
             }.toOption
         }
@@ -190,7 +190,7 @@ class OAuthConsumer(appConfig: BasicConfig,
                 val ex = Session.ConnectionException(conn)
                 extractJsonResponse(conn) match {
                     case Some(json) =>
-                        println(json.prettyPrint)
+                        logger.debug(json.prettyPrint)
                     case None =>
                 }
                 Failure(ex)
