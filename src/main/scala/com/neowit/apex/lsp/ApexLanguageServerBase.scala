@@ -73,7 +73,7 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
     }
 
     private def createProject(params: MessageParams.InitializeParams, options: InitializationOptions): Option[Project] = {
-        params.rootUri.path match {
+        Project.findApexProjectRoot(params.rootUri.path) match {
             case Some(projectPath) =>
                 val authConfigurationFilePath = getAuthConfigFilePath(options, projectPath, config)
                 authConfigurationFilePath match {
