@@ -59,7 +59,7 @@ object ApexLanguageServerBase {
 class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStream, config: LanguageServerConfig)(implicit val ex: ExecutionContext)
                     extends LanguageServerDefault(inputStream, outputStream) with LSPJsonSupport {
 
-    override protected def initialiseProjectImpl(params: MessageParams.InitializeParams): Option[Project] = {
+    override protected def initialiseProjectImpl(params: MessageParams.InitializeParams): Either[String, Project] = {
         params.initializationOptions match {
             case Some(json) =>
                 json.as[InitializationOptions] match {
@@ -71,7 +71,7 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
         }
     }
 
-    private def createProject(params: MessageParams.InitializeParams, options: InitializationOptions): Option[Project] = {
+    private def createProject(params: MessageParams.InitializeParams, options: InitializationOptions): Either[String, Project] = {
         Project.findApexProjectRoot(params.rootUri.path) match {
             case Some(projectPath) =>
                 val authConfigurationFilePath = getAuthConfigFilePath(options, projectPath, config)
@@ -83,18 +83,21 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
                             basicConfig.setProperty("authConfigPath", authConfigPath)
                             //val config: ConfigWithSfdcProject = new ConfigWithSfdcProject(basicConfig)
                             val session: Session = new Session(basicConfig, isReadOnly = true)
-                            ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib = true)
+                            Right(ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib = true))
                         } else {
-                            logger.error("Failed to create project - authConfigPath is invalid or not readable: " + authConfigPath)
-                            None
+                            val err = "Failed to create project - authConfigPath is invalid or not readable: " + authConfigPath
+                            logger.error(err)
+                            Left(err)
                         }
                     case None =>
-                        logger.error("Failed to create project - auth Configuration Path is required. " )
-                        None
+                        val err = "Failed to create project - auth Configuration Path is required. "
+                        logger.error(err)
+                        Left(err)
                 }
             case None =>
-                logger.error("Failed to create project - InitializeParams.rootUri.path is missing: ")
-                None
+                val err = "Failed to create project - InitializeParams.rootUri.path is missing: "
+                logger.error(err)
+                Left(err)
         }
     }
 

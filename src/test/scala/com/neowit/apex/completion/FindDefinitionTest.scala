@@ -223,12 +223,12 @@ class FindDefinitionTest extends FunSuite {
 
     var _projectWithLibs: Option[Project] = None
     private def findDefinition(text: String, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true): scala.Seq[AstNode] = {
-        val projectOpt: Option[Project] =
+        val project: Project =
             if (loadStdLib || loadSobjectLib) {
                 _projectWithLibs match {
                     case Some(_project) =>
                         // re-use previously loaded project because loading StdLib & SobjectLib takes considerable time
-                        Option(_project)
+                        _project
                     case None =>
                         val is = getClass.getClassLoader.getResource("paths.properties").openStream()
                         val paths = new Properties()
@@ -245,22 +245,17 @@ class FindDefinitionTest extends FunSuite {
                         ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib )
                 }
             }  else {
-                Option(Project(projectPath))
+                Project(projectPath)
             }
 
-        projectOpt match {
-            case Some(project) =>
-                val caretInDocument = CaretUtils.getCaret(text, Paths.get("test"))
-                project.getAst(caretInDocument.document, forceRebuild = true) match {
-                    case Some(result) =>
-                        val actionContext = ActionContext("AscendingDefinitionFinderTest2-" + Random.nextString(5), FindSymbolActionType)
-                        val finder = new AscendingDefinitionFinder(actionContext)
-                        finder.findDefinition(result.rootNode, caretInDocument.position)
-                    case _ =>
-                        Seq.empty
-                }
-            case None =>
-                throw new IllegalStateException("Failed to initialise Project & Session")
+        val caretInDocument = CaretUtils.getCaret(text, Paths.get("test"))
+        project.getAst(caretInDocument.document, forceRebuild = true) match {
+            case Some(result) =>
+                val actionContext = ActionContext("AscendingDefinitionFinderTest2-" + Random.nextString(5), FindSymbolActionType)
+                val finder = new AscendingDefinitionFinder(actionContext)
+                finder.findDefinition(result.rootNode, caretInDocument.position)
+            case _ =>
+                Seq.empty
         }
     }
 

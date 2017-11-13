@@ -76,8 +76,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
             for (   filePath <- config.getRequiredProperty("currentFileContentPath");
                     currentFilePath <- config.getRequiredProperty("currentFilePath");
                     line <- config.getRequiredProperty("line");
-                    column <- config.getRequiredProperty("column");
-                    project <- ProjectsCache.getProject(projectDir, session)
+                    column <- config.getRequiredProperty("column")
             ) yield {
                 if (! Files.isReadable(Paths.get(filePath))) {
                     Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
@@ -98,6 +97,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                             ActionContext.cancelAll(FindSymbolActionType)
                             ActionContext("FindSymbol-temp-" + Random.nextString(5), FindSymbolActionType)
                     }
+                    val project = ProjectsCache.getProject(projectDir, session)
                     project.getAst(document) match {
                         case Some(result) =>
                             if (actionContext.isCancelled) {

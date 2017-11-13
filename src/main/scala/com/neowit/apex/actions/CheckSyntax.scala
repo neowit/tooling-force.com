@@ -67,13 +67,13 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
                 filePath <- config.getRequiredProperty("currentFileContentPath")
                 sourceFilePath <- config.getRequiredProperty("currentFilePath")
                 projectDir <- config.projectDirOpt
-                project <- ProjectsCache.getProject(projectDir, session)
             } yield {
                 val inputFile = new File(filePath)
                 if (!filePath.endsWith(".cls") && !filePath.endsWith(".trigger")) {
                     // unsupported file extension
                     Future.successful(ActionFailure("Only .cls and .trigger files supported"))
                 } else {
+                    val project = ProjectsCache.getProject(projectDir, session)
                     val apexcodeScanner = new ApexcodeScanner() {
                         override def isIgnoredPath(path: Path): Boolean = !DidSaveHandler.isSupportedPath(path)
                         override def onEachResult(result: DocumentScanResult): DocumentScanResult = {

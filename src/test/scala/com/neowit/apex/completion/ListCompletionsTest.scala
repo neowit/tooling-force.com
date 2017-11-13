@@ -26,7 +26,7 @@ import java.nio.file.{Path, Paths}
 import java.util.Properties
 
 import com.neowit.apex.{ProjectsCache, Session}
-import com.neowit.apexscanner.Project
+import com.neowit.apexscanner.{Project, ProjectRootFinder}
 import com.neowit.apexscanner.antlr.CaretUtils
 import com.neowit.apexscanner.completion.CompletionFinder
 import com.neowit.apexscanner.scanner.actions.{ActionContext, ListCompletionsActionType}
@@ -44,10 +44,16 @@ class ListCompletionsTest extends FunSuite {
 
 
     private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "ListCompletionsTest")
+    Project._projectRootFinder = new ProjectRootFinder {
+        override def findApexProjectRoot(path: Path): Option[Path] = {
+            // return provided path, regardless
+            Option(path)
+        }
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
-        val projectOpt =
+        val project =
             if (loadSobjectLib) {
                 val is = getClass.getClassLoader.getResource("paths.properties").openStream()
                 val paths = new Properties()
@@ -63,22 +69,17 @@ class ListCompletionsTest extends FunSuite {
                 val session: Session = new Session(basicConfig, isReadOnly = true)
                 ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib )
             } else {
-                Option(Project(projectPath))
+                Project(projectPath)
             }
 
-        projectOpt match {
-            case Some(project) =>
-                val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
-                project.getAst(caretInDocument.document) match {
-                    case Some(result) =>
-                        val context = ActionContext("ListCompletionsTest-" + Random.nextString(5), ListCompletionsActionType)
-                        val completionFinder = new CompletionFinder(project)
-                        completionFinder.listCompletions(caretInDocument, context)
-                    case _ =>
-                        Seq.empty
-                }
-            case None =>
-                throw new IllegalStateException("Failed to initialise Project & Session")
+        val caretInDocument = CaretUtils.getCaret(text, Paths.get(documentName))
+        project.getAst(caretInDocument.document) match {
+            case Some(result) =>
+                val context = ActionContext("ListCompletionsTest-" + Random.nextString(5), ListCompletionsActionType)
+                val completionFinder = new CompletionFinder(project)
+                completionFinder.listCompletions(caretInDocument, context)
+            case _ =>
+                Seq.empty
         }
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

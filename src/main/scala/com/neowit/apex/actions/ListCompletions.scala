@@ -40,7 +40,6 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
         val resultOpt =
             for {
                 projectDir <- config.projectDirOpt
-                project <- ProjectsCache.getProject(projectDir, session)
                 filePath <- config.getRequiredProperty("currentFileContentPath")
                 currentFilePath <- config.getRequiredProperty("currentFilePath")
                 line <- config.getRequiredProperty("line")
@@ -64,6 +63,7 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
                             ActionContext.cancelAll(ListCompletionsActionType)
                             ActionContext("ListCompletions-temp-" + Random.nextString(5), ListCompletionsActionType)
                     }
+                    val project = ProjectsCache.getProject(projectDir, session)
                     val completions = new com.neowit.apexscanner.scanner.actions.ListCompletions(project)
 
                     val res = completions.list(document, line.toInt, column.toInt - 1, actionContext)

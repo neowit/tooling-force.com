@@ -39,23 +39,29 @@ object ProjectsCache {
       * @param session session related to current project/action
       * @return
       */
-    def getProject(projectDir: File, session:Session, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true): Option[Project] = {
+    def getProject(projectDir: File, session:Session, loadStdLib: Boolean = true, loadSobjectLib: Boolean = true): Project = {
         _projectByPath.get(projectDir) match {
-            case projectOpt @ Some(_) => projectOpt
+            case Some(_project) => _project
             case None =>
-                val project = new Project(projectDir.toPath)
-                // add SObjectLibrary
-                val sobjectLib = new SObjectLibrary(session)
-                // make sure model is not loaded for this session (e.g. when running tests in parallel)
-                // different test classes can not re-use same DatabaseModel because their projects have different Ast Trees
-                DatabaseModel.removeModelBySession(session)
-                // load SObject library
-                project.addExternalLibrary(sobjectLib)
-                // add StdLib (must go after SObject library because some Objects in DB may conflict with names in StdLib)
-                project.loadStdLib()
+                Project.findApexProjectRoot(projectDir.toPath) match {
+                    case Some(projectRoot) =>
+                        val project = new Project(projectRoot)
+                        // add SObjectLibrary
+                        val sobjectLib = new SObjectLibrary(session)
+                        // make sure model is not loaded for this session (e.g. when running tests in parallel)
+                        // different test classes can not re-use same DatabaseModel because their projects have different Ast Trees
+                        DatabaseModel.removeModelBySession(session)
+                        // load SObject library
+                        project.addExternalLibrary(sobjectLib)
+                        // add StdLib (must go after SObject library because some Objects in DB may conflict with names in StdLib)
+                        project.loadStdLib()
 
-                _projectByPath += projectDir -> project
-                Option(project)
+                        _projectByPath += projectDir -> project
+                        project
+                    case None =>
+                        throw new IllegalArgumentException("Failed ot detect project root by path: " + projectDir)
+                }
+
         }
     }
 }
