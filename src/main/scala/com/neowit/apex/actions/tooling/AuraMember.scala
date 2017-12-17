@@ -28,7 +28,7 @@ import com.sforce.soap.metadata.{FileProperties, AuraDefinitionBundle}
 import com.sforce.soap.tooling.sobject.AuraDefinition
 
 object AuraMember {
-    val EXTENSIONS = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc")
+    val EXTENSIONS = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc", "tokens")
     val XML_TYPE = "AuraDefinition"
     val BUNDLE_XML_TYPE = "AuraDefinitionBundle"
     def isSupportedType(file: File): Boolean = {
@@ -36,7 +36,7 @@ object AuraMember {
         FileUtils.getParentByName(file, Set("aura")) match {
             case Some(x) =>
                 val extension = FileUtils.getExtension(file)
-                EXTENSIONS.contains(extension)
+                EXTENSIONS.contains(extension) || file.getName.endsWith("-meta.xml")
             case None => false //not in aura folder
         }
     }
@@ -184,6 +184,7 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
             case x if x.endsWith(".auradoc") => "XML"
             case x if x.endsWith(".js") => "JS"
             case x if x.endsWith(".css") => "CSS"
+            case x if x.endsWith(".tokens") => "XML"
         }
         setFormat(format)
     }
@@ -198,6 +199,7 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
             case x if x.endsWith("controller.js") => "CONTROLLER"
             case x if x.endsWith("helper.js") => "HELPER"
             case x if x.endsWith("renderer.js") => "RENDERER"
+            case x if x.endsWith(".tokens") => "TOKENS"
             case _ => throw new IllegalArgumentException("Failed to determine aura definition for file: " + file.getName )
         }
         setDefType(defType)
