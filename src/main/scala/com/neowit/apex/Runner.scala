@@ -101,6 +101,11 @@ class Executor extends Logging {
                     basicConfig.getResponseWriter.send(FAILURE)
                     basicConfig.getResponseWriter.send(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
                     isGoodConfig = true
+                case e: com.sforce.soap.tooling.fault.ApiFault =>
+                    logger.error("", e)
+                    basicConfig.getResponseWriter.send(FAILURE)
+                    basicConfig.getResponseWriter.send(ErrorMessage(e.getExceptionMessage, Map("code" -> e.getExceptionCode.toString)))
+                    isGoodConfig = true
                 case ex: Throwable =>
                     //val response = appConfig.responseWriter with Response
                     val sw = new StringWriter
