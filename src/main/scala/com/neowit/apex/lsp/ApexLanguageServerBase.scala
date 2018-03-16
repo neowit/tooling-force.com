@@ -22,13 +22,14 @@ package com.neowit.apex.lsp
 import java.io.{File, InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 
+import com.neowit.apex.lsp.WorkspaceCommand._
 import com.neowit.apex.{ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.server.LanguageServerDefault
-import com.neowit.apexscanner.server.protocol.messages.MessageParams
+import com.neowit.apexscanner.server.protocol.messages._
 import com.neowit.utils.{BasicConfig, FileUtils}
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by Andrey Gavrikov 
@@ -69,6 +70,15 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
             case None =>
                 createProject(params, InitializationOptions(authConfigPath = None))
         }
+    }
+
+    override def getServerCapabilities: ServerCapabilities = {
+        val commands = Seq(
+            ToolingVersion,
+            ApexDeploy
+        )
+        val supportedCommands = ExecuteCommandOptions(commands.map(_.name))
+        super.getServerCapabilities.copy(executeCommandProvider = supportedCommands)
     }
 
     private def createProject(params: MessageParams.InitializeParams, options: InitializationOptions): Either[String, Project] = {
@@ -120,5 +130,14 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
                      None
              }
          }
+    }
+
+    override def executeCommand(messageId: Int, params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Future[Either[ResponseError, ResponseMessage]] = {
+        logger.info("TODO: execute command: " + params.command + " with arguments: " + params.arguments + " in project: " + projectOpt.map(_.path).getOrElse(""))
+        super.executeCommand(messageId, params, projectOpt)
+    }
+    override def executeCommand(messageId: Int, command: String): Future[Either[ResponseError, ResponseMessage]] = {
+        logger.info("TODO: execute command: " + command + " without arguments")
+        Future.successful(Right(ResponseMessage(messageId, result = None, error = None)))
     }
 }
