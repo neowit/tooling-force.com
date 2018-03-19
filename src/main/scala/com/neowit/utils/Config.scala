@@ -58,9 +58,6 @@ class BasicConfig extends Logging {
 
     private var options:OptionMap = Map()
 
-    def load(args: Array[String]): Unit = {
-        load(args.toList)
-    }
     def load(arglist: List[String]): Unit = {
         if (arglist.isEmpty) {
             throw new InvalidCommandLineException("Empty command line")

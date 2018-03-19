@@ -41,6 +41,13 @@ object Runner extends Logging {
 class Executor extends Logging {
     val basicConfig = new BasicConfig()
 
+    def execute(args: Map[String, String])(implicit ec: ExecutionContext): Int = {
+        val commandLineArgsBuider = Array.newBuilder[String]
+        args.foreach{
+            case (key, value) => commandLineArgsBuider += s"--$key=$value"
+        }
+        execute(commandLineArgsBuider.result())
+    }
     def execute(args: Array[String])(implicit ec: ExecutionContext): Int = {
         var exitCode = 1
         if (args.isEmpty) {

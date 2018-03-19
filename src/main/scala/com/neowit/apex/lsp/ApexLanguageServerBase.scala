@@ -23,7 +23,7 @@ import java.io.{File, InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 
 import com.neowit.apex.lsp.WorkspaceCommand._
-import com.neowit.apex.{ProjectsCache, Session}
+import com.neowit.apex.{Executor, ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.server.LanguageServerDefault
 import com.neowit.apexscanner.server.protocol.messages._
@@ -133,11 +133,55 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
     }
 
     override def executeCommand(messageId: Int, params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Future[Either[ResponseError, ResponseMessage]] = {
-        logger.info("TODO: execute command: " + params.command + " with arguments: " + params.arguments + " in project: " + projectOpt.map(_.path).getOrElse(""))
+        logger.debug("execute command: " + params.command + " with arguments: " + params.arguments + " in project: " + projectOpt.map(_.path).getOrElse(""))
+        val commandLineArgsMap: Map[String, String] = messageParamsToMap(params, projectOpt)
+        val runner = new Executor()
+
+        runner.execute(commandLineArgsMap)
         super.executeCommand(messageId, params, projectOpt)
     }
     override def executeCommand(messageId: Int, command: String): Future[Either[ResponseError, ResponseMessage]] = {
-        logger.info("TODO: execute command: " + command + " without arguments")
+        logger.debug("execute command: " + command + " without arguments")
+        val commandLineArgs: Array[String] = Array("--action=" + command)
+        val runner = new Executor()
+        runner.execute(commandLineArgs)
         Future.successful(Right(ResponseMessage(messageId, result = None, error = None)))
+    }
+
+    private def messageParamsToMap(params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Map[String, String] = {
+
+        val originalParamsMapBuilder = Map.newBuilder[String, String]
+        originalParamsMapBuilder += "action" -> params.command
+        projectOpt.foreach(_project => originalParamsMapBuilder += "projectPath" -> _project.path.toString)
+        // parse arguments
+        params.arguments match {
+            case Some(args) =>
+                args.foreach{_arg =>
+                    _arg.asObject match {
+                        case Some(obj) =>
+                            obj.toList.headOption.map {
+                                case (key, valueJson) =>
+                                    valueJson.as[String] match {
+                                        case Right(str) =>
+                                            originalParamsMapBuilder += key -> str
+                                        case Left(err) =>
+                                            //throw new IllegalArgumentException("Failed to parse value. " + err.message)
+                                            logger.error(s"Failed to parse value: $obj. " + err.message)
+                                    }
+                            }
+                        case None =>
+                    }
+                }
+            case None =>
+        }
+        val originalParamsMap = originalParamsMapBuilder.result()
+        val paramsMapBuilder = Map.newBuilder[String, String]
+        paramsMapBuilder ++= originalParamsMap
+
+        originalParamsMap.get("documentUri").foreach(uriStr => paramsMapBuilder += "currentFilePath" -> uriStr)
+        paramsMapBuilder.result().map{
+            case (key, value) => s"--$key=$value"
+        }
+        paramsMapBuilder.result()
     }
 }
