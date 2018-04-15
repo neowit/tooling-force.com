@@ -12,4 +12,5 @@ assemblyMergeStrategy in assembly := {
         oldStrategy(x)
 }
 
-assemblyOption in assembly ~= { _.copy(includeScala = false) }
+//assemblyOption in assembly ~= { _.copy(includeScala = false) }
+assemblyOption in assembly ~= { _.copy(includeScala = true) }
