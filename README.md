@@ -28,7 +28,8 @@ Also supported a "project like" mode - where relevant metadata about deployments
 - List Modified files
 - Conflict checking before deployment (test if file(s) you are trying to deploy have been modified by someone else in SFDC since your last Refresh or Deployment.
 - list candidates for [Apex](http://youtu.be/u-6JQNuWRdE) and [SOQL](http://youtu.be/rzqgXV3Gx0s) auto-completion (note: current version is "work in progress")
-- find definition (go-to-symbol) in apex classes
+- find definition (go-to-symbol) in apex classes  
+- login using username/password or oauth2  
 
 
 ## System requirements
@@ -52,54 +53,14 @@ When connection requires proxy it can be passed as java -D params or as tooling-
  
 	java -jar tooling-force.com-0.1.jar --action=refresh ... --http.proxyHost=localhost --http.proxyPort=8888 --http.proxyUser=some --http.proxyPassword=pass
 
-## Building tooling-force.com
 
- - make sure you have [sbt](http://www.scala-sbt.org/) installed.
- - make sure you have [Antlr4](http://www.antlr.org) installed.
- - scala version: 2.11
- 
- ```    
- git clone git@github.com:neowit/tooling-force.com.git 
- ```
- 
- - Generate partner-api, apex-api, metadata-api and tooling-api jars using instructions from [Force.com Web Service Connector (WSC)](https://github.com/forcedotcom/wsc)
- - rename and place generated files under lib folder such as the file structure looks like this (assuming API v32.0)
-<pre>
-	lib/
-	----apex-wsdl-32.0.jar
-	----partner-wsdl-32.0.jar
-	----metadata-wsdl-32.0.jar
-	----tooling-wsdl-32.0.jar
-	----force-wsc-32.0.0.jar
-	----<a href="http://www.antlr.org/download/antlr-runtime-4.4.jar">antlr-runtime-4.4.jar</a>
-	project/
-	src/
-	assembly.sbt
-	build.sbt
-</pre>
-
-
- - make sure line `test in assembly := {}` in `assembly.sbt` is *not* commented out. If it is then tests will run and your build will fail (this is due to some tests dependent on a specific structure of the Org against which tests are run)
-
-```
-	cd tooling-force.com/src/main/java
-	antlr4 -o ./com/neowit/apex/parser/antlr Apexcode.g4
-	antlr4 -o ./com/neowit/apex/parser/antlr Soql.g4
-	cd ../../../
-    sbt assembly
-```
-Note - the end result will be .jar file which does NOT contain scala runtime. In order to run that jar you will need to either run it from you IDE (with scala runtime specified) or use scala directly, e.g.:  
-```
-$ scala tooling-force.com-assembly-0.1-SNAPSHOT.jar
-```
-
-##CREDITS                                                     
+### CREDITS                                                     
 
 Author: Andrey Gavrikov 
 
 ## Legal stuff
 
-Copyright (c) 2013-2016, Andrey Gavrikov. All rights reserved.
+Copyright (c) 2013-2018, Andrey Gavrikov. All rights reserved.
 
 License: LGPL v3 <http://www.gnu.org/licenses/>
 
@@ -109,4 +70,7 @@ Third-Party Licenses:
 * [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 * [ANTLR 4](http://www.antlr.org/) - [BSD license](http://www.antlr.org/license.html)  
 * [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
-* [jetty](https://www.eclipse.org/jetty/) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)
+* [jetty](https://www.eclipse.org/jetty/) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)  
+* [scala-logging](https://github.com/lightbend/scala-logging) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)  
+* [Logback](https://logback.qos.ch/license.html) - logback source code and binaries are dual-licensed under the EPL v1.0 and the LGPL 2.1  
+
