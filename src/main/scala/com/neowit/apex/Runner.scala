@@ -62,7 +62,7 @@ class Executor extends Logging {
             } catch {
                 case ex: InvalidCommandLineException =>
                     if (null != ex.getMessage) {
-                        basicConfig.getResponseWriter.send(ex.getMessage)
+                        basicConfig.getResponseWriter.sendError("Invalid parameter: ", ex)
                         logger.error(ex.getMessage)
                     }
                     basicConfig.help()
@@ -78,7 +78,7 @@ class Executor extends Logging {
                     System.out.println(stackTraceStr)
                     */
                     if (ex.message.nonEmpty) {
-                        basicConfig.getResponseWriter.send(ex.message)
+                        basicConfig.getResponseWriter.sendError("", ex)
                         logger.error(ex.message)
                     }
                     help(ex.help)

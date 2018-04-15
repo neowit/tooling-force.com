@@ -22,7 +22,7 @@ package com.neowit.response
 import java.io.File
 
 import com.neowit.apex.actions.ActionResult
-import com.neowit.utils.{FileUtils, JsonSupport, Logging}
+import com.neowit.utils.{FileUtils, Logging}
 
 object ResponseWriter {
 
@@ -74,10 +74,13 @@ object ResponseWriter {
 }
 
 
-trait ResponseWriter extends Logging with JsonSupport {
+trait ResponseWriter extends Logging {
 
     def sendResponse(result: ActionResult): Unit
     def send(msg: Message): Message
+    def sendError(msg: String, ex: Exception): Unit = {
+        send(msg + " " + ex.getMessage)
+    }
     def send(msg: String): Unit
     def send(msg: RESULT): Unit
 

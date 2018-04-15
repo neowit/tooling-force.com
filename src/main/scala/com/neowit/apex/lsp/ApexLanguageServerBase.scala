@@ -27,6 +27,7 @@ import com.neowit.apex.{Executor, ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.server.LanguageServerDefault
 import com.neowit.apexscanner.server.protocol.messages._
+import com.neowit.response.protocols.lsp.ResponseWriterLsp
 import com.neowit.utils.{BasicConfig, FileUtils}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -132,20 +133,40 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
          }
     }
 
-    override def executeCommand(messageId: Int, params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Future[Either[ResponseError, ResponseMessage]] = {
-        logger.debug("execute command: " + params.command + " with arguments: " + params.arguments + " in project: " + projectOpt.map(_.path).getOrElse(""))
-        val commandLineArgsMap: Map[String, String] = messageParamsToMap(params, projectOpt)
-        val runner = new Executor()
+    override def executeCommand(messageId: Int, params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Future[ResponseMessage] = {
+        val logMsg = "execute command: " + params.command + " with arguments: " + params.arguments + " in project: " + projectOpt.map(_.path).getOrElse("")
+        logger.debug(logMsg)
+        sendLogMessageNotification(MessageType.Log, logMsg)
 
-        runner.execute(commandLineArgsMap)
-        super.executeCommand(messageId, params, projectOpt)
-    }
-    override def executeCommand(messageId: Int, command: String): Future[Either[ResponseError, ResponseMessage]] = {
-        logger.debug("execute command: " + command + " without arguments")
-        val commandLineArgs: Array[String] = Array("--action=" + command)
+        val commandLineArgsMap: Map[String, String] = messageParamsToMap(params, projectOpt)
+        val responseWriter = new ResponseWriterLsp(messageId, this)
         val runner = new Executor()
+        runner.basicConfig.setResponseWriter(responseWriter)
+        runner.execute(commandLineArgsMap)
+        responseWriter.result() match {
+            case Some(msg) =>
+                Future.successful(msg)
+            case None =>
+                Future.successful(ResponseMessage(messageId, result = None, error = None))
+        }
+    }
+    override def executeCommand(messageId: Int, command: String): Future[ResponseMessage] = {
+        val logMsg = "execute command: " + command + " without arguments"
+        logger.debug(logMsg)
+        sendLogMessageNotification(MessageType.Log, logMsg)
+
+        val commandLineArgs: Array[String] = Array("--action=" + command)
+        val responseWriter = new ResponseWriterLsp(messageId, this)
+
+        val runner = new Executor()
+        runner.basicConfig.setResponseWriter(responseWriter)
         runner.execute(commandLineArgs)
-        Future.successful(Right(ResponseMessage(messageId, result = None, error = None)))
+        responseWriter.result() match {
+            case Some(msg) =>
+                Future.successful(msg)
+            case None =>
+                Future.successful(ResponseMessage(messageId, result = None, error = None))
+        }
     }
 
     private def messageParamsToMap(params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Map[String, String] = {
