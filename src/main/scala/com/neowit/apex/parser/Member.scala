@@ -143,6 +143,8 @@ object Member {
             override def getVisibility: String = {
                 symbol.visibility.map(_.toString).getOrElse("private")
             }
+
+            override def getDoc: String = symbol.documentation.getOrElse("")
         }
     }
 }
