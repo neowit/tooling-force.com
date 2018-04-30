@@ -20,7 +20,8 @@
 package com.neowit.apex.completion.models
 
 import com.neowit.apex.parser.Member
-import spray.json.{JsValue, JsonFormat, DefaultJsonProtocol}
+import com.neowit.apexscanner.symbols.SymbolKind
+import spray.json.{DefaultJsonProtocol, JsValue, JsonFormat}
 
 object SoqlModelJsonProtocol extends DefaultJsonProtocol {
     implicit val soqlTypeFormat: JsonFormat[SoqlType] = lazyFormat(jsonFormat(SoqlType, "name", "methods", "tag", "fqn"))
@@ -78,6 +79,7 @@ class SoqlNamespace(name: String) extends GenericNamespace(name) {
 
         }
     }
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Namespace)
 }
 
 case class SoqlType(name: String,  methods: Option[List[SoqlFunction]], tag: String, fqn: String) extends ApexModelMember {
@@ -99,6 +101,7 @@ case class SoqlType(name: String,  methods: Option[List[SoqlFunction]], tag: Str
             case None =>
         }
     }
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.SObject)
 }
 
 case class SoqlFunction(n: String, v: String, p: List[String], h: String, r: String, d: String, scope: List[String]) extends ApexModelMember {
@@ -109,14 +112,14 @@ case class SoqlFunction(n: String, v: String, p: List[String], h: String, r: Str
      * for most member types Identity is unique (for Methods, SOQL functions, and Inner Classes it is not)
      */
     override def getIdentityToDisplay: String = n
-
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Function)
     override def getSignature: String = d
     override def isStatic: Boolean = true
     override def getDoc: String = h
 
     override def getType: String = r
 
-    def isInScope(scopeName: String) =
+    def isInScope(scopeName: String): Boolean =
         scope.map(_.toLowerCase).contains(scopeName.toLowerCase)
 
 

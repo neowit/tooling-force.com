@@ -25,6 +25,7 @@ import com.neowit.apex.parser.Member
 import com.neowit.apex.parser.MemberJsonSupport._
 import com.neowit.utils.Logging
 import akka.actor.{Actor, ActorRef, Props}
+import com.neowit.apexscanner.symbols.SymbolKind
 import com.sforce.soap.partner.FieldType
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -223,6 +224,8 @@ class SObjectMember(val sObjectApiName: String, val session: Session) extends Da
 
     override def getSignature: String = sObjectApiName
 
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.SObject)
+
     /**
      * @return
      * for class it is class name
@@ -289,6 +292,7 @@ class SObjectFieldMember(field: com.sforce.soap.partner.Field) extends DatabaseM
     override def getType: String =
         field.getSoapType.name().replaceFirst("_", "") //some fields have type like "_double"
 
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Field)
 
     override def getSignature: String = {
         val lengthStr = if (field.getLength > 0) " [" + field.getLength + "]" else ""
@@ -310,6 +314,8 @@ class SObjectRelationshipFieldMember(field: com.sforce.soap.partner.Field) exten
     override def toString: String = {
         this.getIdentity // super.toString causes StackOverflow for some reason, even though it also calls getIdentity
     }
+
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Reference)
 
     override def getIdentity: String = {
         if (null != field.getRelationshipName)

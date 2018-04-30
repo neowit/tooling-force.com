@@ -21,6 +21,7 @@
 package com.neowit.apex.completion.models
 
 import com.neowit.apex.parser.{BuiltInMethodMember, Member}
+import com.neowit.apexscanner.symbols.SymbolKind
 //import scala.collection.JavaConversions._
 import spray.json._
 
@@ -106,6 +107,8 @@ object ApexModel {
 class ApexNamespace(name: String) extends GenericNamespace(name) with ApexModelJsonProtocol {
 
     override def getIdentity: String = name
+
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Namespace)
 
     override def getSignature: String = getIdentity
     override def isStatic: Boolean = true
@@ -202,6 +205,8 @@ case class ApexType(name: String, superType: Option[String], enums: Option[List[
     override def getSignature: String = fqn
     override def isStatic: Boolean = false
 
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Class)
+
     private var isDoneLoading = false
     override def isLoaded:Boolean = isDoneLoading
     override def loadMembers(): Unit = {
@@ -240,6 +245,8 @@ case object ApexVoid extends ApexModelMember {
     override def getSignature: String = "void"
 
     override def isStatic: Boolean = true
+
+    override def getKind: Option[SymbolKind] = None
 }
 
 /**
@@ -260,6 +267,8 @@ case class ApexMethod(s: String, n: String, v: String, p: List[String], h: Strin
      */
     override def getIdentityToDisplay: String = n
 
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Method)
+
     override def getSignature: String = d
     override def isStatic: Boolean = "1" == s
     override def getDoc: String = h
@@ -276,7 +285,7 @@ case class ApexMethod(s: String, n: String, v: String, p: List[String], h: Strin
  */
 case class ApexEnumConstantMember(s: Option[String], n: String, v: Option[String], h: String, r: String) extends ApexModelMember {
     override def getVisibility: String = v.getOrElse("public").toLowerCase
-
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.EnumMember)
     override def getIdentity: String = n
 
     override def getSignature: String = getIdentity
@@ -292,6 +301,7 @@ case class ApexEnumConstantMember(s: Option[String], n: String, v: Option[String
 case class ApexEnumMember(name: String, enumConstants: List[ApexEnumConstantMember],
                           tag: String, fqn: String) extends ApexModelMember {
     override def getVisibility: String = "public"
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Enum)
 
     override def getIdentity: String = name
 
@@ -314,7 +324,7 @@ case class ApexEnumMember(name: String, enumConstants: List[ApexEnumConstantMemb
 
 case class ApexAnnotationConstantMember(n: String, h: String, p: Option[List[String]], d: String) extends ApexModelMember {
     override def getVisibility: String = "public"
-
+    override def getKind: Option[SymbolKind] = None
     override def getIdentity: String = n + (p match {
                                               case Some(params) if params.nonEmpty => "(" + params.mkString(", ") + ")"
                                               case None => ""
@@ -330,7 +340,7 @@ case class ApexAnnotationConstantMember(n: String, h: String, p: Option[List[Str
 case class ApexAnnotationMember(name: String, annotations: List[ApexAnnotationConstantMember],
                           tag: String, fqn: String) extends ApexModelMember {
     override def getVisibility: String = "public"
-
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Annotation)
     override def getIdentity: String = name
 
     override def getSignature: String = fqn

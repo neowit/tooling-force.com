@@ -155,7 +155,7 @@ object SObjectLibrary {
 
         override def symbolName: String = relationshipName
 
-        override def symbolKind: SymbolKind = SymbolKind.Field
+        override def symbolKind: SymbolKind = SymbolKind.Reference
 
         override def symbolLocation: Location = LocationUndefined
 
@@ -188,7 +188,7 @@ object SObjectLibrary {
                 case None => super.children
             }
         }
-        override def symbolKind: SymbolKind = SymbolKind.Field
+        override def symbolKind: SymbolKind = SymbolKind.Reference
     }
 
 

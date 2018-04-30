@@ -24,7 +24,7 @@ import scala.collection.mutable
 import spray.json._
 import DefaultJsonProtocol._
 import MemberJsonSupport._
-import com.neowit.apexscanner.symbols.Symbol
+import com.neowit.apexscanner.symbols.{Symbol, SymbolKind}
 
 trait AnonymousMember {
     private var parent: Option[AnonymousMember] = None
@@ -145,9 +145,12 @@ object Member {
             }
 
             override def getDoc: String = symbol.documentation.getOrElse("")
+
+            override def getKind: Option[SymbolKind] = Option(symbol.symbolKind)
         }
     }
 }
+
 
 trait Member extends AnonymousMember {
 
@@ -160,6 +163,7 @@ trait Member extends AnonymousMember {
      */
     def getIdentity:String
 
+    def getKind: Option[SymbolKind]
     /**
       * @return position of this member in the file system and inside file
       */
@@ -224,7 +228,7 @@ trait Member extends AnonymousMember {
     def toJson: JsValue = {
         val data = Map("identity" -> getIdentityToDisplay, "realIdentity" -> getIdentity,
             "signature" -> getSignature, "type" -> getType,
-            "visibility" -> getVisibility.toLowerCase, "doc" -> getDoc)
+            "visibility" -> getVisibility.toLowerCase, "doc" -> getDoc, "kind" -> getKind.map(_.letter.toString).getOrElse(""))
         //JSONObject(data)
         data.toJson
     }
@@ -246,6 +250,8 @@ case class CompoundMember(members: List[Member]) extends Member {
       * etc
       */
     override def getIdentity: String = members.head.getIdentity
+
+    override def getKind: Option[SymbolKind] = members.head.getKind
 
     /**
       * @return position of this member in the file system and inside file
@@ -279,6 +285,9 @@ class BuiltInMember(parent: AnonymousMember, identity: String, displayIdentity: 
     override def getIdentity: String = identity
     override def getIdentityToDisplay: String = displayIdentity
 
+
+    override def getKind: Option[SymbolKind] = None
+
     override def getType: String = retType
 
     override def getSignature: String = signature match {
@@ -303,6 +312,8 @@ class BuiltInMethodMember(parent: Member, identity: String, displayIdentity: Str
         case Some(s) => s
         case None => "public " + getType + " " + getIdentityToDisplay + "(" + params.mkString(", ") + ")"
     }
+
+    override def getKind: Option[SymbolKind] = Option(SymbolKind.Method)
 
     /**
       * @return position of this member in the file system and inside file
