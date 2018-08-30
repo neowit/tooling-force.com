@@ -385,4 +385,22 @@ class ListCompletionsTest extends FunSuite {
         assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
         assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
     }
+
+    test("ListCompletions: `SOQL: Caret at the end of the line with more fields below`" ) {
+        val text =
+            """
+              |class CompletionTester {
+              | System.debug(
+              |     [select Id, Parent.<CARET>
+              |         Name from Account a]
+              |  );
+              |
+              |}
+            """.stripMargin
+        val resultNodes = listCompletions(text, loadSobjectLib = true)
+        assert(resultNodes.length > 1, "Expected to find non empty result")
+        assert(resultNodes.exists(_.symbolName == "AccountNumber"), "Expected symbol not found")
+        assert(resultNodes.exists(_.symbolName == "Parent"), "Expected symbol not found")
+        assert(!resultNodes.exists(_.symbolName == "Account"), "Unexpected symbol found")
+    }
 }
