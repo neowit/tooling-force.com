@@ -55,6 +55,7 @@ object ActionFactory {
         "findSymbol" -> "FindSymbol",
         "soqlQuery" -> "SoqlQuery",
         "changeLogLevels" -> "com.neowit.apex.actions.tooling.ChangeLogLevels",
+        "deleteLogs" -> "com.neowit.apex.actions.tooling.DeleteLogs",
         "testSuiteManage" -> "TestSuiteActions",
         "checkSyntax" -> "CheckSyntax"
     )

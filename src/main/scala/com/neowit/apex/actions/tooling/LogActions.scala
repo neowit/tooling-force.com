@@ -22,6 +22,7 @@ package com.neowit.apex.actions.tooling
 import com.neowit.apex.{LogUtils, Session}
 import com.neowit.apex.actions.SoqlQuery.ResultRecord
 import com.neowit.apex.actions._
+import com.neowit.response.InfoMessage
 import com.neowit.utils.{ConfigValueException, FileUtils}
 import com.sforce.soap.tooling._
 import com.sforce.soap.tooling.sobject._
@@ -321,7 +322,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
         def setVisualforce(level: String): Unit
         def setWorkflow(level: String): Unit
     }
-    private def setLogLevelByType(logType: String, logLevel: String, traceFlag: DebugLevelLike) = {
+    private def setLogLevelByType(logType: String, logLevel: String, traceFlag: DebugLevelLike): Unit = {
         //default - DB & Apex = Debug
         logType match {
             case "ApexCode" =>
@@ -341,6 +342,52 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
             case "Workflow" =>
                 traceFlag.setWorkflow(logLevel)
             case _ =>
+        }
+
+    }
+}
+
+class DeleteLogs extends ApexActionWithReadOnlySession {
+    override def getHelp: ActionHelp = new ActionHelp {
+        override def getExample: String = ""
+
+        override def getParamDescription(paramName: String): String = paramName match {
+            case _ => "This call does not have parameters"
+        }
+
+        override def getParamNames: List[String] = List()
+
+        override def getSummary: String = "Delete ALL Debug logs"
+
+        override def getName: String = "deleteLogs"
+    }
+
+    //this method should implement main logic of the action
+    override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
+        var errorBuilder = Array.newBuilder[String]
+        var totalRecords = 0
+
+        val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
+            s""" select Id from Apexlog """.stripMargin)
+
+        if (queryIterator.hasNext) {
+            val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
+            totalRecords = recordIds.length
+            val result = session.deleteTooling(recordIds)
+            if (result.nonEmpty) {
+                result.find(r => !r.isSuccess).map(_.getErrors.map(_.getMessage)) match {
+                    case Some(_errors) => errorBuilder ++= _errors
+                    case None =>
+                }
+            }
+
+        }
+
+        val errors = errorBuilder.result()
+        if (errors.nonEmpty) {
+            Future.successful(ActionFailure(errors.mkString(";")))
+        } else {
+            Future.successful(ActionSuccess(InfoMessage(s"Deleted $totalRecords log records")))
         }
 
     }
