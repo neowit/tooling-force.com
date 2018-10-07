@@ -140,6 +140,8 @@ object Member {
 
             override def getIdentity: String = symbol.symbolName
 
+            override def symbolInsertText: String = symbol.symbolInsertText
+
             override def getVisibility: String = {
                 symbol.visibility.map(_.toString).getOrElse("private")
             }
@@ -187,6 +189,11 @@ trait Member extends AnonymousMember {
      * for most member types Identity is unique (for Methods and Inner Classes it is not)
      */
     def getIdentityToDisplay:String = getIdentity
+    /**
+      * A string that should be inserted a document when selecting
+      * this completion. When None the label is used.
+      */
+    def symbolInsertText: String = getIdentity
 
     def getSignature:String
     def getType: String
@@ -227,7 +234,7 @@ trait Member extends AnonymousMember {
 
     def toJson: JsValue = {
         val data = Map("identity" -> getIdentityToDisplay, "realIdentity" -> getIdentity,
-            "signature" -> getSignature, "type" -> getType,
+            "signature" -> getSignature, "type" -> getType, "symbolInsertText" -> symbolInsertText,
             "visibility" -> getVisibility.toLowerCase, "doc" -> getDoc, "kind" -> getKind.map(_.letter.toString).getOrElse(""))
         //JSONObject(data)
         data.toJson
