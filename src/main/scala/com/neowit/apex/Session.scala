@@ -676,6 +676,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         conn.connect()
         val wr = new OutputStreamWriter(new GZIPOutputStream(conn.getOutputStream))
         wr.write(jsonBody)
+        logger.debug(url)
+        logger.debug(jsonBody)
         wr.flush()
         wr.close()
         //conn.setReadTimeout(...)
