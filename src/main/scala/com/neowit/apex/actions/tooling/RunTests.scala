@@ -370,8 +370,11 @@ class RunTests extends DeployModified with RunTestJsonSupport {
 
         val specificTestsData = generateTestRequestPayload("RunSpecifiedTests", isAsync = false)
         val maxFailedTestsData = Map("maxFailedTests" -> maxFailedTests.toJson)
-
-        val jsonRequest = (specificTestsData ++ maxFailedTestsData).toJson.compactPrint
+        val skipCoverageData = config.getProperty("reportCoverage") match {
+            case Some("true") => Map.empty
+            case _ => Map("skipCodeCoverage" -> JsTrue)
+        }
+        val jsonRequest = (specificTestsData ++ maxFailedTestsData ++ skipCoverageData).toJson.compactPrint
         //submitTestRunJob("/runTestsSynchronous/", jsonRequest)
         session.postRestContentTooling("/runTestsSynchronous/", jsonRequest) match {
             case Some(jsonAst) =>
@@ -485,8 +488,12 @@ class RunTests extends DeployModified with RunTestJsonSupport {
         val specificTestsData = generateTestRequestPayload(testLevel)
         val testsLevelData = Map("testLevel" -> testLevel.toJson)
         val maxFailedTestsData = Map("maxFailedTests" -> maxFailedTests.toJson)
+        val skipCoverageData = config.getProperty("reportCoverage") match {
+            case Some("true") => Map.empty
+            case _ => Map("skipCodeCoverage" -> JsTrue)
+        }
 
-        val jsonRequest = (specificTestsData ++ testsLevelData ++ maxFailedTestsData).toJson.compactPrint
+        val jsonRequest = (specificTestsData ++ testsLevelData ++ maxFailedTestsData ++ skipCoverageData).toJson.compactPrint
 
         submitAsyncTestRunJob("/runTestsAsynchronous/", jsonRequest)
         /*
