@@ -176,18 +176,9 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                         saveModified.deploy(modifiedFiles, updateSessionDataOnSuccess = true)
                     }
                 if (!deploymentResult.isSuccess) {
-                    //responseWriter.println("RESULT=FAILURE")
-                    //responseWriter.println("FILE_COUNT=" + modifiedFiles.size)
-                    //responseWriter.println(new Message(ERROR, "Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first"))
 
                     return Future.successful(
                         ActionFailure(
-                            /*
-                            List(
-                                KeyValueMessage(Map("FILE_COUNT" -> modifiedFiles.size)),
-                                ErrorMessage("Modified files detected and can not be saved with Tooling API. Fix-Problems/Save/Deploy modified first")
-                            )
-                            */
                             com.neowit.response.DeployModifiedResult(
                                 deploymentReport = deploymentResult
                             )
@@ -213,13 +204,6 @@ class RunTests extends DeployModified with RunTestJsonSupport {
             try {
                 val runTestsResultWithJobId = runTests()
                 val runTestsResult = runTestsResultWithJobId.sourceTestResult
-                /*
-                if (0 == runTestsResult.getNumFailures) {
-                    //responseWriter.println("RESULT=SUCCESS")
-                } else {
-                    //responseWriter.println("RESULT=FAILURE")
-                }
-                */
                 val toolingRunTestResult = new RunTests.RunTestResultTooling(runTestsResult)
                 val coverageReportOpt = config.getProperty("reportCoverage") match {
                     case Some("true") =>
@@ -227,14 +211,6 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                     case _ =>
                         None
                 }
-                /*
-                ApexTestUtils.processCodeCoverage(toolingRunTestResult, session) match {
-                    case Some(coverageFile) =>
-                        //responseWriter.println("COVERAGE_FILE=" + coverageFile.getAbsolutePath)
-                        actionResultBuilder.addMessage(KeyValueMessage(Map("COVERAGE_FILE" -> coverageFile.getAbsolutePath)))
-                    case _ =>
-                }
-                */
                 val testFailures = ApexTestUtils.processTestResult(toolingRunTestResult, session)
 
                 val (logFilePathByClassName, logFileOpt) =
@@ -281,10 +257,6 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                 case ex: Session.RestCallException =>
                     ex.getRestErrorCode match {
                         case Some("ALREADY_IN_PROCESS") =>
-                            //responseWriter.println("RESULT=FAILURE")
-                            //responseWriter.println(new Message(ERROR, "ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
-                            //actionResultBuilder.setResultType(FAILURE)
-                            //actionResultBuilder.addMessage(ErrorMessage("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse("")))
                             ActionFailure("ALREADY_IN_PROCESS => " + ex.getRestMessage.getOrElse(""))
                         case Some("INVALID_INPUT") =>
                             ActionFailure("INVALID_INPUT => " + ex.getRestMessage.getOrElse(""))
@@ -306,41 +278,10 @@ class RunTests extends DeployModified with RunTestJsonSupport {
         if (isAsync) {
             runTestsAsynchronous()
         } else {
-            //new RunTests.TestResultWithJobId(runTestsSynchronous2(), None, useLastLog = true)
             new RunTests.TestResultWithJobId(runTestsSynchronous(), None, useLastLog = true)
         }
 
     }
-    /*
-    private def runTestsSynchronous2(): com.sforce.soap.tooling.RunTestsResult = {
-        val runTestsRequest = new com.sforce.soap.tooling.RunTestsRequest()
-
-        getTestClassNames match {
-            case List("*") =>
-                runTestsRequest.setAllTests(true)
-            case head :: tail =>
-                val classData = generateTestRequestPayload("RunSpecifiedTests", isAsync = false)
-
-                classData.get("tests") match {
-                    case Some(JsArray(testsJson)) =>
-                        val classes = testsJson.map(_.compactPrint)
-                        //runTestsRequest.setClasses(classes.toArray)
-                        //runTestsRequest.setClasses(classData)
-                    case _ =>
-                }
-                //runTestsRequest.setClasses((head :: tail).toArray[String])
-                //runTestsRequest.setClasses(classData)
-            case _ => // no classes provided
-        }
-        //logger.info("Run tests Synchronous")
-        //val runTestsResult = session.runTestsTooling(runTestsRequest)
-        var runTestsResult: com.sforce.soap.tooling.RunTestsResult = null
-        com.neowit.utils.Logging.repeatingInfo(logger,
-            { runTestsResult = session.runTestsTooling(runTestsRequest) },
-            "Run tests Synchronous ...", scala.Console.out )(com.neowit.TcpServer.system.scheduler)
-        runTestsResult
-    }
-    */
 
     private def submitAsyncTestRunJob(resource: String, jsonRequest: String): RunTests.TestResultWithJobId = {
         session.postRestContentTooling(resource, jsonRequest) match {
@@ -496,27 +437,6 @@ class RunTests extends DeployModified with RunTestJsonSupport {
         val jsonRequest = (specificTestsData ++ testsLevelData ++ maxFailedTestsData ++ skipCoverageData).toJson.compactPrint
 
         submitAsyncTestRunJob("/runTestsAsynchronous/", jsonRequest)
-        /*
-        session.postRestContentTooling("/runTestsAsynchronous/", jsonRequest) match {
-          case Some(jsonAst) =>
-              val asyncJobId = jsonAst.asInstanceOf[JsString].value
-              waitAsyncJob(asyncJobId, reportTestProgress) match {
-                  case Some(asyncApexJob) if Set("Completed", "Failed").contains(asyncApexJob.getStatus) =>
-                      new TestResultWithJobId(generateRunTestResult(asyncApexJob), Some(asyncJobId))
-
-                  case Some(asyncApexJob) =>
-                      logger.debug("asyncApexJob=" + asyncApexJob)
-                      //TODO - job is aborted or something else
-                      new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
-                  case None =>
-                      new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
-              }
-
-          case None =>
-              new TestResultWithJobId(new com.sforce.soap.tooling.RunTestsResult(), None)
-        }
-        */
-        //val asyncJobId = session.postRestContentTooling("/runTestsAsynchronous/", Map("classids" -> classIds.mkString(","))).get
     }
 
 
