@@ -89,12 +89,19 @@ object RunTests extends JsonSupport {
                 val coverageWriter = new PrintWriter(coverageFile)
                 for (coverage <- coverageReport.coveragePerFile) {
                     val locations = List.newBuilder[Int]
-                    for (codeLocation <- coverage.linesNotCovered) {
+                    // handling for Winter 19 SFDC bug:
+                    // https://salesforce.stackexchange.com/questions/237432/bug-blank-locationsnotcovered-returned-from-rest-tooling-runtestssynchronous
+                    val validUncoveredLocations = coverage.linesNotCovered.filter(_.getLine > 0)
+
+                    for (codeLocation <- validUncoveredLocations) {
                         locations += codeLocation.getLine
                     }
-                    val coverageJSON: JsValue = Map("path" -> coverage.filePathInProject, "linesTotalNum" -> coverage.linesTotalNum,
+                    val coverageJSON: JsValue = Map(
+                        "path" -> coverage.filePathInProject,
+                        "linesTotalNum" -> coverage.linesTotalNum,
                         "linesNotCoveredNum" -> coverage.linesNotCoveredNum,
-                        "linesNotCovered" -> locations.result().toJson ).toJson
+                        "linesNotCovered" -> locations.result().toJson
+                    ).toJson
                     // end result looks like so:
                     // {"path" : "src/classes/AccountController.cls", "linesNotCovered" : [1, 2, 3,  4, 15, 16,...]}
                     coverageWriter.println(coverageJSON.compactPrint)

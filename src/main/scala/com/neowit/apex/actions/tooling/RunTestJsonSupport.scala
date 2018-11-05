@@ -57,13 +57,13 @@ object RunTestJsonSupport {
 
     case class TestCodeCoverage(numLocationsNotCovered: Option[Int],
                                 name: Option[String],
-                                methodInfo: List[MethodInfo],
-                                dmlInfo: List[DmlInfo],
+                                methodInfo: Option[List[MethodInfo]],
+                                dmlInfo: Option[List[DmlInfo]],
                                 numLocations: Option[Int],
-                                soqlInfo: List[SoqlInfo],
+                                soqlInfo: Option[List[SoqlInfo]],
                                 id: Option[String],
-                                soslInfo: List[SoslInfo],
-                                locationsNotCovered: List[CodeLocation],
+                                soslInfo: Option[List[SoslInfo]],
+                                locationsNotCovered: Option[List[CodeLocation]],
                                 `type`: Option[String],
                                 namespace: Option[String]
                                )
