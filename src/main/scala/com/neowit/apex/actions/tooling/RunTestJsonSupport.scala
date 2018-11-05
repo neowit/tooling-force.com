@@ -37,6 +37,10 @@ trait RunTestJsonSupport extends JsonSupport {
     implicit val TestFailureFormat = jsonFormat10(TestFailure)
 
     implicit val RunTestsSynchronousResultFormat = jsonFormat8(RunTestsSynchronousResult)
+
+    implicit val ApexClassOrTriggerFormat = jsonFormat1(ApexClassOrTrigger)
+    implicit val CoverageFormat = jsonFormat2(Coverage)
+    implicit val ApexCodeCoverageAggregateFormat = jsonFormat5(ApexCodeCoverageAggregate)
 }
 object RunTestJsonSupport {
 
@@ -88,5 +92,14 @@ object RunTestJsonSupport {
     case class SoslInfo(todo: Option[String])
 
     case class CodeLocation(line: Option[Int], column: Option[Int], numExecutions: Option[Int], time: Option[Double])
+
+    case class ApexClassOrTrigger(Name: String)
+    case class Coverage(coveredLines: Array[Int], uncoveredLines: Array[Int])
+
+    case class ApexCodeCoverageAggregate(ApexClassOrTrigger: ApexClassOrTrigger,
+                                         ApexClassOrTriggerId: String,
+                                         Coverage: Coverage,
+                                         NumLinesCovered: Int,
+                                         NumLinesUncovered: Int)
 
 }

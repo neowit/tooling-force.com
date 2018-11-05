@@ -38,6 +38,7 @@ object ActionFactory {
         "saveModified" -> "com.neowit.apex.actions.tooling.SaveModified",
         "saveSpecificFiles" -> "com.neowit.apex.actions.tooling.SaveSpecificFiles",
         "runTestsTooling" -> "com.neowit.apex.actions.tooling.RunTests",
+        "loadApexCodeCoverageAggregate" -> "com.neowit.apex.actions.tooling.LoadApexCodeCoverageAggregate",
         "deployModified" -> "DeployModified",
         "deployAll" -> "DeployAll",
         "deploySpecificFiles" -> "DeploySpecificFiles",

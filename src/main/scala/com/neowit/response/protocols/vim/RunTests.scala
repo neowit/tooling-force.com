@@ -140,4 +140,14 @@ class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
         }
         Unit
     }
+    def send(result: LoadApexCodeCoverageAggregateResult): Unit = {
+        printCoverageReport(writer, Option(result.coverageReport))
+
+        prepareDetailedPerFileCoverage(Option(result.coverageReport)) match {
+            case Some(resultFile) =>
+                writer.send("COVERAGE_FILE=" + resultFile.getAbsolutePath)
+            case None =>
+        }
+        Unit
+    }
 }

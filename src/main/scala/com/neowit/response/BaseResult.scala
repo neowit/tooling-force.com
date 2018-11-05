@@ -68,4 +68,5 @@ case class ListModifiedResult(modified: List[File], deleted: List[File]) extends
 case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[File]) extends BaseResult
 case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
+case class LoadApexCodeCoverageAggregateResult(coverageReport: CodeCoverageReport) extends BaseResult
 

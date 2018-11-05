@@ -42,6 +42,22 @@ object RunTestConversions {
         result
     }
 
+    def toCodeCoverageResult(coverageAggregate: ApexCodeCoverageAggregate): com.sforce.soap.tooling.CodeCoverageResult = {
+        val res = new com.sforce.soap.tooling.CodeCoverageResult()
+        res.setId(coverageAggregate.ApexClassOrTriggerId)
+        res.setName(coverageAggregate.ApexClassOrTrigger.Name)
+        res.setNumLocations(coverageAggregate.NumLinesCovered  + coverageAggregate.NumLinesUncovered )
+        res.setNumLocationsNotCovered(coverageAggregate.NumLinesUncovered)
+        res.setLocationsNotCovered(
+            coverageAggregate.Coverage.uncoveredLines.map{line =>
+                val loc = new com.sforce.soap.tooling.CodeLocation()
+                loc.setLine(line)
+                loc
+            }
+        )
+        res
+    }
+
     private def toCodeCoverageResult(coverage: List[TestCodeCoverage]): Array[com.sforce.soap.tooling.CodeCoverageResult] = {
         coverage.map{c =>
             val res = new com.sforce.soap.tooling.CodeCoverageResult()
@@ -49,13 +65,17 @@ object RunTestConversions {
             //c.dmlInfo
             c.id.foreach(res.setId(_))
             val locationsNotCovered =
-                c.locationsNotCovered.map{loc =>
-                    val res = new com.sforce.soap.tooling.CodeLocation()
-                    loc.column.foreach(res.setColumn(_))
-                    loc.line.foreach(res.setLine(_))
-                    loc.numExecutions.foreach(res.setNumExecutions(_))
-                    loc.time.foreach(res.setTime(_))
-                    res
+                c.locationsNotCovered  match {
+                    case Some(locations) =>
+                        locations.map{loc =>
+                            val res = new com.sforce.soap.tooling.CodeLocation()
+                            loc.column.foreach(res.setColumn(_))
+                            loc.line.foreach(res.setLine(_))
+                            loc.numExecutions.foreach(res.setNumExecutions(_))
+                            loc.time.foreach(res.setTime(_))
+                            res
+                        }
+                    case None => Nil
                 }
             res.setLocationsNotCovered(locationsNotCovered.toArray)
 
