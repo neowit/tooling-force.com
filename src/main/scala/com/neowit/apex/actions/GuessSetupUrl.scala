@@ -78,7 +78,7 @@ class GuessSetupUrl extends ApexActionWithReadOnlySession with JsonSupport {
                     OsUtils.openUrl(_url)
                     ActionSuccess( GuessSetupUrlResult( url = _url ) )
                 case Some(_url) => ActionSuccess( GuessSetupUrlResult( url = _url ) )
-                case None =>  ActionFailure("unable to guess URL using provided data")
+                case None =>  ActionFailure("Unable to guess URL using provided data. Check resource name and try to add resource type parameter")
             }
 
         Future.successful(actionResult)
@@ -86,13 +86,25 @@ class GuessSetupUrl extends ApexActionWithReadOnlySession with JsonSupport {
 
     private def guessUrl(name: String, resourceType: Option[String]): Option[String] = {
         val probableResourceTypeOpt =
-        resourceType match {
-            case typeOpt @ Some(_) => typeOpt
-            case None => guessType(name)
-        }
+            resourceType match {
+                case Some("class") => Option("ApexClass")
+                case Some("trigger") => Option("ApexTrigger")
+                case Some("page") => Option("ApexPage")
+                case Some("resource") => Option("StaticResource")
+                case Some("static") => Option("StaticResource")
+                case Some("component") => Option("ApexComponent")
+                case Some("object") => Option("SObject")
+                case Some("field") => Option("CustomField")
+                case Some("label") => Option("CustomLabels")
+                case typeOpt @ Some(_) => typeOpt
+                case None => guessType(name)
+            }
+
         probableResourceTypeOpt.map(_.toLowerCase) match {
             case Some("sobject") =>
                 guessSObjectUrl(name)
+            case Some("customlabels") =>
+                guessCustomLabelUrl(name)
             case Some("apexclass") =>
                 guessClassUrl(name)
             case Some("apextrigger") =>
@@ -103,12 +115,13 @@ class GuessSetupUrl extends ApexActionWithReadOnlySession with JsonSupport {
                 guessStaticResourceUrl(name)
             case Some("apexcomponent") =>
                 guessApexComponentUrl(name)
+            case Some("customfield") =>
+                guessCustomFieldUrl(name)
             case _ =>
                 ???
         }
     }
     private def guessType(name: String): Option[String] = name match {
-        case n if n.endsWith("__c") => Option("SObject")
         case n if n.endsWith(".object") => Option("SObject")
         case n if n.endsWith(".label") => Option("CustomLabels")
         case n if n.endsWith(".cls") => Option("ApexClass")
@@ -117,35 +130,44 @@ class GuessSetupUrl extends ApexActionWithReadOnlySession with JsonSupport {
         case n if n.endsWith(".component") => Option("ApexComponent")
         case n if n.endsWith(".scf") => Option("Scontrol")
         case n if n.endsWith(".resource") => Option("StaticResource")
+        case n if n.indexOf('.') > 0 =>
+            // contains "." - this probably means we have Object.field situation
+            Option("CustomField")
+        case n if n.endsWith("__c") && n.indexOf('.') < 0 =>
+            // ends with "__c" and does not contain "." which may delimit object name and field name
+            Option("SObject")
         case _ => None
 
     }
     private def guessSObjectUrl(targetName: String): Option[String] = {
-        var objectName = FileUtils.removeExtension(targetName)
-        objectName = if (objectName.endsWith("__c")) objectName.replaceAll("__c$", "") else objectName
-        queryObjectId("CustomObject", objectName, "DeveloperName")
+        val objectName = drop__c(FileUtils.removeExtension(targetName))
+        queryObjectIdAncConstructUrl("CustomObject", objectName, "DeveloperName")
+    }
+    private def guessCustomLabelUrl(targetName: String): Option[String] = {
+        val labelName = FileUtils.removeExtension(targetName)
+        queryObjectIdAncConstructUrl("CustomLabel", labelName)
     }
     private def guessClassUrl(targetName: String): Option[String] = {
         val className = FileUtils.removeExtension(targetName)
-        queryObjectId("ApexClass", className)
+        queryObjectIdAncConstructUrl("ApexClass", className)
     }
     private def guessApexTriggerUrl(targetName: String): Option[String] = {
         val className = FileUtils.removeExtension(targetName)
-        queryObjectId("ApexTrigger", className)
+        queryObjectIdAncConstructUrl("ApexTrigger", className)
     }
     private def guessPageUrl(targetName: String): Option[String] = {
         val pageName = FileUtils.removeExtension(targetName)
-        queryObjectId("ApexPage", pageName)
+        queryObjectIdAncConstructUrl("ApexPage", pageName)
     }
     private def guessStaticResourceUrl(targetName: String): Option[String] = {
         val objectName = FileUtils.removeExtension(targetName)
-        queryObjectId("StaticResource", objectName)
+        queryObjectIdAncConstructUrl("StaticResource", objectName)
     }
     private def guessApexComponentUrl(targetName: String): Option[String] = {
         val objectName = FileUtils.removeExtension(targetName)
-        queryObjectId("ApexComponent", objectName)
+        queryObjectIdAncConstructUrl("ApexComponent", objectName)
     }
-    private def queryObjectId(objectType: String, objectName: String, nameField: String = "Name"): Option[String] = {
+    private def queryObjectIdAncConstructUrl(objectType: String, objectName: String, nameField: String = "Name"): Option[String] = {
         val query =
             s"""select Id
                |from $objectType
@@ -153,16 +175,51 @@ class GuessSetupUrl extends ApexActionWithReadOnlySession with JsonSupport {
                |limit 1
             """.stripMargin
 
+        queryIdAndGetUrl(query)
+    }
+
+    private def guessCustomFieldUrl(fieldPath: String): Option[String] = {
+        val components = fieldPath.split("\\.")
+        val fieldName = drop__c(components.last)
+        val objectTypeName = drop__c(components(components.length-2))
+
+        val query =
+            s"""select Id
+               |from CustomObject
+               |where DeveloperName = '$objectTypeName'
+               |limit 1
+            """.stripMargin
+
+        queryObjectId(query) match {
+            case Some(objectTypeId) =>
+                val query =
+                    s"""select Id
+                       |from CustomField
+                       |where DeveloperName = '$fieldName' and TableEnumOrId = '$objectTypeId'
+                       |limit 1
+                    """.stripMargin
+
+                queryIdAndGetUrl(query)
+            case None => None
+        }
+    }
+
+    private def queryObjectId(query: String): Option[String] = {
         val queryIterator = SoqlQuery.getQueryIteratorTooling(session, query).map(new ResultRecord(_))
         if (queryIterator.nonEmpty) {
-            queryIterator.next().getFieldAsString("Id") match {
-                case Some(id) =>
-                    session.getServiceDomain.map(_ + id)
-                case None => None
-            }
-
+            queryIterator.next().getFieldAsString("Id")
         } else {
             None
         }
+    }
+    private def queryIdAndGetUrl(query: String): Option[String] = {
+        queryObjectId(query) match {
+            case Some(id) =>
+                session.getServiceDomain.map(_ + id)
+            case None => None
+        }
+    }
+    private def drop__c(str: String): String = {
+        if (str.endsWith("__c")) str.replaceAll("__c$", "") else str
     }
 }
