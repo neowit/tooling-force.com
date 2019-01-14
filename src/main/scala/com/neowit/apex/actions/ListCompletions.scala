@@ -37,14 +37,13 @@ class ListCompletions extends ApexActionWithReadOnlySession with JsonSupport {
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
 
+        val filePath = config.getRequiredProperty("currentFileContentPath")
+        val currentFilePath = config.getRequiredProperty("currentFilePath")
+        val line = config.getRequiredProperty("line")
+        val column = config.getRequiredProperty("column")
+
         val resultOpt =
-            for {
-                projectDir <- config.projectDirOpt
-                filePath <- config.getRequiredProperty("currentFileContentPath")
-                currentFilePath <- config.getRequiredProperty("currentFilePath")
-                line <- config.getRequiredProperty("line")
-                column <- config.getRequiredProperty("column")
-            } yield {
+            config.projectDirOpt.map{projectDir =>
                 if (! Files.isReadable(Paths.get(filePath))) {
                     ActionFailure(s"'currentFileContentPath' must point to readable file")
                 } else {

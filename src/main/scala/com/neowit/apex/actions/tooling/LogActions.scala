@@ -146,7 +146,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
     }
 
     private def loadTraceFlagConfig: Map[String, String] = {
-        val traceFlagMap: Map[String, String] = ChangeLogLevels.loadTraceFlagConfig(config.getRequiredProperty("traceFlagConfig"), session)
+        val traceFlagMap: Map[String, String] = ChangeLogLevels.loadTraceFlagConfig(config.getRequiredPropertyOpt("traceFlagConfig"), session)
         traceFlagMap
     }
 

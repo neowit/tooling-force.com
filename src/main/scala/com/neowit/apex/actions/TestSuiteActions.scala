@@ -99,11 +99,11 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
                                     case Some(testSuiteId) =>
                                         _action match {
                                             case "addClasses" =>
-                                                Try(config.getRequiredProperty("testSuiteClassNames")
+                                                Try(config.getRequiredPropertyOpt("testSuiteClassNames")
                                                     .map(classNames => addClasses(testSuiteId, classNames.split(",").toList , session)))
 
                                             case "removeClasses" =>
-                                                Try(config.getRequiredProperty("testSuiteClassNames")
+                                                Try(config.getRequiredPropertyOpt("testSuiteClassNames")
                                                     .map(classNames => removeClasses(testSuiteId, classNames.split(",").toList , session)))
                                         }
                                     case None => Failure(new IllegalArgumentException(s"Invalid config for 'testSuiteAction', Test Suite with name '$testSuiteName' not found"))

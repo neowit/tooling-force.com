@@ -71,13 +71,11 @@ class FindSymbol extends ApexActionWithReadOnlySession {
             throw new ConfigValueException("Invalid or Missing --projectPath parameter")
         }
         val projectDir = config.projectDirOpt.get
-
-        val actionResultOptOfFuture: Option[Future[ActionResult]] =
-            for (   filePath <- config.getRequiredProperty("currentFileContentPath");
-                    currentFilePath <- config.getRequiredProperty("currentFilePath");
-                    line <- config.getRequiredProperty("line");
-                    column <- config.getRequiredProperty("column")
-            ) yield {
+        val filePath = config.getRequiredProperty("currentFileContentPath")
+        val currentFilePath = config.getRequiredProperty("currentFilePath")
+        val line = config.getRequiredProperty("line")
+        val column = config.getRequiredProperty("column")
+        val actionResultOfFuture: Future[ActionResult] =
                 if (! Files.isReadable(Paths.get(filePath))) {
                     Future.successful(ActionFailure(s"'currentFileContentPath' must point to readable file"))
                 } else {
@@ -123,12 +121,7 @@ class FindSymbol extends ApexActionWithReadOnlySession {
                     }
 
                 }
-            }
-        actionResultOptOfFuture match {
-            case Some(actionSuccess) => actionSuccess
-            case None =>
-                Future.successful(ActionSuccess())
-        }
+        actionResultOfFuture
     }
 
     private def nodeToSymbol(defNode: AstNode with IsTypeDefinition): Symbol = {

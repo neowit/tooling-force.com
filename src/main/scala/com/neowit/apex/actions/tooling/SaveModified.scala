@@ -867,13 +867,13 @@ class SaveSpecificFiles extends SaveModified {
     protected override def getFiles:List[File] = {
         val config = session.getConfig
         //load file list from specified file
-        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        val fileListFile = new File(config.getRequiredProperty("specificFiles"))
         session.listApexFilesFromFile(fileListFile)
     }
 
     protected override def reportEmptyFileList(files: List[File]): ActionResult = {
         //responseWriter.println("RESULT=FAILURE")
-        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        val fileListFile = new File(config.getRequiredProperty("specificFiles"))
         //responseWriter.println(new Message(ERROR, "no valid files in " + fileListFile))
         ActionFailure(
             List(

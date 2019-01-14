@@ -79,7 +79,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession with JsonSupport {
         override def getName: String = "DescribeTooling"
     }
 
-    def getOutputFilePath: Option[String] = config.getRequiredProperty("allToolingTypesFilePath")
+    def getOutputFilePath: String = config.getRequiredProperty("allToolingTypesFilePath")
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //load from SFDC and dump to local file

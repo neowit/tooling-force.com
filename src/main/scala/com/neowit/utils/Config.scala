@@ -163,9 +163,9 @@ class BasicConfig extends Logging {
         }
         res
     }
-    def getRequiredProperty(key: String): Option[String] = {
+    def getRequiredProperty(key: String): String = {
         getProperty(key) match {
-            case Some(s) if !s.isEmpty => Some(s)
+            case Some(s) if !s.isEmpty => s
             case _ =>  throw new MissingRequiredConfigParameterException(key +" is required")
         }
     }
@@ -199,7 +199,7 @@ regardless of whether it is also specified in config file or not
                  """)
     }
 
-    lazy val action: String = getRequiredProperty("action").get
+    lazy val action: String = getRequiredProperty("action")
 
     private lazy val responseFile: Option[File] = {
         getProperty("responseFilePath") match {
@@ -230,7 +230,8 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
     }
     def isUnix: Boolean = basicConfig.isUnix
     def getProperty(key:String):Option[String] = basicConfig.getProperty(key)
-    def getRequiredProperty(key: String): Option[String] =  basicConfig.getRequiredProperty(key)
+    def getRequiredProperty(key: String): String =  basicConfig.getRequiredProperty(key)
+    def getRequiredPropertyOpt(key: String): Option[String] =  Option(basicConfig.getRequiredProperty(key))
     lazy val action: String = basicConfig.action
     //END BasicConfig methods
 

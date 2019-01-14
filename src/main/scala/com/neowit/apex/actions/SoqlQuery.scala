@@ -74,7 +74,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
     }
     //this method should implement main logic of the action
     override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
-        val codeFile = new File(config.getRequiredProperty("queryFilePath").get)
+        val codeFile = new File(config.getRequiredProperty("queryFilePath"))
         val soqlQuery = FileUtils.readFile(codeFile).getLines().filterNot(_.startsWith("--")).mkString(" ")
 
         val queryString = "q=" + URLEncoder.encode(soqlQuery, "UTF-8")
@@ -117,7 +117,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
                                         //responseWriter.println(InfoMessage("size=" + queryResult.totalSize))
                                         None
                                     } else {
-                                        val outputFilePath = config.getRequiredProperty("outputFilePath").get
+                                        val outputFilePath = config.getRequiredProperty("outputFilePath")
                                         //make sure output file does not exist
                                         FileUtils.delete(new File(outputFilePath))
                                         val outputFile = new File(outputFilePath)

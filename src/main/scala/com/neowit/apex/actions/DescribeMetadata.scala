@@ -270,7 +270,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession with JsonSupport {
             case Failure(thrown) => throw thrown
         }
     }
-    def getOutputFilePath: Option[String] = config.getRequiredProperty("allMetaTypesFilePath")
+    def getOutputFilePath: Option[String] = config.getRequiredPropertyOpt("allMetaTypesFilePath")
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         //load from SFDC and dump to local file
@@ -317,7 +317,7 @@ class ListMetadata extends ApexActionWithWritableSession with JsonSupport {
         val metadataByXmlName = DescribeMetadata.getMap(session)
         //load file list from specified file
         val queries = new mutable.ArrayBuffer[ListMetadataQuery]()
-        val typesFile = new File(config.getRequiredProperty("specificTypes").get)
+        val typesFile = new File(config.getRequiredProperty("specificTypes"))
         for (typeName <- FileUtils.readFile(typesFile).getLines()) {
             if (!typeName.isEmpty) {
                 metadataByXmlName.get(typeName)  match {

@@ -973,14 +973,14 @@ class DeploySpecificFiles extends DeployModified {
     protected override def getFiles:List[File] = {
         val config = session.getConfig
         //load file list from specified file
-        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        val fileListFile = new File(config.getRequiredProperty("specificFiles"))
         session.listApexFilesFromFile(fileListFile)
     }
 
 
     protected override def reportEmptyFileList(files: List[File]): ActionResult = {
         //responseWriter.println(FAILURE)
-        val fileListFile = new File(config.getRequiredProperty("specificFiles").get)
+        val fileListFile = new File(config.getRequiredProperty("specificFiles"))
         //responseWriter.println(ErrorMessage("no valid files in " + fileListFile))
         ActionFailure("no valid files in " + fileListFile)
     }
@@ -1172,14 +1172,14 @@ class DeployDestructive extends Deploy {
         override def getName: String = "deleteMetadata"
     }
 
-    def getSpecificComponentsFilePath: String = config.getRequiredProperty("specificComponents").get
+    def getSpecificComponentsFilePath: String = config.getRequiredProperty("specificComponents")
 
     override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val components = getComponentPaths
         val actionResult =
             if (components.isEmpty) {
                 //responseWriter.println("RESULT=FAILURE")
-                val componentListFile = new File(config.getRequiredProperty("specificComponents").get)
+                val componentListFile = new File(config.getRequiredProperty("specificComponents"))
                 //responseWriter.println(new Message(ERROR, "no valid components in " + componentListFile))
                 ActionFailure("no valid components in " + componentListFile)
             } else {

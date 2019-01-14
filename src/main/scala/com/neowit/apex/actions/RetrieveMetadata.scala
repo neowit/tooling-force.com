@@ -537,14 +537,14 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
     def getComponentPaths: List[String] = {
 
         //load file list from specified file
-        val componentListFile = new File(config.getRequiredProperty("specificTypes").get)
+        val componentListFile = new File(config.getRequiredProperty("specificTypes"))
         val components:List[String] = FileUtils.readFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
-        components.map(FileUtils.normalizePath(_))
+        components.map(FileUtils.normalizePath)
     }
 
     protected def isUpdateSessionDataOnSuccess: Boolean = config.getProperty("updateSessionDataOnSuccess").getOrElse("false").toBoolean
     protected def getTypesFileFormat: String = config.getProperty("typesFileFormat").getOrElse("json")
-    protected def getSpecificTypesFile: File = new File(config.getRequiredProperty("specificTypes").get)
+    protected def getSpecificTypesFile: File = new File(config.getRequiredProperty("specificTypes"))
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val tempFolder = config.getProperty("targetFolder")  match {
@@ -845,11 +845,11 @@ class DiffWithRemote extends RetrieveMetadata {
     }
 
     private def getFilePaths(srcDir: File): List[File] = {
-        config.getRequiredProperty("typesFileFormat").get match {
+        config.getRequiredProperty("typesFileFormat") match {
             case "packageXml" =>
                 FileUtils.listFiles(srcDir)
             case "file-paths" =>
-                FileUtils.readFile(new File(config.getRequiredProperty("specificTypes").get)).
+                FileUtils.readFile(new File(config.getRequiredProperty("specificTypes"))).
                                                 getLines().filter(!_.trim.isEmpty).
                                                 map(new File(srcDir, _)).toList
             case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")

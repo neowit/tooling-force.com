@@ -62,12 +62,10 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
     override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val config = session.getConfig
 
+        val filePath = config.getRequiredProperty("currentFileContentPath")
+        val sourceFilePath = config.getRequiredProperty("currentFilePath")
         val actionResultOpt =
-            for {
-                filePath <- config.getRequiredProperty("currentFileContentPath")
-                sourceFilePath <- config.getRequiredProperty("currentFilePath")
-                projectDir <- config.projectDirOpt
-            } yield {
+            config.projectDirOpt.map{ projectDir =>
                 val inputFile = new File(filePath)
                 if (!filePath.endsWith(".cls") && !filePath.endsWith(".trigger")) {
                     // unsupported file extension
