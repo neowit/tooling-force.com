@@ -129,6 +129,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ RunTestsResult(_, _, _, _, _) => new RunTests(this).send(res)
             case res @ SoqlQueryResult(_) => new SoqlQuery(this).send(res)
             case res @ LoadApexCodeCoverageAggregateResult(_) => new RunTests(this).send(res)
+            case res @ GuessSetupUrlResult(_) => new GuessSetupUrl(this).send(res)
         }
     }
 

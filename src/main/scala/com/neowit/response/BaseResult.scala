@@ -69,4 +69,5 @@ case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[
 case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 case class LoadApexCodeCoverageAggregateResult(coverageReport: CodeCoverageReport) extends BaseResult
+case class GuessSetupUrlResult(url: String) extends BaseResult
 

@@ -124,6 +124,14 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         }
     }
 
+    def getServiceDomain: Option[String] = {
+        val connectorConfig = getPartnerConnection.getConfig
+        val endpointUrl = new URL(connectorConfig.getServiceEndpoint)
+        //get protocol and domain, e.g.:  https://na1.salesforce.com/
+        val domain = endpointUrl.getProtocol + "://" + endpointUrl.getHost + "/"
+        Option(domain)
+    }
+
     //hash is used to check if current session Id was generated against current set of login credentials
     private def getHash: String = {
         config.getAuthConfig match {

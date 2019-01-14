@@ -58,7 +58,8 @@ object ActionFactory {
         "changeLogLevels" -> "com.neowit.apex.actions.tooling.ChangeLogLevels",
         "deleteLogs" -> "com.neowit.apex.actions.tooling.DeleteLogs",
         "testSuiteManage" -> "TestSuiteActions",
-        "checkSyntax" -> "CheckSyntax"
+        "checkSyntax" -> "CheckSyntax",
+        "guessSetupUrl" -> "GuessSetupUrl"
     )
     def getActionNames: List[String] = REGISTERED_ACTIONS.keys.toList.sorted
 
