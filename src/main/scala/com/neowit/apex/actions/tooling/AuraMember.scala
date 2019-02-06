@@ -28,7 +28,7 @@ import com.sforce.soap.metadata.{FileProperties, AuraDefinitionBundle}
 import com.sforce.soap.tooling.sobject.AuraDefinition
 
 object AuraMember {
-    val EXTENSIONS = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc", "tokens")
+    val EXTENSIONS: Set[String] = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc", "tokens", "design", "svg")
     val XML_TYPE = "AuraDefinition"
     val BUNDLE_XML_TYPE = "AuraDefinitionBundle"
     def isSupportedType(file: File): Boolean = {
@@ -182,6 +182,8 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
             case "component.cmp" => "XML"
             case "event.evt" => "XML"
             case x if x.endsWith(".auradoc") => "XML"
+            case x if x.endsWith(".design") => "XML"
+            case x if x.endsWith(".intf") => "XML"
             case x if x.endsWith(".js") => "JS"
             case x if x.endsWith(".css") => "CSS"
             case x if x.endsWith(".tokens") => "XML"
@@ -193,6 +195,8 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
         val defType = fName.toLowerCase match {
             case x if x.endsWith(".app") => "APPLICATION"
             case x if x.endsWith(".cmp") => "COMPONENT"
+            case x if x.endsWith(".design") => "DESIGN"
+            case x if x.endsWith(".intf") => "INTERFACE"
             case x if x.endsWith(".evt") => "EVENT"
             case x if x.endsWith(".auradoc") => "DOCUMENTATION"
             case x if x.endsWith(".css") => "STYLE"
@@ -200,6 +204,7 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
             case x if x.endsWith("helper.js") => "HELPER"
             case x if x.endsWith("renderer.js") => "RENDERER"
             case x if x.endsWith(".tokens") => "TOKENS"
+            case x if x.endsWith(".svg") => "SVG"
             case _ => throw new IllegalArgumentException("Failed to determine aura definition for file: " + file.getName )
         }
         setDefType(defType)
