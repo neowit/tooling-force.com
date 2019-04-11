@@ -87,7 +87,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
                 reportUsage()
             } catch {
                 case x: Throwable => //usage reports are not important enough to do anything about them
-                    logger.trace("", x)
+                    logger.trace("usage report failed", x)
             }
         }
     }

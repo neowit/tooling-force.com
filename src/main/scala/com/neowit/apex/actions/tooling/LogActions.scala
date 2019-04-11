@@ -366,22 +366,29 @@ class DeleteLogs extends ApexActionWithReadOnlySession {
     override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         var errorBuilder = Array.newBuilder[String]
         var totalRecords = 0
+        val BATCH_SIZE = 200
 
-        val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
-            s""" select Id from Apexlog """.stripMargin)
 
-        if (queryIterator.hasNext) {
-            val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
-            totalRecords = recordIds.length
-            val result = session.deleteTooling(recordIds)
-            if (result.nonEmpty) {
-                result.find(r => !r.isSuccess).map(_.getErrors.map(_.getMessage)) match {
-                    case Some(_errors) => errorBuilder ++= _errors
-                    case None =>
+        var currentBatchCount = 0
+        do {
+            val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
+                s""" select Id from Apexlog limit $BATCH_SIZE """.stripMargin)
+
+            if (queryIterator.hasNext) {
+                val recordIds = queryIterator.map(obj => new ResultRecord(obj).getFieldAsString("Id")).map(_.get).toArray
+                currentBatchCount = recordIds.length
+                totalRecords = totalRecords + recordIds.length
+                val result = session.deleteTooling(recordIds)
+                if (result.nonEmpty) {
+                    result.find(r => !r.isSuccess).map(_.getErrors.map(_.getMessage)) match {
+                        case Some(_errors) => errorBuilder ++= _errors
+                        case None =>
+                    }
                 }
+                logger.debug("deleted batch of " + currentBatchCount + " records. " + totalRecords + " have been deleted so far")
             }
 
-        }
+        } while (currentBatchCount >= BATCH_SIZE)
 
         val errors = errorBuilder.result()
         if (errors.nonEmpty) {
