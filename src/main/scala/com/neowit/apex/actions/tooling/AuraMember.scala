@@ -34,10 +34,10 @@ object AuraMember {
     def isSupportedType(file: File): Boolean = {
         //is this file in "aura" folder
         FileUtils.getParentByName(file, Set("aura")) match {
-            case Some(x) =>
+            case Some(x) if !file.isDirectory =>
                 val extension = FileUtils.getExtension(file)
                 EXTENSIONS.contains(extension) || file.getName.endsWith("-meta.xml")
-            case None => false //not in aura folder
+            case _ => false //not in aura folder or is a directory
         }
     }
 
