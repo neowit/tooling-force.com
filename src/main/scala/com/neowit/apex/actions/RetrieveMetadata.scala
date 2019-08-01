@@ -385,7 +385,8 @@ class ListConflicting extends RetrieveMetadata {
 class BulkRetrieveResult(val errors: List[Message], val fileCountByType: Map[String, Int],
                          val filePropsMapByXmlType: Map[String, Map[String, FileProperties]]) {
 
-    private val filePropsByRelativePath = filePropsMapByXmlType.values.flatten.toMap
+    // lower case relativeFilePath => FileProperties
+    private val filePropsByRelativePath = filePropsMapByXmlType.values.flatten.toMap.map(v => (v._1.toLowerCase, v._2))
     /**
      *
      * @param relativeFilePath - e.g. src/classes/MyClass.cls
@@ -394,7 +395,7 @@ class BulkRetrieveResult(val errors: List[Message], val fileCountByType: Map[Str
     def getFileProps(relativeFilePath: String): Option[FileProperties] = {
 
         val fPath = if (relativeFilePath.startsWith("src")) relativeFilePath.replaceFirst("src", "unpackaged") else relativeFilePath
-        filePropsByRelativePath.get(fPath)
+        filePropsByRelativePath.get(fPath.toLowerCase)
     }
 }
 
