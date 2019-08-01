@@ -28,7 +28,11 @@ object OsUtils {
     case object Mac extends OS
     case object Win extends OS
     case object Linux extends OS
+    case object WSL extends OS
     case object Unknown extends OS
+
+    // path to cmd.exe on Windows Subsystem for Linux
+    val WSL_CMD_EXE_PATH = "/mnt/c/WINDOWS/system32/cmd.exe"
 
     // inspired by stackoverflow answer:
     // http://stackoverflow.com/questions/5226212/how-to-open-the-default-webbrowser-using-java
@@ -42,6 +46,8 @@ object OsUtils {
             getOs match {
                 case Win =>
                     Option(Array("cmd", "/c", "start", url.replaceAll("&", "^&")))
+                case WSL =>
+                    Option(Array(WSL_CMD_EXE_PATH, "/c", "start", url.replaceAll("&", "^&")))
                 case Mac =>
                     Option(Array("open", url))
                 case Linux =>
@@ -66,7 +72,8 @@ object OsUtils {
                 return Win
             } else if (os.indexOf( "mac" ) >= 0) {
                 return Mac
-
+            } else if (new java.io.File(WSL_CMD_EXE_PATH).exists()) {
+                return WSL
             } else if (os.indexOf( "nix") >=0 || os.indexOf( "nux") >=0) {
                 return Linux
             }
