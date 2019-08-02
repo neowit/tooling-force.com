@@ -160,9 +160,13 @@ class SaveModified extends DeployModified {
             super.deploy(files, updateSessionDataOnSuccess)
         } else {
             val hasAuraFiles = files.exists(AuraMember.isSupportedType(_))
-            if (!hasAuraFiles) {
+            val hasLwcFiles = files.exists(LwcMember.isSupportedType(_))
+            val hasBundleFiles = hasAuraFiles || hasLwcFiles
+            if (!hasBundleFiles) {
                 //split file by MetadataContainer vs ContainerLess
-                val filesByContainerType = files.groupBy(f => if (ApexMember.isSupportedTypeWithMetadataContainer(f, session)) "MetadataContainer" else "ContainerLess")
+                val filesByContainerType = files.groupBy(f =>
+                    if (ApexMember.isSupportedTypeWithMetadataContainer(f, session)) "MetadataContainer" else "ContainerLess"
+                )
                 //files to be saved in MetadataContainer
                 val containerResultOpt = filesByContainerType.get("MetadataContainer") match {
                   case Some(_files) =>
@@ -178,8 +182,10 @@ class SaveModified extends DeployModified {
                 }
                 mergeDeploymentResults(containerResultOpt, containerLessResultOpt)
             } else {
-                //aura
-                deployAura(files, updateSessionDataOnSuccess)
+                val auraResultOpt = if (hasAuraFiles) Option(deployAura(files, updateSessionDataOnSuccess)) else None
+                val lwcResultOpt = if (hasLwcFiles) Option(deployLwc(files, updateSessionDataOnSuccess)) else None
+
+                mergeDeploymentResults(auraResultOpt, lwcResultOpt)
             }
         }
 
@@ -477,6 +483,14 @@ class SaveModified extends DeployModified {
             files,
             (file: File) => AuraMember.getInstanceUpdate(file, session),
             (files: List[File]) => updateFileModificationData(files, Some(AuraMember.XML_TYPE)),
+            updateSessionDataOnSuccess
+        )
+    }
+    private def deployLwc(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
+        saveFilesOfSingleXmlType(
+            files,
+            (file: File) => LwcMember.getInstanceUpdate(file, session),
+            (files: List[File]) => updateFileModificationData(files, Some(LwcMember.XML_TYPE)),
             updateSessionDataOnSuccess
         )
     }

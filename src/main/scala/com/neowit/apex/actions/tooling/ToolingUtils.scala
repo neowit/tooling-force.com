@@ -45,10 +45,15 @@ object ToolingUtils {
             return false
         }
         val hasAuraFiles = files.exists(AuraMember.isSupportedType(_))
+        val hasLwcFiles = files.exists(LwcMember.isSupportedType(_))
         val hasApexFiles = files.exists(ApexMember.isSupportedType(_, session))
-        val hasMixOfApexAndAura = hasAuraFiles && hasApexFiles
+        val hasMixOfApexAndAura = (hasAuraFiles || hasLwcFiles) && hasApexFiles
         //check if all files supported by tooling api
-        val hasUnsupportedType = files.exists(f => !ApexMember.isSupportedType(f, session) && !AuraMember.isSupportedType(f))
+        val hasUnsupportedType = files.exists(f =>
+            !ApexMember.isSupportedType(f, session)
+              && !AuraMember.isSupportedType(f)
+              && !LwcMember.isSupportedType(f)
+        )
         val canNotUseTooling = hasUnsupportedType || hasMixOfApexAndAura
 
         !canNotUseTooling

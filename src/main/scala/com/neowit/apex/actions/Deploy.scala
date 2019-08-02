@@ -20,7 +20,7 @@
 package com.neowit.apex.actions
 
 import com.neowit.apex.actions.Deploy.RunTestResultMetadata
-import com.neowit.apex.actions.tooling.AuraMember
+import com.neowit.apex.actions.tooling.{AuraMember, LwcMember}
 import com.neowit.apex._
 import com.neowit.utils.{FileUtils, ZipUtils}
 import java.io.{File, FileWriter, PrintWriter}
@@ -195,7 +195,8 @@ abstract class Deploy extends ApexActionWithWritableSession {
 
     }
     //update session data for successful files
-    protected def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult, auraFiles: List[File]): Unit = {
+    protected def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult,
+                                                       auraFiles: List[File], lwcFiles: List[File]): Unit = {
         val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
         val calculateMD5 = getSessionConfig.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
@@ -256,6 +257,7 @@ abstract class Deploy extends ApexActionWithWritableSession {
         }
         //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
         AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
+        LwcMember.updateLwcDefinitionData(session, lwcFiles, idsOnly = false)
         //dump session data to disk
         session.storeSessionData()
     }
@@ -404,8 +406,9 @@ class DeployModified extends Deploy {
 
         //for every file that is part of aura bundle, include all files in that bundle
         val auraFiles = files.flatMap(getAllFilesInAuraBundle(_)).distinct
+        val lwcFiles = files.flatMap(getAllFilesInLwcBundle(_)).distinct
 
-        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles).toSet
+        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles ++ lwcFiles).toSet
 
         val packageXml = new MetaXml(getProjectConfig)
         val packageXmlFile = packageXml.getPackageXml
@@ -514,7 +517,7 @@ class DeployModified extends Deploy {
                 //val coverageReportOpt = ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
                 //update session data for successful files
                 if (updateSessionDataOnSuccess) {
-                    updateSessionDataForSuccessfulFiles(deployResult, auraFiles)
+                    updateSessionDataForSuccessfulFiles(deployResult, auraFiles, lwcFiles)
                 }
                 /*
                 //responseWriter.println(SUCCESS)
@@ -570,6 +573,13 @@ class DeployModified extends Deploy {
           case None => Set()
         }
     }
+    private def getAllFilesInLwcBundle(fileInBundle: File): Set[File] = {
+        LwcMember.getLwcBundleDir(fileInBundle) match {
+            case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
+            case None => Set()
+        }
+    }
+
 
     private val alwaysIncludeNames = Set("src", "package.xml")
 
@@ -1225,7 +1235,7 @@ class DeployDestructive extends Deploy {
                                     case None =>
                                 }
                             }
-                            updateSessionDataForSuccessfulFiles(deployResult, auraFiles = Nil) //TODO - check if we need to do anything extra for auraFiles part
+                            updateSessionDataForSuccessfulFiles(deployResult, auraFiles = Nil, lwcFiles = Nil) //TODO - check if we need to do anything extra for auraFiles part
                         }
                         DeploymentReport(
                             isSuccess = true,

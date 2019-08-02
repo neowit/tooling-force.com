@@ -65,6 +65,7 @@ object AuraMember {
         ascend(file)
     }
 
+    /*
     def getInstanceForCreate(file: File, session: Session): AuraDefinitionMember = {
         if (!isSupportedType(file)) {
             throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
@@ -88,6 +89,7 @@ object AuraMember {
         member
 
     }
+    */
     def getInstanceUpdate(file: File, session: Session): AuraDefinitionMember = {
         if (!isSupportedType(file)) {
             throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
