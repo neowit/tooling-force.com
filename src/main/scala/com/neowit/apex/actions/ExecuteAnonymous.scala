@@ -91,7 +91,7 @@ class ExecuteAnonymous extends ApexActionWithReadOnlySession with JsonSupport {
     }
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val codeFile = new File(config.getRequiredProperty("codeFile"))
-        val apexCode = FileUtils.readFile(codeFile).getLines().mkString("\n")
+        val apexCode = FileUtils.readFileAsText(codeFile)
         val whileSubstringOpt = config.getProperty("while")
 
 

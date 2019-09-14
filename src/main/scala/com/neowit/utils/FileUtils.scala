@@ -25,6 +25,8 @@ import java.util.zip.CRC32
 import java.security.MessageDigest
 import java.util.regex.Matcher
 
+import scala.util.{Failure, Success, Try}
+
 object FileUtils {
 
     val regexSafeSeparator: String = Matcher.quoteReplacement(File.separator)
@@ -236,12 +238,37 @@ object FileUtils {
     }
 
     val UTF_8 = scala.io.Codec("UTF-8")
+    val LATIN1 = scala.io.Codec("ISO-8859-1")
 
     def readFile(file: Path): scala.io.BufferedSource = {
         scala.io.Source.fromFile(file.toFile)(UTF_8)
     }
     def readFile(file: File): scala.io.BufferedSource = {
         scala.io.Source.fromFile(file)(UTF_8)
+    }
+
+    /**
+     * when provided file is not in UTF-8 reading its content will cause an exception
+     * try to fall-back to "ISO-8859-1" and read it again before giving up
+     * NOTE - this method is not suitable for large files
+     *
+     * @param file to be read and returned as text
+     * @return
+     */
+    def readFileAsText(file: File, codec: scala.io.Codec = UTF_8): String = {
+      val source = scala.io.Source.fromFile(file)(codec)
+      val text =
+        Try( source.getLines().mkString("\n") ) match {
+            case Success(lines) =>
+                lines
+            case Failure(_) if LATIN1 != codec =>
+                readFileAsText(file, LATIN1)
+            case Failure(ex) => throw ex
+        }
+
+        source.close
+        text
+
     }
 
     def readFile(path: String): scala.io.BufferedSource = {
