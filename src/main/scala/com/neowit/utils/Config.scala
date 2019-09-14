@@ -221,7 +221,7 @@ regardless of whether it is also specified in config file or not
 
 class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
 
-    val apiVersion:Double = 45.0
+    val apiVersion:Double = 46.0
 
     //make BasicConfig methods available in Config
     def load(arglist: List[String]): Unit = {
