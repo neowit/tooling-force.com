@@ -37,7 +37,10 @@ object LwcMember {
     FileUtils.getParentByName(file, Set("lwc")) match {
       case Some(x) if !file.isDirectory =>
         val extension = FileUtils.getExtension(file)
-        EXTENSIONS.contains(extension) || file.getName.endsWith("-meta.xml")
+        // make sure to exclude __tests__ folder, it may be present but must not be saved to SFDC
+        val res = FileUtils.getParentByName(file, Set("__tests__")).isEmpty &&
+                    (EXTENSIONS.contains(extension) || file.getName.endsWith("-meta.xml"))
+        res
       case _ => false //not in lwc folder or is a directory
     }
   }

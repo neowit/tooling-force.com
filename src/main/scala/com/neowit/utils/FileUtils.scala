@@ -25,6 +25,7 @@ import java.util.zip.CRC32
 import java.security.MessageDigest
 import java.util.regex.Matcher
 
+import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
 object FileUtils {
@@ -66,6 +67,7 @@ object FileUtils {
      *         for example above
      *         /tmp/.../unpackaged
      */
+    @tailrec
     def getParentByName(file: File, parentNames: Set[String]): Option[File] = {
 
         if (file.isDirectory) {
