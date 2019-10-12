@@ -21,7 +21,7 @@ package com.neowit.apex
 
 import com.sforce.soap.partner.sobject.SObject
 import com.neowit.utils._
-import java.util.Calendar
+import java.util.{Calendar, Date}
 import java.io.File
 
 import com.sforce.soap.metadata.{DeployMessage, DeployResult}
@@ -78,13 +78,18 @@ object MetadataType extends Logging {
     }
     def getValueMap(fileName: String, xmlType: String, id: Option[String], lastModifiedDate: Calendar, localMills: Long,
                     md5Hash: String, crc32: Long, metaMills: Long = -1L, metaMd5Hash: String = "", metaCRC32: Long = -1L):Map[String, Any] = {
+
         val lastModifiedDateMills = lastModifiedDate.getTime.getTime
+        //val lastModifiedDateMillsStr = lastModifiedDate.getTime.toString
+        val localMillsStr = new Date(localMills).toString
         val idVal = id match {
           case Some(s) => Map("Id" -> s)
           case None => Map()
         }
-        val data = Map("Type" -> xmlType, "Name" -> fileName, "LastModifiedDate" -> ZuluTime.formatDateGMT(lastModifiedDate),
-            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills, MD5 -> md5Hash, CRC32 -> crc32) ++ idVal
+        val data = Map(
+            "Type" -> xmlType, "Name" -> fileName, "LastModifiedDate" -> ZuluTime.formatDateGMT(lastModifiedDate),
+            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills, LOCAL_MILLS + "Str" -> localMillsStr,
+            MD5 -> md5Hash, CRC32 -> crc32) ++ idVal
 
         if (metaMills > 0)
             Map("meta" + LOCAL_MILLS -> metaMills, "meta" + MD5 -> metaMd5Hash, "meta" + CRC32 -> metaCRC32) ++ data
@@ -92,12 +97,12 @@ object MetadataType extends Logging {
             data
     }
 
-    def getLastModifiedDateText(props: FileProperties) = {
+    def getLastModifiedDateText(props: FileProperties): String = {
         //2013-09-25T09:31:08.000Z - simulate output from datetime returned by SOQL query
         val lastModifiedDate = ZuluTime.formatDateGMT(props.getLastModifiedDate)
         lastModifiedDate
     }
-    def getLastModifiedDateMills(props: FileProperties) = {
+    def getLastModifiedDateMills(props: FileProperties): Long = {
         val lastModifiedDate = props.getLastModifiedDate.getTime.getTime
         lastModifiedDate
     }
