@@ -29,8 +29,6 @@ import com.neowit.response._
 import com.neowit.utils.{FileUtils, ZipUtils, ZuluTime}
 
 import scala.concurrent._
-import com.sforce.ws.bind.XmlObject
-
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -597,8 +595,11 @@ class SaveModified extends DeployModified {
     private def getFilesModificationData(files: List[File]): Map[File, Map[String, Any]] = {
         val filesByXmlType = files.groupBy(f => {
             val isAuraFile = AuraMember.isSupportedType(f)
+            val isLwcFile = LwcMember.isSupportedType(f)
             val xmlType = if (isAuraFile) {
                 AuraMember.XML_TYPE
+            } else if (isLwcFile) {
+                LwcMember.XML_TYPE
             } else {
                 DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse("")
             }
@@ -616,6 +617,19 @@ class SaveModified extends DeployModified {
         dataByFile
     }
 
+    private def queryLastModificationData(xmlType: String, ids: Iterable[String]): Iterator[SoqlQuery.ResultRecord] = {
+        val queryString = "select Id, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType +
+            " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")"
+
+        val queryResult =
+            Try (SoqlQuery.getQueryIteratorTooling(session, queryString) )
+              .orElse( Try(SoqlQuery.getQueryIteratorPartner(session, queryString) )).toEither
+
+      queryResult match {
+          case Right(iterator) => iterator.map(new SoqlQuery.ResultRecord(_))
+          case Left(ex) => throw ex
+      }
+    }
     /**
      * retrieve modification data for single XML Type
      *
@@ -634,23 +648,25 @@ class SaveModified extends DeployModified {
         }
         val ids = fileById.keys
         if (ids.nonEmpty) {
-            val queryResult = session.query("select Id, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
-                + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
-            val records = queryResult.getRecords
+            //val queryResult = session.query("select Id, LastModifiedDate, LastModifiedBy.Name, LastModifiedById from " + xmlType
+            //    + " where Id in (" + ids.map("'" + _ + "'").mkString(",") + ")")
+            //val records = queryResult.getRecords
+            val records = queryLastModificationData(xmlType, ids)
 
             val dataByFile = records.map(record => {
-                val file = fileById(record.getId)
+                val recordId = record.getFieldAsString("Id").orNull
+                val file = fileById(recordId)
                 //2014-02-24T20:35:59.000Z
-                val lastModifiedStr = record.getField("LastModifiedDate").toString
-                val lastModifiedDate = ZuluTime.deserialize(lastModifiedStr)
+                val lastModifiedDateOpt = record.getFieldAsDate("LastModifiedDate")
                 val millsLocal = session.getData(session.getKeyByFile(file)).getOrElse("LastModifiedDateMills", 0).toString.toLong
 
                 file -> Map(
                     "file" -> file,
-                    "Id" -> record.getId,
-                    "LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
-                    "LastModifiedById" -> record.getField("LastModifiedById"),
-                    "Remote-LastModifiedDateStr" -> ZuluTime.formatDateGMT(lastModifiedDate),
+                    "Id" -> recordId,
+                    //"LastModifiedByName" -> record.getField("LastModifiedBy").asInstanceOf[XmlObject].getChild("Name").getValue,
+                    "LastModifiedByName" -> record.getFieldAsObject("LastModifiedBy").map(_.getFieldAsString("Name")).orNull,
+                    "LastModifiedById" -> record.getFieldAsString("LastModifiedById").orNull,
+                    "Remote-LastModifiedDateStr" -> lastModifiedDateOpt.map(ZuluTime.formatDateGMT).orNull,
                     "Local-LastModifiedDateStr" -> ZuluTime.formatDateGMT(ZuluTime.toCalendar(millsLocal))
                 )
 
