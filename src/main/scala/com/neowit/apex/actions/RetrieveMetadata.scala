@@ -887,7 +887,7 @@ class DiffWithRemote extends RetrieveMetadata {
         )
 
         val remoteFilesByRelativePaths = remoteFiles.map(file => (
-                FileUtils.normalizePath(file.getAbsolutePath).replaceAllLiterally(remoteSrcFolder.getParentFile.getAbsolutePath + "/", ""), file
+                FileUtils.normalizePath(file.getAbsolutePath.replaceAllLiterally(remoteSrcFolder.getParentFile.getAbsolutePath + File.separator, "")), file
             )).toMap
 
         //list files where remote version has different size or crc32 compared to local version
