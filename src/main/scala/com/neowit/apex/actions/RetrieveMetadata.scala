@@ -114,19 +114,23 @@ abstract class RetrieveMetadata extends ApexActionWithWritableSession {
             //update session with file properties
             for (fileProp <- retrieveResult.getFileProperties) {
                 val key = MetadataType.getKey(fileProp)
-                val (lastModifiedLocally, md5Hash, crc32Hash) = localDateAndHashByFName(fileProp.getFileName)
-                //check if we have -meta.xml data
-                val metaFileName = fileProp.getFileName + "-meta.xml"
-                val (metaLastModifiedLocally:Long, metaMD5Hash: String, metaCRC32Hash: Long) =
-                    if (localDateAndHashByFName.contains(metaFileName)) {
-                        localDateAndHashByFName(metaFileName)
-                    } else {
-                        (-1L, "", -1L)
-                    }
+                //val (lastModifiedLocally, md5Hash, crc32Hash) = localDateAndHashByFName(fileProp.getFileName)
+                localDateAndHashByFName.get(fileProp.getFileName) match {
+                  case Some((lastModifiedLocally, md5Hash, crc32Hash)) =>
+                      //check if we have -meta.xml data
+                      val metaFileName = fileProp.getFileName + "-meta.xml"
+                      val (metaLastModifiedLocally:Long, metaMD5Hash: String, metaCRC32Hash: Long) =
+                          if (localDateAndHashByFName.contains(metaFileName)) {
+                              localDateAndHashByFName(metaFileName)
+                          } else {
+                              (-1L, "", -1L)
+                          }
 
-                val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
-                if (updateSessionData) {
-                    session.setData(key, valueMap)
+                      val valueMap = MetadataType.getValueMap(fileProp, lastModifiedLocally, md5Hash, crc32Hash, metaLastModifiedLocally, metaMD5Hash, metaCRC32Hash )
+                      if (updateSessionData) {
+                          session.setData(key, valueMap)
+                      }
+                  case None =>
                 }
 
                 propertyByFilePath.put(fileProp.getFileName, fileProp)
