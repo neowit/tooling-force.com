@@ -76,20 +76,26 @@ object MetadataType extends Logging {
         }
         getValueMap(file.getName, xmlType, id, lastModifiedDate, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
     }
-    def getValueMap(fileName: String, xmlType: String, id: Option[String], lastModifiedDate: Calendar, localMills: Long,
+    def getValueMap(fileName: String, xmlType: String, id: Option[String], lastModifiedDate: Calendar, localMills: Long = -1L,
                     md5Hash: String, crc32: Long, metaMills: Long = -1L, metaMd5Hash: String = "", metaCRC32: Long = -1L):Map[String, Any] = {
 
         val lastModifiedDateMills = lastModifiedDate.getTime.getTime
         //val lastModifiedDateMillsStr = lastModifiedDate.getTime.toString
-        val localMillsStr = new Date(localMills).toString
         val idVal = id match {
           case Some(s) => Map("Id" -> s)
           case None => Map()
         }
+        // set localMills only if the value is provided and > 0
+        val localMillsVal = if (localMills > 0) {
+            val localMillsStr = new Date(localMills).toString
+            Map(LOCAL_MILLS -> localMills, LOCAL_MILLS + "Str" -> localMillsStr, MD5 -> md5Hash, CRC32 -> crc32)
+        } else {
+            Map()
+        }
+
         val data = Map(
             "Type" -> xmlType, "Name" -> fileName, "LastModifiedDate" -> ZuluTime.formatDateGMT(lastModifiedDate),
-            "LastModifiedDateMills" -> lastModifiedDateMills, LOCAL_MILLS -> localMills, LOCAL_MILLS + "Str" -> localMillsStr,
-            MD5 -> md5Hash, CRC32 -> crc32) ++ idVal
+            "LastModifiedDateMills" -> lastModifiedDateMills) ++ idVal ++ localMillsVal
 
         if (metaMills > 0)
             Map("meta" + LOCAL_MILLS -> metaMills, "meta" + MD5 -> metaMd5Hash, "meta" + CRC32 -> metaCRC32) ++ data

@@ -164,8 +164,13 @@ class LwcMemberHelper extends BundleMemberHelper {
           } else {
             val localMills: Long = file.lastModified()
             val (md5Hash: String, crc32: Long) = if (calculateMD5) (FileUtils.getMD5Hash(file), -1L) else ("", FileUtils.getCRC32Hash(file))
-            val newData = MetadataType.getValueMap(props, localMills, md5Hash, crc32,
-              metaMills = -1L, metaMd5Hash = "", metaCRC32 = -1L)
+
+            val isMetaXml = file.getName.endsWith("-meta.xml")
+            val newData = if (!isMetaXml) {
+              MetadataType.getValueMap(props, localMills, md5Hash, crc32, metaMills = -1L, metaMd5Hash = "", metaCRC32 = -1L)
+            } else {
+              MetadataType.getValueMap(props, localMills = -1L, md5Hash = "", crc32 = -1L, metaMills = localMills, metaMd5Hash = md5Hash, metaCRC32 = crc32)
+            }
 
             val millsLocal = session.getData(key).getOrElse("LastModifiedDateMills", 0).toString.toLong
             val millsRemote = MetadataType.getLastModifiedDateMills(props)
