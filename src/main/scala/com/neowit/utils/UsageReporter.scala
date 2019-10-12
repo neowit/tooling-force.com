@@ -64,7 +64,7 @@ class UsageReporter(basicConfig: BasicConfig) extends Logging {
         )
         logger.trace("usage report: " + data)
 
-        val url = new URL("https://usage-developer-edition.eu9.force.com/services/apexrest/usage")
+        val url = new URL("https://usage-developer-edition.eu29.force.com/services/apexrest/usage")
         val connectionConfig = Connection.initConnectorConfig(basicConfig)
         val conn = connectionConfig.createConnection(url, new java.util.HashMap[String, String](), false)
         //conn.setConnectTimeout(0)
