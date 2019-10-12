@@ -21,11 +21,13 @@ package com.neowit.apex.actions
 
 import java.io.File
 import java.net.URLEncoder
+import java.util.Calendar
 
 import com.neowit.apex.Session
 import com.neowit.response._
-import com.neowit.utils.FileUtils
+import com.neowit.utils.{FileUtils, ZuluTime}
 
+import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -233,11 +235,23 @@ object SoqlQuery {
     }
 
     def getQueryIteratorTooling(session: Session, soqlQuery: String):Iterator[JsObject] = {
+        getQueryIterator(session, soqlQuery, "Tooling")
+    }
+    def getQueryIteratorPartner(session: Session, soqlQuery: String):Iterator[JsObject] = {
+        getQueryIterator(session, soqlQuery, "Partner")
+    }
+
+    def getQueryIterator(session: Session, soqlQuery: String, api: String):Iterator[JsObject] = {
         val queryString = "q=" + soqlQuery.replaceAll(" |\n", "+")
-        session.getRestContentTooling("/query/", queryString) match {
+        val batchResult = api match {
+            case "Partner" => session.getRestContentPartner("/query/", queryString)
+            case "Tooling" => session.getRestContentTooling("/query/", queryString)
+            case x => throw new IllegalAccessError("Invalid API: " + x)
+        }
+        batchResult match {
             case Some(doc) =>
                 val queryResult = parseQueryResultDoc(doc)
-                new QueryIterator(session, queryResult, queryMoreFun(session, "Tooling"))
+                new QueryIterator(session, queryResult, queryMoreFun(session, api))
             case None => new EmptyQueryIterator()
         }
     }
@@ -245,6 +259,7 @@ object SoqlQuery {
     def getQueryIteratorTyped[A](session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[A] = {
         import com.sforce.soap.tooling.sobject._
 
+        @tailrec
         def queryMore(queryResult: com.sforce.soap.tooling.QueryResult, records: Array[SObject]): Iterator[A] = {
             if (queryResult.isDone) {
                 records.map(_.asInstanceOf[A]).toIterator
@@ -377,6 +392,7 @@ object SoqlQuery {
 
     class ResultRecord(record: JsObject) {
 
+        @tailrec
         private def getFieldValue(fName: String): Option[JsValue] = {
             val fieldName = fName.toLowerCase
             if (fieldName.indexOf('.') >0) {
@@ -401,6 +417,13 @@ object SoqlQuery {
             getFieldValue(fName) match {
               case Some(value) => Some(value.asInstanceOf[JsString].value)
               case None => None
+            }
+        }
+        def getFieldAsDate(fName: String): Option[Calendar] = {
+            getFieldAsString(fName) match {
+                case Some(value) =>
+                    Option( ZuluTime.toCalendar(ZuluTime.parseToMills(value)) )
+                case None => None
             }
         }
         def getFieldAsNumber(fName: String): Option[BigDecimal] = {
