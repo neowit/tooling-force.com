@@ -413,23 +413,13 @@ class SaveModified extends DeployModified {
         }
     }
 
-    // extract error (line, column) from aura error
-    // (?s) ensures than .* also matches new-lines
-    private val AURA_ERROR_POSITION_EXTRACTOR_REGEX = """(?s).*\[(\d+),\s?(\d+)\].*""".r
     /**
-      * extract [line, column] from aura error which may look like so:
-      *  - 0abcd0000000e1d: org.auraframework.util.json.JsonStreamReader$JsonStreamParseException: Expected ':', found '}' [73, 1]
-      * or like so:
-      *  - markup://c:SomeComponentName:27,13: ParseError at [row,col]:[28,13]\nMessage: ...
-      *
+      * extract [line, column] from aura/lwc error
       * @param error - instance of error extracted from SaveResult
       * @return
       */
     private def parseLineColFromAuraError(error: com.sforce.soap.tooling.Error): Option[(Int, Int)] = {
-        error.getMessage match {
-            case AURA_ERROR_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
-            case _ => None
-        }
+        Deploy.parseLineColFromErrorMessage(error.getMessage)
     }
 
     /**

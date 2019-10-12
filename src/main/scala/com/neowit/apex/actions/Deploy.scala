@@ -77,25 +77,36 @@ object Deploy {
     }
 
     //* ... line 155, column 41 ....
-    private val LineColumnRegex = """.*line (\d+), column (\d+).*""".r
+    private val LINE_COLUMN_POSITION_EXTRACTOR_REGEX = """(?s).*line (\d+), column (\d+).*""".r
+    private val LINE_COL_POSITION_EXTRACTOR_REGEX = """(?s).*\[Line: (\d+), Col: (\d+)\].*""".r
+    // extract error (line, column) from aura/lwc error
+    //  Error may look like so:
+    //  - 0abcd0000000e1d: org.auraframework.util.json.JsonStreamReader$JsonStreamParseException: Expected ':', found '}' [73, 1]
+    // or like so:
+    //  - markup://c:SomeComponentName:27,13: ParseError at [row,col]:[28,13]\nMessage: ...
+    // (?s) ensures than .* also matches new-lines
+    private val AURA_ERROR_POSITION_EXTRACTOR_REGEX = """(?s).*\[(\d+),\s?(\d+)\].*""".r
 
+    // extract line:column from a message like this
+    //     Compilation Failure someFile.js:73,20 : LWC1503: Parsing error: Unexpected token ...
+    private val LWC_ERROR_POSITION_EXTRACTOR_REGEX = """(?s).*(js|html):(\d+),\s?(\d+)\s?:.*""".r
+    //  [Line: 1, Col: 1] LWC1505: /home/sfdc/tools/lwc/1.0.2-222.24/someFile.css:1:1: Unclosed block
+    private val LWC_CSS_ERROR_POSITION_EXTRACTOR_REGEX = """(?s).*css:(\d+):\s?(\d+)\s?:.*""".r
     /**
-     * try to parse line and column number from error message looking like so
-     * ... line 155, column 41: ....
-     * @param ErrorMessage - message returned by deploy operation
+     * extract [line, column] from error message
      * @return
      */
-    def parseLineColumn(ErrorMessage: String): Option[(Int, Int)] = {
-
-        val pair = try {
-            val LineColumnRegex(line, column) = ErrorMessage
-            Some((line.toInt, column.toInt))
-        } catch {
-            case _:Throwable => None
+    def parseLineColFromErrorMessage(errorMessage: String): Option[(Int, Int)] = {
+        errorMessage match {
+            case LINE_COLUMN_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
+            case LINE_COL_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
+            case AURA_ERROR_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
+            case LWC_ERROR_POSITION_EXTRACTOR_REGEX(_, line, col) => Some((line.toInt, col.toInt))
+            case LWC_CSS_ERROR_POSITION_EXTRACTOR_REGEX(line, col) => Some((line.toInt, col.toInt))
+            case _ => None
         }
-
-        pair
     }
+
     /**
      * @return (line, column, relativeFilePath)
      */
@@ -105,7 +116,7 @@ object Deploy {
             case "Trigger" => "trigger"
             case _ => ""
         }
-        val (line, column) = Deploy.parseLineColumn(problem) match {
+        val (line, column) = Deploy.parseLineColFromErrorMessage(problem) match {
             case Some((_line, _column)) => (_line, _column)
             case None => (-1, -1)
         }
@@ -167,14 +178,20 @@ abstract class Deploy extends ApexActionWithWritableSession {
             //display errors both as messages and as ERROR: lines
             val failures = List.newBuilder[ErrorWithLocation]
             for ( failureMessage <- deployDetails.getComponentFailures) {
-                val line = failureMessage.getLineNumber
-                val column = failureMessage.getColumnNumber
+                var line = failureMessage.getLineNumber
+                var column = failureMessage.getColumnNumber
                 val filePath = failureMessage.getFileName
                 val problem = failureMessage.getProblem
                 val problemType = failureMessage.getProblemType match {
                     case DeployProblemType.Warning => GenericDeploymentWarning
                     case DeployProblemType.Error => GenericDeploymentError
                     case _ => GenericDeploymentError
+                }
+                if (0 == line && 0 == column) {
+                    // try parsing error/line column from the error message
+                    val (_line, _column) = Deploy.parseLineColFromErrorMessage(problem).getOrElse((0, 0))
+                    line = _line
+                    column = _column
                 }
                 //responseWriter.println("ERROR", Map("type" -> problemType, "line" -> line, "column" -> column, "filePath" -> filePath, "text" -> problem))
                 //responseWriter.println( MessageDetailMap(componentFailureMessage, Map("type" -> problemType, "filePath" -> filePath, "text" -> problem)))

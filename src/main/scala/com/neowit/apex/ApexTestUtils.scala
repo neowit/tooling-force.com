@@ -278,7 +278,7 @@ object ApexTestUtils extends JsonSupport {
                 } catch {
                     case _:scala.MatchError =>
                         //... line 155, column 41: ....
-                        Deploy.parseLineColumn(traceLine)  match {
+                        Deploy.parseLineColFromErrorMessage(traceLine)  match {
                             case Some((_line, _column)) => Some(StackTraceLine("", "", "", _line, _column))
                             case None => None
                         }
