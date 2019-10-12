@@ -20,7 +20,7 @@
 package com.neowit.apex.actions
 
 import com.neowit.apex.actions.Deploy.RunTestResultMetadata
-import com.neowit.apex.actions.tooling.{AuraMember, LwcMember}
+import com.neowit.apex.actions.tooling.BundleMember
 import com.neowit.apex._
 import com.neowit.utils.{FileUtils, ZipUtils}
 import java.io.{File, FileWriter, PrintWriter}
@@ -213,18 +213,26 @@ abstract class Deploy extends ApexActionWithWritableSession {
     }
     //update session data for successful files
     protected def updateSessionDataForSuccessfulFiles (deployResult: com.sforce.soap.metadata.DeployResult,
-                                                       auraFiles: List[File], lwcFiles: List[File]): Unit = {
+                                                       bundledFiles: List[File]): Unit = {
         val describeByDir = DescribeMetadata.getDescribeByDirNameMap(session)
         val calculateMD5 = getSessionConfig.useMD5Hash
         val calculateCRC32 = !calculateMD5  //by default use only CRC32
 
         def processOneFile(f: File, successMessage: com.sforce.soap.metadata.DeployMessage, xmlType: String): Unit = {
             val relativePath = session.getRelativePath(f) //successMessage.getFileName
+            val isMetaXml = relativePath.endsWith("-meta.xml")
             val key = session.getKeyByRelativeFilePath(relativePath)
-            val localMills = f.lastModified()
+            val oldData = session.getData(key)
+            //make sure that -meta.xml values are not overwriting field values
+            val (localMills: Long, md5Hash: String, crc32Hash: Long) = if (!isMetaXml) {
+                val localMills = if (isMetaXml) -1L else f.lastModified()
+                val md5Hash = if (calculateMD5 && !f.isDirectory) FileUtils.getMD5Hash(f) else ""
+                val crc32Hash = if (calculateCRC32 && !f.isDirectory) FileUtils.getCRC32Hash(f) else -1L
+                (localMills, md5Hash, crc32Hash)
+            } else {
+                (-1L, "", -1L)
 
-            val md5Hash = if (calculateMD5 && !f.isDirectory) FileUtils.getMD5Hash(f) else ""
-            val crc32Hash = if (calculateCRC32 && !f.isDirectory) FileUtils.getCRC32Hash(f) else -1L
+            }
 
             val fMeta = new File(f.getAbsolutePath + "-meta.xml")
             val (metaLocalMills: Long, metaMD5Hash: String, metaCRC32Hash: Long) = if (fMeta.canRead) {
@@ -236,7 +244,6 @@ abstract class Deploy extends ApexActionWithWritableSession {
             }
 
             val newData = MetadataType.getValueMap(deployResult, successMessage, xmlType, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
-            val oldData = session.getData(key)
             session.setData(key, oldData ++ newData)
 
             ()
@@ -249,42 +256,39 @@ abstract class Deploy extends ApexActionWithWritableSession {
             getProjectConfig.projectDirOpt match {
                 case Some(projectDir) =>
                     val f = new File(projectDir, relativePath)
-                    if (f.isDirectory && AuraMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
-                        //process bundle definition
-                        //for aura bundles Metadata API deploy() reports only bundle name, not individual files
-                        // process bundle dir
-                        processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
-                        // process individual files
-                        FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
-                          .filter(AuraMember.isSupportedType)
-                          .foreach(file =>
-                              processOneFile(file, successMessage, AuraMember.XML_TYPE)
-                          )
-                    } else if (f.isDirectory && LwcMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
-                            //for lwc bundles Metadata API deploy() reports only bundle name, not individual files
-                            // process bundle dir
-                            processOneFile(f, successMessage, LwcMember.BUNDLE_XML_TYPE)
+                    BundleMember.HELPERS.find(_.BUNDLE_XML_TYPE == successMessage.getComponentType) match {
+                        case Some(helper) if f.isDirectory=>
+                            //process bundle definition
+                            //for aura/lwc bundles Metadata API deploy() reports only bundle name, not individual files
+                            //here we have to process the whole bundle dir
+                            processOneFile(f, successMessage, helper.BUNDLE_XML_TYPE)
                             // process individual files
                             FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
-                              .filter(LwcMember.isSupportedType)
+                              .filter(helper.isSupportedType)
                               .foreach(file =>
-                                  processOneFile(file, successMessage, LwcMember.XML_TYPE)
+                                  processOneFile(file, successMessage, helper.XML_TYPE)
                               )
-                    } else {
-                        if (f.exists() && !f.isDirectory) {
-                            val xmlType = describeByDir.get(f.getParentFile.getName) match {
-                                case Some(describeMetadataObject) => describeMetadataObject.getXmlName
-                                case None => "" //package.xml and -meta.xml do not have xmlType
+                        case _ =>
+                            if (f.exists() && !f.isDirectory) {
+                                val xmlType = describeByDir.get(f.getParentFile.getName) match {
+                                    case Some(describeMetadataObject) => describeMetadataObject.getXmlName
+                                    case None => "" //package.xml and -meta.xml do not have xmlType
+                                }
+                                processOneFile(f, successMessage, xmlType)
                             }
-                            processOneFile(f, successMessage, xmlType)
-                        }
                     }
                 case None =>
             }
         }
-        //if there were aura files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
-        AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
-        LwcMember.updateLwcDefinitionData(session, lwcFiles, idsOnly = false)
+        //if there were aura/lwc files then we have to fetch their ids using Retrieve because Metadata deploy() does not return them
+        BundleMember.HELPERS.foreach{ helper =>
+            val singleBundleTypeFiles = bundledFiles.filter(helper.isSupportedType).toList
+            if (singleBundleTypeFiles.nonEmpty) {
+                helper.updateDefinitionData(session, singleBundleTypeFiles, idsOnly = false)
+            }
+        }
+        //AuraMember.updateAuraDefinitionData(session, auraFiles, idsOnly = false)
+        //LwcMember.updateLwcDefinitionData(session, lwcFiles, idsOnly = false)
         //dump session data to disk
         session.storeSessionData()
     }
@@ -432,10 +436,11 @@ class DeployModified extends Deploy {
                                     if sourceFile.exists()) yield sourceFile
 
         //for every file that is part of aura bundle, include all files in that bundle
-        val auraFiles = files.flatMap(getAllFilesInAuraBundle(_)).distinct
-        val lwcFiles = files.flatMap(getAllFilesInLwcBundle(_)).distinct
+        val bundledFiles = BundleMember.HELPERS.map(h => files.flatMap(h.getAllFilesInBundle)).distinct.flatten.toList
+        //val auraFiles = files.flatMap(getAllFilesInAuraBundle(_)).distinct
+        //val lwcFiles = files.flatMap(getAllFilesInLwcBundle(_)).distinct
 
-        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ auraFiles ++ lwcFiles).toSet
+        var allFilesToDeploySet = (files ++ metaXmlFiles ++ extraSourceFiles ++ bundledFiles).toSet
 
         val packageXml = new MetaXml(getProjectConfig)
         val packageXmlFile = packageXml.getPackageXml
@@ -544,7 +549,7 @@ class DeployModified extends Deploy {
                 //val coverageReportOpt = ApexTestUtils.processCodeCoverage(new Deploy.RunTestResultMetadata(runTestResult), session)
                 //update session data for successful files
                 if (updateSessionDataOnSuccess) {
-                    updateSessionDataForSuccessfulFiles(deployResult, auraFiles, lwcFiles)
+                    updateSessionDataForSuccessfulFiles(deployResult, bundledFiles)
                 }
                 /*
                 //responseWriter.println(SUCCESS)
@@ -587,25 +592,6 @@ class DeployModified extends Deploy {
 
 
 
-    /**
-     * current version (v32.0) of metadata API fails to deploy packages if they contain incomplete Aura Bundle
-     * i.e. if any single file from aura bundle is included (e.g. <app-name>.css ) then *all* files in this bundle must be
-     * part of deployment package, otherwise SFDC returns: UNKNOWN_EXCEPTION: An unexpected error occurred.
-     * @param fileInBundle - file which belongs to Aura bundle
-     * @return
-     */
-    private def getAllFilesInAuraBundle(fileInBundle: File): Set[File] = {
-        AuraMember.getAuraBundleDir(fileInBundle) match {
-          case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
-          case None => Set()
-        }
-    }
-    private def getAllFilesInLwcBundle(fileInBundle: File): Set[File] = {
-        LwcMember.getLwcBundleDir(fileInBundle) match {
-            case Some(bundleDir) => FileUtils.listFiles(bundleDir, descentIntoFolders = true, includeFolders = false).toSet
-            case None => Set()
-        }
-    }
 
 
     private val alwaysIncludeNames = Set("src", "package.xml")
@@ -1262,7 +1248,7 @@ class DeployDestructive extends Deploy {
                                     case None =>
                                 }
                             }
-                            updateSessionDataForSuccessfulFiles(deployResult, auraFiles = Nil, lwcFiles = Nil) //TODO - check if we need to do anything extra for auraFiles part
+                            updateSessionDataForSuccessfulFiles(deployResult, bundledFiles = Nil) //TODO - check if we need to do anything extra for auraFiles part
                         }
                         DeploymentReport(
                             isSuccess = true,
@@ -1350,7 +1336,7 @@ class DeployDestructive extends Deploy {
         val _package = new com.sforce.soap.metadata.Package()
         _package.setVersion(config.apiVersion.toString)
 
-        val namesByDir = componentsPaths.groupBy(_.takeWhile(_ != '/'))
+        val namesByDir = componentsPaths.map(FileUtils.normalizePath).groupBy(_.takeWhile(_ != '/'))
 
         val members = for (dirName <- namesByDir.keySet) yield {
             val ptm = new com.sforce.soap.metadata.PackageTypeMembers()
@@ -1366,7 +1352,14 @@ class DeployDestructive extends Deploy {
 
                   val objNames = namesByDir.getOrElse(dirName, Nil) match {
                       case _objNames if _objNames.nonEmpty && List("*") != _objNames=>
-                          _objNames.map(_.drop(dirName.length + 1)).map(
+                          _objNames
+                            .map { name =>
+                                val a = BundleMember.getBundleMemberHelper(name)
+                                val b =
+                                    a.flatMap(_.getPackageXmlMemberName(name))
+                                        .getOrElse(name.drop(dirName.length + 0)) // if this is not bundled file then just drop dir name from resource path
+                                  b
+                            }.map(
                               name => if (name.endsWith(extension)) name.dropRight(extension.length) else name
                           ).toArray
                       case _ =>

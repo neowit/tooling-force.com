@@ -25,16 +25,23 @@ import com.neowit.apex.{MetaXml, MetadataType, Session}
 import com.neowit.apex.actions.BulkRetrieve
 import com.neowit.utils.FileUtils
 import com.sforce.soap.metadata.FileProperties
-import com.sforce.soap.tooling.metadata.LightningComponentBundle
-import com.sforce.soap.tooling.sobject.LightningComponentResource
+import com.sforce.soap.tooling.sobject.{LightningComponentResource, SObject}
 
-object LwcMember {
+object LwcMemberHelper {
+  val helper = new LwcMemberHelper
+}
+class LwcMemberHelper extends BundleMemberHelper {
   val EXTENSIONS: Set[String] = Set("css", "html", "js", "json", "svg", "xml")
   val XML_TYPE = "LightningComponentResource"
   val BUNDLE_XML_TYPE = "LightningComponentBundle"
+  val DIR_NAME = "lwc"
+
+
+  def getBundleMemberHelper: BundleMemberHelper = LwcMemberHelper.helper
+
   def isSupportedType(file: File): Boolean = {
     //is this file in "lwc" folder
-    FileUtils.getParentByName(file, Set("lwc")) match {
+    FileUtils.getParentByName(file, Set(DIR_NAME)) match {
       case Some(x) if !file.isDirectory =>
         val extension = FileUtils.getExtension(file)
         // make sure to exclude __tests__ folder, it may be present but must not be saved to SFDC
@@ -50,7 +57,7 @@ object LwcMember {
    * @param file - if this file is part of lwc bundle then name of the bundle is returned
    * @return
    */
-  def getLwcBundleDir(file: File): Option[File] = {
+  def getBundleDir(file: File): Option[File] = {
     //if we have reached one of these dirs then the search is over
     val topLevelDirs = Set("src", "unpackaged", "lwc")
 
@@ -96,7 +103,7 @@ object LwcMember {
   }
    */
 
-  def getInstanceUpdate(file: File, session: Session): LightningComponentResourceMember = {
+  def getInstanceUpdate(file: File, session: Session): SObject = {
     if (!isSupportedType(file)) {
       throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
     }
@@ -114,14 +121,14 @@ object LwcMember {
   /**
    * presently the only way of matching local file names to lwc object Ids is via metadata retrieve
    * LwcDefinition objects do not have Names and retrieve seems to be the only truly reliable way of matching local file names to SFDC Ids
-   * @param lwcFiles - expect only lwc files here
+   * @param bundledFiles - expect only lwc files here
    * @param idsOnly - set to true if no data must be changed except Ids
    */
-  def updateLwcDefinitionData(session: Session, lwcFiles: List[File], idsOnly: Boolean): Map[File, FileProperties] = {
-    if (lwcFiles.isEmpty)
+  def updateDefinitionData(session: Session, bundledFiles: List[File], idsOnly: Boolean): Map[File, FileProperties] = {
+    if (bundledFiles.isEmpty)
       return Map()
 
-    val lwcBundleNames = lwcFiles.map(LwcMember.getLwcBundleDir(_).map(_.getName).get).toSet
+    val lwcBundleNames = bundledFiles.map(getBundleDir(_).map(_.getName).get).toSet
 
 
     val bulkRetrieve = new BulkRetrieve {
@@ -131,7 +138,7 @@ object LwcMember {
 
       override protected def getSpecificTypesFile: File = {
         val metaXml = new MetaXml(session.getConfig)
-        val _package = metaXml.createPackage(config.apiVersion, Map(LwcMember.BUNDLE_XML_TYPE -> lwcBundleNames.toList))
+        val _package = metaXml.createPackage(config.apiVersion, Map(BUNDLE_XML_TYPE -> lwcBundleNames.toList))
         val packageXml = metaXml.packageToXml(_package)
         val tempFilePath = FileUtils.getTempFilePath("package", "xml")
         val file = new File(tempFilePath)
@@ -146,7 +153,7 @@ object LwcMember {
     val calculateMD5 = session.config.useMD5Hash
 
     val conflictingFiles = Map.newBuilder[File, FileProperties]
-    for(file <- lwcFiles) {
+    for(file <- bundledFiles) {
       val key = session.getKeyByFile(file)
       bulkRetrieveResult.getFileProps(key) match {
         case Some(props) if null != props.getId =>
@@ -175,10 +182,10 @@ object LwcMember {
   }
 }
 
-trait LwcMember {
+class LightningComponentResourceMember extends LightningComponentResource with BundleMember {
 
-}
-class LightningComponentResourceMember extends LightningComponentResource with LwcMember {
+  override def getBundleMemberHelper: BundleMemberHelper = LwcMemberHelper.helper
+
   def setSource(file: File): Unit = {
     setSource(FileUtils.readFile(file).mkString)
   }
@@ -201,7 +208,4 @@ class LightningComponentResourceMember extends LightningComponentResource with L
     val format = FileUtils.getExtension(file)
     setFormat(format)
   }
-}
-class LightningComponentBundleMember extends LightningComponentBundle {
-
 }

@@ -20,13 +20,13 @@
 
 package com.neowit.apex.actions
 
-import com.neowit.apex.actions.tooling.{AuraMember, LwcMember}
 import com.sforce.soap.metadata.{DescribeMetadataObject, ListMetadataQuery}
 import com.neowit.apex.Session
 
 import scala.collection.mutable
 import java.io.{File, PrintWriter}
 
+import com.neowit.apex.actions.tooling.BundleMember
 import com.neowit.utils.{FileUtils, JsonSupport}
 
 import scala.util.{Failure, Success, Try}
@@ -97,7 +97,7 @@ object DescribeMetadata {
         else
             getXmlNameBySuffix(session, FileUtils.getExtension(file)) match {
                 case Some(x) => true
-                case None => AuraMember.isSupportedType(file) || LwcMember.isSupportedType(file)
+                case None => BundleMember.isSupportedType(file)
             }
     }
 

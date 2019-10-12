@@ -21,19 +21,28 @@ package com.neowit.apex.actions.tooling
 
 import java.io.File
 
-import com.neowit.apex.{MetadataType, MetaXml, Session}
+import com.neowit.apex.{MetaXml, MetadataType, Session}
 import com.neowit.apex.actions.BulkRetrieve
 import com.neowit.utils.FileUtils
-import com.sforce.soap.metadata.{FileProperties, AuraDefinitionBundle}
-import com.sforce.soap.tooling.sobject.AuraDefinition
+import com.sforce.soap.metadata.FileProperties
+import com.sforce.soap.tooling.sobject.{AuraDefinition, SObject}
 
-object AuraMember {
+import scala.annotation.tailrec
+
+object AuraMemberHelper {
+    val helper = new AuraMemberHelper
+}
+class AuraMemberHelper extends BundleMemberHelper{
     val EXTENSIONS: Set[String] = Set("app", "cmp", "evt", "intf", "js", "css", "auradoc", "tokens", "design", "svg")
     val XML_TYPE = "AuraDefinition"
     val BUNDLE_XML_TYPE = "AuraDefinitionBundle"
+    val DIR_NAME = "aura"
+
+    def getBundleMemberHelper: BundleMemberHelper = AuraMemberHelper.helper
+
     def isSupportedType(file: File): Boolean = {
         //is this file in "aura" folder
-        FileUtils.getParentByName(file, Set("aura")) match {
+        FileUtils.getParentByName(file, Set(DIR_NAME)) match {
             case Some(x) if !file.isDirectory =>
                 val extension = FileUtils.getExtension(file)
                 EXTENSIONS.contains(extension) || file.getName.endsWith("-meta.xml")
@@ -46,10 +55,11 @@ object AuraMember {
      * @param file - if this file is part of aura bundle then name of the bundle is returned
      * @return
      */
-    def getAuraBundleDir(file: File): Option[File] = {
+    def getBundleDir(file: File): Option[File] = {
         //if we have reached one of these dirs then the search is over
         val topLevelDirs = Set("src", "unpackaged", "aura")
 
+        @tailrec
         def ascend(file: File): Option[File] = {
            if (null != file && !topLevelDirs.contains(file.getName)) {
                val parentFile = file.getParentFile
@@ -90,7 +100,7 @@ object AuraMember {
 
     }
     */
-    def getInstanceUpdate(file: File, session: Session): AuraDefinitionMember = {
+    def getInstanceUpdate(file: File, session: Session): SObject = {
         if (!isSupportedType(file)) {
             throw new UnsupportedTypeForToolingException("File " + file.getName + " is not supported with Tooling API")
         }
@@ -108,14 +118,14 @@ object AuraMember {
     /**
      * presently the only way of matching local file names to aura object Ids is via metadata retrieve
      * AuraDefinition objects do not have Names and retrieve seems to be the only truly reliable way of matching local file names to SFDC Ids
-     * @param auraFiles - expect only aura files here
+     * @param bundledFiles - expect only aura files here
      * @param idsOnly - set to true if no data must be changed except Ids
      */
-    def updateAuraDefinitionData(session: Session, auraFiles: List[File], idsOnly: Boolean): Map[File, FileProperties] = {
-        if (auraFiles.isEmpty)
+    def updateDefinitionData(session: Session, bundledFiles: List[File], idsOnly: Boolean): Map[File, FileProperties] = {
+        if (bundledFiles.isEmpty)
             return Map()
 
-        val auraBundleNames = auraFiles.map(AuraMember.getAuraBundleDir(_).map(_.getName).get).toSet
+        val auraBundleNames = bundledFiles.map(getBundleDir(_).map(_.getName).get).toSet
 
 
         val bulkRetrieve = new BulkRetrieve {
@@ -125,7 +135,7 @@ object AuraMember {
 
             override protected def getSpecificTypesFile: File = {
                 val metaXml = new MetaXml(session.getConfig)
-                val _package = metaXml.createPackage(config.apiVersion, Map(AuraMember.BUNDLE_XML_TYPE -> auraBundleNames.toList))
+                val _package = metaXml.createPackage(config.apiVersion, Map(BUNDLE_XML_TYPE -> auraBundleNames.toList))
                 val packageXml = metaXml.packageToXml(_package)
                 val tempFilePath = FileUtils.getTempFilePath("package", "xml")
                 val file = new File(tempFilePath)
@@ -140,7 +150,7 @@ object AuraMember {
         val calculateMD5 = session.config.useMD5Hash
 
         val conflictingFiles = Map.newBuilder[File, FileProperties]
-        for(file <- auraFiles) {
+        for(file <- bundledFiles) {
             val key = session.getKeyByFile(file)
             bulkRetrieveResult.getFileProps(key) match {
                 case Some(props) if null != props.getId =>
@@ -169,10 +179,10 @@ object AuraMember {
     }
 }
 
-trait AuraMember {
+class AuraDefinitionMember extends AuraDefinition with BundleMember {
 
-}
-class AuraDefinitionMember extends AuraDefinition with AuraMember {
+    override def getBundleMemberHelper: BundleMemberHelper = AuraMemberHelper.helper
+
     def setSource(file: File): Unit = {
         setSource(FileUtils.readFile(file).mkString)
     }
@@ -211,7 +221,4 @@ class AuraDefinitionMember extends AuraDefinition with AuraMember {
         }
         setDefType(defType)
     }
-}
-class AuraBundleMember extends AuraDefinitionBundle {
-    
 }

@@ -157,9 +157,10 @@ class SaveModified extends DeployModified {
             //can not use tooling, fall back to metadata version - DeployModified
             super.deploy(files, updateSessionDataOnSuccess)
         } else {
-            val hasAuraFiles = files.exists(AuraMember.isSupportedType(_))
-            val hasLwcFiles = files.exists(LwcMember.isSupportedType(_))
-            val hasBundleFiles = hasAuraFiles || hasLwcFiles
+
+            val bundledFilesByHelper = BundleMember.splitFilesByHelper(files)
+            val hasBundleFiles = bundledFilesByHelper.nonEmpty
+
             if (!hasBundleFiles) {
                 //split file by MetadataContainer vs ContainerLess
                 val filesByContainerType = files.groupBy(f =>
@@ -180,10 +181,15 @@ class SaveModified extends DeployModified {
                 }
                 mergeDeploymentResults(containerResultOpt, containerLessResultOpt)
             } else {
-                val auraResultOpt = if (hasAuraFiles) Option(deployAura(files, updateSessionDataOnSuccess)) else None
-                val lwcResultOpt = if (hasLwcFiles) Option(deployLwc(files, updateSessionDataOnSuccess)) else None
-
-                mergeDeploymentResults(auraResultOpt, lwcResultOpt)
+                val deploymentReports = bundledFilesByHelper.map{
+                    case (_helper, _files) => deployBundled(_helper, _files, updateSessionDataOnSuccess)
+                }
+                //val auraResultOpt = if (hasAuraFiles) Option(deployAura(files, updateSessionDataOnSuccess)) else None
+                //val lwcResultOpt = if (hasLwcFiles) Option(deployLwc(files, updateSessionDataOnSuccess)) else None
+                val rep1 = deploymentReports.head
+                val mergedReports = deploymentReports.tail.fold(rep1)((r1, r2) => mergeDeploymentResults(r1, r2))
+                //mergeDeploymentResults(deploymentReports)
+                mergedReports
             }
         }
 
@@ -466,6 +472,17 @@ class SaveModified extends DeployModified {
      * @param updateSessionDataOnSuccess - if true then update session if deployment is successful
      * @return
      */
+    private def deployBundled(bundleMemberHelper: BundleMemberHelper, files: List[File],
+                              updateSessionDataOnSuccess: Boolean): DeploymentReport = {
+        saveFilesOfSingleXmlType(
+            files,
+            (file: File) => bundleMemberHelper.getInstanceUpdate(file, session),
+            (files: List[File]) => updateFileModificationData(files, Some(bundleMemberHelper.XML_TYPE)),
+            updateSessionDataOnSuccess
+        )
+
+    }
+    /*
     private def deployAura(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         saveFilesOfSingleXmlType(
             files,
@@ -482,6 +499,8 @@ class SaveModified extends DeployModified {
             updateSessionDataOnSuccess
         )
     }
+    */
+
 
     private def deployWithMetadataContainer(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
         logger.debug("Deploying with Metadata Container")
@@ -594,17 +613,14 @@ class SaveModified extends DeployModified {
      */
     private def getFilesModificationData(files: List[File]): Map[File, Map[String, Any]] = {
         val filesByXmlType = files.groupBy(f => {
-            val isAuraFile = AuraMember.isSupportedType(f)
-            val isLwcFile = LwcMember.isSupportedType(f)
-            val xmlType = if (isAuraFile) {
-                AuraMember.XML_TYPE
-            } else if (isLwcFile) {
-                LwcMember.XML_TYPE
-            } else {
-                DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse("")
-            }
+            val xmlType =
+                BundleMember.getBundleMemberHelper(f) match {
+                    case Some(helper) => helper.XML_TYPE
+                    case None =>
+                        DescribeMetadata.getXmlNameBySuffix(session, FileUtils.getExtension(f)).getOrElse("")
+                }
             xmlType
-        }).filterNot(p => p._1.isEmpty) //here we are making sure that there are not files with empty xml types
+        }).filterNot(p => p._2.isEmpty) //here we are making sure that there are not files with empty xml types
 
         val dataByFileCol = filesByXmlType.keys.par.map(xmlType => {
             val res = getFilesModificationData(xmlType, filesByXmlType(xmlType))
