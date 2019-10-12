@@ -19,7 +19,10 @@
 
 package com.neowit.utils
 
-import java.util.{GregorianCalendar, Calendar, TimeZone}
+import java.time.{LocalDateTime, ZoneId}
+import java.time.format.DateTimeFormatter
+import java.util.{Calendar, GregorianCalendar, TimeZone}
+
 import com.sforce.ws.bind.CalendarCodec
 
 object ZuluTime {
@@ -33,7 +36,6 @@ object ZuluTime {
         dateFormatGmt.setTimeZone(TimeZone.getTimeZone("GMT"))
         dateFormatGmt.format(cal.getTime) + ".000Z"
     }
-    def deserialize(dateStr: String): Calendar = codec.deserialize(dateStr)
 
     def toCalendar(millis: Long): Calendar = {
         val calendar = new GregorianCalendar(TimeZone.getTimeZone("GMT"))
@@ -42,5 +44,26 @@ object ZuluTime {
     }
 
 
+    /**
+     * works only on dates in format: 2019-10-12T08:21:12.000Z
+     * @param dateStr - ex: 2019-10-29T08:21:12.000Z
+     * @return
+     */
+    def deserialize(dateStr: String): Calendar = codec.deserialize(dateStr)
+
+    /**
+     * accepts only dates in format: yyyy-MM-dd'T'HH:mm:ss.SSSxxxx
+     * use it to parse DateTime returned by SFDC REST API
+     * @param dateStr - e.g. 2019-10-12T07:58:28.000+0000
+     * @return Epoch Mills
+     */
+    def parseToMills(dateStr: String): Long = {
+        //val zonedDate = java.time.ZonedDateTime.parse(dateStr)
+        //2019-10-12T07:58:28.000+0000
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxxx")
+        val zonedDate = LocalDateTime.parse(dateStr,  formatter).atZone(ZoneId.of("UTC"))
+        //val localDateTime = LocalDateTime.ofInstant(zonedDate.toInstant, zoneOffset)
+        zonedDate.toInstant.toEpochMilli
+    }
 
 }
