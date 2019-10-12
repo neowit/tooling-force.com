@@ -256,10 +256,20 @@ abstract class Deploy extends ApexActionWithWritableSession {
                         processOneFile(f, successMessage, AuraMember.BUNDLE_XML_TYPE)
                         // process individual files
                         FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
-                            .filter(AuraMember.isSupportedType)
-                            .foreach(file =>
-                                processOneFile(file, successMessage, AuraMember.XML_TYPE)
-                            )
+                          .filter(AuraMember.isSupportedType)
+                          .foreach(file =>
+                              processOneFile(file, successMessage, AuraMember.XML_TYPE)
+                          )
+                    } else if (f.isDirectory && LwcMember.BUNDLE_XML_TYPE == successMessage.getComponentType) {
+                            //for lwc bundles Metadata API deploy() reports only bundle name, not individual files
+                            // process bundle dir
+                            processOneFile(f, successMessage, LwcMember.BUNDLE_XML_TYPE)
+                            // process individual files
+                            FileUtils.listFiles(dir = f, descentIntoFolders = true, includeFolders = false)
+                              .filter(LwcMember.isSupportedType)
+                              .foreach(file =>
+                                  processOneFile(file, successMessage, LwcMember.XML_TYPE)
+                              )
                     } else {
                         if (f.exists() && !f.isDirectory) {
                             val xmlType = describeByDir.get(f.getParentFile.getName) match {
