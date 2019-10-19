@@ -167,13 +167,14 @@ class RefreshMetadata extends RetrieveMetadata {
             case "responseFilePath" => "--responseFilePath - full path to file where result of the operation will be documented."
             case "skipModifiedFilesCheck" => "--skipModifiedFilesCheck - unsafe retrieval, do not check for modified files before retrieval."
             case "modifiedFilesResultCode" => "--modifiedFilesResultCode - If provided (and project has modified files) then instead of normal 'RESULT=FAILURE' 'RESULT=' will be reported with given code."
+            case "packageName" => "--packageName - if provided then will retrieve metadata from the specified package rather then 'unpackaged'."
         }
 
-        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath", "skipModifiedFilesCheck", "modifiedFilesResultCode")
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath", "skipModifiedFilesCheck", "modifiedFilesResultCode", "packageName")
 
         override def getExample: String = ""
 
-        override def getSummary: String = "allows to 'retrieve' all elements specified in package.xml"
+        override def getSummary: String = "allows to 'retrieve' all elements specified in package.xml or in a package with the specified name"
 
         override def getName: String = "refresh"
     }
@@ -185,14 +186,21 @@ class RefreshMetadata extends RetrieveMetadata {
                 val skipModifiedFilesCheck = config.getProperty("skipModifiedFilesCheck").getOrElse("false").toBoolean
                 val modifiedFileChecker = new ListModified().load[ListModified](session)
                 val modifiedFiles = if (skipModifiedFilesCheck) Nil else modifiedFileChecker.getModifiedFiles
+                val packageNameOpt = config.getProperty("packageName").orElse(session.getData("package").get("name").map(_.toString))
 
                 if (modifiedFiles.isEmpty) {
                     val retrieveRequest = new RetrieveRequest()
                     retrieveRequest.setApiVersion(config.apiVersion)
-                    setUpackaged(retrieveRequest)
+                    packageNameOpt match {
+                      case Some(packageName) =>
+                        retrieveRequest.setPackageNames(Array(packageName))
+                        //retrieveRequest.setSinglePackage(true)
+                      case None =>
+                          setUpackaged(retrieveRequest)
+                    }
                     Try(session.retrieve(retrieveRequest)) match {
                         case Success(retrieveResult) =>
-                            val result = updateFromRetrieve(retrieveResult)
+                            val result = updateFromRetrieve(retrieveResult, packageNameOpt)
                             ActionSuccess(RefreshMetadataResult(retrieveResult = Option(result), modifiedFiles = Nil))
                         case Failure(err) =>
                             val errorListBuilder = List.newBuilder[ErrorMessage]
@@ -246,8 +254,8 @@ class RefreshMetadata extends RetrieveMetadata {
      * using ZIP file produced, for example, as a result of Retrieve operation
      * extract content and generate response file
      */
-    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult): UpdateFromRetrieveResult = {
-        val tempFolder = FileUtils.createTempDir(config)
+    def updateFromRetrieve(retrieveResult: com.sforce.soap.metadata.RetrieveResult, packageNameOpt: Option[String]): UpdateFromRetrieveResult = {
+        val tempFolder = FileUtils.createTempDir(config/*, packageNameOpt*/)
         val filePropsMap = updateFromRetrieve(retrieveResult, tempFolder)
         //clear Ids of all files not loaded from the Org
         session.resetData(filePropsMap.keySet)
@@ -501,6 +509,8 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
      */
     def retrieveOne(metadataTypeName: String, membersByXmlName: Map[String, List[String]]): RetrieveResult = {
         logger.info("retrieve: " + metadataTypeName)
+        val packageNameOpt = config.getProperty("packageName").orElse(session.getData("package").get("name").map(_.toString))
+
         val members = membersByXmlName(metadataTypeName)
         val retrieveRequest = new RetrieveRequest()
         retrieveRequest.setApiVersion(config.apiVersion)
@@ -522,9 +532,15 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
                 resMap.toMap
             case None => Map(metadataTypeName -> members)
         }
-        val unpackagedManifest = metaXml.createPackage(config.apiVersion, typesMap)
 
-        retrieveRequest.setUnpackaged(unpackagedManifest)
+        packageNameOpt match {
+            case Some(packageName) if "unpackaged" != packageName =>
+                retrieveRequest.setPackageNames(Array(packageName))
+            case _ =>
+                val unpackagedManifest = metaXml.createPackage(config.apiVersion, typesMap)
+                retrieveRequest.setUnpackaged(unpackagedManifest)
+        }
+
 
         val retrieveResult = session.retrieve(retrieveRequest)
         retrieveResult.getMessages match {
@@ -821,26 +837,35 @@ class DiffWithRemote extends RetrieveMetadata {
     }
 
     protected def processRetrieveResult(tempFolder: File, bulkRetrieveResult: BulkRetrieveResult): DiffWithRemoteReport = {
+        val packageNameOpt = config.getProperty("packageName").orElse(session.getData("package").get("name").map(_.toString))
+
         val errors = bulkRetrieveResult.errors
 
         if (errors.isEmpty) {
-            //by default retrieve result is unpacked in .../unpackaged/... folder
-            val remoteProjectDir = new File(tempFolder, "unpackaged")
-            //rename destination folder to be .../src/... instead of .../unpackaged/...
-            val destinationSrcFolder = new File(tempFolder, "src")
-            if (destinationSrcFolder.exists()) {
-                FileUtils.delete(destinationSrcFolder)
-            }
-            if (remoteProjectDir.renameTo(new File(tempFolder, "src"))) {
-                val report = generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
-                report
+            packageNameOpt  match {
+              case Some(packageName) if "unpackaged" != packageName =>
+                  val remoteProjectDir = new File(tempFolder, packageName)
+                  val report = generateDiffReport(bulkRetrieveResult, remoteProjectDir.getAbsolutePath)
+                  report
+              case _ =>
+                  //by default retrieve result is unpacked in .../unpackaged/... folder
+                  val remoteProjectDir = new File(tempFolder, "unpackaged")
+                  //rename destination folder to be .../src/... instead of .../unpackaged/...
+                  val destinationSrcFolder = new File(tempFolder, "src")
+                  if (destinationSrcFolder.exists()) {
+                      FileUtils.delete(destinationSrcFolder)
+                  }
+                  if (remoteProjectDir.renameTo(new File(tempFolder, "src"))) {
+                      val report = generateDiffReport(bulkRetrieveResult, destinationSrcFolder.getAbsolutePath)
+                      report
 
-            } else {
-                //failed to rename unpackaged/ into src/
-                //responseWriter.println("RESULT=FAILURE")
-                //responseWriter.println(new Message(ERROR,
-                //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
-                DiffWithRemoteReportFailure(List(ErrorMessage(s"Failed to rename $remoteProjectDir + into $destinationSrcFolder")))
+                  } else {
+                      //failed to rename unpackaged/ into src/
+                      //responseWriter.println("RESULT=FAILURE")
+                      //responseWriter.println(new Message(ERROR,
+                      //    s"Failed to rename $remoteProjectDir + into $destinationSrcFolder"))
+                      DiffWithRemoteReportFailure(List(ErrorMessage(s"Failed to rename '$remoteProjectDir' into '$destinationSrcFolder'")))
+                  }
             }
         } else {
             //config.responseWriter.println("RESULT=FAILURE")

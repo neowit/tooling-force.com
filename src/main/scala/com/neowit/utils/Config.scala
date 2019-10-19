@@ -257,13 +257,15 @@ class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Loggin
 class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Config(basicConfig) {
 
     protected def projectPathOpt: Option[String] = getProperty("projectPath")
+    protected def packageNameOpt: Option[String] = getProperty("packageName")
     def projectDirOpt: Option[File] = projectPathOpt.map(new File(_))
     /* path to src folder */
     //lazy val srcPathOpt: Option[String] = srcDirOpt.map(_.getAbsolutePath)
     lazy val srcDirOpt: Option[File] = {
         projectPathOpt match {
             case Some(_projectPath) =>
-                val fSrc = new File(_projectPath, "src")
+                val srcDirName = packageNameOpt.getOrElse("src")
+                val fSrc = new File(_projectPath, srcDirName)
                 if (!fSrc.isDirectory || !fSrc.canRead) {
                     throw new ConfigValueException("failed to detect 'src' folder in path:" + _projectPath)
                 }
