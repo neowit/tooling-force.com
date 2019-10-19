@@ -86,7 +86,7 @@ object BundleMember {
     }
     def getBundleMemberHelper(filePath: String): Option[BundleMemberHelper] = {
         val filePathNormalised = FileUtils.normalizePath(filePath)
-        HELPERS.find(h => filePathNormalised.contains(h.DIR_NAME + '/'))
+        HELPERS.find(h => filePathNormalised.contains(h.DIR_NAME + FileUtils.NORMAL_SLASH))
     }
 
     def isSupportedType(file: File): Boolean = HELPERS.exists(_.isSupportedType(file))

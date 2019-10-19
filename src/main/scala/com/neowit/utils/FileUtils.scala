@@ -30,12 +30,13 @@ import scala.util.{Failure, Success, Try}
 
 object FileUtils {
 
+    val NORMAL_SLASH = "/"
     val regexSafeSeparator: String = Matcher.quoteReplacement(File.separator)
     /**
      * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
      * @return turns path\\to\file into path/to/file
      */
-    def normalizePath(filePath: String): String = filePath.replaceAll(FileUtils.regexSafeSeparator, "/")
+    def normalizePath(filePath: String): String = filePath.replaceAll(FileUtils.regexSafeSeparator, NORMAL_SLASH)
 
     /**
      * using provided folder try to find src/ or unpackaged/ child folder
@@ -126,7 +127,7 @@ object FileUtils {
         !file.exists()
 
     }
-    def createTempFile(prefix: String, suffix: String) = {
+    def createTempFile(prefix: String, suffix: String): File = {
         File.createTempFile(prefix, suffix)
     }
 
@@ -258,15 +259,15 @@ object FileUtils {
      * @return
      */
     def readFileAsText(file: File, codec: scala.io.Codec = UTF_8): String = {
-      val source = scala.io.Source.fromFile(file)(codec)
-      val text =
-        Try( source.getLines().mkString("\n") ) match {
-            case Success(lines) =>
-                lines
-            case Failure(_) if LATIN1 != codec =>
-                readFileAsText(file, LATIN1)
-            case Failure(ex) => throw ex
-        }
+        val source = scala.io.Source.fromFile(file)(codec)
+        val text =
+            Try( source.getLines().mkString("\n") ) match {
+                case Success(lines) =>
+                    lines
+                case Failure(_) if LATIN1 != codec =>
+                    readFileAsText(file, LATIN1)
+                case Failure(ex) => throw ex
+            }
 
         source.close
         text
