@@ -502,7 +502,10 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
     }
 
     //some types require special treatment and need other object types included in the package in order to return meaningful result
-    private val complexTypes = Map("Profile" -> Set("CustomObject"), "PermissionSet" -> Set("CustomObject"))
+    private val complexTypes = Map(
+        "Profile" -> Set("CustomObject", "CustomTab"),
+        "PermissionSet" -> Set("CustomObject", "CustomTab")
+    )
     /**
      * retrieve single type and its members
      * @param metadataTypeName, e.g. ApexClass
