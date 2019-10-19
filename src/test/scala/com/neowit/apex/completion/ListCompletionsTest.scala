@@ -25,7 +25,7 @@ import java.io.{File, FileInputStream}
 import java.nio.file.{Path, Paths}
 import java.util.Properties
 
-import com.neowit.apex.{ProjectsCache, Session}
+import com.neowit.apex.{PathUtils, ProjectsCache, Session}
 import com.neowit.apexscanner.{Project, ProjectRootFinder}
 import com.neowit.apexscanner.antlr.CaretUtils
 import com.neowit.apexscanner.completion.CompletionFinder
@@ -59,7 +59,7 @@ class ListCompletionsTest extends FunSuite {
                 val paths = new Properties()
                 paths.load(is)
 
-                val loginCredentialsPath = paths.getProperty("loginCredentialsPath")
+                val loginCredentialsPath = PathUtils.expand( paths.getProperty("loginCredentialsPath") )
                 val loginProperties = new Properties()
                 loginProperties.load(new FileInputStream(loginCredentialsPath))
 
