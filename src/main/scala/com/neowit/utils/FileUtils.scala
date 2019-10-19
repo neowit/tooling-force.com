@@ -272,10 +272,6 @@ object FileUtils {
         text
 
     }
-
-    def readFile(path: String): scala.io.BufferedSource = {
-        scala.io.Source.fromFile(path)(UTF_8)
-    }
 }
 
 private class FileWriterWithEncoding(file: File, append: Boolean, codec: scala.io.Codec)

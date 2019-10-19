@@ -192,7 +192,8 @@ class LightningComponentResourceMember extends LightningComponentResource with B
   override def getBundleMemberHelper: BundleMemberHelper = LwcMemberHelper.helper
 
   def setSource(file: File): Unit = {
-    setSource(FileUtils.readFile(file).mkString)
+    //setSource(FileUtils.readFile(file).mkString)
+    setSource(FileUtils.readFileAsText(file))
   }
 
   def setFormat(file: File): Unit = {

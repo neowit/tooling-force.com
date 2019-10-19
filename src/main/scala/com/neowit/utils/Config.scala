@@ -26,6 +26,7 @@ import java.nio.file.{Files, Paths}
 import com.neowit.auth._
 import com.neowit.response.ResponseWriter
 import com.neowit.response.protocols.vim.ResponseWriterVim
+import com.neowit.utils.FileUtils.UTF_8
 
 //import com.typesafe.scalalogging.slf4j.Logging
 import scala.collection.mutable.ListBuffer
@@ -111,7 +112,7 @@ class BasicConfig extends Logging {
             //require(!configFilePaths.isEmpty, "missing --config parameter")
             for (confPath <- configFilePaths) {
                 val conf = new Properties()
-                conf.load(FileUtils.readFile(confPath).bufferedReader())
+                conf.load((scala.io.Source.fromFile(confPath)(UTF_8)).bufferedReader())
 
                 val keys = conf.keySet().iterator()
                 while (keys.hasNext) {
