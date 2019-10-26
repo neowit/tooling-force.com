@@ -202,7 +202,7 @@ class CommandProcessor extends Actor {
         val commandLineArgs:Array[String] = commandLine match {
             case x if !x.isEmpty =>
               //command line looks like: --key2="value 1" --key2=value2 --key3="value 33"
-              val args1 = x.trim.split("--").filterNot(_.isEmpty).map(s => "--" + s.trim)
+              val args1 = x.trim.split("(^|\\W)--").filterNot(_.isEmpty).map(s => "--" + s.trim)
               //args1: Array("--key2="value 1"", "--key2=value2", "--key3='value 33'")
               //need to get rid of quotes around values with spaces
               args1.map(s => {
