@@ -147,7 +147,9 @@ abstract class RetrieveMetadata extends ApexActionWithWritableSession {
                 }
             }
         } finally {
-            session.storeSessionData()
+            if (!this.isSessionReadOnly) {
+                session.storeSessionData()
+            }
             resultsFile.delete()
         }
         propertyByFilePath.toMap
@@ -768,7 +770,7 @@ case class DiffWithRemoteReportSuccess(bulkRetrieveResult: BulkRetrieveResult, r
  */
 class DiffWithRemote extends RetrieveMetadata {
 
-    override def isSessionReadOnly: Boolean = false
+    override def isSessionReadOnly: Boolean = true
 
     private val superActionHelp = new BulkRetrieve().getHelp
     override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
@@ -822,6 +824,7 @@ class DiffWithRemote extends RetrieveMetadata {
         }
         val bulkRetrieve = new BulkRetrieve {
             override protected def isUpdateSessionDataOnSuccess: Boolean = false
+            override def isSessionReadOnly: Boolean = true
 
             override protected def getSpecificTypesFile: File = {
                 super.getTypesFileFormat match {

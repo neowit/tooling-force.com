@@ -263,7 +263,7 @@ abstract class ApexActionWithWritableSession extends ApexActionWithReadOnlySessi
     }
 
     protected override def finalise(): Unit = {
-        if (isSessionReadOnly) {
+        if (!isSessionReadOnly) {
             //make sure that session data is saved to disk
             session.storeSessionData()
         }
