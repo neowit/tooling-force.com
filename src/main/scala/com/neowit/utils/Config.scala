@@ -356,7 +356,7 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
 }
 
 class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends ConfigWithSfdcProject(basicConfig) {
-
+    protected val sessionFileName = "session.properties"
     lazy val isCheckOnly: Boolean = getProperty("checkOnly").contains("true")
 
     /**
@@ -380,14 +380,21 @@ class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends 
         }
     }
     lazy val lastSessionPropsOpt: Option[JsonProperties] = {
-        sessionFolderOpt.map{ sessionFolder =>
-            val file = new File(sessionFolder, "session.properties")
+        sessionFolderOpt.flatMap{ sessionFolder =>
+            val file = new File(sessionFolder, sessionFileName)
             if (!file.exists) {
                 file.createNewFile()
             }
+            loadSessionProperties(file)
+        }
+    }
+    protected def loadSessionProperties(propsFile: File): Option[JsonProperties] = {
+        if (propsFile.exists && propsFile.canRead) {
             val props = new Properties() with JsonProperties
-            props.load(FileUtils.readFile(file).bufferedReader())
-            props
+            props.load(FileUtils.readFile(propsFile).bufferedReader())
+            Option(props)
+        } else {
+            None
         }
     }
 }
@@ -398,10 +405,29 @@ class ConfigWithSession(override val basicConfig: BasicConfig) extends ConfigWit
             sessionFolder <- sessionFolderOpt
             lastSessionProps <- lastSessionPropsOpt
         } yield {
-            val writer = new FileWriter(new File(sessionFolder, "session.properties"))
+            // check we do not have an outdated session version
+            val sessionVersionKey = "session.version"
+            val file = new File(sessionFolder, sessionFileName)
+            val versionInSession = lastSessionProps.getPropertyOption(sessionVersionKey).getOrElse("0").toInt
+            val isOutdatedSession =
+                loadSessionProperties(file) match {
+                    case Some(props) =>
+                        props.getPropertyOption(sessionVersionKey) match {
+                            case Some(versionInFile) =>
+                                versionInFile.toInt > versionInSession
+                            case None => false
+                        }
+                    case None => false
+                }
+            val _sessionFileName = if (isOutdatedSession) sessionFileName + "-conflict" else sessionFileName
+            // if there is a conflict then store current version in memory to file "...-conflict"
+            val writer = new FileWriter(new File(sessionFolder, _sessionFileName))
+            lastSessionProps.setProperty(sessionVersionKey, String.valueOf(versionInSession+1))
             lastSessionProps.store(writer, "Session data\nThis is automatically generated file. Any manual changes may be overwritten.")
             writer.close()
-            true
+            if (isOutdatedSession) {
+                throw new IllegalStateException(s"Session version on disk is newer than the one we are trying to save: ($sessionVersionKey)")
+            }
         }
     }
 }
