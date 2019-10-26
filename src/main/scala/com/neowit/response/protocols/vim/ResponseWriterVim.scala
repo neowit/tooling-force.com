@@ -130,6 +130,7 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
             case res @ SoqlQueryResult(_) => new SoqlQuery(this).send(res)
             case res @ LoadApexCodeCoverageAggregateResult(_) => new RunTests(this).send(res)
             case res @ GuessSetupUrlResult(_) => new GuessSetupUrl(this).send(res)
+            case res @ RenameMetadataResult(_) => new RenameMetadata(this).send(res)
         }
     }
 

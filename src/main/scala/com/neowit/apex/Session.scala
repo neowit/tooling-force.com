@@ -882,6 +882,28 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         retrieveResult
     }
 
+    /**
+     * Use the renameMetadata() call to rename one metadata component in your organization.
+     * This call executes synchronously, meaning the call returns only when the operation completes.
+     *
+     * You can use this call to rename any of the objects that extend Metadata.
+     *
+     * @param metadataType - The metadata type of the components to rename
+     * @param oldFullName - The current component full name
+     * @param newFullName - The new component full name
+     * @return
+     */
+    def renameMetadata(metadataType: String, oldFullName: String, newFullName: String): SaveResult = {
+        val saveResult = withRetry {
+            val conn = getMetadataConnection
+            val _result = conn.renameMetadata(metadataType, oldFullName, newFullName)
+            _result
+        }.asInstanceOf[SaveResult]
+
+        saveResult
+
+    }
+
     def deploy(zipFile: Array[Byte], deployOptions: DeployOptions ):(DeployResult, String) = {
         var log = ""
         val deployResult = withRetry {
