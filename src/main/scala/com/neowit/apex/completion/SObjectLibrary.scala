@@ -103,7 +103,7 @@ object SObjectLibrary {
                             val node = SObjectChildRelationshipNode(library, this, childRelationship.getRelationshipName, sObjectMember)
                             node
                         }.filter(_.relationshipName != null)
-                    val containerNode = SObjectChildRelationshipContainerNode(self, relationshipNodes)
+                    val containerNode = SObjectChildRelationshipContainerNode(self, relationshipNodes.toIndexedSeq)
                     this.addChildToAst(containerNode)
 
                 }
@@ -271,7 +271,7 @@ class SObjectLibrary(session: Session) extends CodeLibrary with AstNode with IsT
 
     //override standard AstNode.findChildrenInAst because we need
     override def findChildrenInAst(filter: (AstNode) => Boolean, recursively: Boolean = false): Seq[AstNode] = {
-        _sobjectNodes.filter(filter)
+        _sobjectNodes.filter(filter).toSeq
     }
 
     override def getValueType: Option[ValueType] = Option(ValueTypeSimple(QualifiedName(getName)))

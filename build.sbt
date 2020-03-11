@@ -4,7 +4,7 @@ name := "tooling-force.com"
 
 version := "0.1-SNAPSHOT"
 
-scalaVersion := "2.12.10"
+scalaVersion := "2.13.1"
 
 scalacOptions ++= Seq(
     "-deprecation",
@@ -16,8 +16,8 @@ scalacOptions ++= Seq(
     //"-Yno-adapted-args",
     //"-Ywarn-numeric-widen",
     //"-Ywarn-value-discard",
-    "-Xfuture",
-    "-Ywarn-unused-import"
+    //"-Xfuture",
+    //"-Ywarn-unused-import"
 )
 
 // disable generation of scala-<version> folders, we do not need cross compilation
@@ -44,17 +44,17 @@ libraryDependencies ++= Seq(
 )
 
 // logging
-libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.7"
+//libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
+//libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 //libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.21"
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0"
 
 libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.5.3"
+    "org.scalatest" %% "scalatest" % "3.1.1" % "test",
+    "com.typesafe.akka" %% "akka-actor" % "2.5.29"
 )
 
 
-libraryDependencies += "io.spray" %%  "spray-json" % "1.3.2"
+libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
 
 // embedded web server
 val jettyVersion="9.4.0.v20161208"

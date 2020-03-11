@@ -36,7 +36,7 @@ object ZipUtils extends Logging{
         val zin = new ZipInputStream(new FileInputStream(zip))
 
         var entry = zin.getNextEntry
-        val res = scala.collection.mutable.MutableList[String]()
+        val res = scala.collection.mutable.ArrayDeque[String]()
         while (entry != null) {
             val name = entry.getName
             entry = zin.getNextEntry

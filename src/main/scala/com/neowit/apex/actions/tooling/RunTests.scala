@@ -220,7 +220,7 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                             case Some(jobId) =>
                                 val logIdByClassName = getLogIds(jobId)
                                 val logFileByClassName = getLogFileByClassName(logIdByClassName)
-                                val _logFilePathByClassName = logFileByClassName.mapValues(_.getAbsolutePath)
+                                val _logFilePathByClassName = logFileByClassName.view.mapValues(_.getAbsolutePath)
                                 //responseWriter.println("LOG_FILE_BY_CLASS_NAME=" + logFilePathByClassName.toJson)
                                 (_logFilePathByClassName, None)
                             case None => //test was run in Synchronous mode
@@ -249,9 +249,9 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                         (Map.empty[String, String], None)
                     }
                 if (testFailures.isEmpty) {
-                    ActionSuccess(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName, logFileOpt, coverageReportOpt))
+                    ActionSuccess(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName.toMap, logFileOpt, coverageReportOpt))
                 } else {
-                    ActionFailure(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName, logFileOpt, coverageReportOpt))
+                    ActionFailure(com.neowit.response.RunTestsResult(testFailures, logFilePathByClassName.toMap, logFileOpt, coverageReportOpt))
                 }
             } catch {
                 case ex: Session.RestCallException =>
@@ -456,7 +456,7 @@ class RunTests extends DeployModified with RunTestJsonSupport {
     }
 
     private def getLogFileByClassName(logIdByClassName: Map[String, String] ): Map[String, File] = {
-        val x = logIdByClassName.par.map{
+        val x = logIdByClassName.map{
             case (className, logId) =>
                 val logText = LogActions.getLog(session, logId)
                 if (logText.nonEmpty) {
@@ -466,10 +466,10 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                 } else {
                     className -> None
                 }
-        }.filterNot(_._2.isEmpty).mapValues(_.get)
+        }.filterNot(_._2.isEmpty).view.mapValues(_.get)
 
         //convert back to sequential
-        x.seq.toMap
+        x.toMap
     }
 
     private def generateRunTestResult(asyncApexJob: AsyncApexJob): com.sforce.soap.tooling.RunTestsResult = {
@@ -566,8 +566,8 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                   res.setLocationsNotCovered(locations)
               case None =>
             }
-            val numLinesCovered = record.getFieldAsNumber("NumLinesCovered").getOrElse(BigDecimal(0)).intValue()
-            val numLinesUncovered = record.getFieldAsNumber("NumLinesUncovered").getOrElse(BigDecimal(0)).intValue()
+            val numLinesCovered = record.getFieldAsNumber("NumLinesCovered").getOrElse(BigDecimal(0)).intValue
+            val numLinesUncovered = record.getFieldAsNumber("NumLinesUncovered").getOrElse(BigDecimal(0)).intValue
             res.setNumLocations(numLinesCovered + numLinesUncovered)
             res.setNumLocationsNotCovered(numLinesUncovered)
 

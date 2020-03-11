@@ -31,7 +31,7 @@ import com.neowit.apexscanner.antlr.CaretUtils
 import com.neowit.apexscanner.completion.CompletionFinder
 import com.neowit.apexscanner.scanner.actions.{ActionContext, ListCompletionsActionType}
 import com.neowit.utils.BasicConfig
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import scala.util.Random
 
@@ -40,7 +40,7 @@ import scala.util.Random
   *
   * Test completions that require access to Salesforce DB
   */
-class ListCompletionsTest extends FunSuite {
+class ListCompletionsTest extends AnyFunSuite {
 
 
     private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "ListCompletionsTest")

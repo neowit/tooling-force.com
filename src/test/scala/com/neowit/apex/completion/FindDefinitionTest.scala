@@ -33,14 +33,14 @@ import com.neowit.apexscanner.nodes.{AstNode, IsTypeDefinition}
 import com.neowit.apexscanner.resolvers.AscendingDefinitionFinder
 import com.neowit.apexscanner.scanner.actions.{ActionContext, FindSymbolActionType}
 import com.neowit.utils.BasicConfig
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import scala.util.Random
 
 /**
   * Created by Andrey Gavrikov 
   */
-class FindDefinitionTest extends FunSuite {
+class FindDefinitionTest extends AnyFunSuite {
     private val projectPath: Path = Paths.get(System.getProperty("java.io.tmpdir") + File.separator + "FindDefinitionTest")
 
     test("findDefinition: inside SOQL statement: Name") {

@@ -279,10 +279,10 @@ class SaveModified extends DeployModified {
      * @return - true if all files have been saved successfully
      */
     private def saveContainerLessFiles(files: List[File], updateSessionDataOnSuccess: Boolean): DeploymentReport = {
-        val deploymentResultByExtension = files.groupBy(FileUtils.getExtension(_)).par.mapValues{files =>
+        val deploymentResultByExtension = files.groupBy(FileUtils.getExtension(_)).view.mapValues{files =>
             saveFilesOfSingleXmlType(files, fileToToolingInstance,
                 (files: List[File]) => updateFileModificationData(files), updateSessionDataOnSuccess)
-        }.seq.values
+        }.values
 
         // merge all results into 1
         val firstResult = deploymentResultByExtension.head
@@ -622,7 +622,7 @@ class SaveModified extends DeployModified {
             xmlType
         }).filterNot(p => p._2.isEmpty) //here we are making sure that there are not files with empty xml types
 
-        val dataByFileCol = filesByXmlType.keys.par.map(xmlType => {
+        val dataByFileCol = filesByXmlType.keys.map(xmlType => {
             val res = getFilesModificationData(xmlType, filesByXmlType(xmlType))
             res
         })

@@ -59,12 +59,12 @@ object LanguageServerLauncher extends Logging {
                             val server = new ApexLanguageServerBase(System.in, System.out, config)
                             server.start()
                         case _ =>
-                            parser.showUsageAsError()
+                            //parser.showUsageAsError()
                     }
                 }
             case None =>
                 // bad config
-                parser.showUsageAsError()
+                //parser.showUsageAsError()
         }
     }
 

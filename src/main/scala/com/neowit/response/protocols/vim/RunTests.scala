@@ -40,7 +40,7 @@ object RunTests extends JsonSupport {
         } else {
             writer.send(InfoMessage("Tests PASSED"))
         }
-        Unit
+        ()
     }
     def printCoverageReport(writer: ResponseWriterVim, coverageReportOpt: Option[CodeCoverageReport]): Unit = {
         coverageReportOpt match {
@@ -79,7 +79,7 @@ object RunTests extends JsonSupport {
                 }
             case None =>
         }
-        Unit
+        ()
     }
 
     def prepareDetailedPerFileCoverage(coverageReportOpt: Option[CodeCoverageReport]): Option[File] = {
@@ -138,7 +138,7 @@ class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
                 writer.send("COVERAGE_FILE=" + resultFile.getAbsolutePath)
             case None =>
         }
-        Unit
+        ()
     }
     def send(result: LoadApexCodeCoverageAggregateResult): Unit = {
         printCoverageReport(writer, Option(result.coverageReport))
@@ -148,6 +148,6 @@ class RunTests(writer: ResponseWriterVim) extends VimProtocol[RunTestsResult] {
                 writer.send("COVERAGE_FILE=" + resultFile.getAbsolutePath)
             case None =>
         }
-        Unit
+        ()
     }
 }

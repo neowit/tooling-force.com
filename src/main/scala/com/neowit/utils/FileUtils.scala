@@ -36,7 +36,7 @@ object FileUtils {
      * in order to be used for session 'key' purpose file name must contain unix separator '/' as opposed to Windows one
      * @return turns path\\to\file into path/to/file
      */
-    def normalizePath(filePath: String): String = filePath.replaceAll(FileUtils.regexSafeSeparator, NORMAL_SLASH)
+    def normalizePath(filePath: String): String = filePath.replaceAll(regexSafeSeparator, NORMAL_SLASH)
 
     /**
      * using provided folder try to find src/ or unpackaged/ child folder
@@ -240,8 +240,8 @@ object FileUtils {
         }
     }
 
-    val UTF_8 = scala.io.Codec("UTF-8")
-    val LATIN1 = scala.io.Codec("ISO-8859-1")
+    val UTF_8:scala.io.Codec = scala.io.Codec("UTF-8")
+    val LATIN1:scala.io.Codec = scala.io.Codec("ISO-8859-1")
 
     def readFile(file: Path): scala.io.BufferedSource = {
         scala.io.Source.fromFile(file.toFile)(UTF_8)

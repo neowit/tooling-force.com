@@ -20,9 +20,9 @@
 package com.neowit.apex.metadata
 
 import com.neowit.apex.StubFileGenerator
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class StubFileGeneratorTest extends FunSuite{
+class StubFileGeneratorTest extends AnyFunSuite{
 
     test("Object type name in Trigger detection 1") {
         val text = """trigger MyTrigger on Task ( before insert, after update) {} """

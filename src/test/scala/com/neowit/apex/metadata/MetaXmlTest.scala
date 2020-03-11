@@ -21,10 +21,10 @@ package com.neowit.apex.metadata
 
 import com.neowit.apex.{MetaXml, NodeIterator}
 import com.neowit.utils.FileUtils
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 
-class MetaXmlTest extends FunSuite {
+class MetaXmlTest extends AnyFunSuite {
 
     test("getPackage") {
         val is = getClass.getClassLoader.getResource("meta-xml/package.xml").openStream()

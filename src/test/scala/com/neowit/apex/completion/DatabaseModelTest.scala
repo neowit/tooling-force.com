@@ -19,13 +19,13 @@
 
 package com.neowit.apex.completion
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 /**
   * Author: Andrey Gavrikov (westbrook)
   * Date: 25/09/2016
   */
-class DatabaseModelTest extends FunSuite {
+class DatabaseModelTest extends AnyFunSuite {
 
     test("Namespace Detection (absent)") {
         assertResult(0)(DatabaseModel.hasNamespacePrefix("de"))

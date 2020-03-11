@@ -29,7 +29,8 @@ import com.sforce.soap.metadata._
 import spray.json._
 
 import scala.concurrent._
-import collection.JavaConverters._
+//import collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import java.io._
 
 import com.neowit.TcpServer
@@ -37,6 +38,7 @@ import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCrea
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 import com.neowit.auth.{LoginPasswordCredentials, Oauth2Credentials}
 
+import scala.collection.MapView
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -243,8 +245,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
             if (!keepKeys.contains(key)) {
                 val oldData = getData(key)
                 oldValues += key -> oldData
-                val newData = oldData.filterKeys(_field => !Set("Id", "LastModifiedDate", "LastModifiedDateMills").contains(_field))
-                setData(key, newData)
+                val newData = oldData.view.filterKeys(_field => !Set("Id", "LastModifiedDate", "LastModifiedDateMills").contains(_field))
+                setData(key, newData.toMap)
             }
 
         }
@@ -1170,7 +1172,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         } while (!retrieveResult.isDone)
 
         if (!retrieveResult.isSuccess) {
-            throw new Exception(retrieveResult.getStatus + " msg:" + retrieveResult.getMessages.mkString("\n"))
+            throw new Exception(retrieveResult.getStatus.toString + " msg:" + retrieveResult.getMessages.mkString("\n"))
         } else {
             //finally retrieve ZIP
             Logging.repeatingInfo(logger,
@@ -1227,7 +1229,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         }
 
         if (!deployResult.isSuccess && null != deployResult.getErrorStatusCode ) {
-            throw new Exception(deployResult.getErrorStatusCode + " msg:" + deployResult.getErrorMessage)
+            throw new Exception(deployResult.getErrorStatusCode.toString + " msg:" + deployResult.getErrorMessage)
         }
         deployResult
     }

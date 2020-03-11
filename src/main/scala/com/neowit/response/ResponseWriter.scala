@@ -26,7 +26,7 @@ import com.neowit.utils.{FileUtils, Logging}
 
 object ResponseWriter {
 
-    def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.mapValues(value => if (null == value) "" else value)
+    def ensureNoNulls(data: Map[String, Any]): Map[String, Any] = data.view.mapValues(value => if (null == value) "" else value).toMap
 
     /**
      * slightly modified version of JSONFormat.quoteString

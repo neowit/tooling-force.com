@@ -19,13 +19,14 @@
 
 package com.neowit.apex
 
-import org.scalatest.{FunSuite, PrivateMethodTester}
-import java.io.{File, FileWriter, FileNotFoundException}
+import org.scalatest.PrivateMethodTester
+import org.scalatest.funsuite.AnyFunSuite
+import java.io.{File, FileNotFoundException, FileWriter}
 import java.util.Properties
 
-import com.neowit.utils.{BasicConfig, Config, OptionProperties, InvalidCommandLineException}
+import com.neowit.utils.{BasicConfig, Config, InvalidCommandLineException, OptionProperties}
 
-class ConfigTest extends FunSuite with PrivateMethodTester {
+class ConfigTest extends AnyFunSuite with PrivateMethodTester {
     val appConfig = new Config(new BasicConfig)
 
     val FAIL = false
@@ -39,7 +40,7 @@ class ConfigTest extends FunSuite with PrivateMethodTester {
             writer.close()
             file.delete()
         }
-        Unit
+
     }
 
     test("No Command Params") {

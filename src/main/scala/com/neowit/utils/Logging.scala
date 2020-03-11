@@ -54,7 +54,7 @@ object Logging {
                 scala.Console.withOut(out) {
                     val diff = (System.currentTimeMillis - startTime) / 1000
                     if (diff > 0) {
-                        log.info(msg + s" # elapsed: ${diff}s")
+                        log.info(msg.toString + s" # elapsed: ${diff}s")
                     } else {
                         log.info("", msg)
                     }

@@ -29,6 +29,7 @@ import com.neowit.utils.{FileUtils, ZuluTime}
 
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
 //import collection.JavaConverters._
@@ -144,7 +145,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
                     result match {
                         case ex: Session.RestCallException if null != ex.connection =>
                             //responseWriter.println(ErrorMessage(ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage))
-                            errorListBuilder += ErrorMessage(ex.connection.getResponseCode + ": " + ex.connection.getResponseMessage)
+                            errorListBuilder += ErrorMessage(s"${ex.connection.getResponseCode} : ${ex.connection.getResponseMessage}")
                             ex.getRestErrorCode match {
                                 case Some(errorCode) =>
                                     //responseWriter.println(ErrorMessage( errorCode + ": " + ex.getRestMessage.getOrElse("") )
@@ -256,13 +257,13 @@ object SoqlQuery {
         }
     }
 
-    def getQueryIteratorTyped[A](session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[A] = {
+    def getQueryIteratorTyped[A:ClassTag](session: Session, queryResult: com.sforce.soap.tooling.QueryResult):Iterator[A] = {
         import com.sforce.soap.tooling.sobject._
 
         @tailrec
         def queryMore(queryResult: com.sforce.soap.tooling.QueryResult, records: Array[SObject]): Iterator[A] = {
             if (queryResult.isDone) {
-                records.map(_.asInstanceOf[A]).toIterator
+                records.map(_.asInstanceOf[A]).iterator
             } else {
                 val _queryResult = session.queryMoreTooling(queryResult.getQueryLocator)
                 queryMore(_queryResult, records ++ _queryResult.getRecords)
@@ -318,7 +319,7 @@ object SoqlQuery {
         override def hasNext: Boolean = !queryResultInternal.done || (size > 0 && batchNumber < 0)
 
 
-        override def isEmpty: Boolean = size < 1
+        //override def isEmpty: Boolean = size < 1
 
         override def next(): List[JsObject] = {
             val records =
@@ -537,7 +538,7 @@ object SoqlQuery {
                     hasChildRecords = true
                     val maxWidthByName = getMaxWidthByColumn(childRecords)
                     val sampleRecord = childRecords.head
-                    val relationshipName = sampleRecord.getAttribute("type").getOrElse("")
+                    val relationshipName = sampleRecord.getAttribute("type").getOrElse("").toString
                     val indentation = relationshipName + " => |"
                     val shiftLeft = indentation.length
                     val header = sampleRecord.getHeader(sampleRecord.getFieldNames, maxWidthByName)

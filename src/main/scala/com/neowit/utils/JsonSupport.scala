@@ -39,8 +39,8 @@ trait JsonSupport extends DefaultJsonProtocol {
             case other => JsString(other.toString)
         }
         def read(value: JsValue) = value match {
-            case JsNumber(n) if n.isValidInt => n.intValue()
-            case JsNumber(n) if n.isValidLong => n.longValue()
+            case JsNumber(n) if n.isValidInt => n.intValue
+            case JsNumber(n) if n.isValidLong => n.longValue
             case JsString(s) => s
             case JsTrue => true
             case JsFalse => false

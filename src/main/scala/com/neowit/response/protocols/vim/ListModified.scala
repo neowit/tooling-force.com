@@ -44,7 +44,7 @@ object ListModified {
             }
             responseWriter.endSection("MODIFIED FILE LIST")
         }
-        Unit
+        ()
 
     }
 

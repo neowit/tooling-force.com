@@ -35,7 +35,7 @@ object DeploymentReportUtils {
         //print test failures
         RunTests.printTestFailures(writer, report.testFailures)
 
-        Unit
+        ()
     }
 
     def printDeploymentFailures(writer: ResponseWriterVim, failures: List[DeploymentError]): Unit = {
@@ -72,18 +72,18 @@ object DeploymentReportUtils {
                 writer.endSection(section)
             }
         }
-        Unit
+        ()
     }
 
 
     def sendOtherErrors(writer: ResponseWriterVim, errors: List[ErrorMessage]): Unit = {
         errors.foreach(writer.send(_))
-        Unit
+        ()
     }
 
     def sendLogFile(writer: ResponseWriterVim, logFileOpt: Option[File]): Unit = {
         logFileOpt.foreach(logFile => writer.send("LOG_FILE=" + logFile.getAbsolutePath) )
-        Unit
+        ()
     }
 
     def sendSuccessReport(writer: ResponseWriterVim, report: DeploymentReport ): Unit = {
@@ -111,6 +111,6 @@ object DeploymentReportUtils {
             RunTests.printCoverageReport(writer, report.coverageReportOpt)
         }
 
-        Unit
+        ()
     }
 }
