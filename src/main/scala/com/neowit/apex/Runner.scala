@@ -126,7 +126,7 @@ class Executor extends Logging {
                     //ex.printStackTrace(System.out)
 
                     basicConfig.getResponseWriter.send(FAILURE)
-                    basicConfig.getResponseWriter.send(ErrorMessage(ex.getMessage))
+                    basicConfig.getResponseWriter.send(ErrorMessage(Option(ex.getMessage).getOrElse(ex.toString)))
                     isGoodConfig = true
             } finally {
                 if (isGoodConfig) {
