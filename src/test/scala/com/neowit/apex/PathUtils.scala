@@ -27,6 +27,6 @@ object PathUtils {
    * @return
    */
   def expand(path: String): String = {
-    path.replaceFirst("^~", System.getProperty("user.home"))
+    path.replaceFirst("^~", System.getProperty("user.home").replace("\\","\\\\"))
   }
 }
