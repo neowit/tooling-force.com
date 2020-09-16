@@ -59,9 +59,17 @@ case class WarnMessage(text: String, data: Map[String, Any] = Map(), details: Li
                        override val id: MessageId = Message.generateNextId()) extends Message with BaseSerialiser {
     override def toJson: JsValue = toJson(WARN, id, text, data, details)
 }
-case class ErrorMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil,
+case class ErrorMessage(text: Any, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil,
                         override val id: MessageId = Message.generateNextId()) extends Message with BaseSerialiser {
-    override def toJson: JsValue = toJson(ERROR, id, text, data, details)
+    override def toJson: JsValue = {
+        val _text =
+            if (null == text) ""
+            else text match {
+                case ex:Throwable => Option(ex.getMessage).getOrElse(ex.toString)
+                case x => x.toString
+            }
+        toJson(ERROR, id, _text, data, details)
+    }
 }
 case class DebugMessage(text: String, data: Map[String, Any] = Map(), details: List[MessageDetail] = Nil,
                         override val id: MessageId = Message.generateNextId()) extends Message with BaseSerialiser {

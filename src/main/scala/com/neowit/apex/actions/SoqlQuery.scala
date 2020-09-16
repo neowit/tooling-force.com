@@ -154,7 +154,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
                             }
                         case _ =>
                             //responseWriter.println(ErrorMessage( result.getMessage))
-                            errorListBuilder += ErrorMessage( result.getMessage )
+                            errorListBuilder += ErrorMessage( result )
                     }
                     ActionFailure(errorListBuilder.result())
             }
