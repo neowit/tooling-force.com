@@ -31,15 +31,15 @@ sourceDirectories in Compile ~= ( dirs =>
     )
 
 resolvers ++= Seq(
-    "Sonatype OSS Releases"  at "http://oss.sonatype.org/content/repositories/releases/",
-    "Sonatype OSS Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"
+    "Sonatype OSS Releases"  at "https://oss.sonatype.org/content/repositories/releases/",
+    "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 )
 
-val sfdcAPIVersion = "48.1.0"
+val sfdcAPIVersion = "50.0.0"
 libraryDependencies ++= Seq(
-    "com.force.api" % "force-wsc" % "48.1.0",
+    "com.force.api" % "force-wsc" % "50.0.0",
     "com.force.api" % "force-partner-api" % sfdcAPIVersion,
-    //"com.force.api" % "force-metadata-api" % sfdcAPIVersion,
+    "com.force.api" % "force-metadata-api" % sfdcAPIVersion,
     "com.force.api" % "force-apex-api" % sfdcAPIVersion
 )
 
