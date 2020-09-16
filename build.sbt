@@ -50,7 +50,7 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.1.1" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.5.29"
+    "com.typesafe.akka" %% "akka-actor" % "2.6.9"
 )
 
 

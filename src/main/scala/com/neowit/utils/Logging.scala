@@ -49,8 +49,9 @@ object Logging {
                       repeatEveryNSec: Int = 3 )
                      (implicit scheduler: akka.actor.Scheduler): Unit = {
         val startTime = System.currentTimeMillis()
-        //if (logger.isInfoEnabled) {
-            val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
+
+        val task = new Runnable {
+            def run(): Unit = {
                 scala.Console.withOut(out) {
                     val diff = (System.currentTimeMillis - startTime) / 1000
                     if (diff > 0) {
@@ -59,6 +60,12 @@ object Logging {
                         log.info("", msg)
                     }
                 }
+            }
+        }
+        //if (logger.isInfoEnabled) {
+            //val cancellable = scheduler.schedule(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
+            val cancellable = scheduler.scheduleWithFixedDelay(Duration(0, TimeUnit.SECONDS), Duration(repeatEveryNSec, TimeUnit.SECONDS)){
+               task
             }
             try {
                 codeBlock
