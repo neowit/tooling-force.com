@@ -68,7 +68,7 @@ object ResponseWriter {
                 val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
                 val res = file.getAbsolutePath.substring(projectPath.length)
                 FileUtils.normalizePath(res)
-            case None => file.getAbsolutePath
+            case _ => file.getAbsolutePath
         }
     }
 }

@@ -104,6 +104,7 @@ object DiffWithRemote {
                 } else {
                     writer.send(InfoMessage("No differences between local version and remote Org detected"))
                 }
+            case _ => ()
         }
 
 

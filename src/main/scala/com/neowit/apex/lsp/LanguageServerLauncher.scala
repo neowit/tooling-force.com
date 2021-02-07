@@ -46,7 +46,7 @@ object LanguageServerLauncher extends Logging {
                 } else {
                     config.communicationMethod match {
                         case "socket" =>
-                            val port = config.port
+                            //val port = config.port
                             val server = new SocketServer(poolSize = 2, config)
                             server.start()
                         case "stdio" =>

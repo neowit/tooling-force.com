@@ -4,7 +4,7 @@ name := "tooling-force.com"
 
 version := "0.1-SNAPSHOT"
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.4"
 
 scalacOptions ++= Seq(
     "-deprecation",
@@ -18,6 +18,8 @@ scalacOptions ++= Seq(
     //"-Ywarn-value-discard",
     //"-Xfuture",
     //"-Ywarn-unused-import"
+    // Excluding -byname-implicit is required for Scala 2.13 due to https://github.com/scala/bug/issues/12072
+    "-Xlint:_,-byname-implicit", // without this parameter circe deriveDecoder results in: Block result was adapted via implicit conversion
 )
 
 // disable generation of scala-<version> folders, we do not need cross compilation

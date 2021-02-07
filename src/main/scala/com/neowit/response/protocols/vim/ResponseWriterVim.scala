@@ -34,10 +34,10 @@ class ResponseWriterVim(out: OutputStream, autoFlush: Boolean = true, append: Bo
 
     var needClosing = false
 
-    def this(file: File) {
+    def this(file: File) = {
         this(new FileOutputStream(file), autoFlush = true, append = false)
     }
-    def this(file: File, append: Boolean) {
+    def this(file: File, append: Boolean) = {
         this(new FileOutputStream(file), autoFlush = true, append)
     }
 

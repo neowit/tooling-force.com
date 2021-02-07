@@ -806,7 +806,7 @@ class DeployAllDestructive extends DeployAll {
         diffWithRemote.load[DiffWithRemote](session)
 
         val actionResultFuture =
-            diffWithRemote.getDiffReport match {
+            (diffWithRemote.getDiffReport: @unchecked) match {
                 case report @ DiffWithRemoteReportFailure(_) =>
                     //responseWriter.println(FAILURE)
                     //responseWriter.println(ErrorMessage("Failed to load remote version of current project"))
@@ -1480,7 +1480,7 @@ class DeployModifiedDestructive extends DeployModified {
                 case Some(deployResult) if !deployResult.isSuccess =>
                     // deployment failed
                     Future.successful(ActionFailure(DeployModifiedDestructiveResult(deployResultOpt)))
-                case None =>
+                case _ =>
                     // nothing to delete
                     Future.successful(ActionSuccess(DeployModifiedDestructiveResult(None)))
             }

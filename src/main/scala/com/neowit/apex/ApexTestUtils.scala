@@ -267,13 +267,13 @@ object ApexTestUtils extends JsonSupport {
         //Class.Test1.prepareData: line 13, column 1
         //val (typeName, fileName, methodName, line, column) =
         try {
-            val TypeFileMethodLineColumnRegex(_typeName, _fileName, _methodName, _line, _column) = traceLine
+            val TypeFileMethodLineColumnRegex(_typeName, _fileName, _methodName, _line, _column) = (traceLine: @unchecked) // @unchecked used to disable: match may not be exhaustive.
             Some(StackTraceLine(_typeName, _fileName, _methodName, _line.toInt, _column.toInt))
         } catch {
             case _:scala.MatchError =>
                 //Class.Test1: line 19, column 1
                 try {
-                    val TypeFileLineColumnRegex(_typeName, _fileName, _line, _column) = traceLine
+                    val TypeFileLineColumnRegex(_typeName, _fileName, _line, _column) = (traceLine: @unchecked) // @unchecked used to disable: match may not be exhaustive.
                     Some(StackTraceLine(_typeName, _fileName, "", _line.toInt, _column.toInt))
                 } catch {
                     case _:scala.MatchError =>

@@ -218,7 +218,7 @@ class SaveModified extends DeployModified {
 
                 )
             case Some(containerResult) if containerLessOpt.isEmpty => containerResult
-            case None =>
+            case _ =>
                 containerLessOpt.getOrElse(DeploymentReport(isSuccess = true, isCheckOnly = checkOnly, failureReportOpt = None))
         }
     }
@@ -235,7 +235,7 @@ class SaveModified extends DeployModified {
                         coverageWarnings = report1.coverageWarnings ++ report2.coverageWarnings
                     )
                 )
-            case None => report2Opt
+            case _ => report2Opt
         }
     }
     private def mergeFailureReports(report1Opt: Option[DeploymentFailureReport], report2Opt: Option[DeploymentFailureReport]): Option[DeploymentFailureReport] = {
@@ -250,7 +250,7 @@ class SaveModified extends DeployModified {
                         testFailures = report1.testFailures ++ report2.testFailures
                     )
                 )
-            case None => report2Opt
+            case _ => report2Opt
         }
     }
 
@@ -266,7 +266,7 @@ class SaveModified extends DeployModified {
                         conflicts = report1.conflicts ++ report2.conflicts
                     )
                 )
-            case None => report2Opt
+            case _ => report2Opt
         }
     }
 

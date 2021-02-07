@@ -799,7 +799,7 @@ class DiffWithRemote extends RetrieveMetadata {
 
     protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
         val actionResult =
-            getDiffReport match {
+            (getDiffReport: @unchecked) match {
                 case report @ DiffWithRemoteReportSuccess(_, _) =>
                     //responseWriter.println("RESULT=SUCCESS")
                     //writeReportToResponseFile(diffReport, actionResultBuilder)
@@ -820,7 +820,7 @@ class DiffWithRemote extends RetrieveMetadata {
     def getDiffReport: DiffWithRemoteReport = {
         val tempFolder = getTargetFolder match {
             case Some(x) => new File(x)
-            case None => FileUtils.createTempDir(config)
+            case _ => FileUtils.createTempDir(config)
         }
         val bulkRetrieve = new BulkRetrieve {
             override protected def isUpdateSessionDataOnSuccess: Boolean = false
@@ -922,7 +922,7 @@ class DiffWithRemote extends RetrieveMetadata {
         )
 
         val remoteFilesByRelativePaths = remoteFiles.map(file => (
-                FileUtils.normalizePath(file.getAbsolutePath.replaceAllLiterally(remoteSrcFolder.getParentFile.getAbsolutePath + File.separator, "")), file
+                FileUtils.normalizePath(file.getAbsolutePath.replace(remoteSrcFolder.getParentFile.getAbsolutePath + File.separator, "")), file
             )).toMap
 
         //list files where remote version has different size or crc32 compared to local version

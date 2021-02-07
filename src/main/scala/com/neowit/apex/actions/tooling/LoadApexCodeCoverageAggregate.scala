@@ -49,14 +49,14 @@ class LoadApexCodeCoverageAggregate extends ApexActionWithReadOnlySession with R
 
         val actionResult = config.getProperty("classOrTriggerName") match {
             case Some(classOrTriggerNameProvided) =>
-                var classOrTriggerName = FileUtils.removeExtension(classOrTriggerNameProvided)
+                val classOrTriggerName = FileUtils.removeExtension(classOrTriggerNameProvided)
                 val queryIterator = SoqlQuery.getQueryIteratorTooling(session,
                     s""" select ApexClassOrTrigger.Name, ApexClassOrTriggerId, NumLinesCovered, NumLinesUncovered, Coverage
                        | from ApexCodeCoverageAggregate
                        | where ApexClassOrTrigger.Name = '$classOrTriggerName'
                        |""".stripMargin)
 
-                var errorBuilder = Array.newBuilder[String]
+                val errorBuilder = Array.newBuilder[String]
 
                 val coverageResultOpt =
                     if (queryIterator.hasNext) {

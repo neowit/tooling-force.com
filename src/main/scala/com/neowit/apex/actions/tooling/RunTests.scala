@@ -365,7 +365,7 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                         List.empty
 
                 }
-            //Map("classids" -> "id1,id2,id3")
+            //Map("classIds" -> "id1,id2,id3")
             val classIdData = config.getProperty("testsToRun") match {
                 case Some(_) => // test class names provided
 
@@ -374,10 +374,11 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                 case _ => Map.empty[String, JsValue]
             }
 
-            //Map(suiteids -> "id1,id2,id3")
-            val (suiteIds: Map[String, JsValue], classesAndMethodsOpt: Option[Map[String, JsValue]]) =
+            //Map(suiteIds -> "id1,id2,id3")
+            //val (suiteIds: Map[String, JsValue], classesAndMethodsOpt: Option[Map[String, JsValue]]) =
+            val suiteIdsAndOptionOfClassesAndMethods =
                 getTestSuiteNames match {
-                    case names @ head :: tail if isAsync =>
+                    case names if names.nonEmpty && isAsync =>
                         // test suite names provided
                         val suiteIds = TestSuiteActions.getTestSuiteIdByName(names, session).values.mkString(",")
                         if (suiteIds.nonEmpty) {
@@ -392,21 +393,25 @@ class RunTests extends DeployModified with RunTestJsonSupport {
                             getTestClassMethodJson(
                                 records.map(r => r.getFieldAsString("Name").get -> r.getFieldAsString("Id").get).toMap
                             )
+
                         if (_clsAndMethods.nonEmpty) {
                             (Map.empty, Option(_clsAndMethods))
                         } else {
                             (Map.empty, None)
                         }
                 }
+
+            val (suiteIds: Map[String, JsValue], classesAndMethodsOpt: Option[Map[String, JsValue]]) = (suiteIdsAndOptionOfClassesAndMethods: @unchecked)
+
             if (isAsync) {
                 classesAndMethodsOpt match {
                     case Some(classesAndMethods) => classesAndMethods
-                    case None => classIdData ++ suiteIds
+                    case _ => classIdData ++ suiteIds
                 }
             } else {
                 classesAndMethodsOpt match {
                     case Some(classesAndMethods) => classesAndMethods
-                    case None => classIdData
+                    case _ => classIdData
                 }
             }
 
@@ -656,7 +661,7 @@ class RunTests extends DeployModified with RunTestJsonSupport {
     private def getTestSuiteNames: List[String] = {
         config.getProperty("testSuitesToRun") match {
             case Some(value) if value.nonEmpty => value.split(",").toList
-            case None => List.empty
+            case _ => List.empty
         }
     }
 

@@ -175,7 +175,6 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
         FileUtils.writeFile(lines.mkString("\n"), outputFile, append = true)
     }
     private def writeAsPlainStrings(records: List[JsObject], outputFile: File): Unit = {
-        var i = 0
         for (record <- records) {
             for (field <- record.fields) {
                 val fName = field._1
@@ -191,7 +190,7 @@ class SoqlQuery extends ApexActionWithReadOnlySession {
         }
     }
 
-    private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File, displayHeader: Boolean = false): Unit = {
+    private def writeAsPipeSeparatedLines(records: List[JsObject], outputFile: File, displayHeader: Boolean): Unit = {
 
         if (records.nonEmpty) {
             //find max column length for each column
@@ -278,7 +277,7 @@ object SoqlQuery {
                                entityTypeName: Option[String], records: List[JsObject])
 
     def getMaxWidthByColumn(records: List[ResultRecord]): Map[String, Int] = {
-        var maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
+        val maxWidthByName = new scala.collection.mutable.HashMap[String, Int]()
         //find max column length for each column
         if (records.nonEmpty) {
             //init with column names
@@ -538,7 +537,7 @@ object SoqlQuery {
                     hasChildRecords = true
                     val maxWidthByName = getMaxWidthByColumn(childRecords)
                     val sampleRecord = childRecords.head
-                    val relationshipName = sampleRecord.getAttribute("type").getOrElse("").toString
+                    val relationshipName: String = sampleRecord.getAttribute("type").map(_.toString()).getOrElse("")
                     val indentation = relationshipName + " => |"
                     val shiftLeft = indentation.length
                     val header = sampleRecord.getHeader(sampleRecord.getFieldNames, maxWidthByName)

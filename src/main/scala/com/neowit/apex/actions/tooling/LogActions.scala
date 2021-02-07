@@ -236,7 +236,7 @@ class ChangeLogLevels extends ApexActionWithReadOnlySession {
                 // debug level exists but its config does not match traceFlagMap
                 session.deleteTooling(debugLevel.getId)
                 createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
-            case None => // no debug level exists, create one
+            case _ => // no debug level exists, create one
                 createDebugLevel(traceFlagMap).toOption.foreach(traceFlag.setDebugLevelId)
         }
 
@@ -364,7 +364,7 @@ class DeleteLogs extends ApexActionWithReadOnlySession {
 
     //this method should implement main logic of the action
     override protected def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
-        var errorBuilder = Array.newBuilder[String]
+        val errorBuilder = Array.newBuilder[String]
         var totalRecords = 0
         val BATCH_SIZE = 200
 

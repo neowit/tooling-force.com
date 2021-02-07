@@ -96,7 +96,7 @@ object RunTests extends JsonSupport {
                     for (codeLocation <- validUncoveredLocations) {
                         locations += codeLocation.getLine
                     }
-                    val coverageJSON: JsValue = Map(
+                    val coverageJSON: JsValue = Map[String, Any](
                         "path" -> coverage.filePathInProject,
                         "linesTotalNum" -> coverage.linesTotalNum,
                         "linesNotCoveredNum" -> coverage.linesNotCoveredNum,

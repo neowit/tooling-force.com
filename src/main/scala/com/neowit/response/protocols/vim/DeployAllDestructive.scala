@@ -33,6 +33,7 @@ class DeployAllDestructive(writer: ResponseWriterVim) extends VimProtocol[Deploy
                 writer.send(InfoMessage("REMOTE_VERSION_BACKUP_PATH=" + remoteSrcFolderPath))
             case DiffWithRemoteReportFailure(errors) =>
                 errors.foreach(writer.send(_))
+            case x => println("unhandled report type: " + x)
         }
     }
 }

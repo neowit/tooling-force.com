@@ -36,6 +36,7 @@ object SObjectLibrary {
             case mm:SObjectMember => sObjectMemberToAstNode(library, mm)
             case mm:SObjectRelationshipFieldMember => sObjectRelationshipFieldMemberToAstNode(library, mm)
             case mm:SObjectFieldMember => sObjectFieldMemberToAstNode(library, mm)
+            case x => throw new IllegalStateException("sObjectToAstNode is not implemented for: " + x)
         }
         node
     }

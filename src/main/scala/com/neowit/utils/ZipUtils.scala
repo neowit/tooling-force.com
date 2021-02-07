@@ -94,7 +94,7 @@ object ZipUtils extends Logging{
                 val (md5, crc32) = transfer(zin, fos, keepInOpen = true, calculateMd5 = calculateMd5, calculateCRC32 = calculateCRC32)
                 fos.close()
                 //record local lastModified for future use
-                fileMap += fileName -> (newFile.lastModified(), md5, crc32)
+                fileMap += fileName -> ((newFile.lastModified(), md5, crc32))
             }
 
             entry = zin.getNextEntry
@@ -113,7 +113,7 @@ object ZipUtils extends Logging{
     }
 
     private def zipFiles(relPath: String, files: Array[File], zos: ZipOutputStream,
-                         ignoreFileFunc: File => Boolean = { _ => false},
+                         ignoreFileFunc: File => Boolean /*= { _ => false}*/,
                          preProcessFileFunc: File => File = {f=> f}): Unit = {
         for (file <- files) {
             zipFile(relPath, file, zos, ignoreFileFunc, preProcessFileFunc)
@@ -125,8 +125,8 @@ object ZipUtils extends Logging{
     }
 
     private def zipFile(relPath: String, file: File, zos: ZipOutputStream,
-                        ignoreFileFunc: File => Boolean = { _ => false},
-                        preProcessFileFunc: File => File = {f=> f}): Unit = {
+                        ignoreFileFunc: File => Boolean /*= { _ => false}*/,
+                        preProcessFileFunc: File => File /*= {f=> f}*/): Unit = {
         if (!isIgnored(file)) {
             val filePath: String = relPath + file.getName
             if (file.isDirectory) {

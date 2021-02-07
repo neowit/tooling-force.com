@@ -38,7 +38,6 @@ import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCrea
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
 import com.neowit.auth.{LoginPasswordCredentials, Oauth2Credentials}
 
-import scala.collection.MapView
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -391,7 +390,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
               val projectPath = srcFolder.getParentFile.getAbsolutePath + File.separator
               val res = file.getAbsolutePath.substring(projectPath.length)
               normalizePath(res)
-          case None => file.getAbsolutePath
+          case _ => file.getAbsolutePath
         }
     }
     /**
@@ -613,8 +612,8 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      * @return
      */
     private def getRestContent(connectorConfig: com.sforce.ws.ConnectorConfig, apiPath: String,
-                               path: String, urlParameters: String = "",
-                               httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+                               path: String, urlParameters: String,
+                               httpHeaders: java.util.HashMap[String, String]
                                   ): Try[String] = {
         val endpointUrl = new URL(connectorConfig.getServiceEndpoint)
         //get protocol and domain, e.g.:  https://na1.salesforce.com/
@@ -664,7 +663,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
      */
     private def postRestContent(connectorConfig: com.sforce.ws.ConnectorConfig, apiPath: String,
                                path: String, jsonBody: String,
-                               httpHeaders: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+                               httpHeaders: java.util.HashMap[String, String]
                                   ): Try[JsValue] = {
 
         //import spray.json._
@@ -933,8 +932,6 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         def microBatch(queriesBatch: Array[ListMetadataQuery], conn: MetadataConnection,
                        propsSoFar: Array[FileProperties]):Array[FileProperties] = {
             queriesBatch match  {
-                case Array() => //end of query list, return result
-                    propsSoFar
                 case Array(_, _*) =>
                     val _queries = queriesBatch.take(3)
                     logger.trace("About to process " + _queries.map(_.getType).mkString("; "))
@@ -944,6 +941,7 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                     val propsFiltered = props.filter(_.getType != null)
                     logger.trace("Props: " + propsFiltered.map(_.getType).mkString("; "))
                     microBatch(queriesBatch.drop(3), conn, propsFiltered ++ propsSoFar)
+                case _ => propsSoFar //end of query list, return result
 
             }
 

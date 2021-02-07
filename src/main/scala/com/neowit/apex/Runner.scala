@@ -142,7 +142,7 @@ class Executor extends Logging {
             val start = System.currentTimeMillis
             //report usage if allowed
             val usage = new UsageReporter(basicConfig)
-            val usageFuture = Future {
+            Future {
                 usage.report()
             }
 

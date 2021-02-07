@@ -72,7 +72,7 @@ object MetadataType extends Logging {
                     if (calculateMD5) FileUtils.getMD5Hash(fMeta) else "",
                     if (calculateCRC32) FileUtils.getCRC32Hash(fMeta) else -1L
                 )
-            case None => (-1L, "", -1L)
+            case _ => (-1L, "", -1L)
         }
         getValueMap(file.getName, xmlType, id, lastModifiedDate, localMills, md5Hash, crc32Hash, metaLocalMills, metaMD5Hash, metaCRC32Hash)
     }
@@ -86,7 +86,7 @@ object MetadataType extends Logging {
           case None => Map()
         }
         // set localMills only if the value is provided and > 0
-        val localMillsVal = if (localMills > 0) {
+        val localMillsVal: Map[String, Any] = if (localMills > 0) {
             val localMillsStr = new Date(localMills).toString
             Map(LOCAL_MILLS -> localMills, LOCAL_MILLS + "Str" -> localMillsStr, MD5 -> md5Hash, CRC32 -> crc32)
         } else {

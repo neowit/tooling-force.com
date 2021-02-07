@@ -63,7 +63,7 @@ class CheckSyntax extends ApexActionWithReadOnlySession {
         val config = session.getConfig
 
         val filePath = config.getRequiredProperty("currentFileContentPath")
-        val sourceFilePath = config.getRequiredProperty("currentFilePath")
+        //val sourceFilePath = config.getRequiredProperty("currentFilePath")
         val actionResultOpt =
             config.projectDirOpt.map{ projectDir =>
                 val inputFile = new File(filePath)

@@ -70,6 +70,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession with JsonSupport {
 
         override def getParamDescription(paramName: String): String = paramName match {
             case "allToolingTypesFilePath" => "--allToolingTypesFilePath - path to file where results shall be saved"
+            case p => s"parameter $p is not supported"
         }
 
         override def getParamNames: List[String] = List("allToolingTypesFilePath")
@@ -155,7 +156,7 @@ class DescribeTooling extends ApexActionWithReadOnlySession with JsonSupport {
                     describeToolingObjectMap.get(name) match {
                         case Some(_describeObject) =>
 
-                            val data = Map(
+                            val data = Map[String, Any](
                                 "isActivateable" -> _describeObject.isActivateable,
                                 "isCustomSetting" -> _describeObject.isCustomSetting,
                                 "isCustom" -> _describeObject.isCustom,

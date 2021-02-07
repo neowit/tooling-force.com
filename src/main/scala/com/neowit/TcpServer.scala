@@ -100,7 +100,7 @@ class TcpServer (port: Int, timeoutMillis: Int){
                 if (!TcpServer.isShutdownReceived) {
                     // default Actor constructor
                     //val helloActor = system.actorOf(Props[EchoActor], name = "helloactor")
-                    val handlerActor = TcpServer.system.actorOf(Props[CommandParser])
+                    val handlerActor = TcpServer.system.actorOf(Props[CommandParser]())
                     //helloActor ! "hello"
                     handlerActor ! new Message(clientSocket)
                     count = count + 1
@@ -127,7 +127,7 @@ class CommandParser extends Actor {
         println("Client connected from " + socket.getInetAddress + ":" + socket.getPort)
         //parse command
         val line = new BufferedReader(new InputStreamReader(socket.getInputStream)).readLine()
-        val processorActor = TcpServer.system.actorOf(Props[CommandProcessor])
+        val processorActor = TcpServer.system.actorOf(Props[CommandProcessor]())
         line match {
             case "ping" => processorActor ! new Ping(socket)
             case "shutdown" => processorActor ! new Shutdown(socket)

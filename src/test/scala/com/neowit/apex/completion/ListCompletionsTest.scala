@@ -52,7 +52,8 @@ class ListCompletionsTest extends AnyFunSuite {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    private def listCompletions(text: String, loadSobjectLib: Boolean = false, documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
+    private def listCompletions(text: String, loadSobjectLib: Boolean,
+                                documentName: String = "test"): Seq[com.neowit.apexscanner.symbols.Symbol] = {
         val project =
             if (loadSobjectLib) {
                 val is = getClass.getClassLoader.getResource("paths.properties").openStream()

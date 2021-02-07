@@ -169,6 +169,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession with JsonSupport {
 
         override def getParamDescription(paramName: String): String = paramName match {
             case "allMetaTypesFilePath" => "--allMetaTypesFilePath - path to file where results shall be saved"
+            case p => s"parameter $p is not supported"
         }
 
         override def getParamNames: List[String] = List("allMetaTypesFilePath")
@@ -237,7 +238,7 @@ class DescribeMetadata extends ApexActionWithReadOnlySession with JsonSupport {
 
                     describeMetadataObjectMap.get(xmlName) match {
                         case Some(_describeObject) =>
-                            val data = Map(
+                            val data = Map[String, Any](
                                 "ChildObjects" -> _describeObject.getChildXmlNames.toJson,
                                 "DirName" -> _describeObject.getDirectoryName,
                                 "InFolder" -> _describeObject.isInFolder,
@@ -303,6 +304,7 @@ class ListMetadata extends ApexActionWithWritableSession with JsonSupport {
 
         override def getParamDescription(paramName: String): String = paramName match {
             case "specificTypes" => "--specificTypes=/path/to/file with Xml types list. Each type must be on its own line"
+            case p => s"parameter $p is not supported"
         }
 
         override def getParamNames: List[String] = List("specificTypes")

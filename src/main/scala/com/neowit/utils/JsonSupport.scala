@@ -49,6 +49,7 @@ trait JsonSupport extends DefaultJsonProtocol {
             }
             case JsNull => null
             case JsArray(a) => a.map(read(_))
+            case JsNumber(n) => n.doubleValue
         }
     }
 

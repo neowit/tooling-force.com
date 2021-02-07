@@ -156,7 +156,7 @@ class TestSuiteActions extends ApexActionWithReadOnlySession with TestSuiteProto
     private def getTestSuiteClassesByTestSuite(session: Session): Map[String, TestSuite] = {
         val soql = s"select Id, ApexClass.Id, ApexTestSuite.Id, ApexClass.Name, ApexTestSuite.TestSuiteName from TestSuiteMembership"
         val memberships = SoqlQuery.getQueryIteratorTyped[com.sforce.soap.tooling.sobject.TestSuiteMembership](session, session.queryTooling(soql))
-        val mapBuilder = Map.newBuilder[TestSuite, List[ApexClass]]
+        //val mapBuilder = Map.newBuilder[TestSuite, List[ApexClass]]
 
         val testSuitePerClass =
             memberships.map{membership =>
