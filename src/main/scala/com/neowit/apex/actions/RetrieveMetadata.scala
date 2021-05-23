@@ -19,11 +19,12 @@
 
 package com.neowit.apex.actions
 
-import java.io.{File, FileOutputStream, PrintWriter, StringWriter}
+import com.neowit.apex.actions.tooling.BundleMember
 
+import java.io.{File, FileOutputStream, PrintWriter, StringWriter}
 import com.neowit.apex.{MetaXml, MetadataType}
 import com.neowit.utils._
-import com.sforce.soap.metadata.{FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
+import com.sforce.soap.metadata.{DescribeMetadataObject, FileProperties, RetrieveMessage, RetrieveRequest, RetrieveResult}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -564,7 +565,7 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
 
         //load file list from specified file
         val componentListFile = new File(config.getRequiredProperty("specificTypes"))
-        val components:List[String] = FileUtils.readFile(componentListFile).getLines().filter(!_.trim.isEmpty).toList
+        val components:List[String] = FileUtils.readFile(componentListFile).getLines().filter(_.trim.nonEmpty).toList
         components.map(FileUtils.normalizePath)
     }
 
@@ -617,7 +618,7 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
             membersByXmlName ++= MetaXml.getMembersByType(typesFile)
 
         } else if (isJSONFormat) {
-            for (line <- FileUtils.readFile(typesFile).getLines().filter(!_.trim.isEmpty)) {
+            for (line <- FileUtils.readFile(typesFile).getLines().filter(_.trim.nonEmpty)) {
                 Try(line.parseJson) match {
                     case Success(jsonAst) =>
                         val data = jsonAst.asJsObject.fields
@@ -643,18 +644,13 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
                 metadataByDirName.get(dirName) match {
                     case Some(describeObject) =>
 
-                        var extension = describeObject.getSuffix
-                        if (null == extension) {
-                            extension = ""
-                        } else {
-                            extension = "." + extension
-                        }
                         namesByDir.getOrElse(dirName, Nil) match {
                             case _fileNames if _fileNames.nonEmpty && Nil != _fileNames =>
 
-                                val objNames = _fileNames.map(_.drop(dirName.length + 1)).map(
-                                    name => if (name.endsWith(extension)) name.dropRight(extension.length) else name
-                                )
+                                val objNames = _fileNames.map (
+                                    path => formatObjectNameForRetrieve(describeObject, path )
+
+                                ).map(_.drop(dirName.length + 1))
                                 membersByXmlName += describeObject.getXmlName -> objNames
 
                             case _ =>
@@ -667,7 +663,6 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
 
         if (errors.isEmpty) {
             val membersByXmlNameMap = membersByXmlName.result()
-
 
             for (typeName <- membersByXmlNameMap.keySet) {
                 Try(retrieveOne(typeName, membersByXmlNameMap)) match {
@@ -693,6 +688,42 @@ class BulkRetrieve extends RetrieveMetadata with JsonSupport {
             }
         }
         new BulkRetrieveResult(errors, fileCountByType.result(), filePropsMapByXmlType.result())
+    }
+
+    /**
+     *
+     * @param describeObject result of metadata describe call
+     * @param path file path, e.g. class/MyClass.cls or aura/MyBundleName/MyBundleName.cmp
+     * @return
+     *  for bundled types: just bundle name, e.g. "MyBundleName"
+     *  for other types: just file name without extension, e.g. "MyClass"
+     */
+    private def formatObjectNameForRetrieve( describeObject: DescribeMetadataObject, path: String): String = {
+        var extension = describeObject.getSuffix
+        if (null == extension) {
+            extension = ""
+        } else {
+            extension = "." + extension
+        }
+
+        val fileOrBundleName: String =
+            BundleMember.getBundleMemberHelper(path) match {
+                case Some(/*helper*/_) =>
+                    //keep only bundle names for aura and LWC files
+                    var pathParts: Array[String] = FileUtils.normalizePath(path).split(FileUtils.NORMAL_SLASH)
+                    if (pathParts.length > 2){
+                        // path contains not just 'aura/bundle-name' but 'aura/bundle-name/file-name.ext'
+                        // then need to drop file-name.ext because this will not be recognised by metadata retrieve
+                        pathParts = pathParts.take(2)
+                    }
+                    pathParts.mkString(FileUtils.NORMAL_SLASH)
+
+                case None => path
+            }
+
+        // remove extension if necessary
+        if (fileOrBundleName.endsWith(extension)) fileOrBundleName.dropRight(extension.length) else fileOrBundleName
+
     }
 }
 
@@ -886,7 +917,7 @@ class DiffWithRemote extends RetrieveMetadata {
                 FileUtils.listFiles(srcDir)
             case "file-paths" =>
                 FileUtils.readFile(new File(config.getRequiredProperty("specificTypes"))).
-                                                getLines().filter(!_.trim.isEmpty).
+                                                getLines().filter(_.trim.nonEmpty).
                                                 map(new File(srcDir, _)).toList
             case x => throw new IllegalArgumentException("support for --typesFileFormat=" + x + " is not implemented")
         }
@@ -968,96 +999,4 @@ class DiffWithRemote extends RetrieveMetadata {
         report
     }
 
-
-    /*
-    protected def writeReportToResponseFile(report: DiffWithRemoteReport, actionResultBuilder: ActionResultBuilder): Unit = {
-        val bulkRetrieveResult: BulkRetrieveResult = report.bulkRetrieveResult
-        val remoteSrcFolderPath: String = report.remoteSrcFolderPath
-
-        //responseWriter.println("REMOTE_SRC_FOLDER_PATH=" + remoteSrcFolderPath)
-        actionResultBuilder.addMessage(KeyValueMessage(Map("REMOTE_SRC_FOLDER_PATH" -> remoteSrcFolderPath)))
-        //responseWriter.println(new Message(INFO, "Remote version is saved in: " + remoteSrcFolderPath))
-        actionResultBuilder.addMessage(InfoMessage("Remote version is saved in: " + remoteSrcFolderPath))
-
-        val conflictingFilesMap = report.getConflictingFiles
-        val localFilesMissingOnRemoteMap = report.getLocalFilesMissingOnRemote
-        val remoteFilesMissingLocallyMap = report.getRemoteFilesMissingLocally
-
-        if (report.hasSomethingToReport) {
-
-            if (conflictingFilesMap.nonEmpty) {
-                //list files where remote version has different size compared to local version
-                //Modified Files
-                val msg = WarnMessage("Different file sizes")
-                //responseWriter.println(msg)
-                actionResultBuilder.addMessage(msg)
-
-                for (relativePath <- conflictingFilesMap.keys.toList.sortWith((left, right) => left.compareTo(right) < 0)) {
-                    conflictingFilesMap.get(relativePath) match {
-                        case Some(conflictingFile) =>
-                            val props = conflictingFile.remoteProp
-                            val sizeLocal = conflictingFile.fileLocal.length()
-                            val sizeRemote = conflictingFile.fileRemote.length()
-                            val text = conflictingFile.fileLocal.getName +
-                                " => Modified By: " + props.getLastModifiedByName +
-                                "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
-                                s"; Local size: $sizeLocal; remote size: $sizeRemote"
-                            //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
-                            actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text)))
-                        case None =>
-                    }
-                }
-            }
-
-            if (localFilesMissingOnRemoteMap.nonEmpty) {
-                //list files that exist on locally but do not exist on remote
-                val msg = WarnMessage("Files exist locally but not on remote (based on current package.xml)")
-                //responseWriter.println(msg)
-                actionResultBuilder.addMessage(msg)
-
-                for(relativePath <- localFilesMissingOnRemoteMap.keys) {
-                    localFilesMissingOnRemoteMap.get(relativePath) match {
-                      case Some(localFile) =>
-                          val text = localFile.getName +
-                              " => exists locally but missing on remote"
-                          val echoText = localFile.getName
-                          //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
-                          actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text, "echoText" -> echoText)))
-                      case None =>
-                    }
-                }
-            }
-
-            if (remoteFilesMissingLocallyMap.nonEmpty) {
-                //list files that exist on remote but do not exist locally
-                val msg = WarnMessage("Files exist on remote but not locally (based on current package.xml)")
-                //responseWriter.println(msg)
-                actionResultBuilder.addMessage(msg)
-
-                for(relativePath <- remoteFilesMissingLocallyMap.keys.toList.sortWith( (left, right) => left.compareTo(right) < 0)) {
-                    remoteFilesMissingLocallyMap.get(relativePath) match {
-                      case Some(remoteFile) =>
-                          bulkRetrieveResult.getFileProps(relativePath) match {
-                              case Some(props) =>
-                                  val sizeRemote = remoteFile.length()
-                                  val text = remoteFile.getName +
-                                      " => Modified By: " + props.getLastModifiedByName +
-                                      "; at: " + ZuluTime.formatDateGMT(props.getLastModifiedDate) +
-                                      s"; remote size: $sizeRemote"
-                                  //responseWriter.println(MessageDetail(msg, Map("filePath" -> relativePath, "text" -> text)))
-                                  actionResultBuilder.addDetail(MessageDetailMap(msg, Map("filePath" -> relativePath, "text" -> text)))
-                              case None =>
-                          }
-                      case None =>
-                    }
-                }
-            }
-        } else {
-            //responseWriter.println(new Message(INFO, "No differences between local version and remote Org detected"))
-            actionResultBuilder.addMessage(InfoMessage("No differences between local version and remote Org detected"))
-        }
-
-
-    }
-    */
 }
