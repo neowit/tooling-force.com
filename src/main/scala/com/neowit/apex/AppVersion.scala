@@ -26,7 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
-    val VERSION = "0.5.6.0"
+    val VERSION = "0.5.7.0"
 }
 class AppVersion extends ApexAction {
     protected override def act()(implicit ec: ExecutionContext): Future[ActionResult] = {
