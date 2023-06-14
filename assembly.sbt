@@ -1,9 +1,9 @@
-mainClass in assembly := Some("com.neowit.apex.Runner")
+assembly / mainClass := Some("com.neowit.apex.Runner")
 
 //uncomment line below to disable tests during build
-test in assembly := {}
+assembly / test := {}
 
-assemblyMergeStrategy in assembly := {
+assembly / assemblyMergeStrategy := {
     case x if x.endsWith(".java") => MergeStrategy.discard
     case "commands.txt" => MergeStrategy.discard
     case x if x.endsWith(".g4") => MergeStrategy.discard
@@ -19,11 +19,11 @@ assemblyMergeStrategy in assembly := {
     //case PathList("jackson-core-2.10.3.jar", xs @ _*) => MergeStrategy.last
     //case PathList("jackson-databind-2.10.3.jar", xs @ _*) => MergeStrategy.last
     case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
 }
 
 //assemblyOption in assembly ~= { _.copy(includeScala = false) }
-assemblyOption in assembly ~= { _.copy(includeScala = true) }
+assembly / assemblyOption ~= { _.copy(includeScala = true) }
 //assemblyOutputPath in assembly := baseDirectory.value
 //logLevel in assembly := Level.Debug
