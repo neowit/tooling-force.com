@@ -19,10 +19,11 @@
 
 package com.neowit.utils
 
+import com.neowit.apex.AppVersion
+
 import java.util.Properties
 import java.io.{File, FileWriter, OutputStream}
 import java.nio.file.{Files, Paths}
-
 import com.neowit.auth._
 import com.neowit.response.ResponseWriter
 import com.neowit.response.protocols.vim.ResponseWriterVim
@@ -222,7 +223,7 @@ regardless of whether it is also specified in config file or not
 
 class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
 
-    val apiVersion:Double = 57.0
+    val apiVersion:Double = AppVersion.SFDC_API_VERSION
 
     //make BasicConfig methods available in Config
     def load(arglist: List[String]): Unit = {
