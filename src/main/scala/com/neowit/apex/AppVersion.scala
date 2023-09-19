@@ -26,7 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object AppVersion {
     val APP_NAME = "tooling-force.com"
-    val VERSION = "0.5.8.0"
+    val VERSION = "0.5.8.1"
     val SFDC_API_VERSION:Double = 58.0
 }
 class AppVersion extends ApexAction {
