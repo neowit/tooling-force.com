@@ -25,10 +25,10 @@ scalacOptions ++= Seq(
 // disable generation of scala-<version> folders, we do not need cross compilation
 crossPaths := false
 
-sources in doc in Compile := List() // do NOT generate Scaladoc, it is a waste of time
+Compile / doc / sources  := List() // do NOT generate Scaladoc, it is a waste of time 
 
 // Get rid of scala-{version} folders
-sourceDirectories in Compile ~= ( dirs =>
+Compile / sourceDirectories ~= ( dirs =>
         dirs.filterNot(_.absolutePath.endsWith("-2.11")).filterNot(_.absolutePath.endsWith("-2.12"))
     )
 
