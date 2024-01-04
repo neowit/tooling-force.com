@@ -43,24 +43,21 @@ object ProjectsCache {
         _projectByPath.get(projectDir) match {
             case Some(_project) => _project
             case None =>
-                Project.findApexProjectRoot(projectDir.toPath) match {
-                    case Some(projectRoot) =>
-                        val project = new Project(projectRoot)
-                        // add SObjectLibrary
-                        val sobjectLib = new SObjectLibrary(session)
-                        // make sure model is not loaded for this session (e.g. when running tests in parallel)
-                        // different test classes can not re-use same DatabaseModel because their projects have different Ast Trees
-                        DatabaseModel.removeModelBySession(session)
-                        // load SObject library
-                        project.addExternalLibrary(sobjectLib)
-                        // add StdLib (must go after SObject library because some Objects in DB may conflict with names in StdLib)
-                        project.loadStdLib()
+                val projectRoot = projectDir.toPath
+                val project = new Project(projectRoot)
+                // add SObjectLibrary
+                val sobjectLib = new SObjectLibrary(session)
+                // make sure model is not loaded for this session (e.g. when running tests in parallel)
+                // different test classes can not re-use same DatabaseModel because their projects have different Ast Trees
+                DatabaseModel.removeModelBySession(session)
+                // load SObject library
+                project.addExternalLibrary(sobjectLib)
+                // add StdLib (must go after SObject library because some Objects in DB may conflict with names in StdLib)
+                project.loadStdLib()
 
-                        _projectByPath += projectDir -> project
-                        project
-                    case None =>
-                        throw new IllegalArgumentException("Failed ot detect project root by path: " + projectDir)
-                }
+                _projectByPath += projectDir -> project
+                project
+
 
         }
     }
