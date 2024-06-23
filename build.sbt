@@ -37,9 +37,10 @@ resolvers ++= Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 )
 
-val sfdcAPIVersion = "58.0.0"
+val sfdcAPIVersion = "61.1.0"
+//see: https://central.sonatype.com/namespace/com.force.api
 libraryDependencies ++= Seq(
-    "com.force.api" % "force-wsc" % "58.0.0",
+    "com.force.api" % "force-wsc" % "61.1.0",
     "com.force.api" % "force-partner-api" % sfdcAPIVersion,
     "com.force.api" % "force-metadata-api" % sfdcAPIVersion,
     "com.force.api" % "force-apex-api" % sfdcAPIVersion
