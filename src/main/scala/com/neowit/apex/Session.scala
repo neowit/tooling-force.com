@@ -1282,5 +1282,16 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         oldMessages.toSet
     }
 
+    def removeIgnoredFiles(files: List[File]): List[File] = {
+        val ignoredFiles = config.getIgnoredFiles
+        if (ignoredFiles.isEmpty) {
+            files
+        } else {
+            files.filterNot(f => isIgnoredFile(f,ignoredFiles ))
+        }
+    }
+    def isIgnoredFile(f:File, ignoredFilesList: List[String]): Boolean = {
+        FileUtils.isIgnoredFile(f, ignoredFilesList)
+    }
 
 }

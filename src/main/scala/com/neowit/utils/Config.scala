@@ -358,6 +358,7 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
 
 class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends ConfigWithSfdcProject(basicConfig) {
     protected val sessionFileName = "session.properties"
+    protected val ignoreFileName = ".forceignore"
     lazy val isCheckOnly: Boolean = getProperty("checkOnly").contains("true")
 
     /**
@@ -396,6 +397,24 @@ class ConfigWithReadOnlySession (override val basicConfig: BasicConfig) extends 
             Option(props)
         } else {
             None
+        }
+    }
+
+    def getIgnoredFiles:List[String] = {
+        sessionFolderOpt match {
+            case Some(sessionFolder) =>
+                val file = new File(sessionFolder, ignoreFileName)
+                loadIgnoredFilesList(file)
+            case _ => List()
+        }
+    }
+
+    private def loadIgnoredFilesList(f: File): List[String] = {
+        if (f.exists && f.canRead) {
+            f.lastModified()
+            FileUtils.readFile(f).getLines().filterNot(str => str.isBlank || str.startsWith("#")).toList
+        } else {
+            List()
         }
     }
 }

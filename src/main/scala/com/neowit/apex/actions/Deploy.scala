@@ -1032,7 +1032,7 @@ class ListModified extends ApexActionWithReadOnlySession {
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
         val allFiles = getProjectConfig.srcDirOpt match {
             case Some(srcDir) =>
-                FileUtils.listFiles(srcDir).filter(
+                session.removeIgnoredFiles(FileUtils.listFiles(srcDir)).filter(
                     //remove all non apex files
                     file => DescribeMetadata.isValidApexFile(session, file)
                 ).toSet

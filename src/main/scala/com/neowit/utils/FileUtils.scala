@@ -170,6 +170,14 @@ object FileUtils {
             fileName
         }
     }
+    def replaceExtension(fileName: String, newExtension: String): String = {
+        val fPath = removeExtension(fileName);
+        if (fPath.endsWith(".")) {
+            fPath + newExtension
+        } else {
+            fPath + "." + newExtension
+        }
+    }
     /**
      * a very basic file lister which will cause "out of memory" on a very deep directory tree
      * with lots of files
@@ -272,6 +280,15 @@ object FileUtils {
         source.close
         text
 
+    }
+
+    def isIgnoredFile(f: File, ignoredFilesList: List[String]): Boolean = {
+        if (ignoredFilesList.isEmpty) {
+            false
+        } else {
+            val path = f.getAbsolutePath
+            ignoredFilesList.exists(ignorePattern => path.endsWith(ignorePattern))
+        }
     }
 }
 
