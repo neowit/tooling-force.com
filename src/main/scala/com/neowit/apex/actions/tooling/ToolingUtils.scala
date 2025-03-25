@@ -25,11 +25,16 @@ import com.neowit.apex.Session
 
 object ToolingUtils {
 
-    //we can use ToolingApi in following cases
-    //1. there are no -meta.xml files
-    //2. there are no new files
-    //3. all files are supported by Tooling API
-    //4. there is NO mix of aura and non aura files in the list of files to deploy
+    /**
+    * we can use ToolingApi in following cases
+    * 1. there are no -meta.xml files
+    * 2. there are no new files
+    * 3. all files are supported by Tooling API
+    * 4. there is NO mix of aura and non aura files in the list of files to deploy
+    * 5. changed in 2024 - multiple bundles (e.g. multiple LWC components) used to work before API v61 but no longer
+     *      work and attempts to use tooling API to deploy more than 1 LWC bundle throws " An unexpected error occurred. Please include this ErrorId if you contact support"
+    *       still works with API v63: saving multiple files if all bundle files (e.g. LWC components) are from the same bundle/component
+    */
     def canUseTooling(session: Session, files: List[File]): Boolean = {
         val hasMeta = files.exists(_.getName.endsWith("-meta.xml"))
         if (hasMeta) {
@@ -45,6 +50,16 @@ object ToolingUtils {
             return false
         }
         val hasBundleFiles = files.exists(BundleMember.isSupportedType)
+        val hasMultipleBundles = if (hasBundleFiles) {
+            // count number of involved bundles
+            files.map(f =>
+                BundleMember.getBundleMemberHelper(f).
+                    map(_.getBundleDir(f).
+                        map(_.getName))).
+                toSet.size > 1
+        } else {
+            false
+        }
 
         val hasApexFiles = files.exists(ApexMember.isSupportedType(_, session))
         val hasMixOfApexAndAura = hasBundleFiles && hasApexFiles
@@ -53,7 +68,7 @@ object ToolingUtils {
             !ApexMember.isSupportedType(f, session)
               && !BundleMember.isSupportedType(f)
         )
-        val canNotUseTooling = hasUnsupportedType || hasMixOfApexAndAura
+        val canNotUseTooling = hasUnsupportedType || hasMixOfApexAndAura || hasMultipleBundles
 
         !canNotUseTooling
     }
