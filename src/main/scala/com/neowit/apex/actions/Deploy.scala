@@ -1032,7 +1032,7 @@ class ListModified extends ApexActionWithReadOnlySession {
         //val allFiles  = (packageXmlFile :: FileUtils.listFiles(config.srcDir)).toSet
         val allFiles = getProjectConfig.srcDirOpt match {
             case Some(srcDir) =>
-                session.removeIgnoredFiles(FileUtils.listFiles(srcDir)).filter(
+               FileUtils.listFiles(srcDir).filter(
                     //remove all non apex files
                     file => DescribeMetadata.isValidApexFile(session, file)
                 ).toSet
@@ -1040,7 +1040,9 @@ class ListModified extends ApexActionWithReadOnlySession {
         }
 
         val modifiedFiles = allFiles.filter(session.isModified(_))
-        modifiedFiles.toList
+        val result = session.removeIgnoredFiles(modifiedFiles.toList)
+        result
+        //modifiedFiles.toList
     }
 
     /*
