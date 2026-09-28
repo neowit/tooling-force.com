@@ -854,8 +854,9 @@ class DiffWithRemote extends RetrieveMetadata {
             case _ => FileUtils.createTempDir(config)
         }
         val bulkRetrieve = new BulkRetrieve {
-            override protected def isUpdateSessionDataOnSuccess: Boolean = false
-            override def isSessionReadOnly: Boolean = true
+            override def isSessionReadOnly: Boolean = {
+                false == super.isUpdateSessionDataOnSuccess // do not update session unless explicitly requested
+            }
 
             override protected def getSpecificTypesFile: File = {
                 super.getTypesFileFormat match {
@@ -997,6 +998,34 @@ class DiffWithRemote extends RetrieveMetadata {
         }
 
         report
+    }
+
+}
+
+class RefreshFile extends DiffWithRemote {
+
+    override def isSessionReadOnly: Boolean = false // here we are re-using command DiffWithRemote to refresh single file so we need a writable session
+
+    private val superActionHelp = new DiffWithRemote().getHelp
+    override def getHelp: ActionHelp = new AbstractActionHelp(superActionHelp) {
+        override def getExample: String =
+            """
+              |Use this command to refresh single file:
+              |... --action=refreshFile --projectPath=/home/users/tester/MyApexProject  --responseFilePath=/path/to/response.txt
+              |--specificTypes=/temp/file-paths.txt --typesFileFormat=file-paths
+            """.stripMargin
+
+        override def getParamDescription(paramName: String): String = {
+            paramName match {
+                case _ => superActionHelp.getParamDescription(paramName)
+            }
+        }
+
+        override def getParamNames: List[String] = List("config", "projectPath", "responseFilePath", "targetFolder", "specificTypes", "typesFileFormat")
+
+        override def getSummary: String = "return remote file sets using metadata types specified in local package.xml or file specified by --specificTypes parameter"
+
+        override def getName: String = "refreshFile"
     }
 
 }

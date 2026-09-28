@@ -71,7 +71,7 @@ class ConfigTest extends AnyFunSuite with PrivateMethodTester {
     test("Existing config, but missing parameter") {
         withFile { (file, writer) =>
             val props = new java.util.Properties()
-            props.setProperty("sf.username", "aaa@bb.cc")
+            props.setProperty("test.key1", "aaa@bb.cc")
             props.setProperty("responseFilePath", "/tmp/test.txt")
             props.store(writer, "")
 
@@ -114,11 +114,11 @@ class ConfigTest extends AnyFunSuite with PrivateMethodTester {
     test("Parameter from command line take priority over --config") {
         withFile { (file, writer) =>
             val props = new Properties() with OptionProperties
-            props.setProperty("sf.serverurl", "val1")
+            props.setProperty("test.key1", "val1")
             props.store(writer, "")
 
-            appConfig.load(List("--config=" + file.getAbsolutePath, "--config=" + file.getAbsolutePath, "--sf.serverurl=val2"))
-            assertResult(Some("val2")) { appConfig.getProperty("sf.serverurl") }
+            appConfig.load(List("--config=" + file.getAbsolutePath, "--config=" + file.getAbsolutePath, "--test.key1=val2"))
+            assertResult(Some("val2")) { appConfig.getProperty("test.key1") }
         }
     }
 

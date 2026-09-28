@@ -19,7 +19,6 @@
 
 package com.neowit.apex
 
-import com.neowit.auth.{LoginPasswordCredentials, OAuthConsumer, Oauth2Credentials}
 import com.neowit.utils._
 
 object Connection extends Logging {
@@ -66,26 +65,7 @@ object Connection extends Logging {
     }
 
     private def getConnectionConfig (appConfig: ConfigWithSfdcProject) = {
-        val config = initConnectorConfig(appConfig.basicConfig)
-
-        appConfig.getAuthConfig match {
-            case Some(credentials @ LoginPasswordCredentials(username, password, _)) =>
-                config.setUsername(username)
-                config.setPassword(password)
-
-                val endpoint = credentials.getSoapEndpoint(appConfig.apiVersion)
-                config.setAuthEndpoint(endpoint)
-                config.setServiceEndpoint(endpoint)
-            case Some(credentials @ Oauth2Credentials(tokens)) =>
-                tokens.access_token.foreach(config.setSessionId(_))
-                val endpoint = credentials.getSoapEndpoint(appConfig.apiVersion)
-                config.setAuthEndpoint(endpoint)
-                config.setServiceEndpoint(endpoint)
-            case None =>
-                throw new ConfigValueException("Please provide username/password/serverurl configuration or login explicitly using 'login' command.")
-        }
-
-        config
+        initConnectorConfig(appConfig.basicConfig)
     }
 
     private def setClient(connection: com.sforce.soap.partner.PartnerConnection): com.sforce.soap.partner.PartnerConnection = {
@@ -95,49 +75,17 @@ object Connection extends Logging {
         connection
     }
 
-    def createPartnerConnectionWithRefreshToken(appConfig: ConfigWithSfdcProject, oauthCredentials: Oauth2Credentials ):Either[String, com.sforce.soap.partner.PartnerConnection] = {
-        logger.debug("Creating NEW Partner Connection using OAuth2 refresh token")
-
-        val connectionConfigOpt =
-            for {
-                env <- oauthCredentials.getEnvironment
-                oauth2RefreshToken <- oauthCredentials.tokens.refresh_token
-            } yield {
-                ConnectedAppKeys.load() match {
-                    case Some(keys) =>
-                        val consumer = new OAuthConsumer(appConfig.basicConfig, env, keys.consumerKey, keys.consumerSecret, keys.callbackUrl )
-                        consumer.refreshTokens(oauth2RefreshToken) match {
-                            case Right(tokens) =>
-                                appConfig.saveAccessToken(tokens)
-                                val connectionConfig = getConnectionConfig(appConfig)
-                                Right(connectionConfig)
-                            case Left(ex) =>
-                                Left("1. Unable to refresh connection. Please login again.")
-                        }
-                    case None =>
-                        Left("Invalid jar file, missing consumer key/secret configuration")
-                }
-
-            }
-        connectionConfigOpt match {
-            case Some(Right(connectionConfig)) =>
-                Right(setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig)))
-            case Some(Left(error)) =>
-                Left(error)
-            case None =>
-                Left("2. Unable to refresh connection. Please login again.")
-        }
-
-    }
-
     def createPartnerConnection(appConfig: ConfigWithSfdcProject ):com.sforce.soap.partner.PartnerConnection = {
         logger.debug("Creating NEW Partner Connection")
 
         val connectionConfig = getConnectionConfig(appConfig)
+        val token = com.neowit.auth.SfCliAuth.fetchToken(appConfig)
+        connectionConfig.setSessionId(token.accessToken)
+        connectionConfig.setServiceEndpoint(token.instanceUrl.stripSuffix("/") + "/services/Soap/u/" + appConfig.apiVersion)
         setClient(com.sforce.soap.partner.Connector.newConnection(connectionConfig))
     }
     def getPartnerConnection(appConfig: ConfigWithSfdcProject, sessionId: String, serviceEndpoint: String):com.sforce.soap.partner.PartnerConnection = {
-        val connectionConfig = getConnectionConfig(appConfig)
+        val connectionConfig = initConnectorConfig(appConfig.basicConfig)
         connectionConfig.setSessionId(sessionId)
         connectionConfig.setServiceEndpoint(serviceEndpoint)
         val connection = com.sforce.soap.partner.Connector.newConnection(connectionConfig)
@@ -209,7 +157,6 @@ object Connection extends Logging {
         //Tooling api can not connect on its own (something is wrong with the jar which wsc generates)
         //having to use a workaround - connect via SOAP and then use obtained session for Tooling connection
         connectionConfig.setSessionId(partnerConnectionConfig.getSessionId)
-        connectionConfig.setAuthEndpoint(partnerConnectionConfig.getAuthEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
         connectionConfig.setServiceEndpoint(partnerConnectionConfig.getServiceEndpoint.replace("/services/Soap/u/", "/services/Soap/T/"))
 
         val toolingConnection = com.sforce.soap.tooling.Connector.newConnection(connectionConfig)
@@ -260,4 +207,3 @@ object Connection extends Logging {
         connection
     }
 }
-

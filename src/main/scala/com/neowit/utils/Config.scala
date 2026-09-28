@@ -23,8 +23,6 @@ import com.neowit.apex.AppVersion
 
 import java.util.Properties
 import java.io.{File, FileWriter, OutputStream}
-import java.nio.file.{Files, Paths}
-import com.neowit.auth._
 import com.neowit.response.ResponseWriter
 import com.neowit.response.protocols.vim.ResponseWriterVim
 import com.neowit.utils.FileUtils.UTF_8
@@ -33,7 +31,6 @@ import com.neowit.utils.FileUtils.UTF_8
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
 
-import spray.json._
 
 class InvalidCommandLineException(msg: String)  extends IllegalArgumentException(msg: String)
 class MissingRequiredConfigParameterException(msg:String) extends IllegalArgumentException(msg: String)
@@ -190,13 +187,8 @@ Command line parameters
 Example:
  java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties
 
-OR if sfdc login/pass are in a different file
- java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --config=/path/to/credentials.properties
-
-
-In the following example username user@domain.com specified in the command line will be used,
-regardless of whether it is also specified in config file or not
- java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --sf.username=user@domain.com
+Salesforce CLI authentication:
+ java -jar "/path/to/tooling-force.com-0.1.jar" --action=refresh --config=/path/to/myconf.properties --sf.orgAlias=my-org
 
                  """)
     }
@@ -221,7 +213,7 @@ regardless of whether it is also specified in config file or not
 
 }
 
-class Config(val basicConfig: BasicConfig) extends OAuth2JsonSupport with Logging{
+class Config(val basicConfig: BasicConfig) extends Logging {
 
     val apiVersion:Double = AppVersion.SFDC_API_VERSION
 
@@ -277,51 +269,10 @@ class ConfigWithSfdcProject(override val basicConfig: BasicConfig) extends Confi
 
     }
 
-    def getAuthConfig: Option[AuthCredentials] = {
-        getProperty("authConfigPath") match {
-            case Some(authConfigPath) =>
-                // user provided explicit auth config
-                val path = Paths.get(authConfigPath)
-                if (!Files.isReadable(path)) {
-                    throw new ConfigValueException("Specified 'authConfigPath' does not point to readable file: " + authConfigPath)
-                }
-                AuthCredentials.load(path) match {
-                    case Some(credentials) => Option(credentials)
-                    case None =>
-                        throw new ConfigValueException("Specified 'authConfigPath' does not point to supported auth type: " + authConfigPath)
-                }
-            case None =>
-                // try to load login/pass/server from main configuration
-                getProperty("sf.username").flatMap{ username =>
-                    getProperty("sf.password").flatMap{ password =>
-                        getProperty("sf.serverurl").map{serverUrl =>
-                            LoginPasswordCredentials(username, password, serverUrl)
-                        }
-                    }
-                }
-        }
+    lazy val orgAlias: String = getProperty("sf.orgAlias").filter(_.nonEmpty).getOrElse {
+        throw new MissingRequiredConfigParameterException("sf.orgAlias is required. Run sf org login web --alias <alias> and set sf.orgAlias")
     }
-
-    def saveAccessToken(tokens: Oauth2Tokens): Unit = {
-        getProperty("authConfigPath") match {
-            case Some(authConfigPath) =>
-                // user provided explicit auth config
-                val path = Paths.get(authConfigPath)
-                if (!Files.isWritable(path)) {
-                    throw new ConfigValueException("Specified 'authConfigPath' does not point to readable file: " + authConfigPath)
-                }
-                getAuthConfig match {
-                    case Some(credentials @ Oauth2Credentials(_)) =>
-                        val updatedTokens = credentials.tokens.copy(access_token = tokens.access_token)
-                        FileUtils.writeFile(updatedTokens.toJson.prettyPrint, path.toFile)
-                    case _ =>
-                    //not oauth, do nothing
-                }
-            case None =>
-                // do nothing
-        }
-
-    }
+    lazy val cliPath: String = getProperty("sf.cliPath").filter(_.nonEmpty).getOrElse("sf")
 
     /*
      * generates specified folders nested in the main outputFolder

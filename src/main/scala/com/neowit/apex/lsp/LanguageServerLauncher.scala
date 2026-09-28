@@ -41,8 +41,8 @@ object LanguageServerLauncher extends Logging {
         // consume arguments
         LanguageServerConfig.parse(args, LanguageServerConfig()) match {
             case Some(config) =>
-                if (config.authConfigDirPath.isEmpty && config.authConfigPath.isEmpty) {
-                    parser.reportError("'authConfigDirPath' or 'authConfigPath' is required.")
+                if (config.orgAlias.isEmpty) {
+                    parser.reportError("'orgAlias' is required. Run sf org login web --alias <alias>.")
                 } else {
                     config.communicationMethod match {
                         case "socket" =>

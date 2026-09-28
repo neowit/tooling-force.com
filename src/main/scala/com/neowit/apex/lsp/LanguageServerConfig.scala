@@ -19,8 +19,6 @@
 
 package com.neowit.apex.lsp
 
-import java.nio.file.{Files, Paths}
-
 import com.neowit.apex.AppVersion
 import scopt.OptionParser
 
@@ -31,8 +29,8 @@ case class LanguageServerConfig(
                                    communicationMethod:String = "socket",
                                    host:String = "localhost",
                                    port:Int = -1,
-                                   authConfigDirPath: String = "",
-                                   authConfigPath: String = ""
+                                   orgAlias: String = "",
+                                   cliPath: String = ""
                                )
 
 object LanguageServerConfig {
@@ -50,18 +48,12 @@ object LanguageServerConfig {
             .validate(p =>
                 if (p > 0 && p <= 65535) success else failure("invalid 'port' ")
             )
-        opt[String]('a', "authConfigDirPath").action( (x, c) =>
-            c.copy(authConfigDirPath = x) )
-            .text(
-                "Full path to directory containing oauth2 configuration files. "
-            )
-            .validate(p => if (Files.exists(Paths.get(p))) success else failure("Check 'authConfigDirPath'"))
-        opt[String]('a', "authConfigPath").action( (x, c) =>
-            c.copy(authConfigPath = x) )
-            .text(
-                "Full path to oauth2 configuration file. If specified then authConfigDirPath is ignored."
-            )
-            .validate(p => if (Files.exists(Paths.get(p))) success else failure("Check 'authConfigPath'"))
+        opt[String]("orgAlias").action( (x, c) =>
+            c.copy(orgAlias = x) )
+            .text("Salesforce CLI org alias")
+            .validate(p => if (p.nonEmpty) success else failure("'orgAlias' must not be empty"))
+        opt[String]("cliPath").action( (x, c) =>
+            c.copy(cliPath = x) ).text("Salesforce CLI executable path")
 
     }
 

@@ -32,7 +32,6 @@ object ActionFactory {
     private val REGISTERED_ACTIONS = Map[String, String](
         "version" -> "com.neowit.apex.AppVersion",
         "serverStart" -> "com.neowit.ServerStart",
-        "login" -> "LoginOauth",
         "refresh" -> "RefreshMetadata",
         "renameMetadata" -> "RenameMetadata",
         "listModified" -> "ListModified",
@@ -47,6 +46,7 @@ object ActionFactory {
         "describeMetadata" -> "DescribeMetadata",
         "bulkRetrieve" -> "BulkRetrieve",
         "diffWithRemote" -> "DiffWithRemote",
+        "refreshFile" -> "RefreshFile",
         "listMetadata" -> "ListMetadata",
         "executeAnonymous" -> "ExecuteAnonymous",
         "deleteMetadata" -> "DeployDestructive",
@@ -303,7 +303,6 @@ trait ActionHelp {
 abstract class AbstractActionHelp(parentActionHelp: ActionHelp) extends ActionHelp {
     def getParentActionHelp: ActionHelp = parentActionHelp
 }
-
 
 
 

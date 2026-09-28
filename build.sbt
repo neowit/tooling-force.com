@@ -37,10 +37,10 @@ resolvers ++= Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 )
 
-val sfdcAPIVersion = "63.0.0"
+val sfdcAPIVersion = "67.0.0"
 //see: https://central.sonatype.com/namespace/com.force.api
 libraryDependencies ++= Seq(
-    "com.force.api" % "force-wsc" % "63.0.0",
+    "com.force.api" % "force-wsc" % "67.0.0",
     "com.force.api" % "force-partner-api" % sfdcAPIVersion,
     "com.force.api" % "force-metadata-api" % sfdcAPIVersion,
     "com.force.api" % "force-apex-api" % sfdcAPIVersion
@@ -51,6 +51,8 @@ libraryDependencies ++= Seq(
 //libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 //libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.21"
 
+libraryDependencies += "org.antlr" %  "antlr4-runtime" % "4.13.1"
+
 libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.1.1" % "test",
     "com.typesafe.akka" %% "akka-actor" % "2.6.9"
@@ -58,12 +60,6 @@ libraryDependencies ++= Seq(
 
 
 libraryDependencies += "io.spray" %%  "spray-json" % "1.3.5"
-
-// embedded web server
-val jettyVersion="9.4.0.v20161208"
-libraryDependencies ++= Seq(
-    "org.eclipse.jetty" % "jetty-webapp" % jettyVersion
-)
 
 //exportJars := true
 

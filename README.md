@@ -29,7 +29,6 @@ Also supported a "project like" mode - where relevant metadata about deployments
 - Conflict checking before deployment (test if file(s) you are trying to deploy have been modified by someone else in SFDC since your last Refresh or Deployment.
 - list candidates for [Apex](http://youtu.be/u-6JQNuWRdE) and [SOQL](http://youtu.be/rzqgXV3Gx0s) auto-completion (note: current version is "work in progress")
 - find definition (go-to-symbol) in apex classes  
-- login using username/password or oauth2  
 
 
 ## System requirements
@@ -46,6 +45,21 @@ Assuming .jar file name is `tooling-force.com-0.1.jar` you can run it like so:
 This will display main help and list of supported commands/actions. In order to get help for specific command run it like so:  
 
     java -jar tooling-force.com-0.1.jar --help=<action-name>
+
+## Salesforce CLI setup
+
+1. Install [Salesforce CLI v2](https://developer.salesforce.com/tools/salesforcecli).
+2. Authenticate in a browser and assign an org alias:
+
+       sf org login web --alias my-org
+
+3. Set the alias in your configuration or command line:
+
+       sf.orgAlias = my-org
+
+The CLI handles token refresh; no connected app or credentials file is needed. If the executable is not named `sf` or is not on `PATH`, set the optional `sf.cliPath` property. On Windows, if lookup fails, set it to the full path to `sf.exe`; the `.cmd` npm shim cannot be launched directly. For headless or CI environments, use a non-interactive login option supported by `sf org login --help` and configure its alias the same way.
+
+Winter 27 compatibility requires Salesforce CLI authentication. Username/password and OAuth2 file authentication have been removed.
 
 
 ### Proxy
@@ -70,7 +84,5 @@ Third-Party Licenses:
 * [Akka](http://akka.io/) - [Apache 2.0 License](http://www.apache.org/licenses/)  
 * [ANTLR 4](http://www.antlr.org/) - [BSD license](http://www.antlr.org/license.html)  
 * [spray-json](https://github.com/spray/spray-json) - [Apache 2.0 License](http://www.apache.org/licenses/)  
-* [jetty](https://www.eclipse.org/jetty/) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)  
 * [scala-logging](https://github.com/lightbend/scala-logging) - [Apache License 2.0 and Eclipse Public License 1.0](https://www.eclipse.org/jetty/licenses.html)  
 * [Logback](https://logback.qos.ch/license.html) - logback source code and binaries are dual-licensed under the EPL v1.0 and the LGPL 2.1  
-

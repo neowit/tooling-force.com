@@ -20,7 +20,7 @@
 package com.neowit.apex.lsp
 
 import java.io.{File, InputStream, OutputStream}
-import java.nio.file.{FileSystems, Path}
+import java.nio.file.Path
 
 import com.neowit.apex.lsp.WorkspaceCommand._
 import com.neowit.apex.{Executor, ProjectsCache, Session}
@@ -69,7 +69,7 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
                     case Left(err) => throw new IllegalArgumentException("Failed to parse initializationOptions: " + err.message)
                 }
             case None =>
-                createProject(params, InitializationOptions(authConfigPath = None))
+                createProject(params, InitializationOptions(orgAlias = None, cliPath = None))
         }
     }
 
@@ -85,23 +85,16 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
     private def createProject(params: MessageParams.InitializeParams, options: InitializationOptions): Either[String, Project] = {
         Project.findApexProjectRoot(params.rootUri.path) match {
             case Some(projectPath) =>
-                val authConfigurationFilePath = getAuthConfigFilePath(options, projectPath, config)
-                authConfigurationFilePath match {
-                    case Some(authConfigPath) =>
-                        val authConfig = new File(authConfigPath)
-                        if (authConfig.canRead) {
-                            val basicConfig: BasicConfig = new BasicConfig()
-                            basicConfig.setProperty("authConfigPath", authConfigPath)
-                            //val config: ConfigWithSfdcProject = new ConfigWithSfdcProject(basicConfig)
-                            val session: Session = new Session(basicConfig, isReadOnly = true)
-                            Right(ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib = true))
-                        } else {
-                            val err = "Failed to create project - authConfigPath is invalid or not readable: " + authConfigPath
-                            logger.error(err)
-                            Left(err)
-                        }
+                val orgAlias = getOrgAlias(options, config)
+                orgAlias match {
+                    case Some(alias) =>
+                        val basicConfig: BasicConfig = new BasicConfig()
+                        basicConfig.setProperty("sf.orgAlias", alias)
+                        options.cliPath.orElse(Option(config.cliPath).filter(_.nonEmpty)).foreach(basicConfig.setProperty("sf.cliPath", _))
+                        val session: Session = new Session(basicConfig, isReadOnly = true)
+                        Right(ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib = true))
                     case None =>
-                        val err = "Failed to create project - auth Configuration Path is required. "
+                        val err = "Failed to create project - orgAlias is required. Run sf org login web --alias <alias>."
                         logger.error(err)
                         Left(err)
                 }
@@ -112,25 +105,8 @@ class ApexLanguageServerBase(inputStream: InputStream, outputStream: OutputStrea
         }
     }
 
-    private def getAuthConfigFilePath(options: InitializationOptions, projectPath: Path, config: LanguageServerConfig): Option[String] = {
-        val authConfigPath = options.authConfigPath.getOrElse(config.authConfigPath)
-
-         if (null != authConfigPath && authConfigPath.nonEmpty) {
-             Option(authConfigPath)
-         } else {
-             //fall back to config.authConfigDirPath / <projectName>
-             ApexLanguageServerBase.findProjectName(projectPath) match {
-                 case Some(projectName) =>
-                     if (config.authConfigDirPath.nonEmpty && null != projectName && projectName.nonEmpty) {
-                         val authConfigurationFilePath = FileSystems.getDefault.getPath(config.authConfigDirPath, projectName)
-                         Option(authConfigurationFilePath.toString)
-                     } else {
-                         None
-                     }
-                 case None =>
-                     None
-             }
-         }
+    private def getOrgAlias(options: InitializationOptions, config: LanguageServerConfig): Option[String] = {
+        options.orgAlias.orElse(Option(config.orgAlias).filter(_.nonEmpty))
     }
 
     override def executeCommand(messageId: Int, params: MessageParams.ExecuteCommandParams, projectOpt: Option[Project]): Future[ResponseMessage] = {

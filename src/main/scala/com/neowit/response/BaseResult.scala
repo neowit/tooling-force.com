@@ -24,7 +24,6 @@ import java.io.File
 import com.neowit.apex.ProcessedTestFailure
 import com.neowit.apex.actions._
 import com.neowit.apex.parser.Member
-import com.neowit.auth.Oauth2Tokens
 import com.neowit.utils.JsonSupport
 import spray.json._
 
@@ -65,10 +64,8 @@ case class DiffWithRemoteResult(report: DiffWithRemoteReport) extends BaseResult
 case class ExecuteAnonymousResult(errors: List[DeploymentError], stackTraceOpt: Option[String], logFileOpt: Option[File], repeatCount: Int) extends BaseResult
 case class ListConflictingResult(conflictReport: DeploymentConflictsReport) extends BaseResult
 case class ListModifiedResult(modified: List[File], deleted: List[File]) extends BaseResult
-case class LoginOauthResult(tokens: Option[Oauth2Tokens], resultFileOpt: Option[File]) extends BaseResult
 case class RefreshMetadataResult(retrieveResult: Option[UpdateFromRetrieveResult], modifiedFiles: List[File]) extends BaseResult
 case class SoqlQueryResult(queryReport: SoqlQueryReport) extends BaseResult
 case class LoadApexCodeCoverageAggregateResult(coverageReport: CodeCoverageReport) extends BaseResult
 case class GuessSetupUrlResult(url: String) extends BaseResult
 case class RenameMetadataResult(errors: List[String]) extends BaseResult
-

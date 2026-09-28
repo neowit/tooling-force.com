@@ -152,9 +152,7 @@ abstract class Deploy extends ApexActionWithWritableSession {
      * 2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
      * 3. config.properties file:
      *
-     *      # this is a config file with SFDC Org access details
-     *      sf.username = ...
-     *      sf.password = ...
+      *      sf.orgAlias = my-org
      *      deployOptions.allowMissingFiles = true
      *      deployOptions.autoUpdatePackage = true
      *
@@ -349,9 +347,7 @@ class DeployModified extends Deploy {
               |     2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
               |     3. config.properties file:
               |
-              |          # this is a config file with SFDC Org access details
-              |          sf.username = ...
-              |          sf.password = ...
+               |          sf.orgAlias = my-org
               |          deployOptions.allowMissingFiles = true
               |          deployOptions.autoUpdatePackage = true
               |
@@ -1186,9 +1182,7 @@ class DeployDestructive extends Deploy {
               |     2. java command line: java -DdeployOptions.allowMissingFiles=true -DdeployOptions.autoUpdatePackage=false ...
               |     3. config.properties file:
               |
-              |          # this is a config file with SFDC Org access details
-              |          sf.username = ...
-              |          sf.password = ...
+               |          sf.orgAlias = my-org
               |          deployOptions.allowMissingFiles = true
               |          deployOptions.autoUpdatePackage = true
               |

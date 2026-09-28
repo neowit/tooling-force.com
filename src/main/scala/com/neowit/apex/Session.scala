@@ -36,7 +36,6 @@ import java.io._
 import com.neowit.TcpServer
 import com.neowit.apex.LogUtils.{ApexLogInfoCreatorProvider, MetadataLogInfoCreatorProvider, ToolingLogInfoCreatorProvider}
 import com.neowit.apex.actions.{ActionError, DescribeMetadata}
-import com.neowit.auth.{LoginPasswordCredentials, Oauth2Credentials}
 
 import scala.util.{Failure, Success, Try}
 
@@ -135,24 +134,15 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
 
     //hash is used to check if current session Id was generated against current set of login credentials
     private def getHash: String = {
-        config.getAuthConfig match {
-            case Some(credentials) => credentials.hashCode().toString
-            case None =>
+        try (config.orgAlias + "|" + config.cliPath).hashCode.toString
+        catch {
+            case _: Throwable =>
                 // generate random number, to make sure it does nto match any existing (real) hash
                 val random = new SecureRandom()
                 val bytes = new Array[Byte](8)
                 random.nextBytes(bytes).toString
         }
     }
-
-    /*
-    private def getHash(tokens: Oauth2Tokens): String = {
-        val md5 = MessageDigest.getInstance("SHA-256")
-        md5.reset()
-        val str = tokens.id.getOrElse("")
-        md5.digest(str.getBytes("UTF-8")).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
-    }
-    */
 
 
     override def hashCode(): Int = getHash.hashCode
@@ -185,30 +175,6 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
         storeSessionData(allowWrite)
     }
 
-    /*
-    def storeConnectionData(tokens: Oauth2Tokens, environment: String, allowWrite: Boolean) {
-        if (isReadOnly && !allowWrite) {
-            throw new IllegalAccessError("Attempted to write in Read/Only session")
-        }
-        if (!callingAnotherOrg) {
-            getStoredSession
-            sessionProperties.setJsonData("session", Map(
-                "sessionId" -> tokens.access_token.getOrElse(""),
-                "refresh_token" -> tokens.refresh_token.getOrElse(""),
-                "instance_url" -> tokens.instance_url.getOrElse(""),
-                "serviceEndpoint" -> (tokens.instance_url.getOrElse("") + "/services/Soap/u/" + config.apiVersion + "/" + tokens.getOrgId.getOrElse("")),
-                "authType" -> "oauth2",
-                "hash" -> getHash,
-                "env" -> environment //login.salesforce.com or test.salesforce.com
-            ))
-            sessionProperties.remove("UserInfo")
-        } else {
-            sessionProperties.remove("session")
-            sessionProperties.remove("UserInfo")
-        }
-        storeSessionData(allowWrite)
-    }
-    */
     def setData(key: String, data: Map[String, Any]): AnyRef = {
         if (isReadOnly) {
             throw new IllegalAccessError("Attempted to modify Read/Only session")
@@ -530,20 +496,9 @@ class Session(val basicConfig: BasicConfig, isReadOnly: Boolean = true) extends 
                       //use cached data
                       Connection.getPartnerConnection(config, sessionId, serviceEndpoint)
                   case _ =>
-                      val _conn =
-                      config.getAuthConfig match {
-                          case Some(LoginPasswordCredentials(_, _, _)) =>
-                              //login explicitly
-                              Connection.createPartnerConnection(config)
-
-                          case Some(credentials @ Oauth2Credentials(_)) =>
-                              Connection.createPartnerConnectionWithRefreshToken(config, credentials) match {
-                                  case Right(newConnection) => newConnection
-                                  case Left(err) => throw new ConfigValueException(err)
-                              }
-                          case None =>
-                              throw new ConfigValueException("Please provide username/password/serverurl configuration or login explicitly using 'login' command.")
-                      }
+                       if (config.orgAlias.isEmpty)
+                           throw new MissingRequiredConfigParameterException("sf.orgAlias is required. Run sf org login web --alias <alias> and set sf.orgAlias")
+                       val _conn = Connection.createPartnerConnection(config)
                       storeConnectionData(_conn.getConfig, allowWrite = true)
                       _conn
               }

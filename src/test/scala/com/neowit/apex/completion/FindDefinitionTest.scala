@@ -21,11 +21,11 @@
 
 package com.neowit.apex.completion
 
-import java.io.{File, FileInputStream}
+import java.io.File
 import java.nio.file.{Path, Paths}
 import java.util.Properties
 
-import com.neowit.apex.{PathUtils, ProjectsCache, Session}
+import com.neowit.apex.{ProjectsCache, Session}
 import com.neowit.apexscanner.Project
 import com.neowit.apexscanner.antlr.CaretUtils
 import com.neowit.apexscanner.ast.QualifiedName
@@ -232,14 +232,11 @@ class FindDefinitionTest extends AnyFunSuite {
                     case None =>
                         val is = getClass.getClassLoader.getResource("paths.properties").openStream()
                         val paths = new Properties()
-                        paths.load(is)
-
-                        val loginCredentialsPath = PathUtils.expand( paths.getProperty("loginCredentialsPath") )
-                        val loginProperties = new Properties()
-                        loginProperties.load(new FileInputStream(loginCredentialsPath))
-
+                        try paths.load(is) finally is.close()
+                        val orgAlias = Option(paths.getProperty("sf.orgAlias")).filter(_.nonEmpty).getOrElse("test-org")
                         val basicConfig: BasicConfig = new BasicConfig()
-                        basicConfig.setProperty("authConfigPath", loginCredentialsPath)
+                        basicConfig.setProperty("sf.orgAlias", orgAlias)
+                        Option(paths.getProperty("sf.cliPath")).filter(p => null != p && p.nonEmpty).foreach(p => basicConfig.setProperty("sf.cliPath", p))
                         //val config: ConfigWithSfdcProject = new ConfigWithSfdcProject(basicConfig)
                         val session: Session = new Session(basicConfig, isReadOnly = true)
                         ProjectsCache.getProject(projectPath.toFile, session, loadStdLib = true, loadSobjectLib )

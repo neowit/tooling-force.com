@@ -28,4 +28,4 @@ trait LSPJsonSupport {
     implicit val RequestMessageDecoder: Decoder[InitializationOptions] = deriveDecoder
 }
 
-case class InitializationOptions(authConfigPath: Option[String])
+case class InitializationOptions(orgAlias: Option[String], cliPath: Option[String])
